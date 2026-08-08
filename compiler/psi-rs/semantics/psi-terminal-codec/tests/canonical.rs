@@ -7,11 +7,11 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
+    MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, SemanticVersion,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, migrate_module_to_current, semantic_fingerprint,
@@ -32,11 +32,50 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "b83def13b9804b30e35ea9e88192cddfa89c184b8fd4ae80c3f774b97369e830"
+        "3f8536f19fe5f4458bd5574b85d0c4351cd039a928cea4c02eef0cf7e7470f90"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn v22_crash_round_trips_and_every_semantic_field_enters_identity() {
+    let mut module = fixture();
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: edge_id(2),
+        cause: CrashCause::Trap,
+        damage_scope: "Activation".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let bytes = encode_module(&module).expect("v22 crash encodes");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    let baseline = semantic_fingerprint(&module).expect("crash identity");
+    if let Terminator::Crash { cause, .. } = &mut module.machines[0].blocks[1].terminator {
+        *cause = CrashCause::Abort;
+    } else {
+        unreachable!()
+    }
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed cause identity"),
+        baseline
+    );
+    if let Terminator::Crash {
+        cause,
+        damage_scope,
+        ..
+    } = &mut module.machines[0].blocks[1].terminator
+    {
+        *cause = CrashCause::Trap;
+        *damage_scope = "ExecutionDomain".to_owned();
+    } else {
+        unreachable!()
+    }
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed scope identity"),
+        baseline
     );
 }
 

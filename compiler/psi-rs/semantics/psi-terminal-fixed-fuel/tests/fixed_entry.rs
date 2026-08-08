@@ -4,7 +4,7 @@ use psi_core::{
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
+    Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, SemanticVersion,
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
@@ -113,9 +113,38 @@ fn a_segment_cannot_cross_the_reached_return_to_find_an_unrelated_edge() {
         derive_fixed_segment_fuel(&verified, machine_id(1), block_id(2), edge_id(1)),
         Err(FixedFuelError::SegmentEndNotReached {
             requested: edge_id(1),
-            reached_return: edge_id(2),
+            reached_terminal: edge_id(2),
         })
     );
+}
+
+#[test]
+fn crash_is_an_explicit_fixed_fuel_terminal_edge() {
+    let (mut module, _) = fixture();
+    module.machines[0].contract.ensures.clear();
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: edge_id(2),
+        cause: CrashCause::Abort,
+        damage_scope: "ExecutionDomain".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("crash-ending module verifies");
+
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(1))
+        .expect("crash is a terminal path for fixed fuel");
+    assert_eq!(certificate.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &certificate).expect("crash certificate recomputes");
+
+    let segments = derive_fixed_safe_point_segments(&verified, machine_id(1))
+        .expect("crash edge closes the final segment");
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[1].end_edge(), edge_id(2));
+    assert_eq!(segments[1].ceiling_units(), 1);
 }
 
 #[test]
@@ -136,7 +165,7 @@ fn safe_point_selection_covers_the_complete_ordered_path() {
     assert_eq!(
         validate_fixed_safe_point_segments(&verified, machine_id(1), &segments[..1]),
         Err(FixedFuelError::CertificateMismatch),
-        "a producer cannot omit the return segment"
+        "a producer cannot omit the final terminal segment"
     );
     let mut reordered = segments;
     reordered.reverse();

@@ -63,7 +63,8 @@ impl TerminalFuelSchedule {
         match terminator {
             Terminator::Jump { .. }
             | Terminator::Conditional { .. }
-            | Terminator::Return { .. } => 1,
+            | Terminator::Return { .. }
+            | Terminator::Crash { .. } => 1,
         }
     }
 }
@@ -195,7 +196,9 @@ impl TerminalFuelMeter {
 
     pub fn charge_terminator(&mut self, terminator: &Terminator) -> Result<(), FuelMeterError> {
         let edge = match terminator {
-            Terminator::Jump { edge, .. } | Terminator::Return { edge, .. } => *edge,
+            Terminator::Jump { edge, .. }
+            | Terminator::Return { edge, .. }
+            | Terminator::Crash { edge, .. } => *edge,
             Terminator::Conditional { .. } => {
                 return Err(FuelMeterError::ConditionalEdgeNotSelected);
             }

@@ -1,6 +1,7 @@
 use omega_interpreter::{
-    TerminalExecution, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
-    interpret_terminal, interpret_terminal_measured, interpret_terminal_with_meter,
+    TerminalCrash, TerminalExecution, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
+    interpret_terminal_with_meter,
 };
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
@@ -10,7 +11,7 @@ use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemVersion,
 };
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
+    Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, SemanticVersion,
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_fuel::{
@@ -207,6 +208,78 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
         TerminalExecutionStatus::Complete(expected)
     );
     assert_eq!(resumable_meter.usage(), &completed_usage);
+}
+
+#[test]
+fn verified_v22_crash_is_a_stable_terminal_outcome() {
+    let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let machine = TerminalMachine {
+        id: MachineId::new(90).expect("machine"),
+        parameters: Vec::new(),
+        result: ValueDeclaration {
+            id: ValueId::new(90).expect("result"),
+            scalar_type: ScalarType::Integer(integer),
+        },
+        structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(90).expect("entry"),
+        blocks: vec![Block {
+            id: BlockId::new(90).expect("entry"),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Crash {
+                edge: EdgeId::new(90).expect("crash edge"),
+                cause: CrashCause::Trap,
+                damage_scope: "Activation".to_owned(),
+                frontier_lower_bound: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(90).expect("contract"),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V22,
+        entry: machine.id,
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![machine],
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the explicit crash exit verifies");
+    let expected = TerminalCrash {
+        cause: CrashCause::Trap,
+        damage_scope: "Activation".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+
+    assert_eq!(
+        interpret_terminal(&verified, &[]),
+        Err(TerminalInterpretError::Crash(expected.clone()))
+    );
+
+    let mut execution = TerminalExecution::start(&verified, &[]).expect("execution starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).expect("crash is an outcome"),
+        TerminalExecutionStatus::Crashed(expected.clone())
+    );
+    assert_eq!(meter.usage().total_units(), 1);
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("crash remains terminal"),
+        TerminalExecutionStatus::Crashed(expected)
+    );
+    assert_eq!(meter.usage().total_units(), 1, "crash must not replay");
 }
 
 #[test]

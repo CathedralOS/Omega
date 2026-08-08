@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use psi_core::{BlockId, IntegerType, IntegerValue, ScalarType, ValueId};
-use psi_terminal::{Block, OperationKind, Terminator};
+use psi_core::{BlockId, ClaimId, IntegerType, IntegerValue, ScalarType, ValueId};
+use psi_terminal::{Block, CrashCause, OperationKind, Terminator};
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
@@ -66,6 +66,7 @@ pub fn interpret_terminal_with_meter(
         TerminalExecutionStatus::SponsorExhausted(exhaustion) => Err(TerminalInterpretError::Fuel(
             FuelMeterError::Exhausted(exhaustion),
         )),
+        TerminalExecutionStatus::Crashed(crash) => Err(TerminalInterpretError::Crash(crash)),
     }
 }
 
@@ -80,6 +81,7 @@ pub struct TerminalExecution<'module> {
     current: BlockId,
     next_operation: usize,
     result: Option<TerminalScalarValue>,
+    crash: Option<TerminalCrash>,
 }
 
 impl<'module> TerminalExecution<'module> {
@@ -128,6 +130,7 @@ impl<'module> TerminalExecution<'module> {
             current: machine.entry,
             next_operation: 0,
             result: None,
+            crash: None,
         })
     }
 
@@ -137,6 +140,9 @@ impl<'module> TerminalExecution<'module> {
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(result) = self.result {
             return Ok(TerminalExecutionStatus::Complete(result));
+        }
+        if let Some(crash) = &self.crash {
+            return Ok(TerminalExecutionStatus::Crashed(crash.clone()));
         }
 
         loop {
@@ -686,6 +692,23 @@ impl<'module> TerminalExecution<'module> {
                     self.result = Some(result);
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
+                Terminator::Crash {
+                    cause,
+                    damage_scope,
+                    frontier_lower_bound,
+                    ..
+                } => {
+                    if let Err(error) = meter.charge_terminator(&block.terminator) {
+                        return meter_status(error);
+                    }
+                    let crash = TerminalCrash {
+                        cause: *cause,
+                        damage_scope: damage_scope.clone(),
+                        frontier_lower_bound: frontier_lower_bound.clone(),
+                    };
+                    self.crash = Some(crash.clone());
+                    return Ok(TerminalExecutionStatus::Crashed(crash));
+                }
             }
         }
     }
@@ -700,10 +723,22 @@ fn meter_status(error: FuelMeterError) -> Result<TerminalExecutionStatus, Termin
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalExecutionStatus {
     Complete(TerminalScalarValue),
     SponsorExhausted(FuelExhaustion),
+    Crashed(TerminalCrash),
+}
+
+/// The explicit terminal-Psi crash outcome reached by an execution.
+///
+/// `frontier_lower_bound` is the machine-local claim frontier recorded by the
+/// artifact. It is not an assertion that no wider runtime state was abandoned.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalCrash {
+    pub cause: CrashCause,
+    pub damage_scope: String,
+    pub frontier_lower_bound: Vec<ClaimId>,
 }
 
 /// A successful semantic result paired with deterministic terminal-Psi fuel.
@@ -749,6 +784,7 @@ pub enum TerminalInterpretError {
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
     VerifiedValueMissing(ValueId),
+    Crash(TerminalCrash),
     Fuel(FuelMeterError),
 }
 

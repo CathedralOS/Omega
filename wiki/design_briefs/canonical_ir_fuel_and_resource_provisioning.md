@@ -37,7 +37,9 @@ proposition declarations and normalized application identity without adding an
 executable operation. V17 adds total Boolean equality, v18 adds total equality
 over two values of one exact integer type, v19 adds signedness-aware integer
 less-than and less-or-equal, v20 adds total integer bitwise AND, OR, and XOR,
-and current v21 adds wrapping left and signedness-aware right shifts. Shift
+v21 adds wrapping left and signedness-aware right shifts, and current v22 adds
+an explicit no-successor crash terminator with a closed cause, nominal
+damage-scope demand, and machine-local abandoned-frontier lower bound. Shift
 counts retain their own integer type and reduce by Euclidean modulo of the
 shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -53,7 +55,10 @@ wrapping multiplication reduces the product at the declared width, while
 saturating multiplication clamps it at the declared bounds. All six are total
 and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
-execution.
+execution. Reaching a verified crash reports a distinct terminal outcome after
+charging the crash edge once; resumption cannot replay it. Canonical encoding,
+validation, and fuel cover the complete v22 row. Native lowering currently
+rejects crash rows explicitly until target crash plans are represented.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean
@@ -175,7 +180,7 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v21 fingerprint
+execution semantics; explicit migration produces a new current-v22 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through
@@ -239,7 +244,7 @@ exact schedule-keyed usage attributed to stable operation/edge identities; a
 finite sponsor allowance fails atomically before an unpaid site. Explicit
 in-memory execution state resumes at that exact site after checked allowance
 replenishment without replaying prior work. The acyclic subset has an exact
-maximum entry-to-return certificate keyed by semantic identity, entry, and fuel
+maximum entry-to-terminal-exit certificate keyed by semantic identity, entry, and fuel
 schedule; consumers recompute every field without trusting the producer. A
 memoized CFG walk takes the maximum successor cost at each conditional rather
 than summing mutually exclusive arms. The same checker derives exact selected
@@ -329,8 +334,9 @@ records additionally key on the fuel schedule.
 
 ### The representation cut
 
-No current representation is terminal Psi. `CheckedTrees`, `StateGraph`, and
-`ControlFlowPlan` all retain `TypedTrees` expression tables and
+Terminal Psi is live for the closed executable and proof vocabulary described
+above. `CheckedTrees`, `StateGraph`, and `ControlFlowPlan` still retain
+`TypedTrees` expression tables and
 `ExpressionHandle` as executable content. `StateGraph` and `ControlFlowPlan`
 provide useful machine, state, transition, contract, borrow, and ownership
 topology, but the latter is presently mostly a remap of the former rather than

@@ -2,8 +2,9 @@
 
 [Pipeline](pipeline.md)
 
-Status: target architecture settled 2026-08-02. This document records the
-implementation cut and migration from the current bootstrap pipeline. The
+Status: target architecture settled 2026-08-02; implementation checkpoint
+updated 2026-08-07. This document records the implementation cut and migration
+from the current bootstrap pipeline. The
 semantic and evidence contract is owned by
 [`canonical_ir_fuel_and_resource_provisioning.md`](../../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
@@ -45,13 +46,24 @@ logical negation; v16 adds canonical nominal proposition declarations and
 normalized application identities; v17 adds total Boolean equality; v18 adds
 total equality over two values of one exact integer type; v19 adds
 signedness-aware integer less-than and less-or-equal; v20 adds total bitwise
-AND, OR, and XOR over one exact integer type; and current v21 adds wrapping
-left and signedness-aware right shifts. A wrapping shift retains the shifted
-value's exact result type and the count operand's independent integer type;
+AND, OR, and XOR over one exact integer type; v21 adds wrapping left and
+signedness-aware right shifts; and current v22 adds an explicit no-successor
+crash terminator carrying a closed cause, a nominal damage-scope demand, and
+the machine-local claim frontier known to be abandoned. A wrapping shift
+retains the shifted value's exact result type and the count operand's
+independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
-proposition.
+proposition. The current crash row is the first representation slice: the
+verifier requires its frontier to equal every still-live entry claim (terminal
+Psi has no claim-consuming operation yet), direct interpretation reports a
+distinct terminal crash outcome and never replays it after resume, canonical
+bytes and semantic identity cover every field, and fuel charges its edge.
+Omega native lowering rejects the row until target crash plans are represented;
+it never silently treats a crash as a return or ordinary terminal transition.
+Source route buckets, path-conditioned coverage/refinement, nominal scope
+ordering, and installation realization remain the rest of CRASH-CONTRACT.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -684,9 +696,12 @@ applications without adding an operation; version 17 adds total `BooleanEqual`
 operations and recursive scalar terms; version 18 adds total `IntegerEqual`
 operations and recursive scalar terms; version 19 adds distinct
 `IntegerLessThan` and `IntegerLessOrEqual` operations and recursive scalar
-terms; and current version 20 adds distinct `IntegerBitwiseAnd`,
+terms; version 20 adds distinct `IntegerBitwiseAnd`,
 `IntegerBitwiseOr`, and `IntegerBitwiseXor` operations and recursive scalar
-terms.
+terms; version 21 adds total wrapping left and right shifts with an independent
+integer count type; and current version 22 adds the explicit `Crash`
+terminator, closed `Trap`/`Abort` cause, nominal damage-scope demand, and
+canonical machine-local frontier lower bound.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -696,17 +711,17 @@ reconstructs a Boolean result equating their representations. Integer ordering
 has the same operand/result discipline and reconstructs the exact signedness-
 aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Validation and
-execution continue to accept valid v1 through v19 modules under their original
+execution continue to accept valid v1 through v21 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v21 translation.
+`migrate_module_to_current` is an explicit validated older-to-v22 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain archived v1 through v19 identities and
-independently freeze the current v21 fingerprint, v10 identity-reshuffle
+migrated module. Golden tests retain archived v1 through v21 identities and
+independently freeze the current v22 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
 fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, the
@@ -770,13 +785,9 @@ the exact returned-expression site.
 ## Logical-fuel v1
 
 `psi-terminal-fuel` owns the accounting identity independently from terminal
-semantic versioning. Schedule v1 charges one logical unit for each executed
-`IntegerConstant`, `BooleanConstant`, `BooleanNot`, `BooleanEqual`,
-`IntegerEqual`, `WrappingIntegerAdd`,
-`SaturatingIntegerAdd`, `WrappingIntegerSubtract`,
-`SaturatingIntegerSubtract`, `WrappingIntegerMultiply`, or
-`SaturatingIntegerMultiply` and one for each
-taken `Jump` or `Return` edge. The cost table
+semantic versioning. Schedule v1 charges one logical unit for every executed
+operation in the current closed terminal vocabulary and one for every taken
+terminal edge, including conditional successors and `Crash`. The cost table
 matches the closed operation/terminator enums exhaustively, so a new vocabulary
 variant cannot compile without making its schedule treatment explicit. A
 schedule revision changes accounting identity, never terminal semantic bytes or
@@ -796,6 +807,10 @@ earlier work, including in the serialized real-source/native canary. Build-time
 migration, attributed response outcomes, and trusted native block metering
 remain later IRFUEL slices.
 
+A verified crash consumes its one edge unit before producing a distinct
+terminal outcome. Repeated resume reports the same outcome without charging or
+executing the edge again.
+
 The v3 wrapping canary also costs four v1 units: two constants, one addition,
 and one return edge. Semantic-version migration therefore does not imply a fuel
 schedule change. The v4 saturating canary has the same four-unit shape;
@@ -811,8 +826,8 @@ The v8 parameter-fed saturating-multiply canary costs two units and
 reaches both signed `i64` bounds.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. It derives the maximum entry-to-return cost over the verified acyclic
-CFG with no additional precondition assumptions, memoizing shared tails and
+schedule. It derives the maximum entry-to-terminal-exit cost over the verified
+acyclic CFG with no additional precondition assumptions, memoizing shared tails and
 taking the greater successor cost at a conditional rather than summing mutually
 exclusive arms. The certificate keys the canonical terminal-Psi identity,
 entry machine, schedule identity, and ceiling.
@@ -903,7 +918,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v21 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v22 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

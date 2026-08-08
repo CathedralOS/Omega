@@ -40,6 +40,10 @@ use psi_core::{
 /// Version 21 adds total wrapping left and right shifts. The shifted value and
 /// result share one exact integer type; the count retains its own integer type
 /// and is reduced modulo the shifted value's width.
+/// Version 22 adds an explicit no-successor crash terminator. It records the
+/// crash cause, nominal damage-scope demand, and the machine-local claim
+/// frontier known to be abandoned; a crash is never encoded as an ordinary
+/// terminal transition or as an absent cleanup list.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -66,7 +70,8 @@ impl SemanticVersion {
     pub const V19: Self = Self(NonZeroU16::new(19).expect("nineteen is nonzero"));
     pub const V20: Self = Self(NonZeroU16::new(20).expect("twenty is nonzero"));
     pub const V21: Self = Self(NonZeroU16::new(21).expect("twenty-one is nonzero"));
-    pub const CURRENT: Self = Self::V21;
+    pub const V22: Self = Self(NonZeroU16::new(22).expect("twenty-two is nonzero"));
+    pub const CURRENT: Self = Self::V22;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -352,6 +357,24 @@ pub enum Terminator {
     },
     /// Bind the machine's stable result pseudo-value and finish execution.
     Return { edge: EdgeId, value: ValueId },
+    /// Leave checked execution without cleanup or a successor.
+    ///
+    /// `damage_scope` is a portable nominal demand; installation gives it
+    /// physical meaning. `frontier_lower_bound` is deliberately not described
+    /// as the complete process-wide abandonment set: it is the machine-local
+    /// claim frontier the verifier can reconstruct at this site.
+    Crash {
+        edge: EdgeId,
+        cause: CrashCause,
+        damage_scope: String,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CrashCause {
+    Trap,
+    Abort,
 }
 
 impl Terminator {
@@ -361,7 +384,7 @@ impl Terminator {
     /// successor instead of silently treating one arm as the terminator edge.
     pub const fn edge(&self) -> EdgeId {
         match self {
-            Self::Jump { edge, .. } | Self::Return { edge, .. } => *edge,
+            Self::Jump { edge, .. } | Self::Return { edge, .. } | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } => {
                 panic!("a conditional terminator has two successor edges")
             }
@@ -370,7 +393,9 @@ impl Terminator {
 
     pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
         let (first, second) = match self {
-            Self::Jump { edge, .. } | Self::Return { edge, .. } => (*edge, None),
+            Self::Jump { edge, .. } | Self::Return { edge, .. } | Self::Crash { edge, .. } => {
+                (*edge, None)
+            }
             Self::Conditional {
                 when_true,
                 when_false,

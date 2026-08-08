@@ -1,5 +1,5 @@
 use psi_core::{EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
-use psi_terminal::{Operation, OperationKind, Terminator, ValueDeclaration};
+use psi_terminal::{CrashCause, Operation, OperationKind, Terminator, ValueDeclaration};
 use psi_terminal_fuel::{
     FuelChargeSite, FuelExhaustion, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter,
     TerminalFuelSchedule,
@@ -86,6 +86,17 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
         edge: edge_id(2),
         value: value_id(1),
     };
+    let crash_edge = Terminator::Crash {
+        edge: edge_id(3),
+        cause: CrashCause::Abort,
+        damage_scope: "ExecutionDomain".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    assert_eq!(
+        TerminalFuelSchedule::V1.terminator_units(&crash_edge),
+        1,
+        "an explicit crash exit has one schedule-v1 unit"
+    );
     let mut meter = TerminalFuelMeter::unbounded();
 
     meter.charge_operation(&operation).unwrap();

@@ -186,9 +186,14 @@ Remaining:
 - **CRASH-CONTRACT.** Parse `crashes Cause Scope` route clauses and explicit
   `crash Cause;` terminals. Normalize fingerprinted per-cause/per-scope buckets,
   derive path-conditioned crash sites and damage minima, refine routes at calls,
-  and enforce sparse per-cause context maxima. Terminal Psi must carry explicit
-  no-cleanup crash terminators and frontier lower bounds; remove the parser's
-  transitional lowering of contextual `trap` to an ordinary terminal edge.
+  and enforce sparse per-cause context maxima. Terminal Psi v22 now carries an
+  explicit no-successor crash terminator with closed `Trap`/`Abort` cause,
+  nominal damage-scope demand, and a canonical machine-local frontier lower
+  bound; validation, canonical encoding, fuel, and direct interpretation are
+  live, and Omega native lowering rejects it explicitly pending target crash
+  plans. Finish source production and route/context normalization; remove the
+  parser's transitional lowering of contextual `trap` to an ordinary terminal
+  edge.
   Omega installation must bind nominal scopes to a selected fault plan and
   prove the realized scope lies between each surviving route demand and its
   context maximum.

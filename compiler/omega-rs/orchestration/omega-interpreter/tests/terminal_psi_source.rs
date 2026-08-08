@@ -2512,6 +2512,9 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         TerminalExecutionStatus::SponsorExhausted(_) => {
             panic!("one replenished unit should complete the source canary")
         }
+        TerminalExecutionStatus::Crashed(_) => {
+            panic!("the source canary has no crash exit")
+        }
     };
     assert_eq!(meter.usage().schedule().schedule_version(), 1);
     assert_eq!(meter.usage().total_units(), fixed_fuel.ceiling_units());

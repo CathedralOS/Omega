@@ -153,7 +153,7 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                 when_false,
                 ..
             } => vec![when_true.target, when_false.target],
-            Terminator::Return { .. } => Vec::new(),
+            Terminator::Return { .. } | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
             *indegree
@@ -438,12 +438,15 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                 ));
                 exits.push(axioms);
             }
+            // A crash establishes no normal-return guarantee. Its explicit
+            // frontier record is validated structurally before proof replay.
+            Terminator::Crash { .. } => {}
         }
     }
     let mut exits = exits.into_iter();
-    let mut guaranteed = exits
-        .next()
-        .expect("validated acyclic machine has at least one return");
+    let Some(mut guaranteed) = exits.next() else {
+        return Vec::new();
+    };
     for exit in exits {
         guaranteed.retain(|fact| exit.contains(fact));
     }
