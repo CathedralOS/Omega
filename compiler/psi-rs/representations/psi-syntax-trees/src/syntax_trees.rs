@@ -209,9 +209,11 @@ impl SyntaxTrees {
                                 }
                                 crate::item::ConformanceMember::TraitDefault {
                                     declaring_trait,
+                                    requirement_ordinal,
                                     machine,
                                 } => crate::item::ConformanceMember::TraitDefault {
                                     declaring_trait: declaring_trait.clone(),
+                                    requirement_ordinal: *requirement_ordinal,
                                     machine: self.copy_machine(other, machine),
                                 },
                                 crate::item::ConformanceMember::Reference {

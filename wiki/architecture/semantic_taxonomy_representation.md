@@ -445,7 +445,7 @@ NamedTraitConformance {
     subject: ConformanceSubject | None,
     trait,
     name: ConformanceName | Home,
-    rows: [(declaring_trait, requirement) -> ConformanceRow],
+    rows: [(declaring_trait, complete_requirement_overload) -> ConformanceRow],
     laws,
     provenance,
 }
@@ -457,13 +457,15 @@ ConformanceRow =
   | SynthesizedMember { rule, evidence }
 ```
 
-The inherited trait closure determines the required row keys. Each key occurs
-exactly once; an uncovered row uses that conformance's instantiated default or
-rejects. Calls made by a default resolve through the same map. The declaring
-package owns the closed row set, while other packages may declare separately
-named conformances under the ordinary visibility and collision rules. Public
-conformances may retain private member identities because consumers name and
-invoke the authorized conformance surface.
+The inherited trait closure determines the required row keys. Complete overload
+identity includes the normalized parameter signature and dispatch-bearing
+result-domain set; source leaf names never serve as row identity. Each key
+occurs exactly once; an uncovered row uses that exact overload's separately
+instantiated default or rejects. Calls made by a default resolve through the
+same map. The declaring package owns the closed row set, while other packages
+may declare separately named conformances under the ordinary visibility and
+collision rules. Public conformances may retain private member identities
+because consumers name and invoke the authorized conformance surface.
 
 An exact `machine ... satisfies Trait::requirement` realization is a different
 semantic edge. It can supply a provider slot, operator, establishment route, or

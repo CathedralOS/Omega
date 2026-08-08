@@ -75,12 +75,14 @@ pub(crate) fn lower_item(
                                     conformance,
                                     conformance_name,
                                     None,
+                                    None,
                                     machine,
                                     psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
                                 )?);
                             }
                             syntax::item::ConformanceMember::TraitDefault {
                                 declaring_trait,
+                                requirement_ordinal,
                                 machine,
                             } => {
                                 rows.push(lower_closed_machine_row(
@@ -89,6 +91,7 @@ pub(crate) fn lower_item(
                                     conformance,
                                     conformance_name,
                                     Some(declaring_trait),
+                                    Some(*requirement_ordinal),
                                     machine,
                                     psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault,
                                 )?);
@@ -113,12 +116,14 @@ pub(crate) fn lower_item(
                                         ),
                                         requirement: psi_symbols::SymbolHandle::invalid(),
                                         requirement_name: crate::name::lower_name(requirement),
+                                        provisional_requirement_ordinal: None,
                                         realization_machine: psi_symbols::SymbolHandle::invalid(),
                                         realization_state: psi_symbols::SymbolHandle::invalid(),
                                         realization_name:
                                             psi_symbol_resolved_trees::name::DiagnosticName::generated(
                                                 realization_name,
                                             ),
+                                        provisional_realization_ordinal: None,
                                         source: psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
                                     },
                                 );
@@ -192,6 +197,7 @@ fn lower_closed_machine_row(
     conformance: &syntax::item::ConformanceItem,
     conformance_name: &str,
     declaring_trait: Option<&syntax::identifier::Identifier>,
+    requirement_ordinal: Option<usize>,
     machine: &syntax::item::Machine,
     source: psi_symbol_resolved_trees::trait_definition::ConformanceRowSource,
 ) -> Result<psi_symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
@@ -215,6 +221,7 @@ fn lower_closed_machine_row(
             )
         },
     );
+    let realization_ordinal = lowerer.symbol_resolved_trees.machines.len();
     let mut realization = machine.clone();
     realization.name = syntax::identifier::Identifier::generated(realization_name.clone());
     realization.attached_data = Some(conformance.type_name.clone());
@@ -227,11 +234,13 @@ fn lower_closed_machine_row(
                 .unwrap_or_default(),
             requirement: psi_symbols::SymbolHandle::invalid(),
             requirement_name: crate::name::lower_name(&requirement_name),
+            provisional_requirement_ordinal: requirement_ordinal,
             realization_machine: psi_symbols::SymbolHandle::invalid(),
             realization_state: psi_symbols::SymbolHandle::invalid(),
             realization_name: psi_symbol_resolved_trees::name::DiagnosticName::generated(
                 realization_name,
             ),
+            provisional_realization_ordinal: Some(realization_ordinal),
             source,
         },
     )

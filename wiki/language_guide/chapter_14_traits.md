@@ -72,12 +72,15 @@ Card satisfies Ranked as CostOrder {
 }
 ```
 
-Every requirement in the normalized inherited trait closure has one
-trait-qualified row. A member written in the block fills that row. An uncovered
-row uses the trait's default when one exists; otherwise the conformance is
-incomplete and rejects. The compiler never fills a row from a uniquely visible
-or similarly named machine. A default is instantiated for this conformance, so
-calls it makes to other requirements resolve through this same block.
+Every complete requirement overload in the normalized inherited trait closure
+has one trait-qualified row. The row identity includes the declaring trait,
+normalized parameter signature, and dispatch-bearing result-domain set. A
+member written in the block fills the one row matching its complete callable
+shape. An uncovered row uses that exact overload's default when one exists;
+otherwise the conformance is incomplete and rejects. The compiler never fills
+a row from a uniquely visible or similarly named machine. A default is
+instantiated separately for each overload in this conformance, so calls it
+makes to other requirements resolve through this same block.
 
 One existing machine may be shared deliberately by referencing it from
 several blocks. A reference row uses `=` to bind the conformance slot to that
@@ -97,11 +100,12 @@ Card satisfies Ranked as PowerOrder {
 }
 ```
 
-The normalized row key is always `(declaring trait, requirement)`, including
-inherited requirements whose short names collide. Private satisfier machines
-may back a public conformance: callers name the authorized conformance surface,
-not its private realization. Two semantic rows remain distinct even when a
-later lowering safely shares their physical code.
+The normalized row key is always `(declaring trait, complete requirement
+overload identity)`, including inherited requirements whose short names collide
+and same-named overloads whose result-domain selections differ. Private
+satisfier machines may back a public conformance: callers name the authorized
+conformance surface, not its private realization. Two semantic rows remain
+distinct even when a later lowering safely shares their physical code.
 
 Selection happens where concrete code meets an abstract requirement. A unique
 visible home conformance is inferred. If several conformances are eligible,
@@ -484,10 +488,12 @@ A borrowed dynamic value is two runtime words:
 └──────────────────┴──────────────────────────────┘
 ```
 
-The exact requirement identity `(declaring trait, requirement)` selects a table
-slot. Call typing retains that symbol even when the slot is inherited; lowering
-never chooses a row from the leaf spelling alone. The table entry calls the
-matching machine from one selected conformance. When a type has several
+The exact requirement identity `(declaring trait, complete overload identity)`
+selects a table slot. The overload identity includes the normalized parameter
+signature and dispatch-bearing result-domain set described in chapter 3. Call
+typing retains the resulting requirement symbol even when the slot is inherited;
+lowering never chooses a row from the leaf spelling alone. The table entry calls
+the matching machine from one selected conformance. When a type has several
 conformances to the trait, a coercion names the conformance:
 
 ```omega

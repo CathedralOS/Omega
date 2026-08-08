@@ -1,9 +1,12 @@
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbol_resolved_trees::name::DiagnosticName;
+use psi_symbol_resolved_trees::signature::StateSignature;
+use psi_symbol_resolved_trees::state::State;
 use psi_symbol_resolved_trees::trait_definition::{
     ConformanceImplementation, ConformanceRow, ConformanceRowSource,
 };
+use psi_symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use psi_symbols::SymbolHandle;
 
 #[derive(Clone)]
@@ -16,18 +19,21 @@ struct TraitCatalogEntry {
 
 #[derive(Clone)]
 struct RequirementCatalogEntry {
+    ordinal: usize,
     declaring_trait: SymbolHandle,
     declaring_trait_name: DiagnosticName,
     requirement: SymbolHandle,
     requirement_name: DiagnosticName,
     is_default: bool,
+    signature: StateSignature,
 }
 
 #[derive(Clone)]
 struct MachineCatalogEntry {
+    ordinal: usize,
     symbol: SymbolHandle,
     name: DiagnosticName,
-    states: Vec<(DiagnosticName, SymbolHandle)>,
+    states: Vec<State>,
 }
 
 pub(crate) fn normalize_closed_conformance_blocks(
@@ -35,6 +41,24 @@ pub(crate) fn normalize_closed_conformance_blocks(
 ) -> Result<(), Diagnostic> {
     let trait_catalog = build_trait_catalog(program);
     let machine_catalog = build_machine_catalog(program);
+    let synthesized_default_candidates = program
+        .conformances
+        .iter()
+        .flat_map(|conformance| match &conformance.implementation {
+            ConformanceImplementation::LegacyAttachedMachines => Vec::new(),
+            ConformanceImplementation::Closed { rows } => rows
+                .iter()
+                .filter(|row| row.source == ConformanceRowSource::TraitDefault)
+                .filter_map(|row| {
+                    let ordinal = row.provisional_realization_ordinal?;
+                    machine_catalog
+                        .iter()
+                        .find(|machine| machine.ordinal == ordinal)
+                        .map(|machine| machine.symbol)
+                })
+                .collect(),
+        })
+        .collect::<Vec<_>>();
     let normalized = program
         .conformances
         .iter()
@@ -43,6 +67,7 @@ pub(crate) fn normalize_closed_conformance_blocks(
                 Ok(ConformanceImplementation::LegacyAttachedMachines)
             }
             ConformanceImplementation::Closed { rows } => normalize_one(
+                program,
                 conformance.type_name.as_str(),
                 conformance.trait_name.as_str(),
                 rows,
@@ -59,6 +84,31 @@ pub(crate) fn normalize_closed_conformance_blocks(
             .next()
             .expect("one normalized implementation per conformance");
     });
+    let selected_realizations = program
+        .conformances
+        .iter()
+        .flat_map(|conformance| match &conformance.implementation {
+            ConformanceImplementation::LegacyAttachedMachines => Vec::new(),
+            ConformanceImplementation::Closed { rows } => rows
+                .iter()
+                .map(|row| row.realization_machine)
+                .filter(|symbol| symbol.is_valid())
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    let retained_machines = program
+        .machines
+        .iter()
+        .filter(|machine| {
+            !synthesized_default_candidates.contains(&machine.symbol)
+                || selected_realizations.contains(&machine.symbol)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    program.machines = Default::default();
+    for machine in retained_machines {
+        program.machines.push(machine);
+    }
     Ok(())
 }
 
@@ -420,12 +470,15 @@ fn build_trait_catalog(program: &SymbolResolvedTrees) -> Vec<TraitCatalogEntry> 
             requirements: program
                 .trait_machine_signatures(trait_definition.machines)
                 .iter()
-                .map(|requirement| RequirementCatalogEntry {
+                .enumerate()
+                .map(|(ordinal, requirement)| RequirementCatalogEntry {
+                    ordinal,
                     declaring_trait: trait_definition.symbol,
                     declaring_trait_name: trait_definition.name.clone(),
                     requirement: requirement.symbol,
                     requirement_name: requirement.name.clone(),
                     is_default: requirement.is_default,
+                    signature: requirement.clone(),
                 })
                 .collect(),
         })
@@ -436,22 +489,22 @@ fn build_machine_catalog(program: &SymbolResolvedTrees) -> Vec<MachineCatalogEnt
     program
         .machines
         .iter()
-        .map(|machine| MachineCatalogEntry {
+        .enumerate()
+        .map(|(ordinal, machine)| MachineCatalogEntry {
+            ordinal,
             symbol: machine.symbol,
             name: machine.name.clone(),
             states: program
                 .machine_state_handles(machine.states)
                 .iter()
-                .map(|handle| {
-                    let state = program.machine_state(*handle);
-                    (state.name.clone(), state.symbol)
-                })
+                .map(|handle| program.machine_state(*handle).clone())
                 .collect(),
         })
         .collect()
 }
 
 fn normalize_one(
+    program: &SymbolResolvedTrees,
     subject_name: &str,
     trait_name: &str,
     authored_rows: &[ConformanceRow],
@@ -475,17 +528,53 @@ fn normalize_one(
     );
 
     let mut normalized = Vec::new();
-    for authored in authored_rows {
+    // Authored rows own their exact slots. Synthesized defaults are fallback
+    // candidates and normalize only after every authored row, independent of
+    // incidental source-table order.
+    for authored in authored_rows
+        .iter()
+        .filter(|row| row.source != ConformanceRowSource::TraitDefault)
+        .chain(
+            authored_rows
+                .iter()
+                .filter(|row| row.source == ConformanceRowSource::TraitDefault),
+        )
+    {
         let candidates = requirements
             .iter()
-            .filter(|requirement| {
+            .filter(|instance| {
+                let requirement = *instance;
                 requirement.requirement_name == authored.requirement_name
                     && (authored.declaring_trait_name.as_str().is_empty()
                         || requirement.declaring_trait_name == authored.declaring_trait_name)
+                    && authored
+                        .provisional_requirement_ordinal
+                        .is_none_or(|ordinal| requirement.ordinal == ordinal)
             })
             .collect::<Vec<_>>();
-        let requirement = match candidates.as_slice() {
-            [] => {
+        let realizations = resolve_realizations(authored, machine_catalog);
+        let mut matching = Vec::new();
+        for candidate in &candidates {
+            // Legal same-path overload families share one normalized
+            // parameter signature and differ by dispatch-bearing result
+            // domains. The typed conformance validator remains authoritative
+            // for the complete parameter/contract compatibility check; this
+            // pre-typed phase uses the result set only to retain the exact
+            // declaration symbol rather than collapsing to the leaf name.
+            let requirement_shape =
+                result_dispatch_shape(program, candidate.signature.return_type.as_ref());
+            for (machine, state) in &realizations {
+                if result_dispatch_shape(program, state.return_type.as_ref()) == requirement_shape {
+                    matching.push((*candidate, *machine, *state));
+                }
+            }
+        }
+        let (requirement, machine, state) = match (
+            candidates.as_slice(),
+            realizations.as_slice(),
+            matching.as_slice(),
+        ) {
+            ([], _, _) => {
                 let qualified = if authored.declaring_trait_name.as_str().is_empty() {
                     authored.requirement_name.as_str().to_owned()
                 } else {
@@ -498,11 +587,25 @@ fn normalize_one(
                     "closed conformance `{subject_name} satisfies {trait_name}` has no inherited requirement slot `{qualified}`"
                 )));
             }
-            [requirement] => *requirement,
+            ([requirement], [(machine, state)], _) => (*requirement, *machine, *state),
+            (_, _, [(requirement, machine, state)]) => (*requirement, *machine, *state),
             _ => {
+                let inherited_collision = authored.declaring_trait_name.as_str().is_empty()
+                    && candidates.first().is_some_and(|first| {
+                        candidates
+                            .iter()
+                            .skip(1)
+                            .any(|candidate| candidate.declaring_trait != first.declaring_trait)
+                    });
+                if inherited_collision {
+                    return Err(Diagnostic::error(format!(
+                        "closed conformance `{subject_name} satisfies {trait_name}` member `{}` is ambiguous across inherited traits; use `DeclaringTrait::{}`",
+                        authored.requirement_name, authored.requirement_name
+                    )));
+                }
                 return Err(Diagnostic::error(format!(
-                    "closed conformance `{subject_name} satisfies {trait_name}` member `{}` is ambiguous across inherited traits; use `DeclaringTrait::{}`",
-                    authored.requirement_name, authored.requirement_name
+                    "closed conformance `{subject_name} satisfies {trait_name}` member `{}` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature",
+                    authored.requirement_name
                 )));
             }
         };
@@ -511,26 +614,23 @@ fn normalize_one(
             row.declaring_trait == requirement.declaring_trait
                 && row.requirement == requirement.requirement
         }) {
+            if authored.source == ConformanceRowSource::TraitDefault {
+                continue;
+            }
             return Err(Diagnostic::error(format!(
                 "closed conformance `{subject_name} satisfies {trait_name}` fills `{}::{}` more than once",
                 requirement.declaring_trait_name, requirement.requirement_name
             )));
         }
 
-        let (machine, state) = resolve_realization(authored, machine_catalog).ok_or_else(|| {
-            Diagnostic::error(format!(
-                "closed conformance `{subject_name} satisfies {trait_name}` row `{}::{}` names no exact callable realization `{}`",
-                requirement.declaring_trait_name,
-                requirement.requirement_name,
-                authored.realization_name,
-            ))
-        })?;
         let mut row = authored.clone();
         row.declaring_trait = requirement.declaring_trait;
         row.declaring_trait_name = requirement.declaring_trait_name.clone();
         row.requirement = requirement.requirement;
-        row.realization_machine = machine;
-        row.realization_state = state;
+        row.provisional_requirement_ordinal = None;
+        row.realization_machine = machine.symbol;
+        row.realization_state = state.symbol;
+        row.provisional_realization_ordinal = None;
         normalized.push(row);
     }
 
@@ -552,12 +652,14 @@ fn normalize_one(
             declaring_trait_name: requirement.declaring_trait_name.clone(),
             requirement: requirement.requirement,
             requirement_name: requirement.requirement_name.clone(),
+            provisional_requirement_ordinal: None,
             realization_machine: SymbolHandle::invalid(),
             realization_state: SymbolHandle::invalid(),
             realization_name: DiagnosticName::generated(format!(
                 "{}::{}#default",
                 requirement.declaring_trait_name, requirement.requirement_name
             )),
+            provisional_realization_ordinal: None,
             source: ConformanceRowSource::TraitDefault,
         });
     }
@@ -597,27 +699,141 @@ fn collect_requirement_closure(
     }
 }
 
-fn resolve_realization(
+fn result_dispatch_shape(
+    program: &SymbolResolvedTrees,
+    return_type: Option<&TypeReference>,
+) -> String {
+    let mut result_dispatch = Vec::new();
+    if let Some(return_type) = return_type {
+        collect_result_dispatch(program, return_type, &mut result_dispatch, &mut Vec::new());
+    }
+    result_dispatch.sort();
+    result_dispatch.dedup();
+    result_dispatch.join("&")
+}
+
+fn collect_result_dispatch(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    terms: &mut Vec<String>,
+    alias_stack: &mut Vec<SymbolHandle>,
+) {
+    match type_reference {
+        TypeReference::Reference(reference) => collect_result_dispatch(
+            program,
+            program.child_type_reference(reference.referee),
+            terms,
+            alias_stack,
+        ),
+        TypeReference::Constrained(constrained) => {
+            collect_result_dispatch(
+                program,
+                program.child_type_reference(constrained.base_type),
+                terms,
+                alias_stack,
+            );
+            for constraint in program
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+            {
+                match constraint {
+                    TypeConstraint::ArithmeticDomain(domain) => {
+                        terms.push(format!("arithmetic:{}", domain.name()));
+                    }
+                    TypeConstraint::Domain(domain) => {
+                        collect_declared_result_dispatch(
+                            program,
+                            domain.name.as_str(),
+                            terms,
+                            alias_stack,
+                        );
+                    }
+                    TypeConstraint::Named(_) | TypeConstraint::Range { .. } => {}
+                }
+            }
+        }
+        TypeReference::FixedArray(_)
+        | TypeReference::Slice(_)
+        | TypeReference::Generic(_)
+        | TypeReference::ConstExpression(_)
+        | TypeReference::DynamicTrait { .. }
+        | TypeReference::Named { .. }
+        | TypeReference::SelfType { .. }
+        | TypeReference::Unit => {}
+    }
+}
+
+fn collect_declared_result_dispatch(
+    program: &SymbolResolvedTrees,
+    name: &str,
+    terms: &mut Vec<String>,
+    alias_stack: &mut Vec<SymbolHandle>,
+) {
+    let Some(definition) = program
+        .domain_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == name)
+    else {
+        terms.push(format!("declared:{name}"));
+        return;
+    };
+    if alias_stack.contains(&definition.symbol) {
+        return;
+    }
+    if let Some(alias) = definition.alias.as_ref() {
+        alias_stack.push(definition.symbol);
+        for constituent in &alias.constituents {
+            let constituent_name = program
+                .domain_definitions
+                .iter()
+                .find(|candidate| candidate.symbol == constituent.domain_symbol)
+                .map(|candidate| candidate.name.as_str())
+                .unwrap_or("<unresolved-domain>");
+            collect_declared_result_dispatch(program, constituent_name, terms, alias_stack);
+        }
+        alias_stack.pop();
+        return;
+    }
+    if definition.predicate_body.is_present()
+        && definition.semantic_roles.is_empty()
+        && definition.establishment_routes.is_empty()
+    {
+        return;
+    }
+    terms.push(format!("declared:{}", definition.name));
+}
+
+fn resolve_realizations<'catalog>(
     row: &ConformanceRow,
-    catalog: &[MachineCatalogEntry],
-) -> Option<(SymbolHandle, SymbolHandle)> {
-    let machine = catalog
+    catalog: &'catalog [MachineCatalogEntry],
+) -> Vec<(&'catalog MachineCatalogEntry, &'catalog State)> {
+    catalog
         .iter()
-        .find(|machine| machine.name == row.realization_name)?;
-    let leaf = machine
-        .name
-        .as_str()
-        .rsplit_once("::")
-        .map_or(machine.name.as_str(), |(_, leaf)| leaf);
-    let state = machine
-        .states
-        .iter()
-        .find(|(name, _)| name.as_str() == leaf)
-        .or_else(|| {
+        .filter(|machine| {
+            row.provisional_realization_ordinal
+                .map_or(machine.name == row.realization_name, |ordinal| {
+                    machine.ordinal == ordinal
+                })
+        })
+        .filter_map(|machine| {
+            let leaf = machine
+                .name
+                .as_str()
+                .rsplit_once("::")
+                .map_or(machine.name.as_str(), |(_, leaf)| leaf);
             machine
                 .states
                 .iter()
-                .find(|(name, _)| name.as_str() == "entry")
-        })?;
-    Some((machine.symbol, state.1))
+                .find(|state| state.name.as_str() == leaf)
+                .or_else(|| {
+                    machine
+                        .states
+                        .iter()
+                        .find(|state| state.name.as_str() == "entry")
+                })
+                .map(|state| (machine, state))
+        })
+        .collect()
 }

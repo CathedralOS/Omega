@@ -23,8 +23,14 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 #[derive(Clone)]
 struct TraitDefaultsInput {
     parameter_names: Vec<String>,
-    signatures: Vec<StateSignatureNode>,
+    signatures: Vec<TraitSignatureInput>,
     requirements: Vec<TraitRequirementInput>,
+}
+
+#[derive(Clone)]
+struct TraitSignatureInput {
+    ordinal: usize,
+    signature: StateSignatureNode,
 }
 
 #[derive(Clone)]
@@ -51,6 +57,7 @@ struct ConformanceInput {
 #[derive(Clone)]
 struct RequirementInstance {
     declaring_trait: String,
+    requirement_ordinal: usize,
     signature: StateSignatureNode,
     substitution: HashMap<String, TypeReferenceHandle>,
 }
@@ -80,7 +87,11 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
                 .items
                 .state_signatures(trait_definition.machines)
                 .iter()
-                .map(|handle| syntax.items.state_signature(*handle).clone())
+                .enumerate()
+                .map(|(ordinal, handle)| TraitSignatureInput {
+                    ordinal,
+                    signature: syntax.items.state_signature(*handle).clone(),
+                })
                 .collect::<Vec<_>>();
             let mut requirements = Vec::new();
             for handle in syntax
@@ -197,42 +208,16 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
                 &mut HashSet::new(),
                 &mut requirements,
             );
-            let mut covered = HashSet::new();
+            let mut existing_defaults = HashSet::new();
             for member in &closed_members {
-                match member {
-                    ConformanceMember::Machine(machine) => {
-                        let matching = requirements
-                            .iter()
-                            .filter(|requirement| {
-                                requirement.signature.name.as_str() == machine.name.as_str()
-                            })
-                            .collect::<Vec<_>>();
-                        if let [requirement] = matching.as_slice() {
-                            covered.insert((
-                                requirement.declaring_trait.clone(),
-                                requirement.signature.name.as_str().to_string(),
-                            ));
-                        }
-                    }
-                    ConformanceMember::TraitDefault {
-                        declaring_trait,
-                        machine,
-                    } => {
-                        covered.insert((
-                            declaring_trait.as_str().to_string(),
-                            machine.name.as_str().to_string(),
-                        ));
-                    }
-                    ConformanceMember::Reference {
-                        declaring_trait,
-                        requirement,
-                        ..
-                    } => {
-                        covered.insert((
-                            declaring_trait.as_str().to_string(),
-                            requirement.as_str().to_string(),
-                        ));
-                    }
+                if let ConformanceMember::TraitDefault {
+                    declaring_trait,
+                    requirement_ordinal,
+                    ..
+                } = member
+                {
+                    existing_defaults
+                        .insert((declaring_trait.as_str().to_string(), *requirement_ordinal));
                 }
             }
 
@@ -240,9 +225,9 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
             for requirement in requirements {
                 let key = (
                     requirement.declaring_trait.clone(),
-                    requirement.signature.name.as_str().to_string(),
+                    requirement.requirement_ordinal,
                 );
-                if covered.contains(&key) || !requirement.signature.is_default {
+                if existing_defaults.contains(&key) || !requirement.signature.is_default {
                     continue;
                 }
                 let signature = if requirement.substitution.is_empty() {
@@ -262,9 +247,10 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
                 );
                 closed_members.push(ConformanceMember::TraitDefault {
                     declaring_trait: Identifier::generated(requirement.declaring_trait),
+                    requirement_ordinal: requirement.requirement_ordinal,
                     machine,
                 });
-                covered.insert(key);
+                existing_defaults.insert(key);
                 added = true;
             }
             if added {
@@ -282,6 +268,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
             && let Some(signature) = conformed_trait
                 .signatures
                 .iter()
+                .map(|declaration| &declaration.signature)
                 .find(|signature| signature.name.as_str() == "equals" && !signature.is_default)
         {
             let attached_method = (type_name.clone(), "equals".to_string());
@@ -347,7 +334,7 @@ fn collect_requirement_instances(
     substitution: &HashMap<String, TypeReferenceHandle>,
     traits: &HashMap<String, TraitDefaultsInput>,
     visiting: &mut HashSet<String>,
-    seen: &mut HashSet<(String, String)>,
+    seen: &mut HashSet<(String, usize)>,
     output: &mut Vec<RequirementInstance>,
 ) {
     if !visiting.insert(trait_name.to_string()) {
@@ -358,12 +345,13 @@ fn collect_requirement_instances(
         return;
     };
 
-    for signature in &trait_definition.signatures {
-        let key = (trait_name.to_string(), signature.name.as_str().to_string());
+    for declaration in &trait_definition.signatures {
+        let key = (trait_name.to_string(), declaration.ordinal);
         if seen.insert(key) {
             output.push(RequirementInstance {
                 declaring_trait: trait_name.to_string(),
-                signature: signature.clone(),
+                requirement_ordinal: declaration.ordinal,
+                signature: declaration.signature.clone(),
                 substitution: substitution.clone(),
             });
         }
@@ -550,7 +538,8 @@ fn collect_effective_defaults(
         }
     }
 
-    for signature in &trait_definition.signatures {
+    for declaration in &trait_definition.signatures {
+        let signature = &declaration.signature;
         let method_name = signature.name.as_str().to_string();
         defaults.remove(&method_name);
         if signature.is_default {

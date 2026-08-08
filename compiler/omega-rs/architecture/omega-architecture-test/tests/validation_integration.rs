@@ -69,6 +69,32 @@ fn closed_conformance_rejects_an_incompatible_inline_row() {
 }
 
 #[test]
+fn closed_conformance_validates_same_named_result_overloads() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Converter {
+            machine Self::convert(&self, value: i32) -> i32 {
+                value
+            }
+            machine Self::convert(&self, value: i32) -> i32 in Saturating {
+                value
+            }
+        }
+
+        data Item {}
+        Item satisfies Converter as Primary {
+            machine convert(&self, value: i32) -> i32 in Saturating {
+                transition { _ -> (value) }
+            }
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("each exact result overload should retain its own checked conformance row");
+}
+
+#[test]
 fn witness_proposition_requires_a_direct_carrierless_trait_interface() {
     let typed = typed_program_from_source(
         r#"
@@ -1037,6 +1063,37 @@ fn local_dynamic_coercion_retains_an_instantiated_trait_default_row() {
         "Item::Primary::Shape::touch"
     );
     assert_eq!(checked.symbols.name(row.realization_state), "touch");
+}
+
+#[test]
+fn local_dynamic_coercion_retains_each_result_overload_row() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Converter {
+            machine Self::convert(&self, value: i32) -> i32 { value }
+            machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
+        }
+        data Item {}
+        Item satisfies Converter as Primary {}
+
+        machine erase(item: Item) {
+            let erased: &dyn Converter = &item as &dyn Item::Primary;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("both exact overload rows should license dyn selection");
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("checked dyn facts should retain both exact overload rows");
+    let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one dynamic conformance selection");
+    };
+    assert_eq!(selection.rows.len(), 2);
+    assert_ne!(selection.rows[0].requirement, selection.rows[1].requirement);
+    assert_ne!(
+        selection.rows[0].realization_state,
+        selection.rows[1].realization_state
+    );
 }
 
 #[test]
