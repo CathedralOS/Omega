@@ -218,62 +218,14 @@ fn build_contract_plans(
                 .iter()
                 .map(|parameter| parameter.name.as_str().to_owned())
                 .collect::<Vec<_>>();
-            let mut state_contracts = Vec::new();
-            for contract in program.state_contracts(state) {
-                let mut contract_prefix = vec![0xae];
-                encode_signature_contract_kind(&contract.kind, &mut contract_prefix);
-                let facts = program.proof_facts.span_or_empty(contract.facts);
-                if facts.is_empty()
-                    && matches!(
-                        contract.kind,
-                        psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
-                    )
-                {
-                    let mut contract_bytes = contract_prefix.clone();
-                    contract_bytes.push(0);
-                    state_contracts.push(contract_bytes);
-                }
-                for fact in facts {
-                    let mut contract_bytes = contract_prefix.clone();
-                    match fact {
-                        psi_typed_trees::domain::ProofFact::Expression(expression) => {
-                            contract_bytes.push(1);
-                            encode_contract_expression_canonical(
-                                program,
-                                *expression,
-                                &parameter_names,
-                                &content_conservation,
-                                &mut contract_bytes,
-                            );
-                        }
-                        psi_typed_trees::domain::ProofFact::Membership(membership) => {
-                            contract_bytes.push(2);
-                            encode_expression_canonical(
-                                program,
-                                membership.value,
-                                &parameter_names,
-                                &mut contract_bytes,
-                            );
-                            contract_bytes.push(0);
-                            for member in program.domain_path_members(membership.domain) {
-                                contract_bytes.extend(member.as_str().as_bytes());
-                                contract_bytes.push(b':');
-                            }
-                        }
-                        psi_typed_trees::domain::ProofFact::Proposition(application) => {
-                            contract_bytes.push(3);
-                            encode_proposition_application_canonical(
-                                program,
-                                application,
-                                &parameter_names,
-                                &mut contract_bytes,
-                            );
-                        }
-                    }
-                    state_contracts.push(contract_bytes);
-                }
-            }
-            state_contracts.sort();
+            let state_contracts = encode_contract_set_canonical(
+                program,
+                program.state_contracts(state),
+                &parameter_names,
+                &content_conservation,
+                &[0xae],
+                true,
+            );
             for contract in state_contracts {
                 encoded.extend(contract);
                 encoded.push(0xad);
@@ -294,63 +246,14 @@ fn build_contract_plans(
                     .collect()
             })
             .unwrap_or_default();
-        for contract in program.machine_contracts(machine) {
-            let mut contract_prefix = Vec::new();
-            encode_signature_contract_kind(&contract.kind, &mut contract_prefix);
-            let facts = program.proof_facts.span_or_empty(contract.facts);
-            if facts.is_empty()
-                && matches!(
-                    contract.kind,
-                    psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
-                )
-            {
-                let mut encoded = contract_prefix.clone();
-                encoded.push(0);
-                canonical_facts.push(encoded);
-            }
-            for fact in facts {
-                let mut encoded = contract_prefix.clone();
-                match fact {
-                    psi_typed_trees::domain::ProofFact::Expression(expression) => {
-                        encoded.push(1);
-                        encode_contract_expression_canonical(
-                            program,
-                            *expression,
-                            &parameter_names,
-                            &content_conservation,
-                            &mut encoded,
-                        );
-                    }
-                    psi_typed_trees::domain::ProofFact::Membership(membership) => {
-                        encoded.push(2);
-                        encoded.extend(
-                            program
-                                .expression_table
-                                .display_name(membership.value)
-                                .as_bytes(),
-                        );
-                        encoded.push(0);
-                        for member in program
-                            .expression_table
-                            .name_path_members(membership.domain)
-                        {
-                            encoded.extend(member.as_str().as_bytes());
-                            encoded.push(b':');
-                        }
-                    }
-                    psi_typed_trees::domain::ProofFact::Proposition(application) => {
-                        encoded.push(3);
-                        encode_proposition_application_canonical(
-                            program,
-                            application,
-                            &parameter_names,
-                            &mut encoded,
-                        );
-                    }
-                }
-                canonical_facts.push(encoded);
-            }
-        }
+        canonical_facts.extend(encode_contract_set_canonical(
+            program,
+            program.machine_contracts(machine),
+            &parameter_names,
+            &content_conservation,
+            &[],
+            false,
+        ));
         canonical_facts.sort();
         let operational_summary = operational
             .machines()
@@ -436,6 +339,142 @@ fn encode_signature_contract_kind(
                     .to_le_bytes(),
             );
             output.extend(scope);
+        }
+    }
+}
+
+/// Encode contracts as semantic sets. Crash clauses are first merged by
+/// `(cause, scope)`: their facts are alternative routes, duplicate routes are
+/// irrelevant, and one unconditional clause subsumes every guarded route in
+/// the same bucket. This keeps public contract identity independent of clause
+/// grouping while preserving the bucket itself as identity-bearing material.
+fn encode_contract_set_canonical(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    entry_prefix: &[u8],
+    canonicalize_membership_value: bool,
+) -> Vec<Vec<u8>> {
+    use std::collections::BTreeMap;
+
+    #[derive(Default)]
+    struct CrashBucket {
+        unconditional: bool,
+        routes: Vec<Vec<u8>>,
+    }
+
+    let mut encoded = Vec::new();
+    let mut crash_buckets = BTreeMap::<Vec<u8>, CrashBucket>::new();
+    for contract in contracts {
+        let mut contract_prefix = entry_prefix.to_vec();
+        encode_signature_contract_kind(&contract.kind, &mut contract_prefix);
+        let facts = program.proof_facts.span_or_empty(contract.facts);
+        if matches!(
+            contract.kind,
+            psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
+        ) {
+            let bucket = crash_buckets.entry(contract_prefix).or_default();
+            if facts.is_empty() {
+                bucket.unconditional = true;
+            } else {
+                for fact in facts {
+                    let mut route = Vec::new();
+                    encode_contract_fact_canonical(
+                        program,
+                        fact,
+                        parameter_names,
+                        content_conservation,
+                        canonicalize_membership_value,
+                        &mut route,
+                    );
+                    bucket.routes.push(route);
+                }
+            }
+            continue;
+        }
+
+        for fact in facts {
+            let mut contract_bytes = contract_prefix.clone();
+            encode_contract_fact_canonical(
+                program,
+                fact,
+                parameter_names,
+                content_conservation,
+                canonicalize_membership_value,
+                &mut contract_bytes,
+            );
+            encoded.push(contract_bytes);
+        }
+    }
+
+    for (contract_prefix, mut bucket) in crash_buckets {
+        if bucket.unconditional {
+            let mut contract = contract_prefix;
+            contract.push(0);
+            encoded.push(contract);
+            continue;
+        }
+        bucket.routes.sort();
+        bucket.routes.dedup();
+        for route in bucket.routes {
+            let mut contract = contract_prefix.clone();
+            contract.push(1);
+            contract.extend(route);
+            encoded.push(contract);
+        }
+    }
+    encoded.sort();
+    encoded
+}
+
+fn encode_contract_fact_canonical(
+    program: &TypedTrees,
+    fact: &psi_typed_trees::domain::ProofFact,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    canonicalize_membership_value: bool,
+    output: &mut Vec<u8>,
+) {
+    match fact {
+        psi_typed_trees::domain::ProofFact::Expression(expression) => {
+            output.push(1);
+            encode_contract_expression_canonical(
+                program,
+                *expression,
+                parameter_names,
+                content_conservation,
+                output,
+            );
+        }
+        psi_typed_trees::domain::ProofFact::Membership(membership) => {
+            output.push(2);
+            if canonicalize_membership_value {
+                encode_expression_canonical(program, membership.value, parameter_names, output);
+            } else {
+                output.extend(
+                    program
+                        .expression_table
+                        .display_name(membership.value)
+                        .as_bytes(),
+                );
+            }
+            output.push(0);
+            let domain_path = if canonicalize_membership_value {
+                program.domain_path_members(membership.domain)
+            } else {
+                program
+                    .expression_table
+                    .name_path_members(membership.domain)
+            };
+            for member in domain_path {
+                output.extend(member.as_str().as_bytes());
+                output.push(b':');
+            }
+        }
+        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+            output.push(3);
+            encode_proposition_application_canonical(program, application, parameter_names, output);
         }
     }
 }

@@ -1027,6 +1027,97 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
 }
 
 #[test]
+fn generic_template_identity_normalizes_crash_route_buckets() {
+    fn fingerprint(crash_clauses: &str) -> u64 {
+        let source = format!(
+            r#"
+                boundary machine admitted<T>(first: bool, second: bool)
+                {crash_clauses}
+                ensures true;
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("generic template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    let grouped = r#"
+        crashes Trap Activation
+            first
+            second
+    "#;
+    let split = r#"
+        crashes Trap Activation
+            second
+        crashes Trap Activation
+            first
+    "#;
+    let duplicated = r#"
+        crashes Trap Activation
+            first
+            second
+            first
+    "#;
+    let unconditional = r#"
+        crashes Trap Activation
+    "#;
+    let unconditional_with_guard = r#"
+        crashes Trap Activation
+            first
+        crashes Trap Activation
+    "#;
+
+    assert_eq!(fingerprint(grouped), fingerprint(split));
+    assert_eq!(fingerprint(grouped), fingerprint(duplicated));
+    assert_eq!(
+        fingerprint(unconditional),
+        fingerprint(unconditional_with_guard)
+    );
+    assert_ne!(fingerprint(grouped), fingerprint(unconditional));
+
+    fn slot_fingerprint(crash_clauses: &str) -> u64 {
+        let source = format!(
+            r#"
+                boundary machine admitted<T, machine Operation>()
+                where machine Operation(first: bool, second: bool)
+                    {crash_clauses};
+                ensures true;
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("generic template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    assert_eq!(slot_fingerprint(grouped), slot_fingerprint(split));
+    assert_eq!(slot_fingerprint(grouped), slot_fingerprint(duplicated));
+    assert_eq!(
+        slot_fingerprint(unconditional),
+        slot_fingerprint(unconditional_with_guard)
+    );
+}
+
+#[test]
 fn generic_template_identity_pins_conformance_bounds_positionally() {
     fn fingerprint(parameter: &str, trait_name: &str) -> u64 {
         let source = format!(

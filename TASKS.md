@@ -192,10 +192,14 @@ Remaining:
   crash outcome. Contextual statement `trap` is retired, and the legacy native
   state-graph path rejects explicit crash exits rather than treating them as
   ordinary termination. Route facts are checked as Boolean expressions and do
-  not enter requires/ensures proof entailment. Finish canonical
-  per-cause/per-scope bucket normalization, path-conditioned site coverage and
-  damage minima, call-site refinement/propagation, and sparse per-cause context
-  maxima. Generalize source production beyond the initial unconditional bucket.
+  not enter requires/ensures proof entailment. Public machine-contract and
+  generic-template fingerprints now canonicalize each `(cause, scope)` bucket:
+  clause grouping, ordering, and duplicate routes are irrelevant, while an
+  unconditional route subsumes guarded alternatives. Materialize that same
+  normalization as checked crash-plan rows, then finish path-conditioned site
+  coverage and damage minima, call-site refinement/propagation, and sparse
+  per-cause context maxima. Generalize source production beyond the initial
+  unconditional bucket.
   Terminal Psi v22 already carries the explicit no-successor terminator and its
   canonical machine-local frontier lower bound; native lowering remains closed
   until target crash plans exist.
