@@ -183,17 +183,22 @@ Remaining:
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
-- **CRASH-CONTRACT.** Parse `crashes Cause Scope` route clauses and explicit
-  `crash Cause;` terminals. Normalize fingerprinted per-cause/per-scope buckets,
-  derive path-conditioned crash sites and damage minima, refine routes at calls,
-  and enforce sparse per-cause context maxima. Terminal Psi v22 now carries an
-  explicit no-successor crash terminator with closed `Trap`/`Abort` cause,
-  nominal damage-scope demand, and a canonical machine-local frontier lower
-  bound; validation, canonical encoding, fuel, and direct interpretation are
-  live, and Omega native lowering rejects it explicitly pending target crash
-  plans. Finish source production and route/context normalization; remove the
-  parser's transitional lowering of contextual `trap` to an ordinary terminal
-  edge.
+- **CRASH-CONTRACT.** Source now parses fingerprinted `crashes Cause Scope`
+  buckets, including multiple alternative route facts and the unconditional
+  `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through
+  checked trees. The first source-production slice lowers a crash covered by one
+  unconditional same-cause bucket to terminal Psi; verification and direct
+  interpretation retain its cause, nominal scope demand, and non-replayable
+  crash outcome. Contextual statement `trap` is retired, and the legacy native
+  state-graph path rejects explicit crash exits rather than treating them as
+  ordinary termination. Route facts are checked as Boolean expressions and do
+  not enter requires/ensures proof entailment. Finish canonical
+  per-cause/per-scope bucket normalization, path-conditioned site coverage and
+  damage minima, call-site refinement/propagation, and sparse per-cause context
+  maxima. Generalize source production beyond the initial unconditional bucket.
+  Terminal Psi v22 already carries the explicit no-successor terminator and its
+  canonical machine-local frontier lower bound; native lowering remains closed
+  until target crash plans exist.
   Omega installation must bind nominal scopes to a selected fault plan and
   prove the realized scope lies between each surviving route demand and its
   context maximum.

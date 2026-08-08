@@ -62,8 +62,13 @@ distinct terminal crash outcome and never replays it after resume, canonical
 bytes and semantic identity cover every field, and fuel charges its edge.
 Omega native lowering rejects the row until target crash plans are represented;
 it never silently treats a crash as a return or ordinary terminal transition.
-Source route buckets, path-conditioned coverage/refinement, nominal scope
-ordering, and installation realization remain the rest of CRASH-CONTRACT.
+The source frontend now retains fingerprinted `crashes Cause Scope` buckets and
+explicit `crash Cause;` exits. The first producer slice accepts exactly one
+unconditional same-cause bucket, emits its scope on the crash terminator, and
+fails closed for absent, guarded, or ambiguous coverage. Route facts are already
+restricted to Boolean expressions; canonical bucket merging, general guarded
+production, path-conditioned coverage/refinement, nominal scope ordering, and
+installation realization remain the rest of CRASH-CONTRACT.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate

@@ -314,6 +314,7 @@ fn validate_state_signature_contracts(
             )));
             continue;
         }
+        validate_crash_route_shapes(program, contract, diagnostics);
         validate_proof_facts(
             program,
             program.proof_facts.span_or_empty(contract.facts),
@@ -321,7 +322,7 @@ fn validate_state_signature_contracts(
             ProofFactOwner::StateSignatureContract {
                 owner,
                 state: signature.name,
-                kind: contract_kind_label(contract.kind),
+                kind: contract_kind_label(&contract.kind),
             },
         );
     }
@@ -356,23 +357,45 @@ pub(crate) fn validate_machine_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in program.machine_contracts(machine) {
+        validate_crash_route_shapes(program, contract, diagnostics);
         validate_proof_facts(
             program,
             program.proof_facts.span_or_empty(contract.facts),
             diagnostics,
             ProofFactOwner::MachineContract {
                 machine: machine.name.as_str(),
-                kind: contract_kind_label(contract.kind),
+                kind: contract_kind_label(&contract.kind),
             },
         );
     }
 }
 
-fn contract_kind_label(kind: psi_typed_trees::signature::SignatureContractKind) -> &'static str {
+fn validate_crash_route_shapes(
+    program: &TypedTrees,
+    contract: &psi_typed_trees::signature::SignatureContract,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
+        &contract.kind
+    else {
+        return;
+    };
+    for fact in program.proof_facts.span_or_empty(contract.facts) {
+        if !matches!(fact, psi_typed_trees::domain::ProofFact::Expression(_)) {
+            diagnostics.push(Diagnostic::error(format!(
+                "`crashes {cause:?} {}` routes must be Boolean expressions; domain memberships and proposition applications are proof facts, not runtime-refinable crash routes",
+                scope.as_str(),
+            )));
+        }
+    }
+}
+
+fn contract_kind_label(kind: &psi_typed_trees::signature::SignatureContractKind) -> &'static str {
     match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => "requires",
         psi_typed_trees::signature::SignatureContractKind::Ensures => "ensures",
         psi_typed_trees::signature::SignatureContractKind::Boundary => "boundary",
+        psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => "crashes",
     }
 }
 

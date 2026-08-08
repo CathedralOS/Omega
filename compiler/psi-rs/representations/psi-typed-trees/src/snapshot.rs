@@ -570,6 +570,10 @@ pub struct StateSignatureSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SignatureContractSnapshot {
     pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crash_cause: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crash_scope: Option<String>,
     pub facts: Vec<ProofFactSnapshot>,
     pub token_count: usize,
 }
@@ -615,6 +619,8 @@ pub enum StatementSnapshot {
         target: TransitionTargetSnapshot,
         continuation: Option<TransitionTargetSnapshot>,
         guard: TransitionGuardSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        crash_cause: Option<&'static str>,
     },
 }
 
@@ -1274,12 +1280,27 @@ fn signature_contract_snapshot(
     program: &TypedTrees,
     contract: &crate::signature::SignatureContract,
 ) -> SignatureContractSnapshot {
+    let (kind, crash_cause, crash_scope) = match &contract.kind {
+        crate::signature::SignatureContractKind::Requires => ("requires", None, None),
+        crate::signature::SignatureContractKind::Ensures => ("ensures", None, None),
+        crate::signature::SignatureContractKind::Boundary => ("boundary", None, None),
+        crate::signature::SignatureContractKind::Crashes { cause, scope } => {
+            return SignatureContractSnapshot {
+                kind: "crashes",
+                crash_cause: Some(match cause {
+                    crate::signature::CrashCause::Trap => "Trap",
+                    crate::signature::CrashCause::Abort => "Abort",
+                }),
+                crash_scope: Some(scope.as_str().to_owned()),
+                facts: contract_fact_snapshots(program, contract.facts),
+                token_count: contract.token_count,
+            };
+        }
+    };
     SignatureContractSnapshot {
-        kind: match contract.kind {
-            crate::signature::SignatureContractKind::Requires => "requires",
-            crate::signature::SignatureContractKind::Ensures => "ensures",
-            crate::signature::SignatureContractKind::Boundary => "boundary",
-        },
+        kind,
+        crash_cause,
+        crash_scope,
         facts: contract_fact_snapshots(program, contract.facts),
         token_count: contract.token_count,
     }
@@ -1381,6 +1402,15 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
                 .is_valid()
                 .then(|| transition_target_snapshot(program, transition.continuation)),
             guard: transition_guard_snapshot(program, transition.guard),
+            crash_cause: match transition.exit {
+                crate::statement::TransitionExit::Ordinary => None,
+                crate::statement::TransitionExit::Crash(crate::signature::CrashCause::Trap) => {
+                    Some("Trap")
+                }
+                crate::statement::TransitionExit::Crash(crate::signature::CrashCause::Abort) => {
+                    Some("Abort")
+                }
+            },
         },
     }
 }

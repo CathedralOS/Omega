@@ -194,6 +194,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                     target,
                     continuation: TransitionTargetHandle::invalid(),
                     guard,
+                    exit: Default::default(),
                     source_span,
                 }));
         let handle = syntax_trees.items.append_statement_handle(statement);

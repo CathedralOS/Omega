@@ -40,6 +40,21 @@ fn validate_operator_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let name = operator_name(program, operator);
+    for contract in program.operator_contracts(operator) {
+        let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
+            &contract.kind
+        else {
+            continue;
+        };
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if !matches!(fact, psi_typed_trees::domain::ProofFact::Expression(_)) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "operator `{name}` `crashes {cause:?} {}` routes must be Boolean expressions; domain memberships and proposition applications are proof facts, not runtime-refinable crash routes",
+                    scope.as_str(),
+                )));
+            }
+        }
+    }
     let type_parameters = program.operator_type_parameters(operator);
     for parameter in program.operator_parameters(operator) {
         validate_type_reference_handle_with_type_parameters(

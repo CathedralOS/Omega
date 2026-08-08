@@ -103,17 +103,20 @@ fn append_trait_contract_facts_for_machine(
         };
 
         for contract in program.state_signature_contracts(signature) {
+            let Some(kind) = super::super::contract_fact_kind(&contract.kind) else {
+                continue;
+            };
             for fact in super::super::fact_handles(contract.facts) {
                 let qualification_authorization =
                     crate::qualification_evidence::boundary_qualification_authorization(
                         program,
                         trait_definition.symbol,
                         signature,
-                        contract.kind,
+                        contract.kind.clone(),
                         fact,
                     );
                 contract_facts.append(ContractProofFact {
-                    kind: super::super::contract_fact_kind(contract.kind),
+                    kind,
                     owner: ContractProofFactOwner::MachineState {
                         machine_symbol: target_machine_symbol,
                         state_symbol: target_state_symbol,

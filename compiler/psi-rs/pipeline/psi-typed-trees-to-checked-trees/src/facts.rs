@@ -220,13 +220,21 @@ fn build_contract_plans(
                 .collect::<Vec<_>>();
             let mut state_contracts = Vec::new();
             for contract in program.state_contracts(state) {
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let mut contract_bytes = vec![0xae];
-                    contract_bytes.push(match contract.kind {
-                        psi_typed_trees::signature::SignatureContractKind::Requires => 1,
-                        psi_typed_trees::signature::SignatureContractKind::Ensures => 2,
-                        psi_typed_trees::signature::SignatureContractKind::Boundary => 3,
-                    });
+                let mut contract_prefix = vec![0xae];
+                encode_signature_contract_kind(&contract.kind, &mut contract_prefix);
+                let facts = program.proof_facts.span_or_empty(contract.facts);
+                if facts.is_empty()
+                    && matches!(
+                        contract.kind,
+                        psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
+                    )
+                {
+                    let mut contract_bytes = contract_prefix.clone();
+                    contract_bytes.push(0);
+                    state_contracts.push(contract_bytes);
+                }
+                for fact in facts {
+                    let mut contract_bytes = contract_prefix.clone();
                     match fact {
                         psi_typed_trees::domain::ProofFact::Expression(expression) => {
                             contract_bytes.push(1);
@@ -287,13 +295,21 @@ fn build_contract_plans(
             })
             .unwrap_or_default();
         for contract in program.machine_contracts(machine) {
-            let kind_tag: u8 = match contract.kind {
-                psi_typed_trees::signature::SignatureContractKind::Requires => 1,
-                psi_typed_trees::signature::SignatureContractKind::Ensures => 2,
-                psi_typed_trees::signature::SignatureContractKind::Boundary => 3,
-            };
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let mut encoded = vec![kind_tag];
+            let mut contract_prefix = Vec::new();
+            encode_signature_contract_kind(&contract.kind, &mut contract_prefix);
+            let facts = program.proof_facts.span_or_empty(contract.facts);
+            if facts.is_empty()
+                && matches!(
+                    contract.kind,
+                    psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            {
+                let mut encoded = contract_prefix.clone();
+                encoded.push(0);
+                canonical_facts.push(encoded);
+            }
+            for fact in facts {
+                let mut encoded = contract_prefix.clone();
                 match fact {
                     psi_typed_trees::domain::ProofFact::Expression(expression) => {
                         encoded.push(1);
@@ -397,6 +413,31 @@ fn build_contract_plans(
         });
     }
     psi_checked_trees::MachineContractPlans { machines }
+}
+
+fn encode_signature_contract_kind(
+    kind: &psi_typed_trees::signature::SignatureContractKind,
+    output: &mut Vec<u8>,
+) {
+    match kind {
+        psi_typed_trees::signature::SignatureContractKind::Requires => output.push(1),
+        psi_typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
+        psi_typed_trees::signature::SignatureContractKind::Boundary => output.push(3),
+        psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } => {
+            output.push(4);
+            output.push(match cause {
+                psi_typed_trees::signature::CrashCause::Trap => 1,
+                psi_typed_trees::signature::CrashCause::Abort => 2,
+            });
+            let scope = scope.as_str().as_bytes();
+            output.extend(
+                u32::try_from(scope.len())
+                    .expect("crash damage-scope name exceeds the canonical encoding limit")
+                    .to_le_bytes(),
+            );
+            output.extend(scope);
+        }
+    }
 }
 
 fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut Vec<u8>) {

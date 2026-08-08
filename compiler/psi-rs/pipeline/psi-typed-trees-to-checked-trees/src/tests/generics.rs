@@ -366,6 +366,48 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
 }
 
 #[test]
+fn static_machine_selection_respects_guarded_crash_ceiling() {
+    fn check(selected_scope: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+        let source = format!(
+            r#"
+            machine selected(flag: bool)
+            crashes Abort {selected_scope}
+                flag
+            {{}}
+
+            machine apply<machine Selected>(flag: bool)
+            where machine Selected(value: bool)
+                crashes Abort Activation
+                    value;
+            {{
+                Selected(flag);
+            }}
+
+            machine caller(flag: bool) {{
+                apply<selected>(flag);
+            }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        lower_typed_trees(typed).map(|_| ())
+    }
+
+    check("Activation").expect("an identical crash bucket should refine the machine slot");
+    let diagnostics = check("ExecutionDomain")
+        .expect_err("a differently scoped crash bucket must not silently refine the slot");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("routes are not contained by the required crash ceiling")
+    }));
+}
+
+#[test]
 fn generic_body_can_consume_machine_parameter_ensures() {
     let source = r#"
         data Main {}

@@ -43,6 +43,17 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
             token_count: 1,
         },
     );
+    program.push_machine_contract(
+        &mut machine,
+        SignatureContract {
+            kind: SignatureContractKind::Crashes {
+                cause: psi_typed_trees::signature::CrashCause::Abort,
+                scope: psi_typed_trees::name::Identifier::generated("ExecutionDomain"),
+            },
+            facts: HandleSpan::from_parts(fact, 1),
+            token_count: 3,
+        },
+    );
     program.push_machine(machine);
 
     let proof_plan = psi_proof::obligations::build_proof_plan(&program);
@@ -55,7 +66,11 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         .map(|(_, fact)| fact)
         .expect("checked proof facts should include the machine contract");
 
-    assert_eq!(facts.contract_facts.len(), 1);
+    assert_eq!(
+        facts.contract_facts.len(),
+        1,
+        "crash-route predicates are ceiling guards, not requires/ensures proof facts"
+    );
     assert_eq!(contract_fact.kind, ContractProofFactKind::Requires);
     assert_eq!(contract_fact.fact, fact);
     assert_eq!(

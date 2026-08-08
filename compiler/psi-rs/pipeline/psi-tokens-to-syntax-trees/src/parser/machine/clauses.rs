@@ -8,7 +8,7 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, GenericConformanceBound,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, CrashCause, GenericConformanceBound,
     SatisfiesClause,
 };
 use psi_tokens::{KeywordKind, PunctuationKind};
@@ -131,6 +131,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("invokes")
                 && !input.at_contextual("suspends")
                 && !input.at_contextual("blocks")
+                && !input.at_contextual("crashes")
                 && !input.at_contextual("boundary")
                 && !input.at_contextual("where")
                 && !input.at_contextual("satisfies")
@@ -187,6 +188,53 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("crashes") {
+            let ((cause, scope, header_token_count), after_header) = parse_crash_header(input)?;
+            let ((facts, fact_token_count), rest) =
+                crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
+                    syntax_trees,
+                    after_header,
+                    |input| {
+                        input.at_punctuation(PunctuationKind::LeftBrace)
+                            || input.at_keyword(KeywordKind::Machine)
+                            || input.at_keyword(KeywordKind::Data)
+                            || input.at_keyword(KeywordKind::Use)
+                            || input.at_contextual("requires")
+                            || input.at_contextual("ensures")
+                            || input.at_contextual("terminates")
+                            || input.at_contextual("decreases")
+                            || input.at_contextual("reaches")
+                            || input.at_contextual("effects")
+                            || input.at_contextual("invokes")
+                            || input.at_contextual("suspends")
+                            || input.at_contextual("blocks")
+                            || input.at_contextual("crashes")
+                            || input.at_contextual("boundary")
+                            || input.at_contextual("where")
+                            || input.at_contextual("satisfies")
+                            || input.tokens.is_empty()
+                    },
+                    true,
+                )?;
+            let handle = syntax_trees
+                .items
+                .append_capability_contract(CapabilityContract {
+                    kind: CapabilityContractKind::Crashes { cause, scope },
+                    facts,
+                    token_count: fact_token_count
+                        .checked_add(header_token_count)
+                        .expect("crash contract token count overflow"),
+                });
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("machine contract span count overflow");
+            input = rest;
+            continue;
+        }
+
         if input.at_contextual("boundary") {
             let (boundary, rest) = parse_boundary_clause(input)?;
             input = rest;
@@ -236,6 +284,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                         || input.at_contextual("invokes")
                         || input.at_contextual("suspends")
                         || input.at_contextual("blocks")
+                        || input.at_contextual("crashes")
                         || input.at_contextual("boundary")
                         || input.at_contextual("where")
                         || input.at_contextual("satisfies")
@@ -304,6 +353,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             "`invokes <binding>;`",
             "`suspends;`",
             "`blocks;`",
+            "`crashes <Cause> <Scope>`",
             "`boundary`",
             "`requires`",
             "`ensures`",
@@ -435,11 +485,51 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
         || input.at_contextual("invokes")
         || input.at_contextual("suspends")
         || input.at_contextual("blocks")
+        || input.at_contextual("crashes")
         || input.at_contextual("boundary")
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
+}
+
+fn parse_crash_header<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, (CrashCause, Identifier, usize)> {
+    let input = input.take_contextual("crashes")?;
+    let (cause, input) = input.take_identifier()?;
+    let cause = match cause.as_str() {
+        "Trap" => CrashCause::Trap,
+        "Abort" => CrashCause::Abort,
+        _ => {
+            return Err(input.error_here(format!(
+                "unknown crash cause `{}`; expected `Trap` or `Abort`",
+                cause.as_str()
+            )));
+        }
+    };
+    if input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_keyword(KeywordKind::Machine)
+        || input.at_keyword(KeywordKind::Data)
+        || input.at_keyword(KeywordKind::Use)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("terminates")
+        || input.at_contextual("decreases")
+        || input.at_contextual("reaches")
+        || input.at_contextual("invokes")
+        || input.at_contextual("suspends")
+        || input.at_contextual("blocks")
+        || input.at_contextual("crashes")
+        || input.at_contextual("boundary")
+        || input.at_contextual("where")
+        || input.at_contextual("satisfies")
+        || input.tokens.is_empty()
+    {
+        return Ok(((cause, Identifier::generated("ExecutionDomain"), 2), input));
+    }
+    let (scope, input) = input.take_identifier()?;
+    Ok(((cause, scope, 3), input))
 }
 
 fn parse_boundary_clause<'tokens, 'source>(

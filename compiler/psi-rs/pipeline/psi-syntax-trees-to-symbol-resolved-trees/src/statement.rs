@@ -11,8 +11,8 @@ use psi_symbol_resolved_trees::expression::{
 use psi_symbol_resolved_trees::name::DiagnosticName;
 use psi_symbol_resolved_trees::statement::{
     AssemblyFact, AssemblyFactKind, Assignment, Call, CallStorage, LocalData, LocalDataStorage,
-    NamedTransitionTarget, NamedTransitionTargetStorage, Statement, Transition, TransitionGuard,
-    TransitionTarget,
+    NamedTransitionTarget, NamedTransitionTargetStorage, Statement, Transition, TransitionExit,
+    TransitionGuard, TransitionTarget,
 };
 use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::SymbolHandle;
@@ -324,6 +324,19 @@ fn lower_statement_node(
                 target,
                 continuation,
                 guard,
+                exit: match transition.exit {
+                    syntax::statement::TransitionExit::Ordinary => TransitionExit::Ordinary,
+                    syntax::statement::TransitionExit::Crash(cause) => {
+                        TransitionExit::Crash(match cause {
+                            syntax::item::CrashCause::Trap => {
+                                psi_symbol_resolved_trees::signature::CrashCause::Trap
+                            }
+                            syntax::item::CrashCause::Abort => {
+                                psi_symbol_resolved_trees::signature::CrashCause::Abort
+                            }
+                        })
+                    }
+                },
                 source_span: transition.source_span,
             }));
             Ok(hoisted)

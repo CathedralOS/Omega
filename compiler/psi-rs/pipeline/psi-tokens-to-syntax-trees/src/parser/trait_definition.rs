@@ -8,7 +8,7 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, StateSignature, TraitDefinition,
+    CapabilityContract, CapabilityContractKind, CrashCause, StateSignature, TraitDefinition,
 };
 use psi_tokens::{KeywordKind, PunctuationKind};
 
@@ -406,6 +406,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 && !input.at_contextual("invokes")
                 && !input.at_contextual("suspends")
                 && !input.at_contextual("blocks")
+                && !input.at_contextual("crashes")
                 && !input.at_contextual("where")
             {
                 let (service, rest) = input.take_identifier()?;
@@ -471,6 +472,75 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("crashes") {
+            let after_keyword = input.take_contextual("crashes")?;
+            let (cause, after_cause) = after_keyword.take_identifier()?;
+            let cause = match cause.as_str() {
+                "Trap" => CrashCause::Trap,
+                "Abort" => CrashCause::Abort,
+                _ => {
+                    return Err(after_cause.error_here(format!(
+                        "unknown crash cause `{}`; expected `Trap` or `Abort`",
+                        cause.as_str()
+                    )));
+                }
+            };
+            let (scope, after_header, header_token_count) = if after_cause
+                .at_punctuation(PunctuationKind::Semicolon)
+                || after_cause.at_punctuation(PunctuationKind::LeftBrace)
+                || after_cause.at_contextual("requires")
+                || after_cause.at_contextual("ensures")
+                || after_cause.at_contextual("reaches")
+                || after_cause.at_contextual("invokes")
+                || after_cause.at_contextual("suspends")
+                || after_cause.at_contextual("blocks")
+                || after_cause.at_contextual("crashes")
+                || after_cause.at_contextual("where")
+                || after_cause.tokens.is_empty()
+            {
+                (
+                    Identifier::generated("ExecutionDomain"),
+                    after_cause,
+                    2usize,
+                )
+            } else {
+                let (scope, after_header) = after_cause.take_identifier()?;
+                (scope, after_header, 3usize)
+            };
+            let ((facts, fact_token_count), rest) =
+                parse_proof_facts_until(syntax_trees, after_header, |input| {
+                    input.at_punctuation(PunctuationKind::Semicolon)
+                        || input.at_punctuation(PunctuationKind::LeftBrace)
+                        || input.at_contextual("requires")
+                        || input.at_contextual("ensures")
+                        || input.at_contextual("reaches")
+                        || input.at_contextual("effects")
+                        || input.at_contextual("invokes")
+                        || input.at_contextual("suspends")
+                        || input.at_contextual("blocks")
+                        || input.at_contextual("crashes")
+                        || input.at_contextual("where")
+                        || input.tokens.is_empty()
+                })?;
+            let handle = syntax_trees
+                .items
+                .append_capability_contract(CapabilityContract {
+                    kind: CapabilityContractKind::Crashes { cause, scope },
+                    facts,
+                    token_count: fact_token_count
+                        .checked_add(header_token_count)
+                        .expect("crash contract token count overflow"),
+                });
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("trait machine contract span count overflow");
+            input = rest;
+            continue;
+        }
+
         if input.at_contextual("requires") || input.at_contextual("ensures") {
             let kind = if input.at_contextual("requires") {
                 input = input.take_contextual("requires")?;
@@ -490,6 +560,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                         || input.at_contextual("invokes")
                         || input.at_contextual("suspends")
                         || input.at_contextual("blocks")
+                        || input.at_contextual("crashes")
                         || input.at_contextual("where")
                         || input.tokens.is_empty()
                 })?;
@@ -571,6 +642,7 @@ fn take_invokes_signature_clause<'tokens, 'source>(
         || after_semicolon.at_contextual("invokes")
         || after_semicolon.at_contextual("suspends")
         || after_semicolon.at_contextual("blocks")
+        || after_semicolon.at_contextual("crashes")
         || after_semicolon.at_contextual("terminates")
         || (allow_following_contract_clauses
             && (after_semicolon.at_contextual("requires")
@@ -613,6 +685,7 @@ fn take_operational_signature_clause<'tokens, 'source>(
         || after_semicolon.at_contextual("invokes")
         || after_semicolon.at_contextual("suspends")
         || after_semicolon.at_contextual("blocks")
+        || after_semicolon.at_contextual("crashes")
         || after_semicolon.at_contextual("terminates")
         || (allow_following_contract_clauses
             && (after_semicolon.at_contextual("requires")

@@ -17,8 +17,8 @@ use psi_syntax_trees::expression::{
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::statement::{
     AssemblyFactKind, StatementHandle, StatementNode, TableAssemblyFact, TableAssignment,
-    TableCall, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetHandle,
-    TransitionTargetNode,
+    TableCall, TableLocalData, TableTransition, TransitionExit, TransitionGuardNode,
+    TransitionTargetHandle, TransitionTargetNode,
 };
 use psi_tokens::{KeywordKind, PunctuationKind};
 
@@ -68,12 +68,30 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     }
 
     if input.at_contextual("trap") {
-        let input = input.take_contextual("trap")?;
-        let input = if input.at_punctuation(PunctuationKind::Semicolon) {
-            input.take_punctuation(PunctuationKind::Semicolon, ";")?
-        } else {
-            input
+        return Err(input.error_here(
+            "statement `trap` is retired; write `crash Trap;` and publish a covering `crashes Trap <Scope>` route",
+        ));
+    }
+
+    if input.at_contextual("crash") {
+        let source_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .unwrap_or_default();
+        let input = input.take_contextual("crash")?;
+        let (cause, input) = input.take_identifier()?;
+        let cause = match cause.as_str() {
+            "Trap" => psi_syntax_trees::item::CrashCause::Trap,
+            "Abort" => psi_syntax_trees::item::CrashCause::Abort,
+            _ => {
+                return Err(input.error_here(format!(
+                    "unknown crash cause `{}`; expected `Trap` or `Abort`",
+                    cause.as_str()
+                )));
+            }
         };
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         let target = syntax_trees
             .statements
             .insert_transition_target(TransitionTargetNode::Terminal);
@@ -84,7 +102,8 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
                     target,
                     continuation: TransitionTargetHandle::invalid(),
                     guard: TransitionGuardNode::Always,
-                    source_span: Default::default(),
+                    exit: TransitionExit::Crash(cause),
+                    source_span,
                 })),
             input,
         ));
@@ -557,6 +576,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             target,
                             continuation: TransitionTargetHandle::invalid(),
                             guard: TransitionGuardNode::Always,
+                            exit: TransitionExit::Ordinary,
                             source_span: Default::default(),
                         },
                     )),

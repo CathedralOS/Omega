@@ -559,5 +559,22 @@ ensures false == false
     state finish(value: bool) -> bool { value }
 }
 
+machine terminal_abort() -> i32
+crashes Abort
+{
+    crash Abort;
+}
+
+machine terminal_unpublished_abort() -> i32 {
+    crash Abort;
+}
+
+machine terminal_guarded_abort(flag: bool) -> i32
+crashes Abort Activation
+    flag
+{
+    crash Abort;
+}
+
 data Main {}
 machine Main::main(&mut self) {}

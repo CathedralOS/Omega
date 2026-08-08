@@ -292,7 +292,13 @@ pub struct CapabilityContractSnapshot {
 pub enum CapabilityContractKindSnapshot {
     Ensures,
     Requires,
-    Boundary { boundary: BoundaryLevelSnapshot },
+    Boundary {
+        boundary: BoundaryLevelSnapshot,
+    },
+    Crashes {
+        cause: &'static str,
+        scope: IdentifierSnapshot,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -436,6 +442,8 @@ pub enum StatementSnapshot {
         target: TransitionTargetSnapshot,
         continuation: Option<TransitionTargetSnapshot>,
         guard: TransitionGuardSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        crash_cause: Option<&'static str>,
     },
 }
 
@@ -1168,6 +1176,15 @@ fn snapshot_capability_contract(
             CapabilityContractKind::Boundary(level) => CapabilityContractKindSnapshot::Boundary {
                 boundary: snapshot_boundary_level(level),
             },
+            CapabilityContractKind::Crashes { cause, scope } => {
+                CapabilityContractKindSnapshot::Crashes {
+                    cause: match cause {
+                        crate::item::CrashCause::Trap => "Trap",
+                        crate::item::CrashCause::Abort => "Abort",
+                    },
+                    scope: snapshot_identifier(scope),
+                }
+            }
         },
         facts: snapshot_proof_facts(syntax_trees, contract.facts),
         token_count: contract.token_count,
@@ -1458,6 +1475,15 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 TransitionGuardNode::When(expression) => TransitionGuardSnapshot::When {
                     expression: snapshot_expression_handle(syntax_trees, expression),
                 },
+            },
+            crash_cause: match value.exit {
+                crate::statement::TransitionExit::Ordinary => None,
+                crate::statement::TransitionExit::Crash(crate::item::CrashCause::Trap) => {
+                    Some("Trap")
+                }
+                crate::statement::TransitionExit::Crash(crate::item::CrashCause::Abort) => {
+                    Some("Abort")
+                }
             },
         },
     }

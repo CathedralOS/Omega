@@ -186,7 +186,7 @@ pub(crate) fn lower_machine(
         lowerer.typed_trees.push_machine_contract(
             &mut typed_machine,
             typed::signature::SignatureContract {
-                kind: lower_contract_kind(contract.kind),
+                kind: lower_contract_kind(&contract.kind),
                 facts,
                 token_count: contract.token_count,
             },
@@ -291,7 +291,7 @@ fn inherit_requirement_guarantee(
 }
 
 fn lower_contract_kind(
-    kind: resolved::signature::SignatureContractKind,
+    kind: &resolved::signature::SignatureContractKind,
 ) -> typed::signature::SignatureContractKind {
     match kind {
         resolved::signature::SignatureContractKind::Requires => {
@@ -302,6 +302,15 @@ fn lower_contract_kind(
         }
         resolved::signature::SignatureContractKind::Boundary => {
             typed::signature::SignatureContractKind::Boundary
+        }
+        resolved::signature::SignatureContractKind::Crashes { cause, scope } => {
+            typed::signature::SignatureContractKind::Crashes {
+                cause: match cause {
+                    resolved::signature::CrashCause::Trap => typed::signature::CrashCause::Trap,
+                    resolved::signature::CrashCause::Abort => typed::signature::CrashCause::Abort,
+                },
+                scope: crate::name::lower_name(scope),
+            }
         }
     }
 }

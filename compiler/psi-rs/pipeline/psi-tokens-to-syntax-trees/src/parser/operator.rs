@@ -4,7 +4,10 @@ use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
-use psi_syntax_trees::item::{CapabilityContract, CapabilityContractKind, OperatorDefinition};
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{
+    CapabilityContract, CapabilityContractKind, CrashCause, OperatorDefinition,
+};
 use psi_syntax_trees::operator_spelling::OperatorSpelling;
 use psi_tokens::PunctuationKind;
 
@@ -142,7 +145,44 @@ fn parse_operator_contract<'tokens, 'source>(
         return parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Ensures);
     }
 
-    Err(input.expected_one_of_here(&["`requires`", "`ensures`"]))
+    if input.at_contextual("crashes") {
+        *input = input.take_contextual("crashes")?;
+        let (cause, after_cause) = input.take_identifier()?;
+        let cause = match cause.as_str() {
+            "Trap" => CrashCause::Trap,
+            "Abort" => CrashCause::Abort,
+            _ => {
+                return Err(after_cause.error_here(format!(
+                    "unknown crash cause `{}`; expected `Trap` or `Abort`",
+                    cause.as_str()
+                )));
+            }
+        };
+        let (scope, after_header, header_token_count) = if operator_contract_terminator(after_cause)
+        {
+            (
+                Identifier::generated("ExecutionDomain"),
+                after_cause,
+                2usize,
+            )
+        } else {
+            let (scope, after_header) = after_cause.take_identifier()?;
+            (scope, after_header, 3usize)
+        };
+        *input = after_header;
+        let mut contract = parse_operator_fact_contract(
+            syntax_trees,
+            input,
+            CapabilityContractKind::Crashes { cause, scope },
+        )?;
+        contract.token_count = contract
+            .token_count
+            .checked_add(header_token_count)
+            .expect("operator crash contract token count overflow");
+        return Ok(contract);
+    }
+
+    Err(input.expected_one_of_here(&["`requires`", "`ensures`", "`crashes`"]))
 }
 
 fn parse_operator_fact_contract<'tokens, 'source>(
@@ -162,7 +202,9 @@ fn parse_operator_fact_contract<'tokens, 'source>(
 }
 
 fn is_operator_contract_start(input: &Input<'_, '_>) -> bool {
-    input.at_contextual("requires") || input.at_contextual("ensures")
+    input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("crashes")
 }
 
 fn operator_contract_terminator(input: Input<'_, '_>) -> bool {

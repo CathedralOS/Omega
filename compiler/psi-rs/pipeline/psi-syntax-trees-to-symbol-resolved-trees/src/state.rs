@@ -246,6 +246,19 @@ pub(crate) fn lower_signature_contracts(
                         syntax::item::CapabilityContractKind::Boundary(_) => {
                             SignatureContractKind::Boundary
                         }
+                        syntax::item::CapabilityContractKind::Crashes { cause, scope } => {
+                            SignatureContractKind::Crashes {
+                                cause: match cause {
+                                    syntax::item::CrashCause::Trap => {
+                                        psi_symbol_resolved_trees::signature::CrashCause::Trap
+                                    }
+                                    syntax::item::CrashCause::Abort => {
+                                        psi_symbol_resolved_trees::signature::CrashCause::Abort
+                                    }
+                                },
+                                scope: crate::name::lower_name(scope),
+                            }
+                        }
                     },
                     facts,
                     token_count: contract.token_count,
@@ -465,6 +478,7 @@ pub(crate) fn build_synthesized_arm_state(
         target: TransitionTarget::Value(terminal),
         continuation: None,
         guard: TransitionGuard::Always,
+        exit: psi_symbol_resolved_trees::statement::TransitionExit::Ordinary,
         source_span: Default::default(),
     });
 
@@ -583,6 +597,7 @@ pub(crate) fn build_synthesized_transition_argument_state(
                 target: TransitionTarget::Named(target),
                 continuation: None,
                 guard: TransitionGuard::Always,
+                exit: psi_symbol_resolved_trees::statement::TransitionExit::Ordinary,
                 source_span: Default::default(),
             }),
         );
