@@ -2793,6 +2793,23 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         state fail() -> i32 { crash Trap; }
     }
 
+    machine transitive_order_across_states(left: i32, middle: i32, right: i32) -> i32
+    crashes Trap Activation
+        left < right
+    {
+        transition {
+            left < middle -> compare(left, middle, right)
+            _ -> 0i32
+        }
+        state compare(left: i32, middle: i32, right: i32) -> i32 {
+            transition {
+                middle <= right -> fail()
+                _ -> 0i32
+            }
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
     machine nonstrict_chain_does_not_prove_strict(
         left: i32,
         middle: i32,
@@ -2857,6 +2874,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         "reversed_equality",
         "transitive_integer_order",
         "transitive_nonstrict_order",
+        "transitive_order_across_states",
     ] {
         let [site] = plan(name).crash.checked_sites() else {
             panic!("{name} should retain one crash site")
