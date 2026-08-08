@@ -164,6 +164,15 @@ enum LoweredIntegerBranchTerminator {
     Return {
         expression: LoweredDirectExpression,
     },
+    Crash(LoweredCrashExit),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredCrashExit {
+    cause: TerminalCrashCause,
+    damage_minimum: String,
+    containment_demand: String,
+    frontier_lower_bound: Vec<ClaimId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1240,7 +1249,12 @@ fn lower_selected_machine(
             _ => lower_direct_parameter_machine(checked, machine, entry_state),
         };
     }
-    if states.len() == 3 && entry_has_ordered_boolean_conditional(checked, &states[0]) {
+    if states.len() == 3
+        && entry_has_ordered_boolean_conditional(checked, &states[0])
+        && !states[1..]
+            .iter()
+            .any(|state| is_explicit_crash_state(checked, state))
+    {
         return match checked.primitive_type_reference(states[0].return_type) {
             Some(PrimitiveType::Bool) => {
                 lower_boolean_conditional_machine(checked, machine, states)
@@ -1328,28 +1342,7 @@ fn lower_explicit_crash_machine(
     else {
         unreachable!("crash-only source shape was selected above")
     };
-    let Some(crash_plan) = checked
-        .facts
-        .contract_plans
-        .for_machine(machine.symbol)
-        .map(|contract| &contract.crash)
-    else {
-        return unsupported("explicit crash has no checked machine-contract plan");
-    };
-    let Some(checked_site) = crash_plan.checked_site_at(entry_state.symbol, 0) else {
-        return unsupported("explicit crash has no body-derived checked crash-site row");
-    };
-    let matching_contracts = crash_plan
-        .covering_buckets_for_site(checked_site)
-        .map(|(_, bucket)| bucket)
-        .collect::<Vec<_>>();
-    let [covering_bucket] = matching_contracts.as_slice() else {
-        return unsupported(
-            "an explicit crash in the first terminal-Psi source slice requires exactly one prechecked covering bucket",
-        );
-    };
-    let frontier_lower_bound =
-        lower_checked_crash_frontier(checked_site.frontier_lower_bound(), &[])?;
+    let crash = lower_checked_crash_exit(checked, machine, entry_state, 0, &[])?;
 
     let terminal_parameters = parameter_types
         .iter()
@@ -1394,13 +1387,10 @@ fn lower_explicit_crash_machine(
                     operations: Vec::new(),
                     terminator: Terminator::Crash {
                         edge: edge_id(1),
-                        cause: match checked_site.cause() {
-                            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
-                        },
-                        damage_minimum: checked_site.damage_minimum().to_owned(),
-                        containment_demand: covering_bucket.containment_demand().to_owned(),
-                        frontier_lower_bound,
+                        cause: crash.cause,
+                        damage_minimum: crash.damage_minimum,
+                        containment_demand: crash.containment_demand,
+                        frontier_lower_bound: crash.frontier_lower_bound,
                     },
                 }],
                 contract: MachineContract {
@@ -1433,6 +1423,47 @@ fn lower_checked_crash_frontier(
     lowered.sort();
     lowered.dedup();
     Ok(lowered)
+}
+
+fn lower_checked_crash_exit(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    state: &psi_checked_trees::state::State,
+    statement_ordinal: u32,
+    source_claims: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<LoweredCrashExit, LoweringError> {
+    let Some(crash_plan) = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .map(|contract| &contract.crash)
+    else {
+        return unsupported("explicit crash has no checked machine-contract plan");
+    };
+    let Some(checked_site) = crash_plan.checked_site_at(state.symbol, statement_ordinal) else {
+        return unsupported("explicit crash has no body-derived checked crash-site row");
+    };
+    let matching_contracts = crash_plan
+        .covering_buckets_for_site(checked_site)
+        .map(|(_, bucket)| bucket)
+        .collect::<Vec<_>>();
+    let [covering_bucket] = matching_contracts.as_slice() else {
+        return unsupported(
+            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering bucket",
+        );
+    };
+    Ok(LoweredCrashExit {
+        cause: match checked_site.cause() {
+            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+        },
+        damage_minimum: checked_site.damage_minimum().to_owned(),
+        containment_demand: covering_bucket.containment_demand().to_owned(),
+        frontier_lower_bound: lower_checked_crash_frontier(
+            checked_site.frontier_lower_bound(),
+            source_claims,
+        )?,
+    })
 }
 
 fn lower_boolean_conditional_machine(
@@ -1726,7 +1757,7 @@ fn lower_integer_conditional_machine(
             .try_into()
             .expect("the two conditional branch states each lower one expression");
 
-    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let contract_value = validate_contract(checked, machine, result_type, None, false)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry)?;
     Ok(build_integer_conditional_module(
@@ -1763,6 +1794,8 @@ fn lower_nested_integer_branch_machine(
                 "nested branch result must be a primitive integer",
             ))?,
     )?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, &states[0])?;
     let mut lowered_states = Vec::with_capacity(states.len());
     let mut successors = vec![Vec::new(); states.len()];
     let mut indegree = vec![0usize; states.len()];
@@ -1804,6 +1837,23 @@ fn lower_nested_integer_branch_machine(
                     result_type,
                 )?;
                 LoweredIntegerBranchTerminator::Return { expression }
+            }
+            [StatementNode::Transition(transition)]
+                if matches!(transition.exit, TransitionExit::Crash(_))
+                    && transition.guard == TransitionGuardNode::Always
+                    && !transition.continuation.is_valid()
+                    && matches!(
+                        checked.statement_table.transition_target(transition.target),
+                        TransitionTargetNode::Terminal
+                    ) =>
+            {
+                LoweredIntegerBranchTerminator::Crash(lower_checked_crash_exit(
+                    checked,
+                    machine,
+                    state,
+                    0,
+                    &identity_reshuffles.source_claims,
+                )?)
             }
             [
                 StatementNode::Transition(when_true),
@@ -1898,9 +1948,10 @@ fn lower_nested_integer_branch_machine(
         return unsupported("nested terminal branch control contains an unreachable state");
     }
 
-    let contract_value = validate_contract(checked, machine, result_type, None)?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, &states[0])?;
+    let has_crash = lowered_states
+        .iter()
+        .any(|state| matches!(&state.terminator, LoweredIntegerBranchTerminator::Crash(_)));
+    let contract_value = validate_contract(checked, machine, result_type, None, has_crash)?;
     Ok(build_nested_integer_branch_module(
         &lowered_states,
         result_type,
@@ -2142,7 +2193,7 @@ fn lower_integer_state_chain(
     )?;
     let expected_value = evaluate_direct_expression(&return_expression, &known_parameters);
 
-    let contract_value = validate_contract(checked, machine, result_type, expected_value)?;
+    let contract_value = validate_contract(checked, machine, result_type, expected_value, false)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_integer_state_chain_module(
@@ -2629,7 +2680,7 @@ fn lower_direct_parameter_machine(
     )?;
     let known_parameters = vec![None; parameter_types.len()];
     let expected_value = evaluate_direct_expression(&return_expression, &known_parameters);
-    let contract_value = validate_contract(checked, machine, result_type, expected_value)?;
+    let contract_value = validate_contract(checked, machine, result_type, expected_value, false)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_direct_parameter_module(
@@ -2903,9 +2954,29 @@ fn validate_contract(
     machine: &psi_checked_trees::machine::Machine,
     result_type: ScalarType,
     expected_value: Option<IntegerValue>,
+    allow_crash_contracts: bool,
 ) -> Result<IntegerValue, LoweringError> {
     let contracts = checked.machine_contracts(machine);
-    if contracts.len() != 2 {
+    let value_contract_count = contracts
+        .iter()
+        .filter(|contract| {
+            matches!(
+                contract.kind,
+                SignatureContractKind::Requires | SignatureContractKind::Ensures
+            )
+        })
+        .count();
+    if value_contract_count != 2
+        || (!allow_crash_contracts && contracts.len() != value_contract_count)
+        || contracts.iter().any(|contract| {
+            !matches!(
+                contract.kind,
+                SignatureContractKind::Requires
+                    | SignatureContractKind::Ensures
+                    | SignatureContractKind::Crashes { .. }
+            )
+        })
+    {
         return unsupported("machine must have exactly one requires and one ensures clause");
     };
     let mut shared_value = None;
@@ -3909,6 +3980,19 @@ fn build_nested_integer_branch_module(
                     .checked_add(1)
                     .expect("nested return edge identities advance");
                 Terminator::Return { edge, value }
+            }
+            LoweredIntegerBranchTerminator::Crash(crash) => {
+                let edge = edge_id(next_edge_identity);
+                next_edge_identity = next_edge_identity
+                    .checked_add(1)
+                    .expect("nested crash edge identities advance");
+                Terminator::Crash {
+                    edge,
+                    cause: crash.cause,
+                    damage_minimum: crash.damage_minimum.clone(),
+                    containment_demand: crash.containment_demand.clone(),
+                    frontier_lower_bound: crash.frontier_lower_bound.clone(),
+                }
             }
         };
         blocks.push(Block {

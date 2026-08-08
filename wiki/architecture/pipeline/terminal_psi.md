@@ -65,16 +65,17 @@ bytes and semantic identity cover every field, and fuel charges its edge.
 Omega native lowering rejects the row until target crash plans are represented;
 it never silently treats a crash as a return or ordinary terminal transition.
 The source frontend now retains fingerprinted `crashes Cause Scope` buckets and
-explicit `crash Cause;` exits. The first producer slice accepts exactly one
-unconditional same-cause bucket, emits its selected containment demand and the
-site's derived damage minimum on the crash terminator, and fails closed for
-absent, guarded, or ambiguous coverage. Route facts are already
+explicit `crash Cause;` exits. Source production accepts exactly one prechecked
+covering bucket, emits its selected containment demand and the site's derived
+damage minimum on the crash terminator, and fails closed for absent or
+ambiguous coverage. This covers crash-only unconditional machines and exact
+incoming-path guards in the acyclic integer-control slice. Route facts are already
 restricted to Boolean expressions. Public contract and generic-template
 identities already merge exact `(cause, scope)` buckets, discard duplicate
 routes, and let a route-less or explicit-`true` route subsume guarded
 alternatives. Checked machine-contract plans retain that published set as
 source-handle-free buckets; the public fingerprint and contract manifest
-consume the same carrier, and terminal lowering selects unconditional coverage
+consume the same carrier, and terminal lowering selects prechecked coverage
 from it rather than re-reading typed clauses. An independent checked body layer
 retains every explicit crash site's state-local location and cause; these rows
 are reported as implementation evidence, do not enter the public fingerprint,
@@ -97,8 +98,9 @@ separate guard-covering buckets from the subset whose containment demand also
 covers the minimum; terminal production consumes that two-dimensional subset,
 rejects narrower authored demand, and emits both the derived minimum and
 selected published demand into v23. Archived v22 bytes decode conservatively
-with both in-memory fields equal to their single encoded scope. Conditional frontier membership,
-invariant/custody-based minimum widening, general guarded production, declared
+with both in-memory fields equal to their single encoded scope. Conditional
+frontier membership, invariant/custody-based minimum widening, broader guarded
+production, declared
 nominal scope ordering, context maxima, and installation realization remain
 the rest of CRASH-CONTRACT.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
