@@ -233,12 +233,20 @@ Remaining:
   the lower bound,
   and terminal production rejects any checked identity it cannot map to a dense
   terminal claim. Extend that frontier with conditionally live claims when path
-  evidence proves their membership. Extend path-conditioned guard entailment
-  beyond the live structural propositional consequences and widen damage minima
-  from open invariant/custody evidence; then finish call-site
-  refinement/propagation and sparse per-cause context maxima. Retaining declared
-  intermediate nominal scope ordering is design blocked on `OWNER_QUESTIONS.md`
-  Q2.
+  evidence proves their membership. Direct calls to local machines with
+  published crash ceilings now retain source-independent checked invocation
+  rows keyed by state/statement/call ordinal and target contract fingerprint.
+  The producer substitutes arguments into canonical route predicates, drops
+  only routes the existing evaluator proves false, collapses proved-true routes
+  to unconditional alternatives, preserves fully disproved calls as empty
+  evidence, and records the caller's exact incoming path conjunction; semantic
+  reports expose the surviving buckets. Extend path-conditioned guard
+  entailment beyond the live structural propositional consequences and widen
+  damage minima from open invariant/custody evidence; then finish same-unit
+  body-summary selection, recursive guarded-crash fixed points, caller-ceiling
+  coverage, imported/requirement capsules, and sparse per-cause context maxima.
+  Retaining declared intermediate nominal scope ordering is design blocked on
+  `OWNER_QUESTIONS.md` Q2.
   Generalize guarded source production beyond the live structural implication
   rules and current acyclic integer-control shape.
   Terminal Psi v23 already carries the explicit no-successor terminator, both

@@ -35,7 +35,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
             continue;
         };
         let crash_plan = &facts.contract_plans.machines[contract_index].crash;
-        if crash_plan.checked_sites().is_empty() {
+        if crash_plan.checked_sites().is_empty() && crash_plan.checked_calls().is_empty() {
             continue;
         }
 
@@ -92,10 +92,32 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
                     .with_guard_covering_buckets(covering)
             })
             .collect();
+        let checked_calls = crash_plan
+            .checked_calls()
+            .iter()
+            .map(|call| {
+                let path_guard_conjuncts = incoming
+                    .iter()
+                    .filter(|guard| guard.applies_at(call.location().state()))
+                    .map(|guard| {
+                        crate::facts::canonical_crash_path_predicate(
+                            program,
+                            guard.guard(),
+                            guard.is_negated(),
+                            &parameter_names,
+                            &content_conservation,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                call.clone().with_path_guard_conjuncts(path_guard_conjuncts)
+            })
+            .collect();
         facts.contract_plans.machines[contract_index].crash = crash_plan
             .clone()
             .with_checked_sites(checked_sites)
-            .expect("path-conditioned coverage retains valid checked-site identity");
+            .expect("path-conditioned coverage retains valid checked-site identity")
+            .with_checked_calls(checked_calls)
+            .expect("path-conditioned coverage retains valid checked-call identity");
     }
 }
 

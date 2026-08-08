@@ -177,7 +177,16 @@ Current ownership is:
   rather than re-reading typed crash clauses. The same plan keeps an
   independent, non-fingerprinted checked-site layer keyed by state and
   state-local statement ordinal; it records the body-derived cause without
-  claiming that damage-minimum or frontier reconstruction has run. Canonical
+  claiming that damage-minimum or frontier reconstruction has run. A sibling
+  checked-call layer uses the flow graph's state/statement/call coordinate,
+  retains the callee target and contract fingerprint, and stores the surviving
+  published buckets after invocation argument substitution. Routes are removed
+  only when the call evaluator proves them false; proved-true routes become
+  unconditional, unknown routes are re-encoded in the caller's positional
+  namespace, and an empty surviving set is retained as positive crash-free
+  evidence. Exact incoming path predicates remain separate conjunction factors
+  on the call row. `facts/crash_calls.rs` owns this source-dependent production
+  and substitution step. Canonical
   published buckets have dense plan-local identities. Each site cites every
   unconditional same-cause bucket as structurally proved guard coverage;
   exact incoming/fallthrough predicates and their sound conjunction/negated-

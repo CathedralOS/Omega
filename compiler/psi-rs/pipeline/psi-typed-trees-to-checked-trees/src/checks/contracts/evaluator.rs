@@ -20,17 +20,41 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
+    call_site_boolean_contract_expression_value(
+        program,
+        state_flow,
+        call_flow,
+        call_site,
+        target_symbol,
+        target_parameters,
+        expression,
+    )
+    .unwrap_or(false)
+}
+
+/// Evaluate one callee Boolean contract expression after substituting the
+/// invocation's concrete arguments. `None` is deliberately distinct from
+/// `false`: crash refinement may discard a route only when false is proved.
+pub(crate) fn call_site_boolean_contract_expression_value(
+    program: &psi_typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    call_site: &crate::CallSite<'_>,
+    target_symbol: psi_symbols::SymbolHandle,
+    target_parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<bool> {
     let Some(caller_state) =
         crate::find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
     else {
-        return false;
+        return None;
     };
     let Some(caller_machine) = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == state_flow.machine_symbol)
     else {
-        return false;
+        return None;
     };
 
     ContractExpressionEvaluator {
@@ -45,7 +69,6 @@ pub(super) fn call_site_proves_boolean_contract_expression(
         active_resolutions: RefCell::new(Vec::new()),
     }
     .boolean_value(expression)
-    .unwrap_or(false)
 }
 
 pub(super) struct ContractExpressionEvaluator<'program, 'call> {

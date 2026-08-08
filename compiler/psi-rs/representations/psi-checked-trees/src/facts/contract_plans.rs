@@ -106,6 +106,39 @@ pub struct CrashSiteLocation {
     statement_ordinal: u32,
 }
 
+/// Source-handle-free identity of one invocation within a checked machine
+/// body. This deliberately reuses the flow layer's state/statement/call
+/// coordinates so later crash propagation never has to rediscover a source
+/// expression.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CrashCallSiteLocation {
+    state: SymbolHandle,
+    statement_ordinal: u32,
+    call_ordinal: u32,
+}
+
+impl CrashCallSiteLocation {
+    pub const fn new(state: SymbolHandle, statement_ordinal: u32, call_ordinal: u32) -> Self {
+        Self {
+            state,
+            statement_ordinal,
+            call_ordinal,
+        }
+    }
+
+    pub const fn state(self) -> SymbolHandle {
+        self.state
+    }
+
+    pub const fn statement_ordinal(self) -> u32 {
+        self.statement_ordinal
+    }
+
+    pub const fn call_ordinal(self) -> u32 {
+        self.call_ordinal
+    }
+}
+
 impl CrashSiteLocation {
     pub const fn new(state: SymbolHandle, statement_ordinal: u32) -> Self {
         Self {
@@ -234,6 +267,76 @@ impl CheckedCrashSite {
     }
 }
 
+/// Invocation-specific refinement of a callee's published crash ceiling.
+/// `surviving_buckets` are already expressed in the caller's canonical
+/// parameter namespace. An empty set is meaningful evidence that every
+/// published route was disproved at this invocation, so such records are
+/// retained rather than elided.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedCrashCallSite {
+    location: CrashCallSiteLocation,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+    target_contract_fingerprint: u64,
+    path_guard_conjuncts: Vec<CrashPredicateIdentity>,
+    surviving_buckets: Vec<CrashRouteBucket>,
+}
+
+impl CheckedCrashCallSite {
+    pub fn new(
+        location: CrashCallSiteLocation,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_fingerprint: u64,
+        mut surviving_buckets: Vec<CrashRouteBucket>,
+    ) -> Self {
+        surviving_buckets.sort();
+        surviving_buckets.dedup();
+        Self {
+            location,
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            path_guard_conjuncts: Vec::new(),
+            surviving_buckets,
+        }
+    }
+
+    pub const fn location(&self) -> CrashCallSiteLocation {
+        self.location
+    }
+
+    pub const fn target_machine(&self) -> SymbolHandle {
+        self.target_machine
+    }
+
+    pub const fn target_state(&self) -> SymbolHandle {
+        self.target_state
+    }
+
+    pub const fn target_contract_fingerprint(&self) -> u64 {
+        self.target_contract_fingerprint
+    }
+
+    pub fn path_guard_conjuncts(&self) -> &[CrashPredicateIdentity] {
+        &self.path_guard_conjuncts
+    }
+
+    pub fn surviving_buckets(&self) -> &[CrashRouteBucket] {
+        &self.surviving_buckets
+    }
+
+    pub fn with_path_guard_conjuncts(
+        mut self,
+        mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
+    ) -> Self {
+        path_guard_conjuncts.sort();
+        path_guard_conjuncts.dedup();
+        self.path_guard_conjuncts = path_guard_conjuncts;
+        self
+    }
+}
+
 fn crash_frontier_claim_sort_key(
     identity: psi_language_semantics::PermissionClaimIdentity,
 ) -> [u64; 11] {
@@ -336,6 +439,7 @@ pub struct CrashPlan {
     interface: CrashInterface,
     published: Vec<CrashRouteBucket>,
     checked_sites: Vec<CheckedCrashSite>,
+    checked_calls: Vec<CheckedCrashCallSite>,
 }
 
 impl CrashPlan {
@@ -346,6 +450,7 @@ impl CrashPlan {
             interface: CrashInterface::PublishedCeiling,
             published,
             checked_sites: Vec::new(),
+            checked_calls: Vec::new(),
         }
     }
 
@@ -404,6 +509,46 @@ impl CrashPlan {
 
     pub fn checked_sites(&self) -> &[CheckedCrashSite] {
         &self.checked_sites
+    }
+
+    pub fn with_checked_calls(
+        mut self,
+        mut checked_calls: Vec<CheckedCrashCallSite>,
+    ) -> Option<Self> {
+        checked_calls.sort_by_key(|call| {
+            (
+                call.location.state.arena_index(),
+                call.location.state.generation(),
+                call.location.statement_ordinal,
+                call.location.call_ordinal,
+            )
+        });
+        checked_calls.dedup();
+        if checked_calls
+            .windows(2)
+            .any(|calls| calls[0].location == calls[1].location)
+        {
+            return None;
+        }
+        self.checked_calls = checked_calls;
+        Some(self)
+    }
+
+    pub fn checked_calls(&self) -> &[CheckedCrashCallSite] {
+        &self.checked_calls
+    }
+
+    pub fn checked_call_at(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        call_ordinal: u32,
+    ) -> Option<&CheckedCrashCallSite> {
+        self.checked_calls.iter().find(|call| {
+            call.location.state == state
+                && call.location.statement_ordinal == statement_ordinal
+                && call.location.call_ordinal == call_ordinal
+        })
     }
 
     /// Published buckets whose guards and containment demands both cover this
@@ -723,6 +868,37 @@ mod tests {
                 )])
                 .is_none(),
             "an unknown claim identity cannot enter checked crash evidence"
+        );
+    }
+
+    #[test]
+    fn crash_calls_retain_empty_refinements_and_reject_coordinate_collisions() {
+        let machine = SymbolHandle::from_arena_index(2);
+        let state = SymbolHandle::from_arena_index(3);
+        let location = CrashCallSiteLocation::new(state, 4, 1);
+        let call = CheckedCrashCallSite::new(location, machine, state, 17, Vec::new());
+        let plan = CrashPlan::default()
+            .with_checked_calls(vec![call.clone(), call.clone()])
+            .expect("an identical duplicate canonicalizes away");
+        assert_eq!(plan.checked_calls(), &[call.clone()]);
+        assert!(plan.checked_calls()[0].surviving_buckets().is_empty());
+        assert!(plan.checked_call_at(state, 4, 1).is_some());
+
+        let conflicting = CheckedCrashCallSite::new(
+            location,
+            SymbolHandle::from_arena_index(8),
+            state,
+            18,
+            vec![CrashRouteBucket::unconditional(
+                CrashCause::Abort,
+                EXECUTION_DOMAIN_CRASH_SCOPE,
+            )],
+        );
+        assert!(
+            CrashPlan::default()
+                .with_checked_calls(vec![call, conflicting])
+                .is_none(),
+            "one invocation coordinate cannot name two checked crash refinements"
         );
     }
 

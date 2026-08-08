@@ -2547,6 +2547,111 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     );
 }
 
+#[test]
+fn checked_crash_calls_retain_invocation_specific_route_refinement() {
+    let source = r#"
+    machine risky(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    { 1 }
+
+    machine safe() -> i32 { risky(false) }
+
+    machine certain() -> i32
+    crashes Trap Activation
+    { risky(true) }
+
+    machine forwarded(flag: bool) -> i32
+    crashes Trap Activation
+        flag
+    { risky(flag) }
+
+    machine conditioned(flag: bool) -> i32
+    crashes Trap Activation
+    {
+        transition {
+            flag -> invoke()
+            _ -> 0i32
+        }
+
+        state invoke() -> i32 { risky(true) }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let plan = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+    };
+
+    let [safe_call] = plan("safe").crash.checked_calls() else {
+        panic!("the crash-capable invocation should retain one checked call row")
+    };
+    assert!(
+        safe_call.surviving_buckets().is_empty(),
+        "a concrete false argument disproves the callee's only crash route"
+    );
+    assert_eq!(safe_call.location().statement_ordinal(), 0);
+    assert_eq!(safe_call.location().call_ordinal(), 0);
+    assert_eq!(
+        safe_call.target_machine(),
+        symbol_of_checked(&checked, "risky")
+    );
+    assert_eq!(
+        safe_call.target_contract_fingerprint(),
+        plan("risky").fingerprint
+    );
+
+    let [certain_call] = plan("certain").crash.checked_calls() else {
+        panic!("the concrete true invocation should retain one checked call row")
+    };
+    let [certain_bucket] = certain_call.surviving_buckets() else {
+        panic!("the concrete true route should survive")
+    };
+    assert!(certain_bucket.is_unconditional());
+    assert_eq!(certain_bucket.cause(), psi_checked_trees::CrashCause::Trap);
+    assert_eq!(certain_bucket.containment_demand(), "Activation");
+
+    let [forwarded_call] = plan("forwarded").crash.checked_calls() else {
+        panic!("the unresolved invocation should retain one checked call row")
+    };
+    let [forwarded_bucket] = forwarded_call.surviving_buckets() else {
+        panic!("the unresolved route should survive")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(forwarded_route)] =
+        forwarded_bucket.alternative_guards()
+    else {
+        panic!("the unresolved route should remain a predicate")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(published_route)] =
+        plan("forwarded").crash.published()[0].alternative_guards()
+    else {
+        panic!("the caller should publish its forwarded predicate")
+    };
+    assert_eq!(
+        forwarded_route, published_route,
+        "argument substitution should move the callee route into the caller's positional namespace"
+    );
+
+    let [conditioned_call] = plan("conditioned").crash.checked_calls() else {
+        panic!("the named transition itself is not a public machine invocation")
+    };
+    assert_eq!(
+        conditioned_call.path_guard_conjuncts().len(),
+        1,
+        "the checked call retains the exact incoming path conjunction"
+    );
+}
+
 fn symbol_of_checked(
     checked: &psi_checked_trees::CheckedTrees,
     name: &str,

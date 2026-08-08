@@ -1738,6 +1738,62 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push_str("        ");
             }
             json.push(']');
+            json.push_str(",\n        \"checked_crash_calls\": [");
+            for (call_index, call) in contract.crash.checked_calls().iter().enumerate() {
+                if call_index > 0 {
+                    json.push(',');
+                }
+                let location = call.location();
+                let state_name = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == location.state())
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
+                let target_machine = program
+                    .machines()
+                    .iter()
+                    .find(|target| target.symbol == call.target_machine());
+                let target_machine_name = target_machine
+                    .map(|target| target.name.as_str())
+                    .unwrap_or("<unknown>");
+                let target_state_name = target_machine
+                    .and_then(|target| {
+                        program
+                            .machine_states(target)
+                            .iter()
+                            .find(|state| state.symbol == call.target_state())
+                    })
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
+                json.push_str("\n          {\"state\": ");
+                push_json_string(&mut json, state_name);
+                json.push_str(", \"statement_ordinal\": ");
+                json.push_str(&location.statement_ordinal().to_string());
+                json.push_str(", \"call_ordinal\": ");
+                json.push_str(&location.call_ordinal().to_string());
+                json.push_str(", \"target_machine\": ");
+                push_json_string(&mut json, target_machine_name);
+                json.push_str(", \"target_state\": ");
+                push_json_string(&mut json, target_state_name);
+                json.push_str(", \"target_contract_fingerprint\": \"0x");
+                json.push_str(&format!("{:016x}", call.target_contract_fingerprint()));
+                json.push_str("\", \"path_guard_conjuncts\": [");
+                for (guard_index, predicate) in call.path_guard_conjuncts().iter().enumerate() {
+                    if guard_index > 0 {
+                        json.push_str(", ");
+                    }
+                    push_crash_predicate_identity_json(&mut json, predicate);
+                }
+                json.push_str("], \"surviving_buckets\": [");
+                push_crash_buckets_json(&mut json, call.surviving_buckets());
+                json.push_str("]}");
+            }
+            if !contract.crash.checked_calls().is_empty() {
+                json.push('\n');
+                json.push_str("        ");
+            }
+            json.push(']');
             has_implementation_field = true;
         }
         if let Some(fact) = program.facts.termination.for_machine(machine.symbol) {
@@ -1955,7 +2011,12 @@ fn push_crash_plan_json(json: &mut String, plan: &psi_checked_trees::CrashPlan) 
         },
     );
     json.push_str(", \"buckets\": [");
-    for (bucket_index, bucket) in plan.published().iter().enumerate() {
+    push_crash_buckets_json(json, plan.published());
+    json.push_str("]}");
+}
+
+fn push_crash_buckets_json(json: &mut String, buckets: &[psi_checked_trees::CrashRouteBucket]) {
+    for (bucket_index, bucket) in buckets.iter().enumerate() {
         if bucket_index > 0 {
             json.push_str(", ");
         }
@@ -1977,17 +2038,23 @@ fn push_crash_plan_json(json: &mut String, plan: &psi_checked_trees::CrashPlan) 
             match guard {
                 psi_checked_trees::CrashRouteGuard::Truth => push_json_string(json, "true"),
                 psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                    let mut identity = String::from("0x");
-                    for byte in predicate.canonical_bytes() {
-                        identity.push_str(&format!("{byte:02x}"));
-                    }
-                    push_json_string(json, &identity);
+                    push_crash_predicate_identity_json(json, predicate);
                 }
             }
         }
         json.push_str("]}");
     }
-    json.push_str("]}");
+}
+
+fn push_crash_predicate_identity_json(
+    json: &mut String,
+    predicate: &psi_checked_trees::CrashPredicateIdentity,
+) {
+    let mut identity = String::from("0x");
+    for byte in predicate.canonical_bytes() {
+        identity.push_str(&format!("{byte:02x}"));
+    }
+    push_json_string(json, &identity);
 }
 
 fn push_termination_json(
@@ -3202,7 +3269,23 @@ mod tests {
                     ]),
                 ]),
             ])
-            .expect("one crash site per source location");
+            .expect("one crash site per source location")
+            .with_checked_calls(vec![
+                psi_checked_trees::CheckedCrashCallSite::new(
+                    psi_checked_trees::CrashCallSiteLocation::new(state_symbol, 7, 2),
+                    symbol,
+                    state_symbol,
+                    0x1234,
+                    vec![psi_checked_trees::CrashRouteBucket::unconditional(
+                        psi_checked_trees::CrashCause::Trap,
+                        "Activation",
+                    )],
+                )
+                .with_path_guard_conjuncts(vec![
+                    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(vec![1, 4, 1]),
+                ]),
+            ])
+            .expect("one crash call per invocation coordinate");
         let mut machine = Machine {
             symbol,
             name: Identifier::generated("Worker::run"),
@@ -3306,6 +3389,9 @@ mod tests {
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains(
             "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
+        ));
+        assert!(json[implementation_start..].contains(
+            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"surviving_buckets\": [{\"cause\": \"Trap\", \"containment_demand\": \"Activation\", \"alternative_guards\": [\"true\"]}]"
         ));
         assert!(
             json[implementation_start..]

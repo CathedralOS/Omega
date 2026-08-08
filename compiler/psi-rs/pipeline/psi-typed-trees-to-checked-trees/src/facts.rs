@@ -12,6 +12,7 @@ use psi_proof::obligations::ProofPlan;
 use psi_typed_trees::TypedTrees;
 
 mod carry;
+mod crash_calls;
 mod index_compatibility;
 
 pub(crate) fn build_check_facts(
@@ -56,7 +57,7 @@ pub(crate) fn build_check_facts(
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(program, &service_reaches, &operational);
+    let contract_plans = build_contract_plans(program, &service_reaches, &operational, &flow);
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
@@ -172,6 +173,7 @@ fn build_contract_plans(
     program: &TypedTrees,
     service_reaches: &psi_checked_trees::ServiceReachFacts,
     operational: &OperationalPlan,
+    flow: &psi_checked_trees::FlowFacts,
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
@@ -384,6 +386,7 @@ fn build_contract_plans(
             fingerprint,
         });
     }
+    crash_calls::attach_checked_crash_calls(program, flow, &content_conservation, &mut machines);
     psi_checked_trees::MachineContractPlans { machines }
 }
 
