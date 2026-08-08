@@ -18,11 +18,14 @@ pub(in crate::checks) struct IncomingGuard {
     guard: ExpressionHandle,
     /// True when the edge is the negated (continuation / `_`) arm.
     negated: bool,
-    /// Arguments on the immediate named edge whose guard this is.  Kept only
-    /// when the guarded edge targets `state` directly; transitive and joined
-    /// facts deliberately discard it because their parameter mapping would
-    /// require composing every intervening edge.
+    /// Raw arguments on the immediate named edge whose guard this is. Kept for
+    /// direct consumers; transitive consumers use the composed label map.
     direct_arguments: Option<psi_arena::HandleSpan<ExpressionHandle>>,
+    /// Final-state parameter symbols rebound to their expression spelling at
+    /// the state where `guard` was evaluated. A single-predecessor walk
+    /// composes this map through every named edge. Ambiguous convergent edges
+    /// and joins discard it rather than guessing an argument correspondence.
+    parameter_argument_labels: Option<Vec<(SymbolHandle, String)>>,
 }
 
 impl IncomingGuard {
@@ -46,6 +49,16 @@ impl IncomingGuard {
         &self,
     ) -> Option<psi_arena::HandleSpan<ExpressionHandle>> {
         self.direct_arguments
+    }
+
+    pub(in crate::checks) fn argument_label_for_parameter(
+        &self,
+        parameter: SymbolHandle,
+    ) -> Option<&str> {
+        self.parameter_argument_labels
+            .as_ref()?
+            .iter()
+            .find_map(|(candidate, label)| (*candidate == parameter).then_some(label.as_str()))
     }
 }
 
@@ -84,7 +97,9 @@ enum StateWrites {
 /// `j < n - 1` from crossing it.
 ///
 /// Only machine-field paths (`self.x`), shared across states, participate in
-/// the rewrite check. Source-state locals do not carry into target states.
+/// the rewrite check. Source-state locals do not become raw range facts in a
+/// target scope. Named-edge parameter rebinding is retained separately as a
+/// complete composed label map for consumers that explicitly understand it.
 pub(in crate::checks) fn collect_incoming_guard_facts(
     program: &psi_typed_trees::TypedTrees,
     machine: &Machine,
@@ -168,8 +183,19 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
         let mut written_any = false;
         let mut visited: Vec<SymbolHandle> = vec![state.symbol];
         let mut current = state.symbol;
+        let mut parameter_argument_labels = Some(
+            program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| (parameter.symbol, parameter.name.to_string()))
+                .collect::<Vec<_>>(),
+        );
 
         while let Some(edge) = single_incoming_edge(&edges, current) {
+            parameter_argument_labels = parameter_argument_labels.and_then(|bindings| {
+                compose_parameter_argument_labels(program, edge.target, edge.arguments, &bindings)
+            });
             for &(guard, negated) in &edge.guards {
                 if guard_survives(program, guard, &written, written_any) {
                     result.push(IncomingGuard {
@@ -177,6 +203,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                         guard,
                         negated,
                         direct_arguments: (edge.target == state.symbol).then_some(edge.arguments),
+                        parameter_argument_labels: parameter_argument_labels.clone(),
                     });
                 }
             }
@@ -240,6 +267,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                     // spellings.  Raw machine-field guards still carry; a
                     // parameter-renamed guard waits for a common mapping.
                     direct_arguments: None,
+                    parameter_argument_labels: None,
                 });
             }
         }
@@ -300,6 +328,82 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
             })
         }
     }
+}
+
+fn compose_parameter_argument_labels(
+    program: &psi_typed_trees::TypedTrees,
+    target: SymbolHandle,
+    arguments: psi_arena::HandleSpan<ExpressionHandle>,
+    bindings: &[(SymbolHandle, String)],
+) -> Option<Vec<(SymbolHandle, String)>> {
+    let target_state = crate::find_state(program, target)?;
+    let arguments = program.statement_table.expression_handles(arguments);
+    let mut replacements = Vec::new();
+    let mut argument_index = 0usize;
+    for parameter in program.state_parameters(target_state) {
+        if parameter.is_self {
+            continue;
+        }
+        let argument = arguments.get(argument_index)?;
+        replacements.push((
+            parameter.name.as_str(),
+            program.expression_table.display_name(*argument),
+        ));
+        argument_index = argument_index.saturating_add(1);
+    }
+    if argument_index != arguments.len() {
+        return None;
+    }
+    Some(
+        bindings
+            .iter()
+            .map(|(parameter, label)| {
+                (
+                    *parameter,
+                    replace_unqualified_identifiers(label, &replacements),
+                )
+            })
+            .collect(),
+    )
+}
+
+fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)]) -> String {
+    let mut result = String::with_capacity(label.len());
+    let mut cursor = 0usize;
+    while cursor < label.len() {
+        let Some(ch) = label[cursor..].chars().next() else {
+            break;
+        };
+        if ch == '_' || ch.is_alphabetic() {
+            let start = cursor;
+            cursor += ch.len_utf8();
+            while cursor < label.len() {
+                let Some(next) = label[cursor..].chars().next() else {
+                    break;
+                };
+                if next == '_' || next.is_alphanumeric() {
+                    cursor += next.len_utf8();
+                } else {
+                    break;
+                }
+            }
+            let identifier = &label[start..cursor];
+            let qualified = start > 0 && label.as_bytes().get(start - 1) == Some(&b'.');
+            if !qualified
+                && let Some((_, replacement)) = replacements
+                    .iter()
+                    .find(|(candidate, _)| *candidate == identifier)
+            {
+                result.push_str(replacement);
+            } else {
+                result.push_str(identifier);
+            }
+        } else {
+            result.push(ch);
+            cursor += ch.len_utf8();
+        }
+    }
+    result
 }
 
 fn state_field_writes(
