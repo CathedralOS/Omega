@@ -5,6 +5,39 @@ use psi_terminal::{Block, CrashCause, OperationKind, Terminator};
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
+/// Decode, verify, and execute the canonical semantic and proof sections of one
+/// terminal-Psi artifact. This is the reference-interpreter trust boundary for
+/// executable artifact content: no source, checked tree, producer-owned module,
+/// or prevalidated Rust object crosses it. Installation and debug sections are
+/// separately bound by the artifact manifest and do not affect interpretation.
+pub fn interpret_terminal_artifact_measured(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+    arguments: &[TerminalScalarValue],
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(TerminalArtifactInterpretError::ProofDecode)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(TerminalArtifactInterpretError::Verification)?;
+    interpret_terminal_measured(&verified, arguments)
+        .map_err(TerminalArtifactInterpretError::Execution)
+}
+
+/// Decode, verify, and execute canonical terminal-Psi semantic/proof artifact
+/// sections, returning only their semantic result.
+pub fn interpret_terminal_artifact(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+    arguments: &[TerminalScalarValue],
+) -> Result<TerminalScalarValue, TerminalArtifactInterpretError> {
+    interpret_terminal_artifact_measured(semantic_bytes, proof_bytes, profile, arguments)
+        .map(MeasuredTerminalExecution::into_value)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalScalarValue {
     Boolean(bool),
@@ -790,6 +823,22 @@ pub enum TerminalInterpretError {
     Crash(TerminalCrash),
     Fuel(FuelMeterError),
 }
+
+#[derive(Debug)]
+pub enum TerminalArtifactInterpretError {
+    SemanticDecode(psi_terminal_codec::CodecError),
+    ProofDecode(psi_terminal_codec::ProofCodecError),
+    Verification(psi_terminal_verifier::VerificationError),
+    Execution(TerminalInterpretError),
+}
+
+impl std::fmt::Display for TerminalArtifactInterpretError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for TerminalArtifactInterpretError {}
 
 impl From<FuelMeterError> for TerminalInterpretError {
     fn from(error: FuelMeterError) -> Self {

@@ -165,8 +165,13 @@ ordering is separately blocked on `OWNER_QUESTIONS.md` Q2.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
-proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
-this path.
+proof bundle. `omega-interpreter` exposes an artifact-root entry that accepts
+only canonical semantic/proof section bytes, decodes both sections, invokes
+that verifier under an explicit admission profile, and executes only the
+resulting `VerifiedTerminalModule`. Source, checked trees, producer-owned
+modules, and prevalidated Rust objects do not cross that entry. Installation
+and debug sections remain separately manifest-bound metadata and do not affect
+interpretation.
 
 Checked proof facts retain nominal proposition declarations and normalized
 applications after transparent aliases and source handles have been removed.
