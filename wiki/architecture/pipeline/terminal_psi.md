@@ -206,7 +206,11 @@ authored target. Pure unconditional multi-value graphs enter this general
 lowering directly; they do not require a conditional source block. Conditional
 successors route computed Boolean payloads through the same arm-local blocks
 and decision trees, so an unselected expression has no operations or fuel
-charge. Loops remain a later slice.
+charge. Compile-known evaluation runs over this lowered acyclic graph, follows a
+known selector, meets parameter facts conservatively at joins, and supplies the
+same fail-closed contract check as the fused one-value chain path. The fused
+path remains distinct because replacing its decision root with an entry jump
+would change fixed and measured fuel. Loops remain a later slice.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and

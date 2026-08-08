@@ -123,6 +123,10 @@ general path accepts pure unconditional multi-value graphs without a synthetic
 selector.
 Conditional successors use those same arm-local binding blocks, so recursive
 and short-circuit payloads execute only after their edge is selected.
+Compile-known Boolean facts propagate through the lowered DAG and meet at
+joins; a closed result rejects a reflexive contract naming the other literal.
+The one-value chain keeps its fused decision-root construction because the
+general entry trampoline would add a semantic fuel unit.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

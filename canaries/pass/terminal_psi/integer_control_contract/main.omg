@@ -676,6 +676,17 @@ ensures true == true
     state finish_tuple(any: bool, both: bool) -> bool { any == both }
 }
 
+machine terminal_boolean_tuple_wrong_contract() -> bool
+requires false == false
+ensures false == false
+{
+    transition { _ -> carry_known_tuple(true, false) }
+    state carry_known_tuple(first: bool, second: bool) -> bool {
+        transition { _ -> finish_known_tuple(first || second, second) }
+    }
+    state finish_known_tuple(any: bool, both: bool) -> bool { any }
+}
+
 machine terminal_boolean_chain_wrong_contract() -> bool
 requires false == false
 ensures false == false

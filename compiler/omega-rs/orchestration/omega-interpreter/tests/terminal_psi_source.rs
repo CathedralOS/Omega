@@ -2990,6 +2990,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             .expect_err("closed Boolean chain with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
     );
+    assert_eq!(
+        lower_machine(&checked, "terminal_boolean_tuple_wrong_contract")
+            .expect_err("compile-known general graph with an unrelated contract must fail closed"),
+        LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
+    );
     for machine in [
         "terminal_unpublished_abort",
         "terminal_narrow_abort",
