@@ -126,9 +126,12 @@ target contains the complete source range retain an `IntegerWiden` operation,
 preserve the mathematical value at the wider carrier, and cost one operation
 unit. This includes unsigned-to-signed widening when the target is wider.
 Narrowing, same-width signedness changes, signed-to-unsigned casts, and
-conversions whose validity depends on occurrence range evidence remain rejected
-until the terminal vocabulary carries the facts needed to prove them. Terminal
-Psi v27 retains `addr` distinctly from `u64` through declarations, scalar terms,
+conversions whose validity depends on nonliteral occurrence range evidence
+remain rejected until the terminal vocabulary carries the facts needed to
+prove them. A compile-known exact fixed-integer cast whose literal is
+representable in the target re-lands as the existing target-typed constant and
+therefore adds neither an operation nor fuel. Terminal Psi v27 retains `addr`
+distinctly from `u64` through declarations, scalar terms,
 comparisons, artifacts, and realization; cross-carrier conversions to or from
 `addr` remain rejected.
 Declared semantic-domain casts remain rejected until their own executable
@@ -369,7 +372,10 @@ parameter through canonical decode and exact-type equality, returns Boolean
 true under artifact-root interpretation and both native targets for a
 full-width input, and costs one comparison plus the return edge. Address
 identity changes no fuel rule; proof format v18 is selected only when a carried
-certificate contains an address-typed term. The v3
+certificate contains an address-typed term. The exact-literal narrowing canary
+re-lands `127u64 as u8` before terminal production, crosses canonical artifact
+interpretation and both native targets as an ordinary `u8` constant, and costs
+the existing one constant plus one return edge. The v3
 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,

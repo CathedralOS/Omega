@@ -336,8 +336,11 @@ the same mathematical integer at the wider carrier, and it costs one operation
 unit. This includes unsigned-to-signed widening when the signed target has a
 strictly larger width. Narrowing, same-width signedness changes,
 signed-to-unsigned casts, and conversions whose totality depends
-on occurrence range evidence remain outside this scalar slice rather than
-being mistaken for identities. Terminal Psi v27 retains `addr` distinctly from
+on nonliteral occurrence range evidence remain outside this scalar slice rather
+than being mistaken for identities. A compile-known exact fixed-integer cast
+whose literal is representable in the target re-lands as the existing
+target-typed integer constant; it introduces no cast operation, semantic
+version, or additional fuel. Terminal Psi v27 retains `addr` distinctly from
 `u64` across declarations, scalar terms, comparisons, artifacts, and Omega
 realization. Cross-carrier conversions to or from `addr` remain outside rather
 than being mistaken for representation identities.
