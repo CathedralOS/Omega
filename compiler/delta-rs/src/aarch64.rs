@@ -57,7 +57,8 @@ pub fn lower_program(program: &Program) -> String {
     // x64's ud2 / idiv #DE).
     asm.push_str("Ltrap:\n    brk #0x1\n");
 
-    // The entry machine's `self` is a process-static, zero-initialized instance.
+    // This target provisions the entry machine's receiver as a zero-initialized
+    // instance in writable image storage.
     let entry = &program.machines[program.entry_machine];
     if entry.has_self && program.entry_data_size > 0 {
         let size = align8(program.entry_data_size);
@@ -116,10 +117,11 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
             local_displacement(param_position)
         ));
     }
-    // establish the self pointer. Entry: the static zero-init instance, but only
-    // when there are data fields (`_selfdata` is emitted iff size > 0; a `&mut self`
-    // with no fields, e.g. exit7, never dereferences self). Non-entry method: self
-    // arrives in x0 (the caller's self-pointer, so every method sees one instance).
+    // establish the self pointer. Entry: the target-provisioned zero-init receiver,
+    // but only when there are data fields (`_selfdata` is emitted iff size > 0; a
+    // `&mut self` with no fields, e.g. exit7, never dereferences self). Non-entry
+    // method: self arrives in x0 (the caller's self-pointer, so every method sees
+    // one instance).
     if machine.has_self {
         if is_entry {
             if program.entry_data_size > 0 {
