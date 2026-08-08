@@ -151,6 +151,10 @@ Checked contract plans retain the accepted closed Boolean/integer
 requires/ensures equality as a source-handle-free carrier. Terminal production
 consumes that carrier and fails closed instead of reopening typed contract
 facts; contract-free all-crash graphs carry no value clause.
+Checked proof facts also retain nominal proposition declarations and normalized
+applications after transparent aliases and source handles are eliminated, so
+terminal production assigns its dense proposition identities without reopening
+typed proof facts.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

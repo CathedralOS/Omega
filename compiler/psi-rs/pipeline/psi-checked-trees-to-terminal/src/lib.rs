@@ -11,8 +11,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckedOperatorResolutionStatus, CheckedTrees, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    CheckedOperatorResolutionStatus, CheckedPropositionBinderArgumentKind,
+    CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedTrees,
+    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact,
     expression::{BinaryOperator, ExpressionNode, UnaryOperator},
     signature::SignatureContractKind,
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
@@ -1174,55 +1176,46 @@ fn lower_proposition_vocabulary(
 ) {
     let placeholder = proposition_id(1);
     let mut declarations = checked
-        .propositions()
+        .facts
+        .proof
+        .proposition_vocabulary
+        .declarations
         .iter()
-        .filter_map(|declaration| {
-            let evidence = match declaration.body {
-                psi_typed_trees::proposition::PropositionBody::Primitive => {
-                    PropositionEvidence::FactOnly
-                }
-                psi_typed_trees::proposition::PropositionBody::Witness { evidence } => {
+        .map(|declaration| {
+            let evidence = match &declaration.evidence {
+                CheckedPropositionEvidence::FactOnly => PropositionEvidence::FactOnly,
+                CheckedPropositionEvidence::Witness { evidence_type } => {
                     PropositionEvidence::Witness {
-                        evidence_type: checked.display_type_reference(evidence),
+                        evidence_type: evidence_type.clone(),
                     }
                 }
-                psi_typed_trees::proposition::PropositionBody::Transparent { .. } => return None,
             };
-            let binders = checked
-                .proposition_binders(declaration)
+            let binders = declaration
+                .binders
                 .iter()
                 .map(|binder| PropositionBinderDeclaration {
-                    name: binder.name.as_str().to_owned(),
-                    kind: match binder.kind {
-                        psi_typed_trees::proposition::PropositionBinderKind::Type => {
-                            PropositionBinderKind::Type
+                    name: binder.name.clone(),
+                    kind: match &binder.kind {
+                        CheckedPropositionBinderKind::Type => PropositionBinderKind::Type,
+                        CheckedPropositionBinderKind::Const { type_identity } => {
+                            PropositionBinderKind::Const {
+                                type_identity: type_identity.clone(),
+                            }
                         }
-                        psi_typed_trees::proposition::PropositionBinderKind::Const {
-                            type_reference,
-                        } => PropositionBinderKind::Const {
-                            type_identity: checked.display_type_reference(type_reference),
-                        },
-                        psi_typed_trees::proposition::PropositionBinderKind::Machine => {
-                            PropositionBinderKind::Machine
-                        }
+                        CheckedPropositionBinderKind::Machine => PropositionBinderKind::Machine,
                     },
                 })
                 .collect();
-            let parameter_types = checked
-                .proposition_parameters(declaration)
-                .iter()
-                .map(|parameter| checked.display_type_reference(parameter.type_reference))
-                .collect();
-            Some((
+            (
                 declaration.symbol,
                 PropositionDeclaration {
                     id: placeholder,
-                    name: declaration.name.as_str().to_owned(),
+                    name: declaration.name.clone(),
                     binders,
-                    parameter_types,
+                    parameter_types: declaration.parameter_types.clone(),
                     evidence,
                 },
-            ))
+            )
         })
         .collect::<Vec<_>>();
     declarations.sort_by(|left, right| left.1.cmp(&right.1));
@@ -1240,38 +1233,37 @@ fn lower_proposition_vocabulary(
         .collect::<Vec<_>>();
 
     let mut applications = checked
-        .proof_facts
+        .facts
+        .proof
+        .proposition_vocabulary
+        .applications
         .iter()
-        .filter_map(|(_, fact)| {
-            let ProofFact::Proposition(application) = fact else {
-                return None;
-            };
-            let normalized = checked.normalize_nominal_proposition_application(application)?;
+        .filter_map(|application| {
             let declaration = declaration_ids
                 .iter()
-                .find_map(|(symbol, id)| (*symbol == normalized.declaration).then_some(*id))?;
+                .find_map(|(symbol, id)| (*symbol == application.declaration).then_some(*id))?;
             Some(PropositionApplicationIdentity {
                 id: placeholder,
                 declaration,
-                binder_arguments: normalized
+                binder_arguments: application
                     .binder_arguments
-                    .into_iter()
+                    .iter()
                     .map(|argument| PropositionBinderArgumentIdentity {
                         kind: match argument.kind {
-                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                            CheckedPropositionBinderArgumentKind::Type => {
                                 PropositionBinderArgumentKind::Type
                             }
-                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                            CheckedPropositionBinderArgumentKind::Const => {
                                 PropositionBinderArgumentKind::Const
                             }
-                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                            CheckedPropositionBinderArgumentKind::Machine => {
                                 PropositionBinderArgumentKind::Machine
                             }
                         },
-                        identity: argument.identity,
+                        identity: argument.identity.clone(),
                     })
                     .collect(),
-                arguments: normalized.arguments,
+                arguments: application.arguments.clone(),
             })
         })
         .collect::<Vec<_>>();

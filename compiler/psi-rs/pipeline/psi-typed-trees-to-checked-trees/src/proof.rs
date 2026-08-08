@@ -74,6 +74,7 @@ pub(crate) fn build_proof_facts_with_operators(
     );
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
+    let proposition_vocabulary = build_checked_proposition_vocabulary(program);
 
     ProofFacts::with_roots(
         obligations,
@@ -82,7 +83,98 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_calls,
         contract_exits,
         contract_operator_uses,
+        proposition_vocabulary,
     )
+}
+
+fn build_checked_proposition_vocabulary(
+    program: &psi_typed_trees::TypedTrees,
+) -> psi_checked_trees::CheckedPropositionVocabulary {
+    let declarations = program
+        .propositions()
+        .iter()
+        .filter_map(|declaration| {
+            let evidence = match declaration.body {
+                psi_typed_trees::proposition::PropositionBody::Primitive => {
+                    psi_checked_trees::CheckedPropositionEvidence::FactOnly
+                }
+                psi_typed_trees::proposition::PropositionBody::Witness { evidence } => {
+                    psi_checked_trees::CheckedPropositionEvidence::Witness {
+                        evidence_type: program.display_type_reference(evidence),
+                    }
+                }
+                psi_typed_trees::proposition::PropositionBody::Transparent { .. } => return None,
+            };
+            let binders = program
+                .proposition_binders(declaration)
+                .iter()
+                .map(|binder| psi_checked_trees::CheckedPropositionBinder {
+                    name: binder.name.as_str().to_owned(),
+                    kind: match binder.kind {
+                        psi_typed_trees::proposition::PropositionBinderKind::Type => {
+                            psi_checked_trees::CheckedPropositionBinderKind::Type
+                        }
+                        psi_typed_trees::proposition::PropositionBinderKind::Const {
+                            type_reference,
+                        } => psi_checked_trees::CheckedPropositionBinderKind::Const {
+                            type_identity: program.display_type_reference(type_reference),
+                        },
+                        psi_typed_trees::proposition::PropositionBinderKind::Machine => {
+                            psi_checked_trees::CheckedPropositionBinderKind::Machine
+                        }
+                    },
+                })
+                .collect();
+            let parameter_types = program
+                .proposition_parameters(declaration)
+                .iter()
+                .map(|parameter| program.display_type_reference(parameter.type_reference))
+                .collect();
+            Some(psi_checked_trees::CheckedPropositionDeclaration {
+                symbol: declaration.symbol,
+                name: declaration.name.as_str().to_owned(),
+                binders,
+                parameter_types,
+                evidence,
+            })
+        })
+        .collect();
+    let applications = program
+        .proof_facts
+        .iter()
+        .filter_map(|(_, fact)| {
+            let psi_typed_trees::domain::ProofFact::Proposition(application) = fact else {
+                return None;
+            };
+            let normalized = program.normalize_nominal_proposition_application(application)?;
+            Some(psi_checked_trees::CheckedPropositionApplication {
+                declaration: normalized.declaration,
+                binder_arguments: normalized
+                    .binder_arguments
+                    .into_iter()
+                    .map(|argument| psi_checked_trees::CheckedPropositionBinderArgument {
+                        kind: match argument.kind {
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                                psi_checked_trees::CheckedPropositionBinderArgumentKind::Type
+                            }
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                                psi_checked_trees::CheckedPropositionBinderArgumentKind::Const
+                            }
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                                psi_checked_trees::CheckedPropositionBinderArgumentKind::Machine
+                            }
+                        },
+                        identity: argument.identity,
+                    })
+                    .collect(),
+                arguments: normalized.arguments,
+            })
+        })
+        .collect();
+    psi_checked_trees::CheckedPropositionVocabulary {
+        declarations,
+        applications,
+    }
 }
 
 fn fact_handles(

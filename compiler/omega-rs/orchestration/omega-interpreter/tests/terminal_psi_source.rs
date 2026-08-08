@@ -372,6 +372,41 @@ fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
 }
 
 #[test]
+fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
+    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "terminal-Psi source canary should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let expected = lower_machine(&checked, "terminal_constant")
+        .expect("the checked proposition vocabulary should lower");
+    assert!(!expected.semantic_module.proposition_declarations.is_empty());
+    assert!(!expected.semantic_module.proposition_applications.is_empty());
+
+    let mut without_typed_declarations = checked.clone();
+    without_typed_declarations.typed.roots.propositions = Default::default();
+    let actual = lower_machine(&without_typed_declarations, "terminal_constant")
+        .expect("terminal production must not reopen typed proposition declarations");
+    assert_eq!(actual.semantic_module, expected.semantic_module);
+    assert_eq!(actual.proof_bundle, expected.proof_bundle);
+
+    let mut without_checked_vocabulary = checked;
+    without_checked_vocabulary
+        .facts
+        .proof
+        .proposition_vocabulary = Default::default();
+    let absent = lower_machine(&without_checked_vocabulary, "terminal_constant")
+        .expect("an intentionally empty checked proposition vocabulary remains valid");
+    assert!(absent.semantic_module.proposition_declarations.is_empty());
+    assert!(absent.semantic_module.proposition_applications.is_empty());
+}
+
+#[test]
 fn checked_source_integer_policy_operations_survive_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi integer policy source canary should compile");
