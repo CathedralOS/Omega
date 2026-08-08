@@ -520,8 +520,6 @@ can produce installed code; validation binds exact final bytes and placement.
 
 These entries are pointers, not duplicate specifications.
 
-- **Q1:** content-namespace origin-policy spelling; blocks local/provider-backed
-  root origination and provenance.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
