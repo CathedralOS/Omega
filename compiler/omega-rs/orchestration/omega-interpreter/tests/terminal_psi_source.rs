@@ -906,6 +906,104 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
     }
 }
 
+#[test]
+fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit computed-edge source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_short_circuit_edge_expression")
+        .expect("short-circuit guards should route into selected binding blocks");
+    drop(checked);
+
+    let machine = &lowered.semantic_module.machines[0];
+    assert_eq!(machine.blocks.len(), 6);
+    assert!(matches!(
+        machine.blocks[0].terminator,
+        Terminator::Jump { target, .. } if target.get() == 3
+    ));
+    assert!(matches!(
+        &machine.blocks[4].operations[..],
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::WrappingIntegerAdd { .. },
+                ..
+            },
+        ]
+    ));
+    assert!(matches!(
+        &machine.blocks[5].operations[..],
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::WrappingIntegerMultiply { .. },
+                ..
+            },
+        ]
+    ));
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("short-circuit computed edge should encode");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("short-circuit computed-edge proof should encode");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("short-circuit computed edge should decode");
+    let proof_bundle =
+        decode_proof_bundle(&proof_bytes).expect("short-circuit computed-edge proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("short-circuit computed edge should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("short-circuit computed edge should have fixed fuel")
+            .ceiling_units(),
+        7
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (first, second, expected, units) in [
+        (false, true, 14_u128, 6),
+        (true, false, 14, 7),
+        (true, true, 8, 7),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                integer(7),
+            ],
+        )
+        .expect("short-circuit computed edge should interpret");
+        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("short-circuit computed edge should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("short-circuit computed edge should select for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("short-circuit computed-edge homes should assign");
+        let machine_code = emit_machine_code(&assigned)
+            .expect("short-circuit computed-edge machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn checked_source_literal_conditional_emits_only_its_selected_arm() {
@@ -2989,6 +3087,62 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         .expect("integer-guarded crash execution should start");
         let mut meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+    }
+    let transitive_trap = lower_machine(&checked, "terminal_transitive_guarded_trap")
+        .expect("a transitive integer conjunction should lower as short-circuit control");
+    assert_eq!(transitive_trap.semantic_module.machines[0].blocks.len(), 5);
+    assert!(matches!(
+        transitive_trap.semantic_module.machines[0].blocks[0].terminator,
+        Terminator::Jump { target, .. } if target.get() == 4
+    ));
+    let transitive_semantic_bytes = encode_module(&transitive_trap.semantic_module)
+        .expect("transitive guarded crash should encode");
+    let transitive_proof_bytes = encode_proof_bundle(&transitive_trap.proof_bundle)
+        .expect("transitive guarded crash proof should encode");
+    let transitive_semantic_module =
+        decode_module(&transitive_semantic_bytes).expect("transitive guarded crash should decode");
+    let transitive_proof_bundle = decode_proof_bundle(&transitive_proof_bytes)
+        .expect("transitive guarded crash proof should decode");
+    let transitive_verified = verify_module(
+        &transitive_semantic_module,
+        &transitive_proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("transitive guarded crash should verify");
+    assert_eq!(
+        derive_fixed_entry_fuel(&transitive_verified, transitive_semantic_module.entry)
+            .expect("transitive guarded crash should have fixed fuel")
+            .ceiling_units(),
+        7
+    );
+    let signed = |value| TerminalScalarValue::Integer {
+        scalar_type: i32_type,
+        value: IntegerValue::Signed(value),
+    };
+    for (left, middle, right, expected, expected_units) in [
+        (5, 3, 10, TerminalExecutionStatus::Complete(signed(0)), 5),
+        (1, 5, 3, TerminalExecutionStatus::Complete(signed(0)), 7),
+        (
+            1,
+            2,
+            3,
+            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+                cause: CrashCause::Trap,
+                damage_minimum: "Activation".to_owned(),
+                containment_demand: "ExecutionDomain".to_owned(),
+                frontier_lower_bound: Vec::new(),
+            }),
+            6,
+        ),
+    ] {
+        let mut execution = TerminalExecution::start(
+            &transitive_verified,
+            &[signed(left), signed(middle), signed(right)],
+        )
+        .expect("transitive guarded crash execution should start");
+        let mut meter = TerminalFuelMeter::unbounded();
+        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        assert_eq!(meter.usage().total_units(), expected_units);
     }
     let implied_trap = lower_machine(&checked, "terminal_implied_guarded_trap")
         .expect("structurally implied guard coverage should reach terminal production");

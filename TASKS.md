@@ -189,7 +189,10 @@ Remaining:
   synthesized arm-local blocks, so only the selected expression is evaluated
   and charged, and reach the same native lanes. Boolean-result integer
   comparisons now accept that recursive scalar vocabulary as both operands and
-  likewise cross interpretation and native execution.
+  likewise cross interpretation and native execution. Nested integer-result
+  guards now retain recursive short-circuit `&&`/`||` control in reserved
+  decision blocks; computed successor bindings remain arm-local, only executed
+  tests and edges consume fuel, and non-crashing forms reach both native targets.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
@@ -262,7 +265,9 @@ Remaining:
   cases without proof at every level remain outside the lower bound. Exact-type
   integer comparison guards now reach terminal control, so the
   already-proved ordered-comparison crash coverage is executable rather than
-  stopping at checked evidence. Native crash lowering remains closed pending
+  stopping at checked evidence. Transitive conjunction coverage now crosses
+  the same terminal short-circuit slice through verified direct interpretation.
+  Native crash lowering remains closed pending
   represented target crash plans. Direct calls to local machines with
   published crash ceilings now retain source-independent checked invocation
   rows keyed by state/statement/call ordinal and target contract fingerprint.

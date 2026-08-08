@@ -182,6 +182,12 @@ conditional successor binding lowers through a synthesized arm-local block:
 the conditional passes its current parameters into only the selected block,
 that block computes the recursive exact-typed arguments, and an ordinary jump
 binds the authored target. The unselected arm is neither evaluated nor charged.
+Recursive `&&`/`||` guards lower into reserved decision blocks over the same
+ordered conditional vocabulary. The authored source block passes its current
+parameters into the decision entry, only the selected tests execute, and the
+chosen leaf targets either the authored successor or its arm-local binding
+block. This also makes checker-proved transitive integer-conjunction crash
+routes executable through terminal verification and direct interpretation.
 Nested selections and convergent tails retain
 their authored blocks and edges in terminal Psi; proof reconstruction
 intersects facts at joins, and the fixed-work checker derives the maximum

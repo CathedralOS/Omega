@@ -105,7 +105,9 @@ builtin parameter-plus-literal wrapping/saturating add, subtract, or multiply;
 or a rooted acyclic integer-result graph whose blocks return, jump
 unconditionally, or select ordered positive-Boolean/fallback successors.
 Selection guards may be Boolean parameters or exact-type builtin integer
-comparisons over recursive integer expressions.
+comparisons over recursive integer expressions, composed with recursive
+short-circuit `&&`/`||`. Short-circuit tests lower into reserved decision blocks
+and charge only the executed path.
 Unconditional jumps may compute recursive exact-typed integer bindings;
 computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear

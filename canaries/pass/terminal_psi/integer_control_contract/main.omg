@@ -310,6 +310,21 @@ ensures 0u8 == 0u8
     state finish_selected(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
+machine terminal_short_circuit_edge_expression(
+    first: bool,
+    second: bool,
+    value: u8 in Wrapping
+) -> u8 in Wrapping
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    transition first && second {
+        true -> finish_short_selected(value + 1u8)
+        _ -> finish_short_selected(value * 2u8)
+    }
+    state finish_short_selected(value: u8 in Wrapping) -> u8 in Wrapping { value }
+}
+
 machine terminal_literal_conditional(value: u8 in Wrapping) -> u8 in Wrapping
 requires 20u8 == 20u8
 ensures 20u8 == 20u8
@@ -651,6 +666,24 @@ crashes Trap ExecutionDomain
 {
     transition {
         value + 1i32 >= limit -> fail()
+        _ -> succeed()
+    }
+
+    state fail() -> i32 {
+        crash Trap;
+    }
+
+    state succeed() -> i32 { 0i32 }
+}
+
+machine terminal_transitive_guarded_trap(left: i32, middle: i32, right: i32) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+crashes Trap ExecutionDomain
+    left < right
+{
+    transition {
+        left < middle && middle <= right -> fail()
         _ -> succeed()
     }
 
