@@ -27,7 +27,16 @@ pub(super) struct BackendEntryPoint {
 
 pub(super) fn resolve_backend_entry_point(
     program: &CheckedTrees,
+    entry_machine_name: Option<&str>,
 ) -> Result<BackendEntryPoint, Diagnostic> {
+    if let Some(machine_name) = entry_machine_name {
+        return find_declared_entry_point(program, machine_name).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "build root slot names unknown entry machine `{machine_name}`"
+            ))
+        });
+    }
+
     if let Some(entry_point) =
         find_entry_point(program, LEGACY_MAIN_MACHINE_NAME, LEGACY_MAIN_STATE_NAME)
     {
@@ -45,6 +54,21 @@ pub(super) fn resolve_backend_entry_point(
     }
 
     Err(Diagnostic::error("unknown runtime entry point `Main::run`"))
+}
+
+fn find_declared_entry_point(
+    program: &CheckedTrees,
+    machine_name: &str,
+) -> Option<BackendEntryPoint> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)?;
+    let entry_state = program.machine_states(machine).first()?;
+    Some(BackendEntryPoint {
+        machine_symbol: machine.symbol,
+        state_symbol: entry_state.symbol,
+    })
 }
 
 fn find_entry_point(

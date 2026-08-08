@@ -3,13 +3,13 @@ use psi_symbols::SymbolKind;
 use psi_typed_trees::TypedTrees;
 
 pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    // Canonical: `machine Main::run(&self, args: &[u8])` -- Main's members are
-    // the program's statics, args is the platform handoff as raw bytes.
-    // `Main::main` is the accepted legacy spelling during migration.
-    // PRECEDENCE MIRRORS resolve_backend_entry_point EXACTLY: `Main::main`
-    // while it exists (7 corpus programs have `Main::run` HELPERS -- applying
-    // entry laws to a helper broke them once already), then the canonical
-    // `Main::run`, then the legacy `main`.
+    // Migration compatibility only. Program entry identity is a target-owned
+    // build-slot fact and therefore unavailable to target-neutral Psi
+    // validation. While conventionally named entries remain in the corpus,
+    // validate their historical exported-callable laws when present; absence
+    // is not an error here. Omega's build-slot validation and backend planning
+    // reject an installable build with neither an explicit binding nor a
+    // migration entry.
     let entry = [
         ("Main::main", "main"),
         ("Main::run", "run"),
@@ -19,7 +19,6 @@ pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<D
     .find_map(|(machine_name, state_name)| find_entry_point(program, machine_name, state_name));
 
     let Some((machine, state)) = entry else {
-        diagnostics.push(Diagnostic::error("missing runtime entry point `Main::run`"));
         return;
     };
 

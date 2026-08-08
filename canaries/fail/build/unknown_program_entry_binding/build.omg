@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    builder.roots.bind(windows_x64::ProgramEntry, Application::missing);
+}

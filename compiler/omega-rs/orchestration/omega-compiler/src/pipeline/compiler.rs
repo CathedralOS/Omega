@@ -403,6 +403,11 @@ impl Compiler {
         // `target { subsystem }` word is the fallback until its removal.
         let build_config =
             crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+        let entry_machine_name = crate::pipeline::build_config::selected_program_entry_machine(
+            &build_config,
+            self.options.target_name.as_deref(),
+        )?
+        .map(str::to_owned);
         let target_provider_defaults =
             crate::pipeline::build_config::compute_target_provider_defaults(
                 &typed,
@@ -559,6 +564,7 @@ impl Compiler {
         // platform surface.
         let backend = control_flow_to_backend_plan(
             checked,
+            entry_machine_name.as_deref(),
             self.options.target_name.as_deref(),
             freestanding,
             &external_binding_rows,

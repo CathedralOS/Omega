@@ -1996,6 +1996,7 @@ impl<'program> Evaluator<'program> {
         if call.target.as_str().starts_with("accept_boundary#")
             || call.target.as_str().starts_with("select_provider#")
             || call.target.as_str().starts_with("wire_compatibility#")
+            || call.target.as_str().starts_with("bind_root#")
         {
             return Ok(Value::Unit);
         }
@@ -5101,6 +5102,7 @@ impl<'program> Evaluator<'program> {
         if target.starts_with("accept_boundary#")
             || target.starts_with("select_provider#")
             || target.starts_with("wire_compatibility#")
+            || target.starts_with("bind_root#")
         {
             return Ok(Value::Unit);
         }

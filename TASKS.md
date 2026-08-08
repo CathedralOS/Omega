@@ -51,8 +51,9 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS.** Implement target-declared typed slots and ordinary
-  `Build` bindings. A target profile owns each slot identity, schema, direction,
+- **ENTRY-CONTENT-ROOTS.** Finish target-declared typed slots around the live
+  ordinary `builder.roots.bind(target::ProgramEntry, Exact::machine)` binding
+  and exact backend entry selection. A target profile owns each slot identity, schema, direction,
   lifecycle, cardinality, and exact-requirement, complete-conformance, or
   entry-machine binding shape; `build.omg` names the exact entry machine and
   performs no discovery. Let a target entry schema expose only the parameters
@@ -65,8 +66,10 @@ Remaining:
   provisioned beneath an admitted entry storage root and lent only for that
   activation. Record its target-selected image or runtime-storage placement,
   derive image sections as subextents, and allocate later frames/task stacks
-  from existing roots. Do not recognize `main`, `Main::run`, or a unique export
-  by convention, and do not introduce ambient `static` storage.
+  from existing roots. Migrate the corpus and remove the compatibility fallback
+  that still recognizes `main`/`Main::run` only when no root binding exists. Do
+  not recognize a unique export by convention, and do not introduce ambient
+  `static` storage.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Connect a real
   content-bearing source program to the existing terminal-Psi rows. Add sealed
   content-introduction and custody-exit frontier rows; derive residual geometry
