@@ -179,8 +179,10 @@ the companion control plan: ordered stable state identities, primitive
 parameter/result types, return/crash/jump/conditional terminators, stable
 successors, and argument arity. Terminal semantic and proof production no
 longer reads typed statement or transition records. Typed source records remain
-only for machine selection/signature eligibility and the replaceable debug map;
-those are the next source-independence boundaries.
+only for the replaceable debug map: checked flow facts now also retain stable
+machine names and the bootstrap signature-eligibility classification used by
+semantic selection. Isolating presentation metadata is the remaining
+source-independence boundary for this scalar producer.
 
 The first control-flow slice is live in v13. One conditional terminator reads
 an already-defined Boolean value and owns ordered true and false successor edge
@@ -281,7 +283,9 @@ Checked value facts separately retain every executable return, guard, and
 successor argument in this scalar vocabulary, so terminal production no longer
 uses a typed expression handle to recover executable meaning. Checked flow
 facts retain the matching scalar control topology, so the producer also does
-not recover executable structure from typed statements or transitions. A
+not recover executable structure from typed statements or transitions. Stable
+checked selection rows supply machine name and signature eligibility without
+reopening typed machine declarations. A
 single-state Boolean-result machine over ordinary primitive-integer parameters
 may compare two recursively nested integer
 expressions of one exact type with builtin `==`, `!=`, `<`, `<=`, `>`, or `>=`.

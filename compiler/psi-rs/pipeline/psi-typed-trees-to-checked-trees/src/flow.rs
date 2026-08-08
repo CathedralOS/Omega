@@ -75,5 +75,7 @@ pub(crate) use place::{
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
-pub(crate) use terminal_scalar::build_checked_scalar_graph_plans;
+pub(crate) use terminal_scalar::{
+    build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
+};
 use transfers::propagate_statement_transfers;

@@ -1,7 +1,41 @@
 use psi_checked_trees::{
     CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarStateGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
+    CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
 };
+
+pub(crate) fn build_checked_terminal_machine_selections(
+    program: &TypedTrees,
+) -> CheckedTerminalMachineSelections {
+    CheckedTerminalMachineSelections {
+        machines: program
+            .machines()
+            .iter()
+            .map(|machine| CheckedTerminalMachineSelection {
+                machine: machine.symbol,
+                name: machine.name.as_str().to_owned(),
+                signature: if machine.attached_data.is_some() {
+                    CheckedTerminalSignatureEligibility::Attached
+                } else if !machine.type_parameters.is_empty()
+                    || !machine.owned_data.is_empty()
+                    || !machine.satisfies.is_empty()
+                    || !machine.decreases.is_empty()
+                    || !machine.decrease_view_arguments.is_empty()
+                    || machine.decrease_range.is_valid()
+                    || !machine.service_reaches.is_empty()
+                    || !machine.invokes.is_empty()
+                    || machine.suspends
+                    || machine.blocks
+                    || machine.boundary
+                {
+                    CheckedTerminalSignatureEligibility::Unsupported
+                } else {
+                    CheckedTerminalSignatureEligibility::Eligible
+                },
+            })
+            .collect(),
+    }
+}
 use psi_typed_trees::{
     TypedTrees,
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
