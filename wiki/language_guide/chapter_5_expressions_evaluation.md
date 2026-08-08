@@ -373,6 +373,13 @@ arithmetic policy. A caller-selectable policy must be visible in the machine's
 contract; the generic spelling for that choice remains open. Omission never
 silently chooses wrapping, saturation, or trapping.
 
+Fixed-width integer bitwise operators are representation operations, not
+overflowing arithmetic. Binary `&`, `|`, and `^` and unary `~` are total,
+retain the operand's exact integer carrier, and do not select an arithmetic
+policy. `~` complements exactly the carrier width, including two's-complement
+signed carriers. Boolean negation remains the distinct `!` operator; neither
+operator coerces between Boolean and integer values.
+
 Shift counts follow the same rule (settled 2026-07-18): under Exact, a
 shift's count must be **proven** below the operand width (a literal
 out-of-range shift is an immediate compile error); under `Wrapping` the

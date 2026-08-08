@@ -180,6 +180,26 @@ fn lower_scalar_expression(
                 .map(|landing| landing.domain)
                 .unwrap_or(ArithmeticDomain::Exact),
         )),
+        ExpressionNode::Unary(unary)
+            if unary.operator == UnaryOperator::BitwiseNot
+                && operator_is_builtin(operators, expression) =>
+        {
+            let (operand, domain) = lower_scalar_expression(
+                program,
+                operators,
+                unary.operand,
+                parameters,
+                parameter_types,
+            )?;
+            let primitive_type = scalar_expression_type(&operand)?;
+            is_integer(primitive_type).then_some((
+                CheckedScalarExpression::IntegerBitwiseNot {
+                    primitive_type,
+                    operand: Box::new(operand),
+                },
+                domain,
+            ))
+        }
         ExpressionNode::Binary(binary) if operator_is_builtin(operators, expression) => {
             let (left, left_domain) = lower_scalar_expression(
                 program,
@@ -437,7 +457,10 @@ fn parameter_position(
 fn scalar_expression_type(expression: &CheckedScalarExpression) -> Option<PrimitiveType> {
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
-        | CheckedScalarExpression::IntegerBinary { primitive_type, .. } => Some(*primitive_type),
+        | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
+        | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. } => {
+            Some(*primitive_type)
+        }
         CheckedScalarExpression::IntegerLiteral { literal } => {
             primitive_for_landed(literal.landing()?.landed_type)
         }

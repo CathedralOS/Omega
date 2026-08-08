@@ -367,6 +367,12 @@ fn evaluate_domain_fact_expression(
                 return Ok(None);
             };
             match (unary.operator, operand) {
+                (UnaryOperator::BitwiseNot, ConstProofValue::Integer(value)) => {
+                    Ok(Some(ConstProofValue::Integer(!value)))
+                }
+                (UnaryOperator::BitwiseNot, ConstProofValue::Boolean(_)) => {
+                    Err("bitwise complement requires an integer proof operand".to_string())
+                }
                 (UnaryOperator::LogicalNot, ConstProofValue::Boolean(value)) => {
                     Ok(Some(ConstProofValue::Boolean(!value)))
                 }

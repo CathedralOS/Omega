@@ -512,6 +512,13 @@ fn assign_expression(
                 },
             )?,
         }),
+        TerminalTargetIntegerExpression::BitwiseNot {
+            psi_operation,
+            operand,
+        } => Ok(TerminalAssignedIntegerExpression::BitwiseNot {
+            psi_operation: *psi_operation,
+            operand: Box::new(assign_expression(operand, locations)?),
+        }),
         TerminalTargetIntegerExpression::BitwiseAnd {
             psi_operation,
             left,
@@ -774,6 +781,9 @@ fn expression_parameter_locations(
                 } else {
                     locations.insert(*parameter_index, (*source_value, *location));
                 }
+            }
+            TerminalTargetIntegerExpression::BitwiseNot { operand, .. } => {
+                collect(operand, locations)?;
             }
             TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::BitwiseAnd { left, right, .. }

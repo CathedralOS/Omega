@@ -51,8 +51,9 @@ signedness-aware right shifts; v22 adds an explicit no-successor crash
 terminator carrying a closed cause, one nominal damage scope, and the
 machine-local claim frontier known to be abandoned; v23 separates that scope
 into a body-derived damage minimum and selected published containment demand;
-and current v24 adds a canonical sparse per-cause context maximum to each
-machine contract. A wrapping shift
+v24 adds a canonical sparse per-cause context maximum to each machine
+contract; and current v25 adds total fixed-width integer bitwise complement.
+A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
@@ -317,8 +318,9 @@ parameters, including none, and return one exact named parameter, one landed
 literal, or a recursively nested
 expression over parameters and landed literals using the six builtin
 add/subtract/multiply operations in the settled Wrapping or Saturating domains,
-plus builtin bitwise AND, OR, and XOR without an arithmetic-policy choice and
-wrapping left/right shifts. A shift's value operand and result share one exact
+plus builtin bitwise AND, OR, XOR, and unary complement without an
+arithmetic-policy choice and wrapping left/right shifts. A shift's value
+operand and result share one exact
 integer type; its count may have a different integer type and carries no
 arithmetic-domain weight.
 The linear integer form may declare any sequence of ordinary primitive-integer
@@ -461,9 +463,11 @@ operand integer type and two recursive integer expressions; assignment and
 emission compare their normalized exact-width representations on both native
 architectures. Runtime integer ordering follows the same lane and selects
 signed or unsigned `<`/`<=` conditions from the retained `IntegerType`.
-Runtime integer bitwise AND, OR, and XOR retain the same exact integer type and
-lower to one native logical instruction after recursively evaluating their
-operands.
+Runtime integer bitwise AND, OR, XOR, and unary complement retain the same
+exact integer type and lower to one native logical instruction after
+recursively evaluating their operands. Complement negates exactly the retained
+carrier width; native normalization preserves narrow signed and unsigned
+results.
 Runtime wrapping shifts retain the count operand's independent integer type,
 reduce that value modulo the shifted width, and select logical or arithmetic
 right shift from the shifted value's signedness. Current native source widths
@@ -911,8 +915,10 @@ terms; version 20 adds distinct `IntegerBitwiseAnd`,
 terms; version 21 adds total wrapping left and right shifts with an independent
 integer count type; version 22 adds the explicit `Crash` terminator, closed
 `Trap`/`Abort` cause, nominal damage scope, and canonical machine-local
-frontier lower bound; and current version 23 separates the body-derived damage
-minimum from the selected published containment demand.
+frontier lower bound; version 23 separates the body-derived damage minimum
+from the selected published containment demand; version 24 adds canonical
+sparse per-cause crash-context maxima; and current version 25 adds total
+`IntegerBitwiseNot` operations and recursive scalar terms.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -922,17 +928,17 @@ reconstructs a Boolean result equating their representations. Integer ordering
 has the same operand/result discipline and reconstructs the exact signedness-
 aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Validation and
-execution continue to accept valid v1 through v21 modules under their original
+execution continue to accept valid v1 through v24 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v24 translation.
+`migrate_module_to_current` is an explicit validated older-to-v25 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain archived v1 through v21 identities and
-independently freeze the current v24 fingerprint, v10 identity-reshuffle
+migrated module. Golden tests retain archived v1 through v24 identities and
+independently freeze the current v25 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
 fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, the
@@ -951,9 +957,9 @@ structural-place terms; format v9 adds sum-case path segments; format v10 adds
 recursive Boolean-negation terms; format v11 adds recursive Boolean-equality
 terms; format v12 adds recursive integer-equality terms; format v13 adds
 recursive integer less-than and less-or-equal terms; and format v14 adds
-recursive integer bitwise AND, OR, and XOR terms; and format v15 adds recursive
+recursive integer bitwise AND, OR, and XOR terms; format v15 adds recursive
 wrapping left/right shift terms with independent value and count integer
-types. The encoder
+types; and format v16 adds recursive integer bitwise-complement terms. The encoder
 selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
@@ -1129,7 +1135,7 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v24 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v25 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records, the canonical typed debug/source-map schema, and

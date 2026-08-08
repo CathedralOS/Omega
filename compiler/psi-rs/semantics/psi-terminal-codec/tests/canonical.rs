@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "a4ecd2a8f515f9ad5e815f41c33df470a7adf8643c7eea6ef3bfc67fb871ca7f"
+        "a332b7cb5a57493d8d2ffeae1ea16a4a69cae903fcb8d8d5a78a14c968905c1b"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -116,7 +116,7 @@ fn v22_crash_decodes_its_single_scope_as_equal_minimum_and_demand() {
     let decoded = decode_module(&bytes).expect("v22 crash decodes");
     assert_eq!(decoded, module);
     let migrated = migrate_module_to_current(&decoded).expect("v22 crash migrates");
-    assert_eq!(migrated.semantic_version, SemanticVersion::V24);
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         migrated.machines[0].contract.crash_context,
         vec![psi_terminal::CrashContextMaximum {
@@ -454,6 +454,23 @@ fn v21_wrapping_shifts_have_stable_distinct_canonical_bytes() {
             "b87a1e7f569fc72959db367153851c407032a36ec126f9eb324467d4a7b27703",
             "aaa2e02bb9b280e4344900e9a1cc59200a0caef1aca79f30e7420ddf5b784aa2",
         ]
+    );
+}
+
+#[test]
+fn v25_integer_bitwise_not_has_stable_canonical_bytes() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let mut module = bitwise_fixture(0, scalar_type);
+    module.semantic_version = SemanticVersion::V25;
+    let operand = module.machines[0].parameters[0].id;
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerBitwiseNot { operand };
+    let bytes = encode_module(&module).expect("v25 integer bitwise-not should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "9f6f66f8b172ad4e8f50b7f6ec65715321ebe13e897c00ee081ccd6e0a92d91c"
     );
 }
 

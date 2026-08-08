@@ -3079,6 +3079,73 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
 }
 
 #[test]
+fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_native_targets() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime integer-bitwise-not source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_unsigned_bitwise_not_runtime")
+        .expect("integer bitwise-not should lower");
+    assert_eq!(
+        lowered.semantic_module.semantic_version,
+        SemanticVersion::V25
+    );
+    assert!(matches!(
+        lowered.semantic_module.machines[0].blocks[0].operations[0].kind,
+        OperationKind::IntegerBitwiseNot { .. }
+    ));
+    let semantic_bytes = encode_module(&lowered.semantic_module).expect("not module encodes");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("not proof encodes");
+    drop(checked);
+    drop(lowered);
+
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let input = |value| TerminalScalarValue::Integer {
+        scalar_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let expected = input(!0x0f0f_u64 as u128 & u64::MAX as u128);
+    let measured = interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[input(0x0f0f), input(0)],
+    )
+    .expect("canonical bitwise-not artifact should interpret");
+    assert_eq!(measured.value(), expected);
+    assert_eq!(measured.usage().total_units(), 2);
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("canonical bitwise-not artifact should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("bitwise-not should select for both native architectures");
+        assert!(matches!(
+            &target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerExpression {
+                expression: TerminalTargetIntegerExpression::BitwiseNot { .. },
+                ..
+            }
+        ));
+        let assigned = assign_registers(&target_operations).expect("bitwise-not homes assign");
+        emit_machine_code(&assigned).expect("bitwise-not emits native code");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("host bitwise-not selection");
+        let assigned = assign_registers(&target_operations).expect("host bitwise-not homes assign");
+        let machine_code = emit_machine_code(&assigned).expect("host bitwise-not emission");
+        let object = build_terminal_object_artifact(&machine_code).expect("bitwise-not object");
+        assert_eq!(
+            run_host_machine_code_with_two_u64(object.entry_function().bytes(&object), 0x0f0f, 0,),
+            0xf0,
+        );
+    }
+}
+
+#[test]
 fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime wrapping-shift source canary should compile");

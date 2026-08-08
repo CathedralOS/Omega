@@ -111,8 +111,15 @@ pub(crate) fn argument_matches_type_reference_handle(
                         && primitive_type.accepts_float_literal()
                     || matches!(argument_node, ExpressionNode::Integer(_))
                         && primitive_type.accepts_integer_literal()
-                    || matches!(argument_node, ExpressionNode::Unary(_))
-                        && primitive_type == PrimitiveType::Bool
+                    || matches!(argument_node, ExpressionNode::Unary(unary)
+                    if match unary.operator {
+                        psi_typed_trees::expression::UnaryOperator::BitwiseNot => {
+                            primitive_type.accepts_integer_literal()
+                        }
+                        psi_typed_trees::expression::UnaryOperator::LogicalNot => {
+                            primitive_type == PrimitiveType::Bool
+                        }
+                    })
                     || matches!(
                         argument_node,
                         ExpressionNode::Binary(_)
@@ -312,6 +319,12 @@ fn value_class(
                 _ => None,
             };
         }
+    }
+    if let ExpressionNode::Unary(unary) = program.expression_table.expression(value) {
+        return match unary.operator {
+            psi_typed_trees::expression::UnaryOperator::BitwiseNot => Some(ValueClass::Numeric),
+            psi_typed_trees::expression::UnaryOperator::LogicalNot => Some(ValueClass::Boolean),
+        };
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
         let machine = machine?;
@@ -1458,6 +1471,31 @@ pub(crate) fn report_non_bool_logical_not(
     true
 }
 
+/// Reject `~` on a definitely non-integer operand. Bitwise complement is total
+/// over one fixed-width integer representation and preserves that width; it is
+/// neither Boolean negation nor a float/text bit reinterpretation.
+pub(crate) fn report_non_integer_bitwise_not(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: Option<&psi_typed_trees::state::State>,
+    operand: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let class = value_class(program, Some(machine), state, operand);
+    let invalid = matches!(class, Some(ValueClass::Boolean | ValueClass::Text))
+        || expression_is_float_typed(program, machine, state, operand);
+    if !invalid {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies bitwise `~` to {}, but `~` requires a fixed-width integer operand",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+        class.map_or("a non-integer value", ValueClass::describe),
+    )));
+    true
+}
+
 /// Map a binary operator to its overloadable spelling, or `None` for operators
 /// that cannot carry a domain meaning here: `==`/`!=` (the structural-equality /
 /// Equatable path owns those), the logical `&&`/`||`, and bitwise/shift (which
@@ -1724,7 +1762,10 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::Range(_) => "range expression",
         ExpressionNode::StructLiteral(_) => "struct literal",
         ExpressionNode::String(_) => "String",
-        ExpressionNode::Unary(_) => "bool",
+        ExpressionNode::Unary(unary) => match unary.operator {
+            psi_typed_trees::expression::UnaryOperator::BitwiseNot => "integer",
+            psi_typed_trees::expression::UnaryOperator::LogicalNot => "bool",
+        },
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
 }

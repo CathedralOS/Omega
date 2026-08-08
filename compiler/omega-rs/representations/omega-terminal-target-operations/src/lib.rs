@@ -250,6 +250,10 @@ pub enum TerminalTargetIntegerExpression {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    BitwiseNot {
+        psi_operation: OperationId,
+        operand: Box<TerminalTargetIntegerExpression>,
+    },
     BitwiseAnd {
         psi_operation: OperationId,
         left: Box<TerminalTargetIntegerExpression>,

@@ -146,6 +146,7 @@ fn render_punctuation(punctuation: PunctuationKind) -> &'static str {
         PunctuationKind::RightParen => ")",
         PunctuationKind::Semicolon => ";",
         PunctuationKind::Slash => "/",
+        PunctuationKind::Tilde => "~",
         PunctuationKind::Unknown => "<unknown>",
     }
 }

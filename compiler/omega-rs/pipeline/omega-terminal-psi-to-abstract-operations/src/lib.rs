@@ -146,6 +146,17 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::IntegerBitwiseNot { operand } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedIntegerBitwiseMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::IntegerBitwiseNot {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        operand,
+                    });
+                }
                 OperationKind::IntegerBitwiseAnd { left, right }
                 | OperationKind::IntegerBitwiseOr { left, right }
                 | OperationKind::IntegerBitwiseXor { left, right } => {

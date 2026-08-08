@@ -425,6 +425,9 @@ fn lower_unary_operator(
     operator: resolved::expression::UnaryOperator,
 ) -> typed::expression::UnaryOperator {
     match operator {
+        resolved::expression::UnaryOperator::BitwiseNot => {
+            typed::expression::UnaryOperator::BitwiseNot
+        }
         resolved::expression::UnaryOperator::LogicalNot => {
             typed::expression::UnaryOperator::LogicalNot
         }

@@ -94,6 +94,12 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    IntegerBitwiseNot {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        operand: ValueId,
+    },
     IntegerBitwiseAnd {
         psi_operation: OperationId,
         result: ValueId,

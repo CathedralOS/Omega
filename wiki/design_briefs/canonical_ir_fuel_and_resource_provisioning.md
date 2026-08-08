@@ -40,8 +40,9 @@ less-than and less-or-equal, v20 adds total integer bitwise AND, OR, and XOR,
 v21 adds wrapping left and signedness-aware right shifts, v22 adds an explicit
 no-successor crash terminator with a closed cause, nominal damage scope, and
 machine-local abandoned-frontier lower bound, v23 separates the body-derived
-damage minimum from the selected published containment demand, and current v24
-adds canonical sparse per-cause context maxima to machine contracts. Shift
+damage minimum from the selected published containment demand, v24 adds
+canonical sparse per-cause context maxima to machine contracts, and current
+v25 adds total fixed-width integer bitwise complement. Shift
 counts retain their own integer type and reduce by Euclidean modulo of the
 shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -59,7 +60,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v23 row. Native lowering currently
+validation, and fuel cover the complete v25 row. Native lowering currently
 rejects crash rows explicitly until target crash plans are represented.
 The source producer selects its uniquely matching unconditional route from the
 checked machine-contract crash plan. That plan canonically merges authored
@@ -100,8 +101,8 @@ equality/inequality, and short-circuit `&&`/`||` from ordinary Boolean
 parameters; direct builtin equality/inequality or ordering between two
 recursive primitive-integer expressions of one exact type; a recursively nested
 expression over exact parameter/literal operands using builtin
-wrapping/saturating add, subtract, or multiply, plus bitwise AND, OR, or XOR
-and wrapping left/right shifts,
+wrapping/saturating add, subtract, or multiply, plus bitwise AND, OR, XOR,
+unary complement, and wrapping left/right shifts,
 from a nonempty sequence of
 ordinary primitive-integer parameters; or an
 integer-constant/unconditional-jump whose return is the matching literal or a
@@ -205,7 +206,7 @@ module and emits owned scalar-materialization, wrapping-add, saturating-add,
 wrapping-subtract, saturating-subtract, wrapping-multiply,
 saturating-multiply, Boolean-not, Boolean-equality, integer-equality,
 integer-less-than, integer-less-or-equal,
-integer-bitwise-AND, integer-bitwise-OR, integer-bitwise-XOR,
+integer-bitwise-not, integer-bitwise-AND, integer-bitwise-OR, integer-bitwise-XOR,
 wrapping-shift-left, wrapping-shift-right,
 jump-binding, structural conditional, and return requirements
 with stable Psi provenance and no source
@@ -236,7 +237,8 @@ semantic v17 plus proof format v11 add recursive Boolean-equality vocabulary;
 semantic v18 plus proof format v12 add recursive integer-equality vocabulary;
 semantic v19 plus proof format v13 add recursive integer-ordering vocabulary;
 semantic v20 plus proof format v14 add recursive integer-bitwise vocabulary;
-and semantic v21 plus proof format v15 add recursive wrapping-shift
+semantic v21 plus proof format v15 add recursive wrapping-shift vocabulary;
+and semantic v25 plus proof format v16 add recursive integer-bitwise-complement
 vocabulary, without changing fuel schedule v1. Parameter-fed canaries
 round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
@@ -256,8 +258,9 @@ terms, minimal format v9 adds sum-case structural paths, minimal format v10 adds
 recursive Boolean-negation terms, minimal format v11 adds recursive
 Boolean-equality terms, minimal format v12 adds recursive integer-equality
 terms, minimal format v13 adds recursive integer-ordering terms, and minimal
-format v14 adds recursive integer-bitwise terms, and minimal format v15 adds
-recursive wrapping-shift terms. The proof section has its own
+format v14 adds recursive integer-bitwise terms, minimal format v15 adds
+recursive wrapping-shift terms, and minimal format v16 adds recursive integer
+bitwise-complement terms. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -285,7 +288,7 @@ Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8
 saturating-multiply, v9 content, v10 reshuffle, v11 case-path, v12 partition,
 v13 conditional, and v14 entry-claim modules retain their frozen bytes and
-execution semantics; explicit migration produces a new current-v24 fingerprint
+execution semantics; explicit migration produces a new current-v25 fingerprint
 and derives dense entry bindings from any validated archived reshuffles. The
 v15 Boolean-negation slice round-trips, verifies, costs one operation plus one
 return edge, interprets, and returns the complemented canonical Boolean through
@@ -316,7 +319,11 @@ logical or arithmetic behavior from that value type. Counts reduce by
 Euclidean modulo of the value width, so negative signed counts and counts at or
 above the width remain total. Its canaries cost one operation plus the return
 edge, and proof format v15 carries the exact result terms in replaceable
-certificates. The v3 wrapping slice
+certificates. The v25 bitwise-complement slice retains an exact integer carrier
+through source checking, canonical artifact decode, proof reconstruction,
+interpretation, fuel, target assignment, and native emission on both target
+architectures. Proof format v16 carries the exact recursive complement term in
+replaceable certificates. The v3 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the

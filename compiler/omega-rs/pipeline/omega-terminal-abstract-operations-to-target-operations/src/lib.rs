@@ -303,6 +303,45 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::IntegerBitwiseNot {
+                psi_operation,
+                result,
+                scalar_type,
+                operand,
+            } => {
+                let operand_value = match values.get(operand).cloned() {
+                    Some(KnownScalar::Integer {
+                        scalar_type: operand_type,
+                        value,
+                    }) if operand_type == *scalar_type => value,
+                    Some(_) => {
+                        return Err(LoweringError::IntegerBitwiseOperandTypeMismatch(*result));
+                    }
+                    None => return Err(LoweringError::UnknownValue(*operand)),
+                };
+                let value = match operand_value {
+                    KnownInteger::Immediate(value) => KnownInteger::Immediate(
+                        scalar_type
+                            .bitwise_not(value)
+                            .ok_or(LoweringError::IntegerBitwiseOperandTypeMismatch(*result))?,
+                    ),
+                    KnownInteger::Runtime(expression) => {
+                        KnownInteger::Runtime(TerminalTargetIntegerExpression::BitwiseNot {
+                            psi_operation: *psi_operation,
+                            operand: Box::new(expression),
+                        })
+                    }
+                };
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerShiftLeft {
                 psi_operation,
                 result,
@@ -1732,6 +1771,37 @@ fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::IntegerBitwiseNot {
+            psi_operation,
+            result,
+            scalar_type,
+            operand,
+        } => {
+            let operand_value = match values.get(operand).cloned() {
+                Some(KnownScalar::Integer {
+                    scalar_type: operand_type,
+                    value,
+                }) if operand_type == *scalar_type => value,
+                Some(_) => {
+                    return Err(LoweringError::IntegerBitwiseOperandTypeMismatch(*result));
+                }
+                None => return Err(LoweringError::UnknownValue(*operand)),
+            };
+            let value = match operand_value {
+                KnownInteger::Immediate(value) => KnownInteger::Immediate(
+                    scalar_type
+                        .bitwise_not(value)
+                        .ok_or(LoweringError::IntegerBitwiseOperandTypeMismatch(*result))?,
+                ),
+                KnownInteger::Runtime(expression) => {
+                    KnownInteger::Runtime(TerminalTargetIntegerExpression::BitwiseNot {
+                        psi_operation: *psi_operation,
+                        operand: Box::new(expression),
+                    })
+                }
+            };
+            (*psi_operation, *result, *scalar_type, value)
+        }
         TerminalAbstractOperation::IntegerBitwiseAnd {
             psi_operation,
             result,
@@ -2337,6 +2407,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::IntegerEqual { psi_operation, .. }
             | TerminalAbstractOperation::IntegerLessThan { psi_operation, .. }
             | TerminalAbstractOperation::IntegerLessOrEqual { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerBitwiseNot { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseOr { psi_operation, .. }
             | TerminalAbstractOperation::IntegerBitwiseXor { psi_operation, .. }

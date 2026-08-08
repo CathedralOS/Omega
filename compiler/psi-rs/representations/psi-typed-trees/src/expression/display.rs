@@ -262,6 +262,7 @@ impl BinaryOperator {
 impl UnaryOperator {
     pub fn display_name(self) -> &'static str {
         match self {
+            Self::BitwiseNot => "~",
             Self::LogicalNot => "!",
         }
     }
