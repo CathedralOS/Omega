@@ -1071,6 +1071,10 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
     let unconditional = r#"
         crashes Trap Activation
     "#;
+    let explicit_true = r#"
+        crashes Trap Activation
+            true
+    "#;
     let unconditional_with_guard = r#"
         crashes Trap Activation
             first
@@ -1079,6 +1083,7 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
 
     assert_eq!(fingerprint(grouped), fingerprint(split));
     assert_eq!(fingerprint(grouped), fingerprint(duplicated));
+    assert_eq!(fingerprint(unconditional), fingerprint(explicit_true));
     assert_eq!(
         fingerprint(unconditional),
         fingerprint(unconditional_with_guard)
@@ -1111,6 +1116,10 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
 
     assert_eq!(slot_fingerprint(grouped), slot_fingerprint(split));
     assert_eq!(slot_fingerprint(grouped), slot_fingerprint(duplicated));
+    assert_eq!(
+        slot_fingerprint(unconditional),
+        slot_fingerprint(explicit_true)
+    );
     assert_eq!(
         slot_fingerprint(unconditional),
         slot_fingerprint(unconditional_with_guard)

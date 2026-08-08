@@ -1607,6 +1607,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_suspension_plan_json(&mut json, contract.suspension);
             json.push_str(",\n        \"blocking\": ");
             push_blocking_plan_json(&mut json, contract.blocking);
+            json.push_str(",\n        \"crashes\": ");
+            push_crash_plan_json(&mut json, &contract.crash);
             json.push_str(",\n        \"termination\": ");
             push_termination_interface_json(&mut json, &contract.termination);
             json.push_str("\n      }");
@@ -1870,6 +1872,51 @@ fn push_blocking_plan_json(json: &mut String, plan: psi_language_semantics::Bloc
             json.push('}');
         }
     }
+}
+
+fn push_crash_plan_json(json: &mut String, plan: &psi_checked_trees::CrashPlan) {
+    json.push_str("{\"interface\": ");
+    push_json_string(
+        json,
+        match plan.interface() {
+            psi_checked_trees::CrashInterface::InternalInferred => "internal_inferred",
+            psi_checked_trees::CrashInterface::PublishedCeiling => "published_ceiling",
+        },
+    );
+    json.push_str(", \"buckets\": [");
+    for (bucket_index, bucket) in plan.published().iter().enumerate() {
+        if bucket_index > 0 {
+            json.push_str(", ");
+        }
+        json.push_str("{\"cause\": ");
+        push_json_string(
+            json,
+            match bucket.cause() {
+                psi_checked_trees::CrashCause::Trap => "Trap",
+                psi_checked_trees::CrashCause::Abort => "Abort",
+            },
+        );
+        json.push_str(", \"containment_demand\": ");
+        push_json_string(json, bucket.containment_demand());
+        json.push_str(", \"alternative_guards\": [");
+        for (guard_index, guard) in bucket.alternative_guards().iter().enumerate() {
+            if guard_index > 0 {
+                json.push_str(", ");
+            }
+            match guard {
+                psi_checked_trees::CrashRouteGuard::Truth => push_json_string(json, "true"),
+                psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                    let mut identity = String::from("0x");
+                    for byte in predicate.canonical_bytes() {
+                        identity.push_str(&format!("{byte:02x}"));
+                    }
+                    push_json_string(json, &identity);
+                }
+            }
+        }
+        json.push_str("]}");
+    }
+    json.push_str("]}");
 }
 
 fn push_termination_json(
@@ -3093,6 +3140,12 @@ mod tests {
                     interface: BlockingInterface::PublishedMayBlock(true),
                     checked_may_block: true,
                 },
+                crash: psi_checked_trees::CrashPlan::published_ceiling(vec![
+                    psi_checked_trees::CrashRouteBucket::unconditional(
+                        psi_checked_trees::CrashCause::Abort,
+                        "ExecutionDomain",
+                    ),
+                ]),
                 termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,
                 ),
@@ -3133,6 +3186,9 @@ mod tests {
                 "\"blocking\": {\"interface\": \"published_ceiling\", \"may_block\": true}"
             )
         );
+        assert!(contract.contains(
+            "\"crashes\": {\"interface\": \"published_ceiling\", \"buckets\": [{\"cause\": \"Abort\", \"containment_demand\": \"ExecutionDomain\", \"alternative_guards\": [\"true\"]}]}"
+        ));
         assert!(contract.contains(
             "\"termination\": {\"interface\": \"published\", \"guarantee\": {\"kind\": \"no_guarantee\"}}"
         ));

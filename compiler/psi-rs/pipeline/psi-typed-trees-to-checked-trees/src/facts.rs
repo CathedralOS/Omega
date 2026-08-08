@@ -225,6 +225,7 @@ fn build_contract_plans(
                 &content_conservation,
                 &[0xae],
                 true,
+                true,
             );
             for contract in state_contracts {
                 encoded.extend(contract);
@@ -246,12 +247,15 @@ fn build_contract_plans(
                     .collect()
             })
             .unwrap_or_default();
+        let crash =
+            build_published_crash_plan(program, machine, &parameter_names, &content_conservation);
         canonical_facts.extend(encode_contract_set_canonical(
             program,
             program.machine_contracts(machine),
             &parameter_names,
             &content_conservation,
             &[],
+            false,
             false,
         ));
         canonical_facts.sort();
@@ -288,6 +292,7 @@ fn build_contract_plans(
             &published_invocations,
             suspension.interface,
             blocking.interface,
+            &crash,
             &termination,
             &canonical_facts,
         );
@@ -310,6 +315,7 @@ fn build_contract_plans(
             synchronous_invocation,
             suspension,
             blocking,
+            crash,
             termination,
             inferred_write_frames,
             fingerprint,
@@ -343,6 +349,94 @@ fn encode_signature_contract_kind(
     }
 }
 
+fn build_published_crash_plan(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+) -> psi_checked_trees::CrashPlan {
+    use std::collections::BTreeMap;
+
+    #[derive(Default)]
+    struct Bucket {
+        unconditional: bool,
+        routes: Vec<psi_checked_trees::CrashPredicateIdentity>,
+    }
+
+    let contracts = program.machine_contracts(machine);
+    let mut buckets = BTreeMap::<(psi_checked_trees::CrashCause, String), Bucket>::new();
+    for contract in contracts {
+        let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
+            &contract.kind
+        else {
+            continue;
+        };
+        let cause = match cause {
+            psi_typed_trees::signature::CrashCause::Trap => psi_checked_trees::CrashCause::Trap,
+            psi_typed_trees::signature::CrashCause::Abort => psi_checked_trees::CrashCause::Abort,
+        };
+        let bucket = buckets
+            .entry((cause, scope.as_str().to_owned()))
+            .or_default();
+        let facts = program.proof_facts.span_or_empty(contract.facts);
+        if facts.is_empty() || facts.iter().any(|fact| is_true_crash_route(program, fact)) {
+            bucket.unconditional = true;
+            continue;
+        }
+        for fact in facts {
+            let mut route = Vec::new();
+            encode_contract_fact_canonical(
+                program,
+                fact,
+                parameter_names,
+                content_conservation,
+                false,
+                &mut route,
+            );
+            bucket
+                .routes
+                .push(psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(route));
+        }
+    }
+
+    let published = buckets
+        .into_iter()
+        .map(|((cause, containment_demand), mut bucket)| {
+            let alternative_guards = if bucket.unconditional {
+                vec![psi_checked_trees::CrashRouteGuard::Truth]
+            } else {
+                bucket.routes.sort();
+                bucket.routes.dedup();
+                bucket
+                    .routes
+                    .into_iter()
+                    .map(psi_checked_trees::CrashRouteGuard::Predicate)
+                    .collect()
+            };
+            psi_checked_trees::CrashRouteBucket::new(cause, containment_demand, alternative_guards)
+                .expect("an authored crash bucket has a canonical nonempty route set")
+        })
+        .collect::<Vec<_>>();
+    if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+        || !published.is_empty()
+    {
+        psi_checked_trees::CrashPlan::published_ceiling(published)
+    } else {
+        psi_checked_trees::CrashPlan::default()
+    }
+}
+
+fn is_true_crash_route(program: &TypedTrees, fact: &psi_typed_trees::domain::ProofFact) -> bool {
+    matches!(
+        fact,
+        psi_typed_trees::domain::ProofFact::Expression(expression)
+            if matches!(
+                program.expression_table.expression(*expression),
+                psi_typed_trees::expression::ExpressionNode::Boolean(true)
+            )
+    )
+}
+
 /// Encode contracts as semantic sets. Crash clauses are first merged by
 /// `(cause, scope)`: their facts are alternative routes, duplicate routes are
 /// irrelevant, and one unconditional clause subsumes every guarded route in
@@ -355,6 +449,7 @@ fn encode_contract_set_canonical(
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     entry_prefix: &[u8],
     canonicalize_membership_value: bool,
+    include_crashes: bool,
 ) -> Vec<Vec<u8>> {
     use std::collections::BTreeMap;
 
@@ -370,12 +465,16 @@ fn encode_contract_set_canonical(
         let mut contract_prefix = entry_prefix.to_vec();
         encode_signature_contract_kind(&contract.kind, &mut contract_prefix);
         let facts = program.proof_facts.span_or_empty(contract.facts);
-        if matches!(
+        let is_crash = matches!(
             contract.kind,
             psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
-        ) {
+        );
+        if is_crash && !include_crashes {
+            continue;
+        }
+        if is_crash {
             let bucket = crash_buckets.entry(contract_prefix).or_default();
-            if facts.is_empty() {
+            if facts.is_empty() || facts.iter().any(|fact| is_true_crash_route(program, fact)) {
                 bucket.unconditional = true;
             } else {
                 for fact in facts {

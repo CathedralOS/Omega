@@ -2460,6 +2460,12 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         .expect("terminal-Psi source canary should compile");
     let lowered = lower_machine(&checked, "terminal_abort")
         .expect("an unconditional published crash should lower");
+    let explicit_true = lower_machine(&checked, "terminal_explicit_true_abort")
+        .expect("an explicit-true crash route should normalize to unconditional coverage");
+    assert_eq!(
+        lowered.semantic_module, explicit_true.semantic_module,
+        "route-less and explicit-true crash ceilings lower identically"
+    );
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("source slice should emit one machine");
     };

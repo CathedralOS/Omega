@@ -195,11 +195,14 @@ Remaining:
   not enter requires/ensures proof entailment. Public machine-contract and
   generic-template fingerprints now canonicalize each `(cause, scope)` bucket:
   clause grouping, ordering, and duplicate routes are irrelevant, while an
-  unconditional route subsumes guarded alternatives. Materialize that same
-  normalization as checked crash-plan rows, then finish path-conditioned site
-  coverage and damage minima, call-site refinement/propagation, and sparse
-  per-cause context maxima. Generalize source production beyond the initial
-  unconditional bucket.
+  unconditional route (including an explicit `true`) subsumes guarded
+  alternatives. Checked machine-contract plans now retain that published set
+  as source-handle-free crash buckets, fingerprints consume the same carrier,
+  contract manifests expose it, and terminal lowering reads it rather than
+  reinterpreting typed clauses. Add the independent body-derived crash-site
+  rows next, then finish path-conditioned coverage and damage minima, call-site
+  refinement/propagation, and sparse per-cause context maxima. Generalize
+  source production beyond the initial unconditional bucket.
   Terminal Psi v22 already carries the explicit no-successor terminator and its
   canonical machine-local frontier lower bound; native lowering remains closed
   until target crash plans exist.
