@@ -79,9 +79,10 @@ retains both that minimum and the selected published demand. Checker-proved
 incoming-path guarded crash branches now lower in the acyclic integer-control
 slice, including nested-negation implication, comparison operand reversal, and
 negated equality/inequality. Ordered-comparison negation is admitted only for
-checked integer operands; unknown, user-defined, and float operands remain
-opaque so unordered values remain sound. Broader guard entailment and source
-shapes remain.
+checked integer operands; integer strict order also yields its non-strict bound
+and inequality, while integer equality yields both non-strict bounds. Unknown,
+user-defined, and float operands remain opaque so unordered values remain
+sound. Broader guard entailment and source shapes remain.
 
 The first Psi-owned checked-tree producer, `psi-checked-trees-to-terminal`,
 lowers a closed set of scalar closed-contract source forms: a recursively nested Boolean

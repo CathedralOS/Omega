@@ -298,24 +298,20 @@ fn collect_structural_guard_consequences(
                     output,
                 );
             }
-            let normalized = normalized_comparison(binary.operator, negated, false)
+            let operands_are_integers =
+                comparison_operands_are_integers(program, binary.left, binary.right);
+            let normalized = normalized_comparison(binary.operator, negated, operands_are_integers)
                 .expect("equality operators are comparisons");
-            output.push(crate::facts::canonical_crash_binary_path_predicate(
+            push_comparison_consequences(
                 program,
                 normalized,
                 binary.left,
                 binary.right,
+                operands_are_integers,
                 parameter_names,
                 content_conservation,
-            ));
-            output.push(crate::facts::canonical_crash_binary_path_predicate(
-                program,
-                reversed_comparison(normalized),
-                binary.right,
-                binary.left,
-                parameter_names,
-                content_conservation,
-            ));
+                output,
+            );
         }
         ExpressionNode::Binary(binary) => {
             let normalized = normalized_comparison(
@@ -324,25 +320,66 @@ fn collect_structural_guard_consequences(
                 comparison_operands_are_integers(program, binary.left, binary.right),
             );
             if let Some(normalized) = normalized {
-                output.push(crate::facts::canonical_crash_binary_path_predicate(
+                push_comparison_consequences(
                     program,
                     normalized,
                     binary.left,
                     binary.right,
+                    comparison_operands_are_integers(program, binary.left, binary.right),
                     parameter_names,
                     content_conservation,
-                ));
-                output.push(crate::facts::canonical_crash_binary_path_predicate(
-                    program,
-                    reversed_comparison(normalized),
-                    binary.right,
-                    binary.left,
-                    parameter_names,
-                    content_conservation,
-                ));
+                    output,
+                );
             }
         }
         _ => {}
+    }
+}
+
+fn push_comparison_consequences(
+    program: &TypedTrees,
+    normalized: psi_typed_trees::expression::BinaryOperator,
+    left: psi_typed_trees::expression::ExpressionHandle,
+    right: psi_typed_trees::expression::ExpressionHandle,
+    operands_are_integers: bool,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    output: &mut Vec<psi_checked_trees::CrashPredicateIdentity>,
+) {
+    use psi_typed_trees::expression::BinaryOperator;
+
+    let mut consequences = vec![normalized];
+    if operands_are_integers {
+        match normalized {
+            BinaryOperator::Less => {
+                consequences.extend([BinaryOperator::LessOrEqual, BinaryOperator::NotEqual]);
+            }
+            BinaryOperator::Greater => {
+                consequences.extend([BinaryOperator::GreaterOrEqual, BinaryOperator::NotEqual]);
+            }
+            BinaryOperator::Equal => {
+                consequences.extend([BinaryOperator::LessOrEqual, BinaryOperator::GreaterOrEqual]);
+            }
+            _ => {}
+        }
+    }
+    for operator in consequences {
+        output.push(crate::facts::canonical_crash_binary_path_predicate(
+            program,
+            operator,
+            left,
+            right,
+            parameter_names,
+            content_conservation,
+        ));
+        output.push(crate::facts::canonical_crash_binary_path_predicate(
+            program,
+            reversed_comparison(operator),
+            right,
+            left,
+            parameter_names,
+            content_conservation,
+        ));
     }
 }
 
