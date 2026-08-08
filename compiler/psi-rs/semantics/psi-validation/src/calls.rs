@@ -5077,19 +5077,32 @@ pub(crate) fn report_local_receiver_value_call(
     }
     // A LOCAL-DATA binding anywhere in the machine (bindings are
     // whole-machine scope).
-    let is_local = program.machine_states(machine).iter().any(|state| {
+    let local = program.machine_states(machine).iter().find_map(|state| {
         program
             .statement_table
             .statements(state.statement_nodes)
             .iter()
-            .any(|statement| {
-                matches!(
-                    statement,
-                    StatementNode::LocalData(local) if local.name.as_str() == receiver
-                )
+            .find_map(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                (local.name.as_str() == receiver).then_some(local)
             })
     });
-    if !is_local {
+    let Some(local) = local else {
+        return;
+    };
+    // A checked local dynamic coercion is not an ordinary local receiver:
+    // closed-row lowering devirtualizes the call onto the coercion's retained
+    // source place. Invalid, missing, or ambiguous conformance selection is
+    // rejected independently by `collect_dynamic_conformance_selections`.
+    if type_reference_contains_dynamic_trait(program, local.type_reference)
+        && matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Cast(cast)
+                if type_reference_contains_dynamic_trait(program, cast.target_type)
+        )
+    {
         return;
     }
     diagnostics.push(Diagnostic::error(format!(
@@ -5102,6 +5115,22 @@ pub(crate) fn report_local_receiver_value_call(
         receiver,
         call.target.as_str(),
     )));
+}
+
+fn type_reference_contains_dynamic_trait(
+    program: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_contains_dynamic_trait(program, *referee)
+        }
+        psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_contains_dynamic_trait(program, *base_type)
+        }
+        psi_typed_trees::types::TypeReferenceNode::DynamicTrait { .. } => true,
+        _ => false,
+    }
 }
 
 /// A LET/ASSIGNMENT-bound value call whose ARGUMENT nests another machine call

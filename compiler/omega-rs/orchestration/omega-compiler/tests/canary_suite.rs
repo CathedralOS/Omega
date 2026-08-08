@@ -31391,6 +31391,39 @@ fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
+    let canary = pass_canary("traits/runtime_local_named_dyn_devirtualized_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-named-dyn-devirtualized-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("a local named dynamic coercion should devirtualize through its exact row");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local named dynamic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the exact Primary row to call through the original self.item place; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
     // TWO data types satisfy Shape, so the `&mut dyn Shape` receiver cannot
     // devirtualize; the call is monomorphized over the trait's closed world and

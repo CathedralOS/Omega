@@ -1,8 +1,9 @@
-// dyn trait-object dispatch via DEVIRTUALIZATION. Omega has no runtime vtable;
-// when exactly one data type satisfies a trait, a `&mut dyn Trait` receiver
-// resolves unambiguously to that single implementation. Here only Circle satisfies
-// Shape, so `s.code()` through `&mut dyn Shape` dispatches to Circle::code() == 99,
-// the guard takes `good`, and it exits 70. (Previously dyn dispatch returned 0.)
+// Closed-artifact dyn dispatch via devirtualization. This call site has one
+// statically known realization, so it does not need to materialize the runtime
+// descriptor/table used by pass-through or escaping dynamic values. Here only
+// Circle satisfies Shape, so `s.code()` through `&mut dyn Shape` dispatches to
+// Circle::code() == 99, the guard takes `good`, and it exits 70. (Previously dyn
+// dispatch returned 0.)
 use omega::language::std::console;
 
 trait Shape {
