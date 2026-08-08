@@ -211,6 +211,10 @@ impl StatementTable {
         self.nodes.statements.get(handle)
     }
 
+    pub fn statement_mut(&mut self, handle: StatementHandle) -> &mut StatementNode {
+        self.nodes.statements.get_mut(handle)
+    }
+
     pub fn statements(&self, span: HandleSpan<StatementNode>) -> &[StatementNode] {
         self.nodes.statements.span_or_empty(span)
     }
