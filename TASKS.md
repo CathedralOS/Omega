@@ -234,10 +234,17 @@ Remaining:
   Checked proof facts likewise retain the normalized nominal proposition
   declarations and applications consumed by terminal Psi; transparent aliases,
   typed proposition declarations, and proof-fact handles are no longer
-  terminal semantic inputs.
+  terminal semantic inputs. Checked value facts now also retain every accepted
+  executable scalar return, guard, and transition argument as a recursive
+  source-handle-free expression keyed by stable state identity and statement
+  role. Terminal production consumes those checked expressions and no longer
+  reinterprets typed expression nodes; typed statements remain temporarily for
+  control topology and debug-source attachment.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
-  dependencies with lowered values and predicates. Absorb useful StateGraph /
-  ControlFlow topology, then retire the legacy backend lane as consumers move.
+  dependencies with lowered values and predicates. The executable scalar
+  vocabulary is migrated; next absorb useful StateGraph / ControlFlow topology
+  so statement/transition handles cease to be semantic inputs, then retire the
+  legacy backend lane as consumers move.
 - **CRASH-CONTRACT.** Source now parses fingerprinted `crashes Cause Scope`
   buckets, including multiple alternative route facts and the unconditional
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through

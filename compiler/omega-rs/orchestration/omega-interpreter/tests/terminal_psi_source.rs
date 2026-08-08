@@ -372,6 +372,67 @@ fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
 }
 
 #[test]
+fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
+    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "terminal-Psi source canary should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let expected =
+        lower_machine(&checked, "terminal_constant").expect("the checked scalar body should lower");
+
+    let return_expression = {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "terminal_constant")
+            .expect("terminal constant machine");
+        checked
+            .machine_states(machine)
+            .iter()
+            .flat_map(|state| {
+                checked
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+            })
+            .find_map(|statement| match statement {
+                psi_checked_trees::statement::StatementNode::Expression(expression) => {
+                    Some(*expression)
+                }
+                _ => None,
+            })
+            .expect("terminal constant return expression")
+    };
+    let mut without_typed_return = checked.clone();
+    *without_typed_return
+        .typed
+        .expression_table
+        .expression_mut(return_expression) =
+        psi_checked_trees::expression::ExpressionNode::Boolean(false);
+
+    let actual = lower_machine(&without_typed_return, "terminal_constant")
+        .expect("terminal production must not reopen the checked return expression");
+    assert_eq!(actual.semantic_module, expected.semantic_module);
+    assert_eq!(actual.proof_bundle, expected.proof_bundle);
+
+    let mut without_checked_scalar_body = checked;
+    without_checked_scalar_body.facts.values.scalar_expressions = Default::default();
+    assert_eq!(
+        lower_machine(&without_checked_scalar_body, "terminal_constant")
+            .expect_err("terminal production must fail without the checked scalar body"),
+        LoweringError::Unsupported(
+            "scalar expression has no source-independent checked value plan"
+        )
+    );
+}
+
+#[test]
 fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(
