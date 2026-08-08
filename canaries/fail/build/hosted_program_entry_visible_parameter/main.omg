@@ -1,0 +1,3 @@
+machine launch(argument: u8) {
+    let copy: u8 = argument;
+}

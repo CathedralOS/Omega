@@ -173,7 +173,7 @@ fn type_requires_establishment_inner(
     }
 }
 
-pub(crate) fn data_requires_establishment(
+pub fn data_requires_establishment(
     program: &TypedTrees,
     definition: &psi_typed_trees::data::DataDefinition,
 ) -> bool {

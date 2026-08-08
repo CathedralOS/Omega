@@ -53,7 +53,8 @@ Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Finish target-declared typed slots around the live
   ordinary `builder.roots.bind(target::ProgramEntry, Exact::machine)` binding
-  and exact backend entry selection. A target profile owns each slot identity, schema, direction,
+  and exact backend entry selection. Hosted free/receiver-bound source-shape
+  checks and receiver ZII validation are live. A target profile owns each slot identity, schema, direction,
   lifecycle, cardinality, and exact-requirement, complete-conformance, or
   entry-machine binding shape; `build.omg` names the exact entry machine and
   performs no discovery. Let a target entry schema expose only the parameters

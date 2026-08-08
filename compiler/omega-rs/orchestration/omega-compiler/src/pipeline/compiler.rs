@@ -408,6 +408,13 @@ impl Compiler {
             self.options.target_name.as_deref(),
         )?
         .map(str::to_owned);
+        if let Some(entry_machine_name) = entry_machine_name.as_deref() {
+            crate::pipeline::build_config::validate_selected_program_entry_shape(
+                &typed,
+                entry_machine_name,
+                build_config.freestanding,
+            )?;
+        }
         let target_provider_defaults =
             crate::pipeline::build_config::compute_target_provider_defaults(
                 &typed,

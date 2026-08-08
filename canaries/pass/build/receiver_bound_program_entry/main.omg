@@ -1,0 +1,9 @@
+data Application {
+    launch_count: u64;
+}
+
+// The binding plus this receiver requests one target-provisioned Application.
+// The receiver is an ordinary exclusive parameter, never an ambient global.
+machine Application::launch(&mut self) {
+    self.launch_count += 1;
+}
