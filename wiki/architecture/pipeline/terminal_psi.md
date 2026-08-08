@@ -173,9 +173,12 @@ abstract plan retains canonical block entries and both successor records.
 The checked-source producer lowers scalar integer-result acyclic control graphs
 whose blocks return, jump unconditionally, or select one ordered
 positive-Boolean/fallback successor pair. Unconditional jumps may compute
-recursive exact-typed integer expressions for their bindings; conditional
-successor bindings remain already-defined scalar parameters so unselected-arm
-work is neither evaluated nor charged. Nested selections and convergent tails retain
+recursive exact-typed integer expressions for their bindings. A computed
+conditional successor binding lowers through a synthesized arm-local block:
+the conditional passes its current parameters into only the selected block,
+that block computes the recursive exact-typed arguments, and an ordinary jump
+binds the authored target. The unselected arm is neither evaluated nor charged.
+Nested selections and convergent tails retain
 their authored blocks and edges in terminal Psi; proof reconstruction
 intersects facts at joins, and the fixed-work checker derives the maximum
 entry-to-return cost. Omega recursively realizes the graph on x86-64 and

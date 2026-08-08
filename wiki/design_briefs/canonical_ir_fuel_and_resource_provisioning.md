@@ -105,8 +105,9 @@ unconditionally, or select ordered positive-Boolean/fallback successors.
 Selection guards may be Boolean parameters or exact-type builtin integer
 comparisons over recursive integer expressions.
 Unconditional jumps may compute recursive exact-typed integer bindings;
-conditional edges bind already-defined scalar parameters so the unselected arm
-does no work. Nested selections, linear prefixes, and convergent tails use the same terminal block and edge
+computed conditional-edge bindings use synthesized arm-local blocks so only
+the selected expression executes and consumes fuel. Nested selections, linear
+prefixes, and convergent tails use the same terminal block and edge
 vocabulary. The ordered Boolean-result form supports ordinary Boolean
 entry/branch parameters with recursive short-circuit guards and branch returns.
 It emits the semantic module and proof bundle separately and fails closed on
@@ -116,7 +117,9 @@ additionally cross the selected host incoming-stack ABI, while runtime wrapping
 add combines its ninth stack argument with its first register argument and a
 nested add-then-multiply expression reaches the same native lane. A three-state
 companion also carries two independently computed bindings across each
-unconditional edge. The source control canary executes each nested path after
+unconditional edge. A selected-edge companion computes distinct add/multiply
+bindings in synthesized true/false blocks and reaches both native targets. The
+source control canary executes each nested path after
 frontend disposal, meters only selected edges, and retains every successor and
 shared-tail edge at the Omega abstract boundary. Parsing
 through checked semantics and this first terminal producer are now Psi-owned;

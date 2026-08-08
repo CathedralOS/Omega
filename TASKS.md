@@ -185,8 +185,9 @@ Remaining:
   expressions on unconditional jump bindings and exact-type integer comparison
   guards (including normalized greater forms and recursive integer operands)
   through verification, interpretation, and fuel. Non-crashing shapes also
-  reach both native targets. Conditional-edge binding computation remains until
-  operations can stay local to the selected edge.
+  reach both native targets. Computed conditional-edge bindings now lower into
+  synthesized arm-local blocks, so only the selected expression is evaluated
+  and charged, and reach the same native lanes.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.
