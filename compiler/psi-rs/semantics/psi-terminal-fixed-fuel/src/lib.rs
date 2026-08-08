@@ -3,7 +3,7 @@
 //! Recomputable restricted fixed-fuel certificates for terminal Psi.
 //!
 //! The terminal verifier accepts acyclic control flow, so the checker derives
-//! an exact maximum entry-to-return cost without precondition assumptions and
+//! an exact maximum entry-to-terminal-exit cost without precondition assumptions and
 //! partitions the complete reachable graph at every explicit edge.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -222,7 +222,7 @@ pub fn derive_fixed_safe_point_segments(
                 pending.push(when_false.target);
                 pending.push(when_true.target);
             }
-            Terminator::Return { .. } => {}
+            Terminator::Return { .. } | Terminator::Crash { .. } => {}
         }
     }
 
@@ -308,7 +308,7 @@ fn maximum_units_from(
         } => maximum_units_from(when_true.target, blocks, schedule, memoized, active)?.max(
             maximum_units_from(when_false.target, blocks, schedule, memoized, active)?,
         ),
-        Terminator::Return { .. } => 0,
+        Terminator::Return { .. } | Terminator::Crash { .. } => 0,
     };
     active.remove(&current);
     let units = local_units
@@ -363,7 +363,13 @@ fn derive_segment_bound(
             Terminator::Return { edge, .. } => {
                 return Err(FixedFuelError::SegmentEndNotReached {
                     requested: end_edge,
-                    reached_return: edge,
+                    reached_terminal: edge,
+                });
+            }
+            Terminator::Crash { edge, .. } => {
+                return Err(FixedFuelError::SegmentEndNotReached {
+                    requested: end_edge,
+                    reached_terminal: edge,
                 });
             }
         }
@@ -379,7 +385,7 @@ pub enum FixedFuelError {
     BranchingNotYetSupported(BlockId),
     SegmentEndNotReached {
         requested: EdgeId,
-        reached_return: EdgeId,
+        reached_terminal: EdgeId,
     },
     BoundOverflow,
     CertificateMismatch,

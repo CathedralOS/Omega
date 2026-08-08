@@ -359,6 +359,19 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                     scalar_type: machine.result.scalar_type,
                 });
             }
+            Terminator::Crash {
+                edge,
+                cause,
+                damage_scope,
+                ..
+            } => {
+                return Err(LoweringError::CrashLoweringUnsupported {
+                    machine: machine.id,
+                    edge: *edge,
+                    cause: *cause,
+                    damage_scope: damage_scope.clone(),
+                });
+            }
         }
     }
 
@@ -386,9 +399,17 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
 pub enum LoweringError {
     SemanticIdentity(CodecError),
     VerifiedEntryMachineMissing(MachineId),
-    VerifiedBlockMissing { machine: MachineId, block: BlockId },
-    VerifiedControlCycle { machine: MachineId, block: BlockId },
-    VerifiedJumpArityMismatch { edge: psi_core::EdgeId },
+    VerifiedBlockMissing {
+        machine: MachineId,
+        block: BlockId,
+    },
+    VerifiedControlCycle {
+        machine: MachineId,
+        block: BlockId,
+    },
+    VerifiedJumpArityMismatch {
+        edge: psi_core::EdgeId,
+    },
     VerifiedWrappingAddMalformed(psi_core::OperationId),
     VerifiedSaturatingAddMalformed(psi_core::OperationId),
     VerifiedWrappingSubtractMalformed(psi_core::OperationId),
@@ -397,6 +418,12 @@ pub enum LoweringError {
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
     VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
     VerifiedWrappingShiftMalformed(psi_core::OperationId),
+    CrashLoweringUnsupported {
+        machine: MachineId,
+        edge: psi_core::EdgeId,
+        cause: psi_terminal::CrashCause,
+        damage_scope: String,
+    },
 }
 
 impl std::fmt::Display for LoweringError {

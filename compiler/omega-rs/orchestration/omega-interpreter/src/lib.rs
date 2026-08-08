@@ -89,8 +89,8 @@ mod value;
 
 pub use build_time::BuildTimeValue;
 pub use terminal_psi::{
-    MeasuredTerminalExecution, TerminalExecution, TerminalExecutionStatus, TerminalInterpretError,
-    TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
+    MeasuredTerminalExecution, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
+    TerminalInterpretError, TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
     interpret_terminal_with_meter,
 };
 

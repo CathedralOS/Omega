@@ -67,6 +67,7 @@ pub fn validate_module(
             | SemanticVersion::V19
             | SemanticVersion::V20
             | SemanticVersion::V21
+            | SemanticVersion::V22
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -539,6 +540,15 @@ fn validate_machine(
                 actual: semantic_version,
             });
         }
+        if semantic_version < SemanticVersion::V22
+            && matches!(block.terminator, Terminator::Crash { .. })
+        {
+            return Err(ModuleError::CrashRequiresSemanticVersion {
+                block: block.id,
+                required: SemanticVersion::V22,
+                actual: semantic_version,
+            });
+        }
         for edge in block.terminator.edges() {
             insert_unique(&mut registry.edges, edge, ModuleError::DuplicateEdge)?;
         }
@@ -583,6 +593,7 @@ fn validate_machine(
         &structural_place_kinds,
         &context,
     )?;
+    validate_crash_frontiers(machine)?;
     let requires_values = machine
         .parameters
         .iter()
@@ -631,6 +642,42 @@ fn validate_machine(
     }
 
     validate_control_flow(machine, &blocks, &value_types)
+}
+
+fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError> {
+    let expected = machine
+        .content_entry_claims
+        .iter()
+        .map(|binding| binding.claim)
+        .collect::<Vec<_>>();
+    for block in &machine.blocks {
+        let Terminator::Crash {
+            damage_scope,
+            frontier_lower_bound,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        if damage_scope.is_empty() {
+            return Err(ModuleError::EmptyCrashDamageScope(block.id));
+        }
+        if frontier_lower_bound
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalCrashFrontier(block.id));
+        }
+        // Terminal Psi has no claim-consuming operation yet, so every entry
+        // claim is still live at every reachable crash. Requiring exact
+        // equality now prevents a producer from laundering an omitted claim
+        // as cleanup. Later claim-transfer operations refine the reconstructed
+        // live set; the row remains the explicit local lower bound.
+        if frontier_lower_bound != &expected {
+            return Err(ModuleError::CrashFrontierMismatch { block: block.id });
+        }
+    }
+    Ok(())
 }
 
 fn validate_content_entry_claims(
@@ -1515,7 +1562,7 @@ fn validate_control_flow(
                 when_false,
                 ..
             } => vec![when_true.target, when_false.target],
-            Terminator::Return { .. } => Vec::new(),
+            Terminator::Return { .. } | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
             if !blocks.contains_key(target) {
@@ -1678,6 +1725,7 @@ fn validate_control_flow(
                     });
                 }
             }
+            Terminator::Crash { .. } => {}
         }
     }
     Ok(())
@@ -2064,6 +2112,16 @@ pub enum ModuleError {
         block: BlockId,
         required: SemanticVersion,
         actual: SemanticVersion,
+    },
+    CrashRequiresSemanticVersion {
+        block: BlockId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    EmptyCrashDamageScope(BlockId),
+    NonCanonicalCrashFrontier(BlockId),
+    CrashFrontierMismatch {
+        block: BlockId,
     },
     NonDenseContentEntryClaim {
         expected: ClaimId,

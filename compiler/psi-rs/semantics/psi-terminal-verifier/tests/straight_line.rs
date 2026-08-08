@@ -11,9 +11,9 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
+    MachineContract, Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -1202,6 +1202,76 @@ fn v14_entry_claims_require_dense_unique_parameter_bindings() {
         validate_module(&overlapping),
         Err(ModuleError::OverlappingContentEntryClaimInput { .. })
     ));
+}
+
+#[test]
+fn v22_crash_is_an_explicit_versioned_no_successor_exit() {
+    let mut module = Fixture::new().module;
+    module.semantic_version = SemanticVersion::V21;
+    module.machines[0].contract.ensures.clear();
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: EdgeId::new(10).expect("crash edge"),
+        cause: CrashCause::Abort,
+        damage_scope: "ExecutionDomain".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CrashRequiresSemanticVersion {
+            required: SemanticVersion::V22,
+            actual: SemanticVersion::V21,
+            ..
+        })
+    ));
+
+    module.semantic_version = SemanticVersion::V22;
+    validate_module(&module).expect("v22 explicitly represents a no-cleanup crash");
+
+    let Terminator::Crash { damage_scope, .. } = &mut module.machines[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    damage_scope.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::EmptyCrashDamageScope(block))
+            if block == BlockId::new(2).expect("block")
+    ));
+}
+
+#[test]
+fn crash_frontier_must_name_every_still_live_entry_claim() {
+    let (mut module, _, _) = identity_reshuffle_module();
+    module.semantic_version = SemanticVersion::V22;
+    let reshuffle = module.machines[0].content_identity_reshuffles.remove(0);
+    let claim = ClaimId::new(1).expect("claim");
+    module.machines[0].content_entry_claims = vec![ContentEntryClaim {
+        claim,
+        input: reshuffle.input,
+        projections: reshuffle.projections,
+    }];
+    module.machines[0].contract.ensures.clear();
+    module.machines[0].blocks[0].terminator = Terminator::Crash {
+        edge: EdgeId::new(90).expect("crash edge"),
+        cause: CrashCause::Trap,
+        damage_scope: "Activation".to_owned(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let crash_block = module.machines[0].blocks[0].id;
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CrashFrontierMismatch { block }) if block == crash_block
+    ));
+
+    let Terminator::Crash {
+        frontier_lower_bound,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    frontier_lower_bound.push(claim);
+    validate_module(&module).expect("the explicit local crash frontier is complete");
 }
 
 #[test]

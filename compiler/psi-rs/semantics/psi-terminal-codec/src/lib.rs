@@ -35,11 +35,12 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, MachineContract,
-    Operation, OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
-    SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
+    MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, SemanticVersion,
+    StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -782,6 +783,24 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             writer.id(*condition);
             encode_successor_edge(writer, when_true)?;
             encode_successor_edge(writer, when_false)?;
+        }
+        Terminator::Crash {
+            edge,
+            cause,
+            damage_scope,
+            frontier_lower_bound,
+        } => {
+            writer.u8(4);
+            writer.id(*edge);
+            writer.u8(match cause {
+                CrashCause::Trap => 1,
+                CrashCause::Abort => 2,
+            });
+            writer.string("crash damage scope", damage_scope)?;
+            writer.len("crash frontier lower bound", frontier_lower_bound.len())?;
+            for claim in frontier_lower_bound {
+                writer.id(*claim);
+            }
         }
     }
     Ok(())
@@ -1549,6 +1568,26 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             when_true: decode_successor_edge(reader)?,
             when_false: decode_successor_edge(reader)?,
         },
+        4 => {
+            let edge = reader.id("EdgeId")?;
+            let cause = match reader.u8()? {
+                1 => CrashCause::Trap,
+                2 => CrashCause::Abort,
+                tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
+            };
+            let damage_scope = reader.string("crash damage scope")?;
+            let claim_count = reader.count()?;
+            let mut frontier_lower_bound = Vec::with_capacity(claim_count as usize);
+            for _ in 0..claim_count {
+                frontier_lower_bound.push(reader.id("ClaimId")?);
+            }
+            Terminator::Crash {
+                edge,
+                cause,
+                damage_scope,
+                frontier_lower_bound,
+            }
+        }
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     };
     Ok(Block {
