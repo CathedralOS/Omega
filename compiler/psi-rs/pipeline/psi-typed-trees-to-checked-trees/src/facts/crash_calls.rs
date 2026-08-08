@@ -4,9 +4,11 @@ use psi_typed_trees::TypedTrees;
 use super::{encode_contract_fact_canonical, encode_expression_canonical, is_true_crash_route};
 
 /// Materialize direct invocation-specific crash refinement while the typed
-/// expressions are still available. The retained rows are entirely checked
-/// data: downstream propagation can distinguish a proved-crash-free call from
-/// an unexamined call without reopening source trees.
+/// expressions are still available. Selection uses a published ceiling when
+/// one exists and a conservative checked-body summary for same-unit private
+/// leaves. The retained rows are entirely checked data: downstream propagation
+/// can distinguish a proved-crash-free call from an unexamined call without
+/// reopening source trees.
 pub(super) fn attach_checked_crash_calls(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
@@ -51,9 +53,27 @@ pub(super) fn attach_checked_crash_calls(
             else {
                 continue;
             };
-            if target_plan.crash.published().is_empty() {
-                continue;
-            }
+            let (target_buckets, uses_published_routes) =
+                if !target_plan.crash.published().is_empty() {
+                    (target_plan.crash.published().to_vec(), true)
+                } else if target_machine.supply_mode
+                    == psi_language_semantics::MachineSupplyMode::CheckedBody
+                {
+                    // A private checked leaf may infer its crash ceiling from
+                    // body sites. A body containing invocations waits for the
+                    // call-summary fixed point: treating its currently direct
+                    // sites as complete could erase a nested crash.
+                    if machine_has_non_transition_invocations(program, flow, target_machine_symbol)
+                    {
+                        continue;
+                    }
+                    (inferred_leaf_body_crash_buckets(target_plan), false)
+                } else {
+                    // Omission on a requirement/boundary/exported interface is
+                    // the published negative guarantee, so retain an empty row
+                    // as positive crash-free evidence.
+                    (Vec::new(), false)
+                };
             let Some(target_state) = program
                 .machine_states(target_machine)
                 .iter()
@@ -87,15 +107,17 @@ pub(super) fn attach_checked_crash_calls(
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let route_expressions = crash_route_expressions_by_identity(
-                program,
-                target_machine,
-                &target_parameter_names,
-                content_conservation,
-            );
+            let route_expressions = uses_published_routes.then(|| {
+                crash_route_expressions_by_identity(
+                    program,
+                    target_machine,
+                    &target_parameter_names,
+                    content_conservation,
+                )
+            });
             let arguments = crate::call_site_argument_expressions(program, &call_site);
             let mut surviving_buckets = Vec::new();
-            for bucket in target_plan.crash.published() {
+            for bucket in &target_buckets {
                 let mut surviving_guards = Vec::new();
                 for guard in bucket.alternative_guards() {
                     match guard {
@@ -103,7 +125,10 @@ pub(super) fn attach_checked_crash_calls(
                             surviving_guards.push(psi_checked_trees::CrashRouteGuard::Truth);
                         }
                         psi_checked_trees::CrashRouteGuard::Predicate(identity) => {
-                            let expression = *route_expressions.get(identity).expect(
+                            let expression = *route_expressions
+                                .as_ref()
+                                .and_then(|expressions| expressions.get(identity))
+                                .expect(
                                 "a canonical published crash route retains its typed producer expression",
                             );
                             match crate::checks::contracts::call_site_boolean_contract_expression_value(
@@ -179,6 +204,49 @@ pub(super) fn attach_checked_crash_calls(
             .with_checked_calls(checked_calls)
             .expect("one checked crash-call record occupies each invocation coordinate");
     }
+}
+
+fn machine_has_non_transition_invocations(
+    program: &TypedTrees,
+    flow: &psi_checked_trees::FlowFacts,
+    machine: SymbolHandle,
+) -> bool {
+    flow.control
+        .states
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine)
+        .any(|(_, state)| {
+            flow.control
+                .calls
+                .span_or_empty(state.calls)
+                .iter()
+                .any(|call| {
+                    crate::find_call_site(
+                        program,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        call.statement_index,
+                        call.call_ordinal,
+                    )
+                    .is_some_and(|site| !matches!(site, crate::CallSite::TransitionNamed(_)))
+                })
+        })
+}
+
+fn inferred_leaf_body_crash_buckets(
+    target: &psi_checked_trees::MachineContractPlan,
+) -> Vec<psi_checked_trees::CrashRouteBucket> {
+    let mut buckets = target
+        .crash
+        .checked_sites()
+        .iter()
+        .map(|site| {
+            psi_checked_trees::CrashRouteBucket::unconditional(site.cause(), site.damage_minimum())
+        })
+        .collect::<Vec<_>>();
+    buckets.sort();
+    buckets.dedup();
+    buckets
 }
 
 fn crash_route_expressions_by_identity(

@@ -250,10 +250,14 @@ Remaining:
   only routes the existing evaluator proves false, collapses proved-true routes
   to unconditional alternatives, preserves fully disproved calls as empty
   evidence, and records the caller's exact incoming path conjunction; semantic
-  reports expose the surviving buckets. Extend path-conditioned guard
+  reports expose the surviving buckets. Same-unit private leaf calls now select
+  a conservative checked-body summary: each explicit site contributes an
+  unconditional `(cause, damage minimum)` bucket, a site-free leaf contributes
+  positive empty evidence, and a body containing any invocation remains
+  unexamined rather than erasing a nested crash. Extend path-conditioned guard
   entailment beyond the live structural propositional consequences and widen
-  damage minima from open invariant/custody evidence; then finish same-unit
-  body-summary selection, recursive guarded-crash fixed points, caller-ceiling
+  damage minima from open invariant/custody evidence; then propagate nonleaf
+  body summaries through recursive guarded-crash fixed points, caller-ceiling
   coverage, imported/requirement capsules, and sparse per-cause context maxima.
   Retaining declared intermediate nominal scope ordering is design blocked on
   `OWNER_QUESTIONS.md` Q2.

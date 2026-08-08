@@ -193,7 +193,13 @@ Current ownership is:
   derivation aids, not checked-artifact identity. A sibling
   checked-call layer uses the flow graph's state/statement/call coordinate,
   retains the callee target and contract fingerprint, and stores the surviving
-  published buckets after invocation argument substitution. Routes are removed
+  selected summary after invocation argument substitution. Published buckets
+  are selected for authored interfaces. A same-unit private leaf instead uses
+  a conservative checked-body summary: every explicit site becomes an
+  unconditional `(cause, damage minimum)` bucket, while a site-free leaf
+  produces positive empty evidence. A private body containing an invocation is
+  left unexamined until nested-call fixed-point propagation exists, so the
+  direct-site summary cannot erase a nested crash. Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional
   namespace, and an empty surviving set is retained as positive crash-free

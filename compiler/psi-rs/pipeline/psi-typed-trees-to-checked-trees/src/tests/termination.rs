@@ -2652,6 +2652,66 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     );
 }
 
+#[test]
+fn checked_crash_calls_select_private_leaf_body_summaries() {
+    let source = r#"
+    machine inferred_abort() -> i32 {
+        crash Abort;
+    }
+
+    machine inferred_safe() -> i32 { 1 }
+
+    machine call_abort() -> i32 { inferred_abort() }
+    machine call_safe() -> i32 { inferred_safe() }
+
+    machine nonleaf() -> i32 { inferred_abort() }
+    machine call_nonleaf() -> i32 { nonleaf() }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let plan = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+    };
+
+    assert_eq!(
+        plan("inferred_abort").crash.interface(),
+        psi_checked_trees::CrashInterface::InternalInferred
+    );
+    let [abort_call] = plan("call_abort").crash.checked_calls() else {
+        panic!("a call to a private crashing leaf should retain one selected body summary")
+    };
+    let [abort_bucket] = abort_call.surviving_buckets() else {
+        panic!("the private leaf's explicit crash should survive as one inferred bucket")
+    };
+    assert!(abort_bucket.is_unconditional());
+    assert_eq!(abort_bucket.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(
+        abort_bucket.containment_demand(),
+        psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE
+    );
+
+    let [safe_call] = plan("call_safe").crash.checked_calls() else {
+        panic!("a call to a private crash-free leaf should retain positive empty evidence")
+    };
+    assert!(safe_call.surviving_buckets().is_empty());
+
+    assert_eq!(plan("nonleaf").crash.checked_calls().len(), 1);
+    assert!(
+        plan("call_nonleaf").crash.checked_calls().is_empty(),
+        "a private body containing a call must remain unexamined until call-summary propagation runs"
+    );
+}
+
 fn symbol_of_checked(
     checked: &psi_checked_trees::CheckedTrees,
     name: &str,
