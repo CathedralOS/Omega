@@ -301,6 +301,77 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
 }
 
 #[test]
+fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
+    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "terminal-Psi source canary should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let expected = lower_machine(&checked, "terminal_constant")
+        .expect("the checked scalar contract should lower");
+
+    let mut without_contract_expressions = checked.clone();
+    let contract_expressions = {
+        let machine = without_contract_expressions
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "terminal_constant")
+            .expect("terminal constant machine");
+        without_contract_expressions
+            .machine_contracts(machine)
+            .iter()
+            .flat_map(|contract| {
+                without_contract_expressions
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+            })
+            .filter_map(|fact| match fact {
+                psi_typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    for expression in contract_expressions {
+        *without_contract_expressions
+            .typed
+            .expression_table
+            .expression_mut(expression) =
+            psi_checked_trees::expression::ExpressionNode::Boolean(false);
+    }
+
+    let actual = lower_machine(&without_contract_expressions, "terminal_constant")
+        .expect("terminal production must not reopen checked contract expressions");
+    assert_eq!(actual.semantic_module, expected.semantic_module);
+    assert_eq!(actual.proof_bundle, expected.proof_bundle);
+
+    let mut without_checked_contract = checked;
+    let terminal_constant = without_checked_contract
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "terminal_constant")
+        .expect("terminal constant machine")
+        .symbol;
+    without_checked_contract
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == terminal_constant)
+        .expect("terminal constant contract plan")
+        .closed_scalar_values = Default::default();
+    assert_eq!(
+        lower_machine(&without_checked_contract, "terminal_constant")
+            .expect_err("terminal production must fail without checked scalar contract values"),
+        LoweringError::Unsupported("machine must have exactly one requires and one ensures clause")
+    );
+}
+
+#[test]
 fn checked_source_integer_policy_operations_survive_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi integer policy source canary should compile");

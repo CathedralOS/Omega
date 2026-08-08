@@ -356,6 +356,7 @@ fn build_contract_plans(
             },
             checked_may_block,
         };
+        let closed_scalar_values = build_closed_scalar_value_contract_plan(program, machine);
         let fingerprint = psi_checked_trees::contract_fingerprint(
             machine.supply_mode,
             &published_service_names,
@@ -386,6 +387,7 @@ fn build_contract_plans(
             synchronous_invocation,
             suspension,
             blocking,
+            closed_scalar_values,
             crash,
             termination,
             inferred_write_frames,
@@ -404,6 +406,64 @@ fn build_contract_plans(
         machines,
         crash_capsules,
     }
+}
+
+fn build_closed_scalar_value_contract_plan(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> psi_checked_trees::ClosedScalarValueContractPlan {
+    use psi_typed_trees::{
+        domain::ProofFact,
+        expression::{BinaryOperator, ExpressionNode},
+        signature::SignatureContractKind,
+    };
+
+    let lower_clause = |contract: &psi_typed_trees::signature::SignatureContract| {
+        let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
+        else {
+            return None;
+        };
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        else {
+            return None;
+        };
+        if binary.operator != BinaryOperator::Equal {
+            return None;
+        }
+        match (
+            program.expression_table.expression(binary.left),
+            program.expression_table.expression(binary.right),
+        ) {
+            (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) if left == right => {
+                Some(psi_checked_trees::ClosedScalarContractValue::Boolean(*left))
+            }
+            (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) if left == right => {
+                Some(psi_checked_trees::ClosedScalarContractValue::Integer(
+                    left.clone(),
+                ))
+            }
+            _ => None,
+        }
+    };
+
+    let mut requires = Vec::new();
+    let mut ensures = Vec::new();
+    let mut has_crash_clauses = false;
+    let mut has_other_clauses = false;
+    for contract in program.machine_contracts(machine) {
+        match contract.kind {
+            SignatureContractKind::Requires => requires.push(lower_clause(contract)),
+            SignatureContractKind::Ensures => ensures.push(lower_clause(contract)),
+            SignatureContractKind::Crashes { .. } => has_crash_clauses = true,
+            SignatureContractKind::Boundary => has_other_clauses = true,
+        }
+    }
+    psi_checked_trees::ClosedScalarValueContractPlan::new(
+        requires,
+        ensures,
+        has_crash_clauses,
+        has_other_clauses,
+    )
 }
 
 fn build_crash_contract_capsules(

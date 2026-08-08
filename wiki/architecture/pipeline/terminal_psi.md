@@ -220,9 +220,8 @@ successors route computed Boolean payloads through the same arm-local blocks
 and decision trees, so an unselected expression has no operations or fuel
 charge. Compile-known evaluation runs over this lowered acyclic graph, follows a
 known selector, meets parameter facts conservatively at joins, and supplies the
-same fail-closed contract check as the fused one-value chain path. The fused
-path remains distinct because replacing its decision root with an entry jump
-would change fixed and measured fuel. Loops remain a later slice.
+same fail-closed contract check for every returning scalar graph. Loops remain
+a later slice.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -256,8 +255,11 @@ short-circuit operand, value-producing decision leaves retain the explicit
 `BooleanEqual` operation and the canonical `BooleanNot` composition rather
 than replacing their proof and fuel sites with a truth-table branch.
 Compile-known Boolean bindings likewise must match the closed reflexive
-contract. A single-state Boolean-result machine over ordinary
-primitive-integer parameters may compare two recursively nested integer
+contract. Checked contract plans retain that accepted Boolean/integer equality
+as a source-handle-free value carrier, and terminal production fails closed on
+an absent or unrecognized carrier instead of reopening typed contract facts. A
+single-state Boolean-result machine over ordinary primitive-integer parameters
+may compare two recursively nested integer
 expressions of one exact type with builtin `==`, `!=`, `<`, `<=`, `>`, or `>=`.
 The operands use the same parameter/literal arithmetic, bitwise, and wrapping
 shift vocabulary as integer-result machines. Equality retains
@@ -314,8 +316,9 @@ Boolean results accept the recursive Boolean vocabulary in positive guards and
 branch returns. A short-circuit guard sends its
 terminal test edges directly to the selected branch with the authored entry
 arguments; computed successor payloads remain arm-local decision trees and only
-the selected arm is charged. All accepted forms require a matching closed
-`requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
+the selected arm is charged. All accepted returning forms require a matching
+closed `requires`/`ensures` pair; contract-free all-crash graphs carry neither
+value clause. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
 runtime-parameter forms, Boolean literal, negation, Boolean
@@ -877,14 +880,14 @@ and reconstruct the exact representation-level result. Validation and
 execution continue to accept valid v1 through v21 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v23 translation.
+`migrate_module_to_current` is an explicit validated older-to-v24 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain archived v1 through v21 identities and
-independently freeze the current v23 fingerprint, v10 identity-reshuffle
+independently freeze the current v24 fingerprint, v10 identity-reshuffle
 fixture, v11 sum-case fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
 fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, the

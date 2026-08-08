@@ -225,6 +225,7 @@ mod tests {
                     interface: BlockingInterface::InternalInferred,
                     checked_may_block: false,
                 },
+                closed_scalar_values: Default::default(),
                 crash: Default::default(),
                 termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,
