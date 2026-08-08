@@ -251,12 +251,14 @@ Remaining:
   to unconditional alternatives, preserves fully disproved calls as empty
   evidence, and records the caller's exact incoming path conjunction; semantic
   reports expose the surviving buckets. Same-unit private calls now select a
-  conservative checked-body summary over the acyclic invocation graph: each
+  conservative monotone checked-body summary over the viable invocation graph:
+  each
   explicit site contributes an unconditional `(cause, damage minimum)` bucket,
   a site-free leaf contributes positive empty evidence, and resolved nested
   summaries propagate cause/scope while deliberately collapsing predicates to
-  unconditional routes. Unresolved cycles remain unexamined rather than
-  erasing a nested crash. Published callers now check every surviving call
+  unconditional routes. Recursive components reach a finite fixed point;
+  unknown dependencies prune their caller closure rather than erasing a nested
+  crash. Published callers now check every surviving call
   route independently against a same-cause caller bucket whose containment
   demand covers the selected route and whose guard is unconditional, exactly
   matches the surviving predicate, or is one of the invocation's retained
@@ -268,7 +270,8 @@ Remaining:
   path-conditioned guard
   entailment beyond the live structural propositional consequences and widen
   damage minima from open invariant/custody evidence; then retain guarded
-  nonleaf routes through recursive fixed points, add separately compiled
+  predicates while composing nonleaf routes through the recursive fixed point,
+  add separately compiled
   imported-artifact capsules, and sparse per-cause context maxima.
   Retaining declared intermediate nominal scope ordering is design blocked on
   `OWNER_QUESTIONS.md` Q2.
