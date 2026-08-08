@@ -1445,7 +1445,17 @@ fn lower_selected_machine(
         };
     }
     if states.len() >= 2 {
-        return lower_integer_state_chain(checked, machine, states);
+        let has_boolean_parameter = states.iter().any(|state| {
+            checked.state_parameters(state).iter().any(|parameter| {
+                checked.primitive_type_reference(parameter.type_reference)
+                    == Some(PrimitiveType::Bool)
+            })
+        });
+        return if has_boolean_parameter {
+            lower_nested_integer_branch_machine(checked, machine, states)
+        } else {
+            lower_integer_state_chain(checked, machine, states)
+        };
     }
     unsupported("machine must contain at least one state")
 }

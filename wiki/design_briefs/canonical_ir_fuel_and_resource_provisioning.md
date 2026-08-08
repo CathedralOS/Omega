@@ -116,7 +116,9 @@ parameter and use its recursive expression as native control on both targets.
 Mixed-scalar short-circuit tuples use typed left-to-right stages, carry original
 parameters and prior results to each later stage, and converge once at the
 authored target. Conditional-edge stages remain arm-local, so the unselected
-tuple is neither executed nor charged.
+tuple is neither executed nor charged. A pure unconditional mixed-scalar graph
+enters this typed path directly rather than requiring an artificial source
+selector.
 Computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge
@@ -157,7 +159,9 @@ companions stage `&&` with integer payloads on unconditional and selected
 conditional edges, preserving bypass fuel and reaching the same native lanes.
 Their compile-known wrong-contract companion follows `true && false` through a
 Boolean block parameter, selects integer `9`, and rejects a contract naming
-`8`. The source control canary executes each nested path after
+`8`. A no-selector companion carries a staged Boolean and an integer through a
+pure unconditional graph while retaining bypass fuel. The source control
+canary executes each nested path after
 frontend disposal, meters only selected edges, and retains every successor and
 shared-tail edge at the Omega abstract boundary. Parsing
 through checked semantics and this first terminal producer are now Psi-owned;

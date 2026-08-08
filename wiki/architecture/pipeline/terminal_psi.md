@@ -295,6 +295,9 @@ left-to-right in typed stages, carrying original parameters and earlier results
 until one convergence jump binds the authored target. The same staging is
 arm-local for conditional-edge payloads, so an unselected tuple has no executed
 operations, edges, or fuel charge. Joins are explicit block-parameter merges.
+Pure unconditional mixed-scalar graphs select this general typed lowering from
+their parameter types; they do not need a synthetic or otherwise unused source
+conditional to escape the integer-only fused-chain path.
 Short-circuit guards use explicit decision blocks, and computed conditional
 edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
@@ -321,7 +324,9 @@ conditional edges; the latter bypasses the entire tuple on its unselected arm.
 They discard `CheckedTrees`, then verify and execute the produced semantic
 modules. A wrong-contract companion stages compile-known `true && false`,
 follows the resulting Boolean parameter to the integer `9`, and rejects a
-closed contract naming `8`.
+closed contract naming `8`. A pure unconditional companion carries a staged
+Boolean plus an integer through two source jumps and preserves short-circuit
+fuel without adding an authored selector.
 Direct-return `&&`/`||` expressions lower to acyclic terminal conditional
 trees. Each evaluated operand owns its selected conditional edge; the deciding
 left operand bypasses the right subtree, and Boolean leaf constants plus return

@@ -393,6 +393,29 @@ ensures 0u8 == 0u8
     }
 }
 
+machine terminal_unconditional_mixed_scalar_graph(
+    first: bool,
+    second: bool,
+    value: u8 in Wrapping
+) -> u8 in Wrapping
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    transition { _ -> carry_mixed_scalar(first && second, value) }
+    state carry_mixed_scalar(
+        both: bool,
+        value: u8 in Wrapping
+    ) -> u8 in Wrapping {
+        transition { _ -> finish_mixed_scalar(both, value + 1u8) }
+    }
+    state finish_mixed_scalar(
+        proof_side_value: bool,
+        value: u8 in Wrapping
+    ) -> u8 in Wrapping {
+        value
+    }
+}
+
 machine terminal_nested_jump_expression(
     choose_add: bool,
     value: u8 in Wrapping

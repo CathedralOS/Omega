@@ -995,6 +995,86 @@ fn checked_source_integer_graph_localizes_short_circuit_boolean_edge_bindings() 
 }
 
 #[test]
+fn checked_source_unconditional_mixed_scalar_graph_uses_general_lowering() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("unconditional mixed-scalar source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_unconditional_mixed_scalar_graph")
+        .expect("unconditional mixed-scalar graphs should use general lowering");
+    drop(checked);
+
+    let machine = &lowered.semantic_module.machines[0];
+    assert_eq!(machine.blocks.len(), 10);
+    assert_eq!(
+        machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+            .count(),
+        2
+    );
+    let semantic_bytes = encode_module(&lowered.semantic_module)
+        .expect("unconditional mixed-scalar graph should encode canonically");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("unconditional mixed-scalar graph proof should encode canonically");
+    let semantic_module =
+        decode_module(&semantic_bytes).expect("unconditional mixed-scalar graph should decode");
+    let proof_bundle = decode_proof_bundle(&proof_bytes)
+        .expect("unconditional mixed-scalar graph proof should decode");
+    let verified = verify_module(
+        &semantic_module,
+        &proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("unconditional mixed-scalar graph should verify after frontend drop");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, semantic_module.entry)
+            .expect("unconditional mixed-scalar graph should have exact fuel")
+            .ceiling_units(),
+        11
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let integer = |value| TerminalScalarValue::Integer {
+        scalar_type: u8_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (first, second, units) in [
+        (false, false, 10_u64),
+        (false, true, 10),
+        (true, false, 11),
+        (true, true, 11),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+                integer(30),
+            ],
+        )
+        .expect("unconditional mixed-scalar graph should interpret");
+        assert_eq!(measured.value(), integer(31));
+        assert_eq!(measured.usage().total_units(), units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("unconditional mixed-scalar graph should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("unconditional mixed-scalar graph should select for both native targets");
+        assert!(matches!(
+            target_operations.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerConditionalControl { .. }
+        ));
+        let assigned = assign_registers(&target_operations)
+            .expect("unconditional mixed-scalar graph homes should assign");
+        let machine_code = emit_machine_code(&assigned)
+            .expect("unconditional mixed-scalar graph machine code should emit");
+        assert!(!machine_code.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
 fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("computed nested-jump source canary should compile");
