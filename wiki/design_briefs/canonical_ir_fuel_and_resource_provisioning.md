@@ -118,12 +118,13 @@ parameters and prior results to each later stage, and converge once at the
 authored target. Conditional-edge stages remain arm-local, so the unselected
 tuple is neither executed nor charged. A pure unconditional mixed-scalar graph
 enters this typed path directly rather than requiring an artificial source
-selector. All non-crash-only Boolean- and integer-result shapes now share the
-same general typed DAG producer, including one-state returns. Boolean results
-may retain mixed-scalar bindings, short-circuit returns, and checked crash
-leaves. The duplicate direct-parameter, comparison, Boolean-return,
-integer-chain, three-state conditional, Boolean-chain, and Boolean-DAG
-producers are retired. The contract-free crash-only entry remains separate.
+selector. All Boolean- and integer-result shapes now share the same general
+typed DAG producer, including contract-free all-crash graphs and one-state
+returns. Boolean results may retain mixed-scalar bindings, short-circuit
+returns, and checked crash leaves. The duplicate direct-parameter, comparison,
+Boolean-return, integer-chain, three-state conditional, Boolean-chain, and Boolean-DAG
+and crash-only producers are retired. All-crash graphs carry no return
+obligation or proof evidence.
 Computed conditional-edge bindings use synthesized arm-local blocks so only
 the selected expression executes and consumes fuel. Nested selections, linear
 prefixes, and convergent tails use the same terminal block and edge

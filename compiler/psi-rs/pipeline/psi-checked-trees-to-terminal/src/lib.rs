@@ -1317,138 +1317,10 @@ fn lower_selected_machine(
     }
 
     let states = checked.machine_states(machine);
-    if let [entry_state] = states
-        && is_explicit_crash_state(checked, entry_state)
-    {
-        return lower_explicit_crash_machine(checked, machine, entry_state);
-    }
     if !states.is_empty() {
         return lower_scalar_graph_machine(checked, machine, states);
     }
     unsupported("machine must contain at least one state")
-}
-
-fn is_explicit_crash_state(
-    checked: &CheckedTrees,
-    state: &psi_checked_trees::state::State,
-) -> bool {
-    matches!(
-        checked.statement_table.statements(state.statement_nodes),
-        [StatementNode::Transition(transition)]
-            if matches!(transition.exit, TransitionExit::Crash(_))
-                && transition.guard == TransitionGuardNode::Always
-                && !transition.continuation.is_valid()
-                && matches!(
-                    checked.statement_table.transition_target(transition.target),
-                    TransitionTargetNode::Terminal
-                )
-    )
-}
-
-fn lower_explicit_crash_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-    entry_state: &psi_checked_trees::state::State,
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    if !checked.state_contracts(entry_state).is_empty() {
-        return unsupported("crash-only state contracts are not supported");
-    }
-    let parameters = checked.state_parameters(entry_state);
-    if parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
-        return unsupported("crash-only parameters must be ordinary scalar values");
-    }
-    let parameter_types = parameters
-        .iter()
-        .map(|parameter| {
-            terminal_scalar_type(
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "crash-only parameters must be primitive Boolean or integer values",
-                    ))?,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let result_type = terminal_scalar_type(
-        checked
-            .primitive_type_reference(entry_state.return_type)
-            .ok_or(LoweringError::Unsupported(
-                "crash-only machine result must be a primitive Boolean or integer",
-            ))?,
-    )?;
-    let [StatementNode::Transition(_transition)] = checked
-        .statement_table
-        .statements(entry_state.statement_nodes)
-    else {
-        unreachable!("crash-only source shape was selected above")
-    };
-    let crash = lower_checked_crash_exit(checked, machine, entry_state, 0, &[])?;
-
-    let terminal_parameters = parameter_types
-        .iter()
-        .enumerate()
-        .map(|(index, scalar_type)| ValueDeclaration {
-            id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("parameter identity is nonzero"),
-            ),
-            scalar_type: *scalar_type,
-        })
-        .collect::<Vec<_>>();
-    let result = ValueDeclaration {
-        id: value_id(
-            u64::try_from(parameter_types.len())
-                .expect("parameter count fits a semantic identity")
-                .checked_add(1)
-                .expect("result identity follows parameter identities"),
-        ),
-        scalar_type: result_type,
-    };
-    Ok(LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters: terminal_parameters,
-                result,
-                structural_places: Vec::new(),
-                content_entry_claims: Vec::new(),
-                content_identity_reshuffles: Vec::new(),
-                content_partition_compositions: Vec::new(),
-                entry: block_id(1),
-                blocks: vec![Block {
-                    id: block_id(1),
-                    parameters: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::Crash {
-                        edge: edge_id(1),
-                        cause: crash.cause,
-                        damage_minimum: crash.damage_minimum,
-                        containment_demand: crash.containment_demand,
-                        frontier_lower_bound: crash.frontier_lower_bound,
-                    },
-                }],
-                contract: MachineContract {
-                    id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: Vec::new(),
-                    ensures: Vec::new(),
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: Vec::new(),
-        },
-        debug_map: None,
-    })
 }
 
 fn lower_checked_crash_frontier(
@@ -1797,34 +1669,51 @@ fn lower_scalar_graph_machine(
 
     if indegree[0] != 0 || indegree[1..].contains(&0) {
         return unsupported(
-            "nested terminal branch control must be rooted at the machine entry and reach every state",
+            "scalar graph control must be rooted at the machine entry and reach every state",
         );
     }
     let mut visited = vec![false; states.len()];
     let mut active = vec![false; states.len()];
     validate_scalar_graph(0, &successors, &mut visited, &mut active)?;
     if visited.iter().any(|visited| !*visited) {
-        return unsupported("nested terminal branch control contains an unreachable state");
+        return unsupported("scalar graph control contains an unreachable state");
     }
 
     let has_crash = lowered_states
         .iter()
         .any(|state| matches!(&state.terminator, LoweredScalarBranchTerminator::Crash(_)));
+    let has_return = lowered_states.iter().any(|state| {
+        matches!(
+            &state.terminator,
+            LoweredScalarBranchTerminator::Return { .. }
+        )
+    });
     let expected_value = evaluate_known_scalar_graph(&lowered_states);
-    let contract_value = match result_type {
-        ScalarType::Boolean => KnownDirectScalar::Boolean(validate_boolean_contract(
-            checked,
-            machine,
-            expected_value.and_then(KnownDirectScalar::boolean),
-            has_crash,
-        )?),
-        ScalarType::Integer(_) => KnownDirectScalar::Integer(validate_contract(
-            checked,
-            machine,
-            result_type,
-            expected_value.and_then(KnownDirectScalar::integer),
-            has_crash,
-        )?),
+    let contract_value = if has_return {
+        Some(match result_type {
+            ScalarType::Boolean => KnownDirectScalar::Boolean(validate_boolean_contract(
+                checked,
+                machine,
+                expected_value.and_then(KnownDirectScalar::boolean),
+                has_crash,
+            )?),
+            ScalarType::Integer(_) => KnownDirectScalar::Integer(validate_contract(
+                checked,
+                machine,
+                result_type,
+                expected_value.and_then(KnownDirectScalar::integer),
+                has_crash,
+            )?),
+        })
+    } else {
+        if checked
+            .machine_contracts(machine)
+            .iter()
+            .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+        {
+            return unsupported("an all-crash scalar graph cannot declare a value contract");
+        }
+        None
     };
     Ok(build_scalar_graph_module(
         &lowered_states,
@@ -1995,7 +1884,7 @@ fn validate_scalar_graph(
     active: &mut [bool],
 ) -> Result<(), LoweringError> {
     if active[state] {
-        return unsupported("nested terminal branch control must be acyclic");
+        return unsupported("scalar graph control must be acyclic");
     }
     if visited[state] {
         return Ok(());
@@ -3554,7 +3443,7 @@ fn build_scalar_conditional_target(
 fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     result_type: ScalarType,
-    contract_value: KnownDirectScalar,
+    contract_value: Option<KnownDirectScalar>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> LoweredTerminalPsi {
@@ -4015,20 +3904,43 @@ fn build_scalar_graph_module(
         id: value_id(next_value_identity),
         scalar_type: result_type,
     };
-    let (literal, evidence_route) = match (result_type, contract_value) {
-        (ScalarType::Boolean, KnownDirectScalar::Boolean(value)) => (
-            ScalarTerm::boolean(value),
-            EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
-        ),
-        (ScalarType::Integer(integer_type), KnownDirectScalar::Integer(value)) => (
-            ScalarTerm::integer(integer_type, value)
-                .expect("validated source contract fits the result type"),
-            EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
-        ),
+    let (requires, ensures, evidence) = match (result_type, contract_value) {
+        (ScalarType::Boolean, Some(KnownDirectScalar::Boolean(value))) => {
+            let literal = ScalarTerm::boolean(value);
+            let goal = Proposition::Equal(literal.clone(), literal);
+            let obligation = obligation_id(1);
+            (
+                vec![goal.clone()],
+                vec![ContractClause {
+                    obligation,
+                    proposition: goal,
+                }],
+                vec![ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
+                }],
+            )
+        }
+        (ScalarType::Integer(integer_type), Some(KnownDirectScalar::Integer(value))) => {
+            let literal = ScalarTerm::integer(integer_type, value)
+                .expect("validated source contract fits the result type");
+            let goal = Proposition::Equal(literal.clone(), literal);
+            let obligation = obligation_id(1);
+            (
+                vec![goal.clone()],
+                vec![ContractClause {
+                    obligation,
+                    proposition: goal,
+                }],
+                vec![ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+                }],
+            )
+        }
+        (_, None) => (Vec::new(), Vec::new(), Vec::new()),
         _ => unreachable!("validated scalar contract matches the machine result type"),
     };
-    let goal = Proposition::Equal(literal.clone(), literal);
-    let obligation = obligation_id(1);
     let mut structural_places = identity_reshuffles
         .structural_places
         .into_iter()
@@ -4060,20 +3972,12 @@ fn build_scalar_graph_module(
                 contract: MachineContract {
                     id: contract_id(1),
                     crash_context: psi_terminal::CrashContextMaximum::portable_root(),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
+                    requires,
+                    ensures,
                 },
             }],
         },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: evidence_route,
-            }],
-        },
+        proof_bundle: ProofBundle { evidence },
         debug_map: None,
     }
 }

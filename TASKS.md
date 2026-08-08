@@ -219,14 +219,14 @@ Remaining:
   reach both native targets. Compile-known propagation now carries typed
   Boolean and integer scalar facts through those bindings, follows the
   resulting selector, meets conservatively at joins, and rejects an unrelated
-  closed integer contract. Every non-crash-only scalar-result machine now
-  enters one general typed DAG producer, including one-state returns, pure
-  unconditional graphs, and three-state conditionals. Boolean-result graphs
-  may carry and compute mixed Boolean/integer bindings, preserve short-circuit
+  closed integer contract. Every scalar-result machine now enters one general
+  typed DAG producer, including contract-free all-crash graphs, one-state
+  returns, pure unconditional graphs, and three-state conditionals.
+  Boolean-result graphs may carry and compute mixed Boolean/integer bindings, preserve short-circuit
   returns, and retain checked crash leaves. The duplicate direct-parameter,
   comparison, Boolean-return, integer-chain, three-state conditional,
-  Boolean-chain, and Boolean-DAG lowerers/builders are retired. The separate
-  crash-only entry remains because it intentionally has no value contract.
+  Boolean-chain, Boolean-DAG, and crash-only lowerers/builders are retired.
+  All-crash graphs intentionally carry no return obligation or proof evidence.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

@@ -297,15 +297,15 @@ left-to-right in typed stages, carrying original parameters and earlier results
 until one convergence jump binds the authored target. The same staging is
 arm-local for conditional-edge payloads, so an unselected tuple has no executed
 operations, edges, or fuel charge. Joins are explicit block-parameter merges.
-Every non-crash-only scalar-result machine uses this general typed DAG
-producer, including one-state returns, pure unconditional graphs, and
-three-state conditionals. A Boolean-result graph may carry and compute mixed
+Every scalar-result machine uses this general typed DAG producer, including
+contract-free all-crash graphs, one-state returns, pure unconditional graphs,
+and three-state conditionals. A Boolean-result graph may carry and compute mixed
 Boolean/integer bindings, retain recursive short-circuit returns, or end a
 checked branch in an explicit crash. The former direct-parameter, comparison,
 Boolean-return, integer-chain, three-state conditional, Boolean-chain, and
-Boolean-DAG lowerers/builders are retired; source shape no longer selects a
-parallel terminal producer. The contract-free crash-only entry remains
-separate because it does not establish an ordinary return value.
+Boolean-DAG and crash-only lowerers/builders are retired; source shape no
+longer selects a parallel terminal producer. All-crash graphs establish no
+ordinary return value, so they carry no return obligation or proof evidence.
 Short-circuit guards use explicit decision blocks, and computed conditional
 edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
