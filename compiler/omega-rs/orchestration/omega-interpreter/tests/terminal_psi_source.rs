@@ -1375,7 +1375,7 @@ fn checked_source_short_circuit_tuple_binding_is_staged_left_to_right() {
         .expect("short-circuit tuple bindings should lower in ordered stages");
     drop(checked);
 
-    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 15);
+    assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 14);
     let semantic_bytes = encode_module(&lowered.semantic_module)
         .expect("short-circuit tuple binding should encode canonically");
     let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
@@ -1398,11 +1398,10 @@ fn checked_source_short_circuit_tuple_binding_is_staged_left_to_right() {
     );
 
     for (arguments, expected, units) in [
-        ([true, true, false, false, true], false, 11),
-        ([true, false, true, false, false], false, 12),
-        ([true, true, false, true, true], true, 12),
-        ([true, false, false, true, false], true, 13),
-        ([false, true, false, true, false], true, 4),
+        ([true, false, false, true], false, 11),
+        ([false, true, false, false], false, 12),
+        ([true, false, true, true], true, 12),
+        ([false, false, true, false], true, 13),
     ] {
         let measured =
             interpret_terminal_measured(&verified, &arguments.map(TerminalScalarValue::Boolean))

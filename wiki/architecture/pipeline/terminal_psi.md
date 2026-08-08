@@ -202,9 +202,11 @@ targets. Short-circuit return leaves use reserved value-producing decision
 blocks. Unconditional jumps use the same leaves to bind authored targets;
 multi-value tuples evaluate each element left-to-right in a separate stage,
 carry prior results through later decision trees, and converge once before the
-authored target. Conditional successors route computed Boolean payloads through
-the same arm-local blocks and decision trees, so an unselected expression has
-no operations or fuel charge. Loops remain a later slice.
+authored target. Pure unconditional multi-value graphs enter this general
+lowering directly; they do not require a conditional source block. Conditional
+successors route computed Boolean payloads through the same arm-local blocks
+and decision trees, so an unselected expression has no operations or fuel
+charge. Loops remain a later slice.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
