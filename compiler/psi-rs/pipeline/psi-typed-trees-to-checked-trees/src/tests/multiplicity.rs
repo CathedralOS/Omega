@@ -182,6 +182,104 @@ fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
 }
 
 #[test]
+fn case_guard_promotes_only_the_proven_conditional_crash_claim() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        data MaybeReceipt {
+            case Empty;
+            case Live(receipt: Receipt);
+        }
+
+        machine route(choice: MaybeReceipt) -> i32
+        crashes Abort
+        {
+            transition choice {
+                MaybeReceipt::Live -> crash_live(choice)
+                MaybeReceipt::Empty -> 0
+            }
+
+            state crash_live(choice: MaybeReceipt) -> i32 {
+                crash Abort;
+            }
+        }
+        "#,
+    );
+
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "route")
+        .expect("routing machine");
+    let plan = &checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .expect("machine contract plan")
+        .crash;
+    let frontier_for = |state_name: &str| {
+        let state = checked
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.name.as_str() == state_name)
+            .expect("crash state");
+        let site = plan
+            .checked_sites()
+            .iter()
+            .find(|site| site.location().state() == state.symbol)
+            .expect("checked crash site");
+        site.frontier_lower_bound()
+    };
+
+    let [live_claim] = frontier_for("crash_live") else {
+        panic!("the live-case guard should prove exactly one payload claim")
+    };
+
+    let claim_variant = |claim: &psi_language_semantics::PermissionClaimIdentity| {
+        checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .find(|event| {
+                event.claim_identity == *claim
+                    && event.kind == psi_language_semantics::PermissionEventKind::Establish
+                    && event.source == psi_language_semantics::PermissionEventSource::StateEntry
+            })
+            .and_then(|event| {
+                checked
+                    .facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .iter()
+                    .find_map(|segment| match segment {
+                        psi_facts::PlaceSegment::Case { variant } => Some(*variant),
+                        _ => None,
+                    })
+            })
+            .expect("frontier claim should retain its case path")
+    };
+    let live_variant = checked
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| checked.data_members(definition))
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Live" =>
+            {
+                Some(variant.symbol)
+            }
+            _ => None,
+        })
+        .expect("Live variant");
+    assert_eq!(claim_variant(live_claim), live_variant);
+}
+
+#[test]
 fn empty_conditional_sum_records_establishment_without_payload_debt() {
     let checked = checked(
         r#"

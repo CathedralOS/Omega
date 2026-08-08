@@ -258,6 +258,13 @@ fn record_crash_frontier_lower_bounds(
 ) {
     let mut derived = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        else {
+            continue;
+        };
         let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
             continue;
         };
@@ -277,6 +284,10 @@ fn record_crash_frontier_lower_bounds(
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
         apply_recorded_state_entry_events(&events, &facts.flow.ownership.segments, &mut places);
+        let incoming =
+            super::ranges::incoming_guards::collect_incoming_guard_facts(program, machine);
+        let proven_conditional_claims =
+            proven_conditional_entry_claims(program, state, &incoming, &places);
 
         let first_transition = statements
             .iter()
@@ -320,9 +331,13 @@ fn record_crash_frontier_lower_bounds(
             let claims = outcome
                 .iter()
                 .filter_map(|place| {
-                    (place.live && !place.conditional)
-                        .then_some(place.claim_identity?)
-                        .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+                    (place.live
+                        && (!place.conditional
+                            || place.claim_identity.is_some_and(|identity| {
+                                proven_conditional_claims.contains(&identity)
+                            })))
+                    .then_some(place.claim_identity?)
+                    .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
                 })
                 .collect();
             derived.push(DerivedCrashFrontier {
@@ -359,6 +374,267 @@ fn record_crash_frontier_lower_bounds(
             .clone()
             .with_checked_sites(checked_sites)
             .expect("derived crash frontiers retain valid checked-site identity");
+    }
+}
+
+/// Conditional sum payloads are only a crash-frontier lower bound when the
+/// path into this state proves which case is active. Case-pattern dispatch is
+/// retained in typed trees as a symbol-stamped `value == Type::Case` guard.
+/// For a direct named edge, match that value against the edge argument and
+/// retain the corresponding target-parameter entry claim.
+///
+/// The proof is attached to the claim identity rather than the parameter
+/// spelling. A whole-value transfer in the target state therefore preserves
+/// the proof, while overwriting the parameter mints a different identity and
+/// cannot accidentally inherit it. Nested sums remain conservative: proving
+/// an outer case does not prove an inner case.
+fn proven_conditional_entry_claims(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    incoming: &[super::ranges::incoming_guards::IncomingGuard],
+    places: &[LinearPlace],
+) -> Vec<PermissionClaimIdentity> {
+    let parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let mut proven = Vec::new();
+
+    for entry in incoming.iter().filter(|entry| entry.holds_at(state.symbol)) {
+        let Some(arguments) = entry.direct_arguments() else {
+            continue;
+        };
+        let arguments = program.statement_table.expression_handles(arguments);
+        let mut case_tests = Vec::new();
+        collect_positive_case_tests(program, entry.guard(), &mut case_tests);
+        for (subject, variant) in case_tests {
+            let subject_label = program.expression_table.display_name(subject);
+            for (parameter, argument) in parameters.iter().zip(arguments) {
+                if program.expression_table.display_name(*argument) != subject_label {
+                    continue;
+                }
+                for place in places.iter().filter(|place| {
+                    place.symbol == parameter.symbol
+                        && place.conditional
+                        && place
+                            .path
+                            .iter()
+                            .filter(|segment| {
+                                matches!(segment, psi_facts::PlaceSegment::Case { .. })
+                            })
+                            .count()
+                            == 1
+                        && place.path.iter().any(|segment| {
+                            matches!(
+                                segment,
+                                psi_facts::PlaceSegment::Case { variant: candidate }
+                                    if *candidate == variant
+                            )
+                        })
+                }) {
+                    if let Some(identity) = place.claim_identity
+                        && identity != PermissionClaimIdentity::Unknown
+                        && !proven.contains(&identity)
+                    {
+                        proven.push(identity);
+                    }
+                }
+            }
+        }
+    }
+    proven
+}
+
+/// Extract positive case-membership conjuncts. Boolean-arm lowering may wrap
+/// a predicate as `predicate == true`; unwrap that shell but deliberately do
+/// not infer through negation or disjunction here.
+fn collect_positive_case_tests(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    tests: &mut Vec<(psi_typed_trees::expression::ExpressionHandle, SymbolHandle)>,
+) {
+    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return;
+    };
+    if binary.operator == BinaryOperator::And {
+        collect_positive_case_tests(program, binary.left, tests);
+        collect_positive_case_tests(program, binary.right, tests);
+        return;
+    }
+    if binary.operator != BinaryOperator::Equal {
+        return;
+    }
+
+    let is_true = |candidate| {
+        matches!(
+            program.expression_table.expression(candidate),
+            ExpressionNode::Boolean(true)
+        )
+    };
+    if is_true(binary.left) {
+        collect_positive_case_tests(program, binary.right, tests);
+        return;
+    }
+    if is_true(binary.right) {
+        collect_positive_case_tests(program, binary.left, tests);
+        return;
+    }
+
+    let case_variant = |candidate| match program.expression_table.expression(candidate) {
+        ExpressionNode::Name(path)
+            if program.data_definitions().iter().any(|definition| {
+                program.data_members(definition).iter().any(|member| {
+                    matches!(
+                        member,
+                        psi_typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == path.symbol
+                    )
+                })
+            }) =>
+        {
+            Some(path.symbol)
+        }
+        _ => None,
+    };
+    if let Some(variant) = case_variant(binary.right) {
+        tests.push((binary.left, variant));
+    } else if let Some(variant) = case_variant(binary.left) {
+        tests.push((binary.right, variant));
+    }
+}
+
+fn exact_positive_case_test(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<(psi_typed_trees::expression::ExpressionHandle, SymbolHandle)> {
+    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    let is_true = |candidate| {
+        matches!(
+            program.expression_table.expression(candidate),
+            ExpressionNode::Boolean(true)
+        )
+    };
+    if is_true(binary.left) {
+        return exact_positive_case_test(program, binary.right);
+    }
+    if is_true(binary.right) {
+        return exact_positive_case_test(program, binary.left);
+    }
+    let mut tests = Vec::new();
+    collect_positive_case_tests(program, expression, &mut tests);
+    let [test] = tests.as_slice() else {
+        return None;
+    };
+    Some(*test)
+}
+
+fn case_transition_run_is_exhaustive(
+    program: &psi_typed_trees::TypedTrees,
+    statements: &[StatementNode],
+    arm_indices: &[usize],
+) -> bool {
+    let mut subject_label: Option<String> = None;
+    let mut covered = Vec::new();
+    for &statement_index in arm_indices {
+        let Some(StatementNode::Transition(transition)) = statements.get(statement_index) else {
+            return false;
+        };
+        let psi_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+            return false;
+        };
+        let Some((subject, variant)) = exact_positive_case_test(program, guard) else {
+            return false;
+        };
+        let label = program.expression_table.display_name(subject);
+        if subject_label
+            .as_ref()
+            .is_some_and(|expected| *expected != label)
+        {
+            return false;
+        }
+        subject_label = Some(label);
+        if !covered.contains(&variant) {
+            covered.push(variant);
+        }
+    }
+    let Some(first_variant) = covered.first() else {
+        return false;
+    };
+    program.data_definitions().iter().any(|definition| {
+        let variants = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                psi_typed_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        variants.contains(first_variant)
+            && variants.len() == covered.len()
+            && variants.iter().all(|variant| covered.contains(variant))
+    })
+}
+
+fn select_case_alternative_from_guard(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    subject: psi_typed_trees::expression::ExpressionHandle,
+    variant: SymbolHandle,
+    places: &mut [LinearPlace],
+) {
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        subject,
+    ) else {
+        return;
+    };
+    let psi_facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return;
+    };
+    let mut selected_path = place.segments;
+    selected_path.push(psi_facts::PlaceSegment::Case { variant });
+    select_static_case_alternative(symbol, &selected_path, places);
+}
+
+fn exclude_case_alternative(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    subject: psi_typed_trees::expression::ExpressionHandle,
+    variant: SymbolHandle,
+    places: &mut [LinearPlace],
+) {
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        subject,
+    ) else {
+        return;
+    };
+    let psi_facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return;
+    };
+    let case_index = place.segments.len();
+    for candidate in places.iter_mut().filter(|candidate| {
+        candidate.symbol == symbol
+            && candidate.path.get(..case_index) == Some(place.segments.as_slice())
+            && candidate.path.get(case_index) == Some(&psi_facts::PlaceSegment::Case { variant })
+    }) {
+        candidate.live = false;
     }
 }
 
@@ -1446,8 +1722,38 @@ pub(crate) fn validate_linear_permission_events(
                 .filter(|index| matches!(statements[*index], StatementNode::Transition(_)))
                 .collect::<Vec<_>>();
             let mut outcomes = Vec::new();
+            let mut excluded_case_tests = Vec::new();
             for statement_index in arm_indices.iter().copied() {
                 let mut outcome = entry.clone();
+                for &(subject, variant) in &excluded_case_tests {
+                    exclude_case_alternative(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        subject,
+                        variant,
+                        &mut outcome,
+                    );
+                }
+                let StatementNode::Transition(transition) = &statements[statement_index] else {
+                    unreachable!("transition indices contain only transitions")
+                };
+                if let psi_typed_trees::statement::TransitionGuardNode::When(guard) =
+                    transition.guard
+                {
+                    let mut selected = Vec::new();
+                    collect_positive_case_tests(program, guard, &mut selected);
+                    for (subject, variant) in selected {
+                        select_case_alternative_from_guard(
+                            program,
+                            state.symbol,
+                            statement_index,
+                            subject,
+                            variant,
+                            &mut outcome,
+                        );
+                    }
+                }
                 apply_recorded_statement_events(
                     statement_index,
                     &events,
@@ -1455,22 +1761,26 @@ pub(crate) fn validate_linear_permission_events(
                     &mut outcome,
                     &mut diagnostics,
                 );
-                let StatementNode::Transition(transition) = &statements[statement_index] else {
-                    unreachable!("transition indices contain only transitions")
-                };
                 if transition.exit == psi_typed_trees::statement::TransitionExit::Ordinary {
                     outcomes.push(outcome);
                 }
+                if let psi_typed_trees::statement::TransitionGuardNode::When(guard) =
+                    transition.guard
+                    && let Some(case_test) = exact_positive_case_test(program, guard)
+                {
+                    excluded_case_tests.push(case_test);
+                }
             }
-            let exhaustive = arm_indices.last().is_some_and(|index| {
-                matches!(
-                    statements[*index],
-                    StatementNode::Transition(psi_typed_trees::statement::TableTransition {
-                        guard: psi_typed_trees::statement::TransitionGuardNode::Always,
-                        ..
-                    })
-                )
-            });
+            let exhaustive =
+                arm_indices.last().is_some_and(|index| {
+                    matches!(
+                        statements[*index],
+                        StatementNode::Transition(psi_typed_trees::statement::TableTransition {
+                            guard: psi_typed_trees::statement::TransitionGuardNode::Always,
+                            ..
+                        })
+                    )
+                }) || case_transition_run_is_exhaustive(program, statements, &arm_indices);
             if !exhaustive {
                 outcomes.push(entry);
             }
