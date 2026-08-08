@@ -72,6 +72,13 @@ struct Edge {
     guards: Vec<(ExpressionHandle, bool)>,
 }
 
+#[derive(Clone)]
+struct CarriedGuard {
+    guard: ExpressionHandle,
+    negated: bool,
+    parameter_argument_labels: Option<Vec<(SymbolHandle, String)>>,
+}
+
 /// The caller-visible machine paths a state's statements may write.
 enum StateWrites {
     /// At least one nested or statement-position call has an opaque frame.
@@ -247,27 +254,38 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
         if incoming.len() < 2 {
             continue; // entry state (0) or single-predecessor (the walk handled it)
         }
-        let per_edge: Vec<Vec<(ExpressionHandle, bool)>> = incoming
+        let per_edge: Vec<Vec<CarriedGuard>> = incoming
             .iter()
             .map(|edge| edge_carried_facts(program, &walk_facts, &writes, edge))
             .collect();
         let Some((first, rest)) = per_edge.split_first() else {
             continue;
         };
-        for (guard, negated) in first {
-            let on_every_edge = rest
+        for candidate in first {
+            let matching = rest
                 .iter()
-                .all(|facts| facts.iter().any(|(g, n)| g == guard && n == negated));
-            if on_every_edge {
+                .map(|facts| {
+                    facts.iter().find(|fact| {
+                        fact.guard == candidate.guard && fact.negated == candidate.negated
+                    })
+                })
+                .collect::<Option<Vec<_>>>();
+            if let Some(matching) = matching {
+                let common_parameter_argument_labels = matching
+                    .iter()
+                    .all(|fact| {
+                        fact.parameter_argument_labels == candidate.parameter_argument_labels
+                    })
+                    .then(|| candidate.parameter_argument_labels.clone())
+                    .flatten();
                 result.push(IncomingGuard {
                     state: state.symbol,
-                    guard: *guard,
-                    negated: *negated,
-                    // A meet may combine edges with different argument
-                    // spellings.  Raw machine-field guards still carry; a
-                    // parameter-renamed guard waits for a common mapping.
+                    guard: candidate.guard,
+                    negated: candidate.negated,
                     direct_arguments: None,
-                    parameter_argument_labels: None,
+                    // A parameter binding survives the meet only when every
+                    // incoming edge composes to the exact same final map.
+                    parameter_argument_labels: common_parameter_argument_labels,
                 });
             }
         }
@@ -285,20 +303,31 @@ fn edge_carried_facts(
     walk_facts: &[IncomingGuard],
     writes: &[(SymbolHandle, StateWrites)],
     edge: &Edge,
-) -> Vec<(ExpressionHandle, bool)> {
+) -> Vec<CarriedGuard> {
     let (written, written_any): (Vec<String>, bool) = match state_field_writes(writes, edge.source)
     {
         Some(StateWrites::Paths(paths)) => (paths.clone(), false),
         // Not found, or a state with an opaque call frame.
         _ => (Vec::new(), true),
     };
-    let mut carried: Vec<(ExpressionHandle, bool)> = walk_facts
+    let mut carried: Vec<CarriedGuard> = walk_facts
         .iter()
         .filter(|fact| fact.state == edge.source)
         .filter(|fact| guard_survives(program, fact.guard, &written, written_any))
-        .map(|fact| (fact.guard, fact.negated))
+        .map(|fact| CarriedGuard {
+            guard: fact.guard,
+            negated: fact.negated,
+            parameter_argument_labels: compose_carried_parameter_argument_labels(
+                program, edge, fact,
+            ),
+        })
         .collect();
-    carried.extend(edge.guards.iter().copied());
+    let direct_parameter_argument_labels = direct_edge_parameter_argument_labels(program, edge);
+    carried.extend(edge.guards.iter().map(|(guard, negated)| CarriedGuard {
+        guard: *guard,
+        negated: *negated,
+        parameter_argument_labels: direct_parameter_argument_labels.clone(),
+    }));
     carried
 }
 
@@ -361,6 +390,52 @@ fn compose_parameter_argument_labels(
                 (
                     *parameter,
                     replace_unqualified_identifiers(label, &replacements),
+                )
+            })
+            .collect(),
+    )
+}
+
+fn direct_edge_parameter_argument_labels(
+    program: &psi_typed_trees::TypedTrees,
+    edge: &Edge,
+) -> Option<Vec<(SymbolHandle, String)>> {
+    let target_state = crate::find_state(program, edge.target)?;
+    let identity = program
+        .state_parameters(target_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| (parameter.symbol, parameter.name.to_string()))
+        .collect::<Vec<_>>();
+    compose_parameter_argument_labels(program, edge.target, edge.arguments, &identity)
+}
+
+fn compose_carried_parameter_argument_labels(
+    program: &psi_typed_trees::TypedTrees,
+    edge: &Edge,
+    fact: &IncomingGuard,
+) -> Option<Vec<(SymbolHandle, String)>> {
+    let direct = direct_edge_parameter_argument_labels(program, edge)?;
+    let source_state = crate::find_state(program, edge.source)?;
+    let replacements = program
+        .state_parameters(source_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| {
+            Some((
+                parameter.name.as_str(),
+                fact.argument_label_for_parameter(parameter.symbol)?
+                    .to_owned(),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(
+        direct
+            .into_iter()
+            .map(|(parameter, label)| {
+                (
+                    parameter,
+                    replace_unqualified_identifiers(&label, &replacements),
                 )
             })
             .collect(),

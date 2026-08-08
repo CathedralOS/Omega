@@ -183,11 +183,14 @@ Current ownership is:
   case-pattern guard on a named edge is rebound through the target state's
   arguments and promotes only the selected conditional entry claim. A
   single-predecessor walk composes the complete parameter map through
-  intermediate named states; ambiguous convergent edges and
-  multi-predecessor meets discard it. The claim identity preserves that proof
-  across whole-value transfers without transferring it to a replacement value.
-  Unknown cases, joins without a common argument map, and nested cases lacking
-  proof at every case level remain conservatively absent. A sibling
+  intermediate named states. A multi-predecessor meet retains the map only
+  when every incoming edge carries the same guard polarity and exact composed
+  final-parameter binding; ambiguous convergent edges and disagreements discard
+  it. The claim identity preserves that proof across whole-value transfers
+  without transferring it to a replacement value. Unknown cases, joins without
+  a common argument map, and nested cases lacking proof at every case level
+  remain conservatively absent. These composed labels are checker-local
+  derivation aids, not checked-artifact identity. A sibling
   checked-call layer uses the flow graph's state/statement/call coordinate,
   retains the callee target and contract fingerprint, and stores the surviving
   published buckets after invocation argument substitution. Routes are removed
