@@ -119,7 +119,10 @@ Checked ownership also reconstructs a canonical lower bound of stable claim
 identities that are definitely live and non-conditional at the site. A crash
 abandons those claims without cleanup or consumption. Terminal production maps
 them through the dense source-claim table and rejects an unmapped identity
-rather than silently weakening the frontier. Checked sites now also retain the
+rather than silently weakening the frontier. Conditional sum claims join that
+lower bound only when canonical symbol-rooted membership evidence proves every
+case segment on the nested claim path; rendered source labels, dynamic indexes,
+and partial outer-case proofs do not suffice. Checked sites now also retain the
 intrinsic cause minimum: `Trap` requires at least `Activation`, while `Abort`
 requires `ExecutionDomain`. Exact nominal identity and the permanent
 `ExecutionDomain` top provide the first conservative scope order. If a crash
