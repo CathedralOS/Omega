@@ -76,6 +76,24 @@ ensures 8u8 == 8u8
     state finish_known_integer(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
+machine terminal_known_boolean_binding_wrong_contract() -> u8 in Wrapping
+requires 8u8 == 8u8
+ensures 8u8 == 8u8
+{
+    transition { _ -> select_known_boolean(true && false, 7u8, 9u8) }
+    state select_known_boolean(
+        condition: bool,
+        high: u8 in Wrapping,
+        low: u8 in Wrapping
+    ) -> u8 in Wrapping {
+        transition condition {
+            true -> finish_known_boolean(high)
+            _ -> finish_known_boolean(low)
+        }
+    }
+    state finish_known_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
+}
+
 machine terminal_wrapping_add() -> u8 in Wrapping
 requires 44u8 == 44u8
 ensures 44u8 == 44u8

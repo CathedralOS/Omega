@@ -216,7 +216,10 @@ Remaining:
   now lower through typed left-to-right tuple stages on unconditional and
   conditional edges; selected-path fuel preserves `&&`/`||` bypass, an
   unselected conditional payload is not executed or charged, and both forms
-  reach both native targets.
+  reach both native targets. Compile-known propagation now carries typed
+  Boolean and integer scalar facts through those bindings, follows the
+  resulting selector, meets conservatively at joins, and rejects an unrelated
+  closed integer contract.
 - Replace all remaining terminal-path `ExpressionHandle` and source-tree
   dependencies with lowered values and predicates. Absorb useful StateGraph /
   ControlFlow topology, then retire the legacy backend lane as consumers move.

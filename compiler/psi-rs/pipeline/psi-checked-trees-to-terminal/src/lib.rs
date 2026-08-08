@@ -2249,7 +2249,7 @@ fn evaluate_known_integer_graph(states: &[LoweredIntegerBranchState]) -> Option<
                 }
             },
             LoweredIntegerBranchTerminator::Return { expression } => {
-                return_values.push(evaluate_direct_expression(expression, &parameters));
+                return_values.push(evaluate_integer_direct_expression(expression, &parameters));
             }
             LoweredIntegerBranchTerminator::Crash(_) => reachable_crash = true,
         }
@@ -2836,7 +2836,7 @@ fn lower_integer_state_chain(
             .expect("linear chain retains final parameter types"),
         result_type,
     )?;
-    let expected_value = evaluate_direct_expression(&return_expression, &known_parameters);
+    let expected_value = evaluate_integer_direct_expression(&return_expression, &known_parameters);
 
     let contract_value = validate_contract(checked, machine, result_type, expected_value, false)?;
     let (identity_reshuffles, partition_compositions) =
@@ -3379,7 +3379,7 @@ fn lower_direct_parameter_machine(
         result_type,
     )?;
     let known_parameters = vec![None; parameter_types.len()];
-    let expected_value = evaluate_direct_expression(&return_expression, &known_parameters);
+    let expected_value = evaluate_integer_direct_expression(&return_expression, &known_parameters);
     let contract_value = validate_contract(checked, machine, result_type, expected_value, false)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
@@ -3496,15 +3496,23 @@ fn lower_direct_expression(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KnownDirectScalar {
+    Boolean(bool),
+    Integer(IntegerValue),
+}
+
 fn evaluate_direct_expression(
     expression: &LoweredDirectExpression,
-    parameters: &[Option<IntegerValue>],
-) -> Option<IntegerValue> {
+    parameters: &[Option<KnownDirectScalar>],
+) -> Option<KnownDirectScalar> {
     match expression {
         LoweredDirectExpression::Parameter { position, .. } => {
             parameters.get(*position).copied().flatten()
         }
-        LoweredDirectExpression::IntegerLiteral { value, .. } => Some(*value),
+        LoweredDirectExpression::IntegerLiteral { value, .. } => {
+            Some(KnownDirectScalar::Integer(*value))
+        }
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,
@@ -3512,12 +3520,33 @@ fn evaluate_direct_expression(
             right,
         } => {
             let count_type = right.scalar_type();
-            let left = evaluate_direct_expression(left, parameters)?;
-            let right = evaluate_direct_expression(right, parameters)?;
+            let KnownDirectScalar::Integer(left) = evaluate_direct_expression(left, parameters)?
+            else {
+                return None;
+            };
+            let KnownDirectScalar::Integer(right) = evaluate_direct_expression(right, parameters)?
+            else {
+                return None;
+            };
             evaluate_lowered_integer_binary(*kind, *scalar_type, count_type, left, right)
+                .map(KnownDirectScalar::Integer)
         }
-        LoweredDirectExpression::Boolean { .. } => None,
+        LoweredDirectExpression::Boolean { expression } => {
+            evaluate_compile_known_boolean_expression(expression, parameters)
+                .map(KnownDirectScalar::Boolean)
+        }
     }
+}
+
+fn evaluate_integer_direct_expression(
+    expression: &LoweredDirectExpression,
+    parameters: &[Option<KnownDirectScalar>],
+) -> Option<IntegerValue> {
+    let KnownDirectScalar::Integer(value) = evaluate_direct_expression(expression, parameters)?
+    else {
+        return None;
+    };
+    Some(value)
 }
 
 fn evaluate_lowered_integer_binary(
@@ -3557,11 +3586,17 @@ fn evaluate_lowered_integer_binary(
 
 fn evaluate_compile_known_boolean_expression(
     expression: &LoweredBooleanReturnExpression,
-    parameters: &[Option<IntegerValue>],
+    parameters: &[Option<KnownDirectScalar>],
 ) -> Option<bool> {
     match expression {
         LoweredBooleanReturnExpression::Constant { value } => Some(*value),
-        LoweredBooleanReturnExpression::Parameter { .. } => None,
+        LoweredBooleanReturnExpression::Parameter { position } => {
+            let KnownDirectScalar::Boolean(value) = parameters.get(*position).copied().flatten()?
+            else {
+                return None;
+            };
+            Some(value)
+        }
         LoweredBooleanReturnExpression::Not { operand } => Some(
             !evaluate_compile_known_boolean_expression(operand, parameters)?,
         ),
@@ -3573,8 +3608,8 @@ fn evaluate_compile_known_boolean_expression(
             let ScalarType::Integer(integer_type) = left.scalar_type() else {
                 return None;
             };
-            let left = evaluate_direct_expression(left, parameters)?;
-            let right = evaluate_direct_expression(right, parameters)?;
+            let left = evaluate_integer_direct_expression(left, parameters)?;
+            let right = evaluate_integer_direct_expression(right, parameters)?;
             match kind {
                 LoweredIntegerComparisonKind::Equal => Some(left == right),
                 LoweredIntegerComparisonKind::LessThan => {
