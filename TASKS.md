@@ -245,12 +245,15 @@ Remaining:
   source tables remain only behind replaceable debug-map construction. Checked
   flow facts also retain stable machine names and the bootstrap signature-
   eligibility decision, so semantic machine selection no longer walks or
-  reclassifies typed machine declarations.
-- Replace all remaining terminal-path `ExpressionHandle` and source-tree
-  dependencies with lowered values and predicates. The executable scalar
-  vocabulary, topology, machine selection, and signature eligibility are
-  migrated. Next isolate debug-source attachment behind its own optional
-  carrier, then retire the legacy backend lane as consumers move.
+  reclassifies typed machine declarations. Finally, an optional checked debug
+  plan retains stable subject spans and source-file presentation independently
+  from semantic/proof data. The live scalar producer imports no typed-tree
+  vocabulary and produces the same semantic module, proof bundle, and debug map
+  after the complete typed frontend root is discarded; omitting the debug plan
+  yields the same artifact semantics with no debug map.
+- Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
+  do not restore any `ExpressionHandle` or source-tree dependency in the live
+  scalar terminal path.
 - **CRASH-CONTRACT.** Source now parses fingerprinted `crashes Cause Scope`
   buckets, including multiple alternative route facts and the unconditional
   `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through

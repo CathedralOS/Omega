@@ -165,7 +165,10 @@ temporary presentation input only: checked flow facts now retain ordered state
 identity, primitive signatures, terminator shape, stable successors, and
 argument arity for semantic production. Stable checked machine-name and
 signature-eligibility rows also drive selection. Replaceable debug-map
-attachment is the remaining typed-tree seam in this scalar producer.
+attachment consumes an optional checked presentation plan of stable spans and
+source-file metadata. The terminal producer has no typed-tree input dependency;
+the complete typed root can be discarded before semantic, proof, and debug
+production, and dropping only the presentation plan simply omits the debug map.
 It emits the semantic module and proof bundle separately and fails closed on
 all other shapes. Its canaries drop the frontend trees before terminal
 verification and interpretation; ninth-parameter `bool` and `u8` machines

@@ -554,6 +554,36 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
 }
 
 #[test]
+fn terminal_production_survives_complete_typed_frontend_drop() {
+    let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "terminal-Psi source canary should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let expected = lower_machine(&checked, "terminal_constant")
+        .expect("the complete checked terminal plan should lower");
+
+    let mut without_typed_frontend = checked.clone();
+    without_typed_frontend.typed = Default::default();
+    let actual = lower_machine(&without_typed_frontend, "terminal_constant")
+        .expect("terminal production must survive complete typed-tree disposal");
+    assert_eq!(actual, expected);
+
+    let mut without_debug_presentation = checked;
+    without_debug_presentation.facts.flow.terminal_debug = Default::default();
+    let without_debug = lower_machine(&without_debug_presentation, "terminal_constant")
+        .expect("debug presentation must be optional at the terminal boundary");
+    assert_eq!(without_debug.semantic_module, expected.semantic_module);
+    assert_eq!(without_debug.proof_bundle, expected.proof_bundle);
+    assert_eq!(without_debug.debug_map, None);
+}
+
+#[test]
 fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(

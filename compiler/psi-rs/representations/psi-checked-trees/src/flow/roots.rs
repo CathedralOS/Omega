@@ -137,6 +137,9 @@ pub struct FlowFacts {
     /// Stable machine selection and signature-eligibility rows for terminal
     /// production.
     pub terminal_machines: super::CheckedTerminalMachineSelections,
+    /// Optional source presentation retained independently from terminal
+    /// semantic and proof plans.
+    pub terminal_debug: super::CheckedTerminalDebugPlans,
 }
 
 impl FlowFacts {
@@ -157,6 +160,7 @@ impl FlowFacts {
             control,
             terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
             terminal_machines: super::CheckedTerminalMachineSelections::default(),
+            terminal_debug: super::CheckedTerminalDebugPlans::default(),
         }
     }
 }

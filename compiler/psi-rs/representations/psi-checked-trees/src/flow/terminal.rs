@@ -22,6 +22,35 @@ pub enum CheckedTerminalSignatureEligibility {
     Unsupported,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedTerminalDebugPlans {
+    pub machines: Vec<CheckedTerminalMachineDebugPlan>,
+}
+
+impl CheckedTerminalDebugPlans {
+    pub fn for_machine(&self, machine: SymbolHandle) -> Option<&CheckedTerminalMachineDebugPlan> {
+        self.machines.iter().find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedTerminalMachineDebugPlan {
+    pub machine: SymbolHandle,
+    pub machine_span: Option<psi_source::SourceSpan>,
+    pub contract_span: Option<psi_source::SourceSpan>,
+    pub states: Vec<CheckedTerminalStateDebugPlan>,
+    pub source_files: Vec<psi_source::SourceFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedTerminalStateDebugPlan {
+    pub state: SymbolHandle,
+    pub state_span: Option<psi_source::SourceSpan>,
+    pub parameter_spans: Vec<Option<psi_source::SourceSpan>>,
+    pub transition_spans: Vec<psi_source::SourceSpan>,
+    pub operation_spans: Vec<psi_source::SourceSpan>,
+}
+
 /// Source-handle-free control plans accepted by the bootstrap terminal-Psi
 /// scalar producer.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

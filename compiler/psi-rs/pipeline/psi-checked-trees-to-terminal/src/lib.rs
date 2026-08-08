@@ -14,13 +14,10 @@ use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    expression::ExpressionNode,
-    signature::SignatureContractKind,
-    statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
-    types::PrimitiveType,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineDebugPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
     BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
@@ -53,7 +50,6 @@ use psi_terminal_codec::{
     TerminalDebugMap, source_digest, terminal_psi_identity, validate_debug_map,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
-use psi_typed_trees::domain::ProofFact;
 
 /// Semantic module and separate replaceable proof artifact produced by the
 /// Psi frontend producer.
@@ -1168,18 +1164,13 @@ pub fn lower_machine_with_crash_context(
     }
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
-    let source_machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == selection.machine)
-        .ok_or(LoweringError::Unsupported(
-            "checked terminal machine has no typed debug source",
-        ))?;
-    lowered.debug_map = Some(build_debug_map(
-        checked,
-        source_machine,
-        &lowered.semantic_module,
-    )?);
+    lowered.debug_map = checked
+        .facts
+        .flow
+        .terminal_debug
+        .for_machine(selection.machine)
+        .map(|plan| build_debug_map(plan, &lowered.semantic_module))
+        .transpose()?;
     Ok(lowered)
 }
 
@@ -3684,15 +3675,19 @@ fn emit_direct_expression(
 }
 
 fn build_debug_map(
-    checked: &CheckedTrees,
-    source_machine: &psi_checked_trees::machine::Machine,
+    plan: &CheckedTerminalMachineDebugPlan,
     module: &TerminalModule,
 ) -> Result<TerminalDebugMap, LoweringError> {
     let terminal_machine = module
         .machines
         .first()
         .expect("the exact source slice always emits one terminal machine");
-    let source_states = checked.machine_states(source_machine);
+    let source_states = &plan.states;
+    let has_source_file = |span: psi_source::SourceSpan| {
+        plan.source_files
+            .iter()
+            .any(|file| file.source_id == span.source_id)
+    };
     let mut subjects = Vec::<(DebugSubject, psi_source::SourceSpan)>::new();
     let mut push = |subject, span| {
         if let Some(span) = span {
@@ -3702,12 +3697,9 @@ fn build_debug_map(
 
     push(
         DebugSubject::Machine(terminal_machine.id),
-        checked.symbols.symbol_source_span(source_machine.symbol),
+        plan.machine_span,
     );
-    let contract_span = source_ensures_span_for_machine(checked, source_machine)
-        .filter(|span| *span != psi_source::SourceSpan::default())
-        .filter(|span| checked.symbols.source_file(*span).is_some())
-        .or_else(|| checked.symbols.symbol_source_span(source_machine.symbol));
+    let contract_span = plan.contract_span;
     push(
         DebugSubject::Contract(terminal_machine.contract.id),
         contract_span,
@@ -3721,77 +3713,71 @@ fn build_debug_map(
             .get(index)
             .or_else(|| source_states.last())
             .expect("an accepted source machine has at least one state");
-        push(
-            DebugSubject::Block(block.id),
-            checked.symbols.symbol_source_span(source_state.symbol),
-        );
-        let transition_spans = source_transition_spans_for_state(checked, source_state);
+        push(DebugSubject::Block(block.id), source_state.state_span);
         for (edge_index, edge) in block.terminator.edges().enumerate() {
-            let transition_span = transition_spans
+            let transition_span = source_state
+                .transition_spans
                 .get(edge_index)
-                .or_else(|| (transition_spans.len() == 1).then(|| &transition_spans[0]))
+                .or_else(|| {
+                    (source_state.transition_spans.len() == 1)
+                        .then(|| &source_state.transition_spans[0])
+                })
                 .copied()
                 .filter(|span| *span != psi_source::SourceSpan::default())
-                .filter(|span| checked.symbols.source_file(*span).is_some());
+                .filter(|span| has_source_file(*span));
             push(
                 DebugSubject::Edge(edge),
-                transition_span.or_else(|| checked.symbols.symbol_source_span(source_state.symbol)),
+                transition_span.or(source_state.state_span),
             );
         }
-        let operation_spans = source_operation_spans_for_state(checked, source_state);
         for (operation_index, operation) in block.operations.iter().enumerate() {
-            let source_span = operation_spans
+            let source_span = source_state
+                .operation_spans
                 .get(operation_index)
                 .copied()
                 .filter(|span| *span != psi_source::SourceSpan::default())
-                .filter(|span| checked.symbols.source_file(*span).is_some());
+                .filter(|span| has_source_file(*span));
             if let Some(source_span) = source_span {
                 push(DebugSubject::Operation(operation.id), Some(source_span));
                 push(DebugSubject::Value(operation.result.id), Some(source_span));
             } else {
                 push(
                     DebugSubject::Operation(operation.id),
-                    checked.symbols.symbol_source_span(source_state.symbol),
+                    source_state.state_span,
                 );
                 push(
                     DebugSubject::Value(operation.result.id),
-                    checked.symbols.symbol_source_span(source_state.symbol),
+                    source_state.state_span,
                 );
             }
         }
         for (parameter_index, parameter) in block.parameters.iter().enumerate() {
-            if let Some(source_parameter) = checked
-                .state_parameters(source_state)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .nth(parameter_index)
+            if let Some(source_span) = source_state
+                .parameter_spans
+                .get(parameter_index)
+                .copied()
+                .flatten()
             {
-                push(
-                    DebugSubject::Value(parameter.id),
-                    checked.symbols.symbol_source_span(source_parameter.symbol),
-                );
+                push(DebugSubject::Value(parameter.id), Some(source_span));
             }
         }
     }
 
     if let Some(entry_state) = source_states.first() {
         for (parameter_index, parameter) in terminal_machine.parameters.iter().enumerate() {
-            if let Some(source_parameter) = checked
-                .state_parameters(entry_state)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .nth(parameter_index)
+            if let Some(source_span) = entry_state
+                .parameter_spans
+                .get(parameter_index)
+                .copied()
+                .flatten()
             {
-                push(
-                    DebugSubject::Value(parameter.id),
-                    checked.symbols.symbol_source_span(source_parameter.symbol),
-                );
+                push(DebugSubject::Value(parameter.id), Some(source_span));
             }
         }
     }
     push(
         DebugSubject::Value(terminal_machine.result.id),
-        checked.symbols.symbol_source_span(source_machine.symbol),
+        plan.machine_span,
     );
 
     subjects.sort_by_key(|(subject, _)| *subject);
@@ -3805,13 +3791,10 @@ fn build_debug_map(
 
     let mut files = Vec::with_capacity(source_ids.len());
     for (index, source_id) in source_ids.iter().copied().enumerate() {
-        let source_span = psi_source::SourceSpan::new(
-            psi_source::SourceId(source_id),
-            psi_source::Span::default(),
-        );
-        let source_file = checked
-            .symbols
-            .source_file(source_span)
+        let source_file = plan
+            .source_files
+            .iter()
+            .find(|file| file.source_id == psi_source::SourceId(source_id))
             .ok_or(LoweringError::MissingDebugSourceFile(source_id))?;
         let id = DebugFileId::new(
             u32::try_from(index)
@@ -3866,90 +3849,6 @@ fn build_debug_map(
     validate_debug_map(module, &debug_map).map_err(LoweringError::InvalidDebugMap)?;
     Ok(debug_map)
 }
-
-fn source_ensures_span_for_machine(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::machine::Machine,
-) -> Option<psi_source::SourceSpan> {
-    let contract = checked
-        .machine_contracts(machine)
-        .iter()
-        .find(|contract| contract.kind == SignatureContractKind::Ensures)?;
-    let [ProofFact::Expression(expression)] = checked.proof_facts.span_or_empty(contract.facts)
-    else {
-        return None;
-    };
-    Some(checked.expression_table.source_span(*expression))
-}
-
-fn source_transition_spans_for_state(
-    checked: &CheckedTrees,
-    state: &psi_checked_trees::state::State,
-) -> Vec<psi_source::SourceSpan> {
-    checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::Transition(transition) => Some(transition.source_span),
-            StatementNode::Expression(expression) => {
-                Some(checked.expression_table.source_span(*expression))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn source_operation_spans_for_state(
-    checked: &CheckedTrees,
-    state: &psi_checked_trees::state::State,
-) -> Vec<psi_source::SourceSpan> {
-    let mut spans = Vec::new();
-    for statement in checked.statement_table.statements(state.statement_nodes) {
-        match statement {
-            StatementNode::Expression(expression) => {
-                collect_source_operation_spans(checked, *expression, &mut spans);
-            }
-            StatementNode::Transition(transition) => {
-                if let TransitionGuardNode::When(guard) = transition.guard {
-                    collect_source_operation_spans(checked, guard, &mut spans);
-                }
-                if let TransitionTargetNode::Named { arguments, .. } =
-                    checked.statement_table.transition_target(transition.target)
-                {
-                    for expression in checked.statement_table.expression_handles(*arguments) {
-                        collect_source_operation_spans(checked, *expression, &mut spans);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    spans
-}
-
-fn collect_source_operation_spans(
-    checked: &CheckedTrees,
-    expression: psi_checked_trees::expression::ExpressionHandle,
-    spans: &mut Vec<psi_source::SourceSpan>,
-) {
-    match checked.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {
-            spans.push(checked.expression_table.source_span(expression));
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_source_operation_spans(checked, binary.left, spans);
-            collect_source_operation_spans(checked, binary.right, spans);
-            spans.push(checked.expression_table.source_span(expression));
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_source_operation_spans(checked, unary.operand, spans);
-            spans.push(checked.expression_table.source_span(expression));
-        }
-        _ => {}
-    }
-}
-
 fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
     Err(LoweringError::Unsupported(message))
 }
