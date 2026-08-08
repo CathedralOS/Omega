@@ -3118,13 +3118,11 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
                 }),
         );
     }
-    let mut contracts = Vec::new();
-    for contract in program.machine_contracts(machine) {
-        let mut encoded = Vec::new();
-        encode_contract(program, contract, &contract_binders, &mut encoded);
-        contracts.push(encoded);
-    }
-    contracts.sort();
+    let contracts = encode_contract_set(
+        program,
+        program.machine_contracts(machine),
+        &contract_binders,
+    );
     for contract in contracts {
         bytes.extend(contract);
         bytes.push(0xfc);
@@ -3336,13 +3334,11 @@ fn encode_state_signature(
             .enumerate()
             .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$P{index}"))),
     );
-    let mut contracts = Vec::new();
-    for contract in program.state_signature_contracts(signature) {
-        let mut encoded = Vec::new();
-        encode_contract(program, contract, &contract_binders, &mut encoded);
-        contracts.push(encoded);
-    }
-    contracts.sort();
+    let contracts = encode_contract_set(
+        program,
+        program.state_signature_contracts(signature),
+        &contract_binders,
+    );
     for contract in contracts {
         output.extend(contract);
         output.push(0xfc);
@@ -3375,13 +3371,7 @@ fn encode_state_shape(
             .enumerate()
             .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$P{index}"))),
     );
-    let mut contracts = Vec::new();
-    for contract in program.state_contracts(state) {
-        let mut encoded = Vec::new();
-        encode_contract(program, contract, &contract_binders, &mut encoded);
-        contracts.push(encoded);
-    }
-    contracts.sort();
+    let contracts = encode_contract_set(program, program.state_contracts(state), &contract_binders);
     for contract in contracts {
         output.extend(contract);
         output.push(0xfc);
@@ -3413,56 +3403,130 @@ fn encode_contract(
     binders: &[(String, String)],
     output: &mut Vec<u8>,
 ) {
-    output.push(match &contract.kind {
+    encode_contract_kind(&contract.kind, binders, output);
+    let mut facts: Vec<String> = program
+        .proof_facts
+        .span_or_empty(contract.facts)
+        .iter()
+        .map(|fact| contract_fact_text(program, fact))
+        .collect();
+    facts.sort();
+    for fact in facts {
+        encode_normalized_text(&fact, binders, output);
+    }
+}
+
+fn encode_contract_kind(
+    kind: &psi_typed_trees::signature::SignatureContractKind,
+    binders: &[(String, String)],
+    output: &mut Vec<u8>,
+) {
+    output.push(match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => 1,
         psi_typed_trees::signature::SignatureContractKind::Ensures => 2,
         psi_typed_trees::signature::SignatureContractKind::Boundary => 3,
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
     });
-    if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
-        &contract.kind
-    {
+    if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } = kind {
         output.push(match cause {
             psi_typed_trees::signature::CrashCause::Trap => 1,
             psi_typed_trees::signature::CrashCause::Abort => 2,
         });
         encode_normalized_text(scope.as_str(), binders, output);
     }
-    let mut facts: Vec<String> = program
-        .proof_facts
-        .span_or_empty(contract.facts)
-        .iter()
-        .map(|fact| match fact {
-            psi_typed_trees::domain::ProofFact::Expression(expression) => {
-                program.expression_table.display_name(*expression)
-            }
-            psi_typed_trees::domain::ProofFact::Membership(membership) => format!(
-                "{} in {}",
-                program.expression_table.display_name(membership.value),
-                program
-                    .domain_path_members(membership.domain)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::")
-            ),
-            psi_typed_trees::domain::ProofFact::Proposition(application) => format!(
-                "{}({})",
-                application.name.as_str(),
-                program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                    .iter()
-                    .map(|argument| program.expression_table.display_name(*argument))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-        })
-        .collect();
-    facts.sort();
-    for fact in facts {
-        encode_normalized_text(&fact, binders, output);
+}
+
+fn contract_fact_text(program: &TypedTrees, fact: &psi_typed_trees::domain::ProofFact) -> String {
+    match fact {
+        psi_typed_trees::domain::ProofFact::Expression(expression) => {
+            program.expression_table.display_name(*expression)
+        }
+        psi_typed_trees::domain::ProofFact::Membership(membership) => format!(
+            "{} in {}",
+            program.expression_table.display_name(membership.value),
+            program
+                .domain_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        ),
+        psi_typed_trees::domain::ProofFact::Proposition(application) => format!(
+            "{}({})",
+            application.name.as_str(),
+            program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .map(|argument| program.expression_table.display_name(*argument))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
+}
+
+/// Template and specialization identities use the same crash-bucket algebra
+/// as public contract plans: route clauses merge by `(cause, scope)`, routes
+/// form a set, and an unconditional route subsumes guarded alternatives.
+fn encode_contract_set(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    binders: &[(String, String)],
+) -> Vec<Vec<u8>> {
+    use std::collections::BTreeMap;
+
+    #[derive(Default)]
+    struct CrashBucket {
+        unconditional: bool,
+        routes: Vec<Vec<u8>>,
+    }
+
+    let mut encoded = Vec::new();
+    let mut crash_buckets = BTreeMap::<Vec<u8>, CrashBucket>::new();
+    for contract in contracts {
+        if matches!(
+            contract.kind,
+            psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
+        ) {
+            let mut header = Vec::new();
+            encode_contract_kind(&contract.kind, binders, &mut header);
+            let bucket = crash_buckets.entry(header).or_default();
+            let facts = program.proof_facts.span_or_empty(contract.facts);
+            if facts.is_empty() {
+                bucket.unconditional = true;
+            } else {
+                for fact in facts {
+                    let mut route = Vec::new();
+                    encode_normalized_text(&contract_fact_text(program, fact), binders, &mut route);
+                    bucket.routes.push(route);
+                }
+            }
+            continue;
+        }
+
+        let mut contract_bytes = Vec::new();
+        encode_contract(program, contract, binders, &mut contract_bytes);
+        encoded.push(contract_bytes);
+    }
+
+    for (header, mut bucket) in crash_buckets {
+        if bucket.unconditional {
+            let mut contract = header;
+            contract.push(0);
+            encoded.push(contract);
+            continue;
+        }
+        bucket.routes.sort();
+        bucket.routes.dedup();
+        for route in bucket.routes {
+            let mut contract = header.clone();
+            contract.push(1);
+            contract.extend(route);
+            encoded.push(contract);
+        }
+    }
+    encoded.sort();
+    encoded
 }
 
 fn encode_normalized_text(text: &str, binders: &[(String, String)], output: &mut Vec<u8>) {

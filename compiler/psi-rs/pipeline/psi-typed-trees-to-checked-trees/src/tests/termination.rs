@@ -2197,6 +2197,36 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
     machine unconditional_abort()
     crashes Abort
     {}
+    machine grouped(first: bool, second: bool)
+    crashes Trap Activation
+        first
+        second
+    {}
+    machine split(first: bool, second: bool)
+    crashes Trap Activation
+        first
+    crashes Trap Activation
+        second
+    {}
+    machine reordered(first: bool, second: bool)
+    crashes Trap Activation
+        second
+        first
+    {}
+    machine duplicated(first: bool, second: bool)
+    crashes Trap Activation
+        first
+        second
+        first
+    {}
+    machine unconditional_with_guard(flag: bool)
+    crashes Abort ExecutionDomain
+        flag
+    crashes Abort
+    {}
+    machine unconditional_only(flag: bool)
+    crashes Abort
+    {}
     "#;
 
     let tokens = Lexer::new(source)
@@ -2221,6 +2251,13 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
     assert_ne!(
         fingerprint("trap_activation"),
         fingerprint("abort_activation")
+    );
+    assert_eq!(fingerprint("grouped"), fingerprint("split"));
+    assert_eq!(fingerprint("grouped"), fingerprint("reordered"));
+    assert_eq!(fingerprint("grouped"), fingerprint("duplicated"));
+    assert_eq!(
+        fingerprint("unconditional_with_guard"),
+        fingerprint("unconditional_only")
     );
 }
 
