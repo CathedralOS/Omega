@@ -1667,6 +1667,37 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push_str("        ");
             }
             json.push(']');
+            json.push_str(",\n        \"checked_crash_sites\": [");
+            for (site_index, site) in contract.crash.checked_sites().iter().enumerate() {
+                if site_index > 0 {
+                    json.push(',');
+                }
+                let location = site.location();
+                let state_name = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == location.state())
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
+                json.push_str("\n          {\"state\": ");
+                push_json_string(&mut json, state_name);
+                json.push_str(", \"statement_ordinal\": ");
+                json.push_str(&location.statement_ordinal().to_string());
+                json.push_str(", \"cause\": ");
+                push_json_string(
+                    &mut json,
+                    match site.cause() {
+                        psi_checked_trees::CrashCause::Trap => "Trap",
+                        psi_checked_trees::CrashCause::Abort => "Abort",
+                    },
+                );
+                json.push('}');
+            }
+            if !contract.crash.checked_sites().is_empty() {
+                json.push('\n');
+                json.push_str("        ");
+            }
+            json.push(']');
             has_implementation_field = true;
         }
         if let Some(fact) = program.facts.termination.for_machine(machine.symbol) {
@@ -2721,6 +2752,7 @@ mod tests {
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::state::State;
     use psi_typed_trees::typed_trees::MachineSpecialization;
 
     #[test]
@@ -3090,6 +3122,7 @@ mod tests {
     #[test]
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         let symbol = SymbolHandle::from_arena_index(2);
+        let state_symbol = SymbolHandle::from_arena_index(3);
         let service_symbol = SymbolHandle::from_arena_index(1);
         let mut program = CheckedTrees::default();
         let service = program
@@ -3098,7 +3131,7 @@ mod tests {
             .services
             .intern(service_symbol, "Readable");
         let service_row = program.facts.service_reaches.rows.intern(vec![service]);
-        program.typed.push_machine(Machine {
+        let mut machine = Machine {
             symbol,
             name: Identifier::generated("Worker::run"),
             termination_plan: MachineTerminationPlan {
@@ -3112,7 +3145,16 @@ mod tests {
                 ..Default::default()
             },
             ..Default::default()
-        });
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
         program
             .facts
             .contract_plans
@@ -3145,7 +3187,12 @@ mod tests {
                         psi_checked_trees::CrashCause::Abort,
                         "ExecutionDomain",
                     ),
-                ]),
+                ])
+                .with_checked_sites(vec![psi_checked_trees::CheckedCrashSite::new(
+                    psi_checked_trees::CrashSiteLocation::new(state_symbol, 4),
+                    psi_checked_trees::CrashCause::Abort,
+                )])
+                .expect("one crash site per source location"),
                 termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,
                 ),
@@ -3195,6 +3242,9 @@ mod tests {
         assert!(!contract.contains("inferred_write_frames"));
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
+        assert!(json[implementation_start..].contains(
+            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\"}"
+        ));
         assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
         assert!(json[implementation_start..].contains("\"checked_may_block\": true"));
         assert!(json[implementation_start..].contains("\"checked_service_reach\": [\"Readable\"]"));

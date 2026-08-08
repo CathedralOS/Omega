@@ -199,10 +199,14 @@ Remaining:
   alternatives. Checked machine-contract plans now retain that published set
   as source-handle-free crash buckets, fingerprints consume the same carrier,
   contract manifests expose it, and terminal lowering reads it rather than
-  reinterpreting typed clauses. Add the independent body-derived crash-site
-  rows next, then finish path-conditioned coverage and damage minima, call-site
-  refinement/propagation, and sparse per-cause context maxima. Generalize
-  source production beyond the initial unconditional bucket.
+  reinterpreting typed clauses. The independent checked body layer now retains
+  every explicit crash site's state-local location and cause without placing
+  that implementation evidence in the public fingerprint; reports expose the
+  rows separately and terminal production requires the matching row. Enrich
+  those sites with path-conditioned guards, coverage, damage minima, and
+  frontier lower bounds next, then finish call-site refinement/propagation and
+  sparse per-cause context maxima. Generalize source production beyond the
+  initial unconditional bucket.
   Terminal Psi v22 already carries the explicit no-successor terminator and its
   canonical machine-local frontier lower bound; native lowering remains closed
   until target crash plans exist.

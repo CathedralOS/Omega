@@ -2296,6 +2296,59 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
     assert!(!grouped.published()[0].is_unconditional());
 }
 
+#[test]
+fn checked_crash_sites_are_body_evidence_not_contract_identity() {
+    let source = r#"
+    machine clear_body() -> i32
+    crashes Abort
+    { 0 }
+
+    machine crashing_body() -> i32
+    crashes Abort
+    {
+        crash Abort;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let plan = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+    };
+
+    assert_eq!(
+        plan("clear_body").fingerprint,
+        plan("crashing_body").fingerprint,
+        "changing the checked body must not change a published contract identity"
+    );
+    assert!(plan("clear_body").crash.checked_sites().is_empty());
+    let [site] = plan("crashing_body").crash.checked_sites() else {
+        panic!("the explicit crash should produce exactly one checked site")
+    };
+    assert_eq!(site.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(site.location().statement_ordinal(), 0);
+    assert_eq!(
+        site.location().state(),
+        checked.machine_states(
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "crashing_body")
+                .expect("crashing machine")
+        )[0]
+        .symbol
+    );
+}
+
 fn symbol_of_checked(
     checked: &psi_checked_trees::CheckedTrees,
     name: &str,

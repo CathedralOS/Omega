@@ -53,6 +53,57 @@ pub enum CrashRouteGuard {
     Predicate(CrashPredicateIdentity),
 }
 
+/// Source-handle-free location of one crash transition within a checked
+/// machine body. State identity plus the statement's state-local ordinal is
+/// stable against unrelated statement-arena insertions and is sufficient for
+/// checked-tree consumers to join the derived site back to its body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CrashSiteLocation {
+    state: SymbolHandle,
+    statement_ordinal: u32,
+}
+
+impl CrashSiteLocation {
+    pub const fn new(state: SymbolHandle, statement_ordinal: u32) -> Self {
+        Self {
+            state,
+            statement_ordinal,
+        }
+    }
+
+    pub const fn state(self) -> SymbolHandle {
+        self.state
+    }
+
+    pub const fn statement_ordinal(self) -> u32 {
+        self.statement_ordinal
+    }
+}
+
+/// Body-derived seed for a crash-terminator plan. This row deliberately does
+/// not pretend that path-conditioned guard, damage minimum, coverage, or
+/// frontier reconstruction has happened; those independent checked fields are
+/// added by later CRASH-CONTRACT passes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedCrashSite {
+    location: CrashSiteLocation,
+    cause: CrashCause,
+}
+
+impl CheckedCrashSite {
+    pub const fn new(location: CrashSiteLocation, cause: CrashCause) -> Self {
+        Self { location, cause }
+    }
+
+    pub const fn location(self) -> CrashSiteLocation {
+        self.location
+    }
+
+    pub const fn cause(self) -> CrashCause {
+        self.cause
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CrashRouteBucket {
     cause: CrashCause,
@@ -102,13 +153,16 @@ impl CrashRouteBucket {
     }
 }
 
-/// The published half of CRASH-CONTRACT. Body-derived crash sites and damage
-/// minima will populate the independent checked-inferred half; consumers must
-/// already use this carrier rather than re-reading source clauses.
+/// The published and body-derived halves of CRASH-CONTRACT remain independent:
+/// published route buckets are contract identity, while checked sites are
+/// implementation evidence and never enter that fingerprint. Damage minima,
+/// path guards, covering buckets, and frontier lower bounds enrich the site
+/// layer without changing the published interface.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CrashPlan {
     interface: CrashInterface,
     published: Vec<CrashRouteBucket>,
+    checked_sites: Vec<CheckedCrashSite>,
 }
 
 impl CrashPlan {
@@ -118,7 +172,28 @@ impl CrashPlan {
         Self {
             interface: CrashInterface::PublishedCeiling,
             published,
+            checked_sites: Vec::new(),
         }
+    }
+
+    pub fn with_checked_sites(mut self, mut checked_sites: Vec<CheckedCrashSite>) -> Option<Self> {
+        checked_sites.sort_by_key(|site| {
+            (
+                site.location.state.arena_index(),
+                site.location.state.generation(),
+                site.location.statement_ordinal,
+                site.cause,
+            )
+        });
+        checked_sites.dedup();
+        if checked_sites.windows(2).any(|sites| {
+            sites[0].location.state == sites[1].location.state
+                && sites[0].location.statement_ordinal == sites[1].location.statement_ordinal
+        }) {
+            return None;
+        }
+        self.checked_sites = checked_sites;
+        Some(self)
     }
 
     pub fn interface(&self) -> CrashInterface {
@@ -127,6 +202,20 @@ impl CrashPlan {
 
     pub fn published(&self) -> &[CrashRouteBucket] {
         &self.published
+    }
+
+    pub fn checked_sites(&self) -> &[CheckedCrashSite] {
+        &self.checked_sites
+    }
+
+    pub fn checked_site_at(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+    ) -> Option<&CheckedCrashSite> {
+        self.checked_sites.iter().find(|site| {
+            site.location.state == state && site.location.statement_ordinal == statement_ordinal
+        })
     }
 }
 
@@ -154,8 +243,9 @@ pub struct MachineContractPlan {
     /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,
-    /// Canonical published crash ceiling. Clause grouping, ordering, duplicate
-    /// predicates, and `true` spelling do not survive into this carrier.
+    /// Canonical published crash ceiling plus independent checked body sites.
+    /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
+    /// not survive into the published carrier; sites do not enter identity.
     pub crash: CrashPlan,
     /// Public omission and private derivation stay distinct. The ranking
     /// witness remains outside this interface carrier.
@@ -341,6 +431,36 @@ mod tests {
 
         let plan = CrashPlan::published_ceiling(vec![unconditional.clone(), unconditional]);
         assert_eq!(plan.published().len(), 1);
+    }
+
+    #[test]
+    fn crash_sites_are_canonical_implementation_evidence() {
+        let first_state = SymbolHandle::from_arena_index(4);
+        let second_state = SymbolHandle::from_arena_index(9);
+        let first =
+            CheckedCrashSite::new(CrashSiteLocation::new(first_state, 2), CrashCause::Abort);
+        let second =
+            CheckedCrashSite::new(CrashSiteLocation::new(second_state, 0), CrashCause::Trap);
+        let plan = CrashPlan::default()
+            .with_checked_sites(vec![second, first, first])
+            .expect("one crash cause occupies each source site");
+
+        assert_eq!(plan.checked_sites(), &[first, second]);
+        assert_eq!(
+            plan.checked_site_at(first_state, 2)
+                .map(|site| site.cause()),
+            Some(CrashCause::Abort)
+        );
+        assert_eq!(plan.interface(), CrashInterface::InternalInferred);
+
+        assert!(
+            CrashPlan::default()
+                .with_checked_sites(vec![
+                    first,
+                    CheckedCrashSite::new(first.location(), CrashCause::Trap),
+                ])
+                .is_none()
+        );
     }
 
     #[test]

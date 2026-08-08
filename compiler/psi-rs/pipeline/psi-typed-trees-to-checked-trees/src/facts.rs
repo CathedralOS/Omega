@@ -417,13 +417,53 @@ fn build_published_crash_plan(
                 .expect("an authored crash bucket has a canonical nonempty route set")
         })
         .collect::<Vec<_>>();
-    if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+    let plan = if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !published.is_empty()
     {
         psi_checked_trees::CrashPlan::published_ceiling(published)
     } else {
         psi_checked_trees::CrashPlan::default()
+    };
+    plan.with_checked_sites(build_checked_crash_sites(program, machine))
+        .expect("one checked crash cause occupies each transition site")
+}
+
+fn build_checked_crash_sites(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Vec<psi_checked_trees::CheckedCrashSite> {
+    let mut sites = Vec::new();
+    for state in program.machine_states(machine) {
+        for (statement_ordinal, statement) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
+            let psi_typed_trees::statement::StatementNode::Transition(transition) = statement
+            else {
+                continue;
+            };
+            let psi_typed_trees::statement::TransitionExit::Crash(cause) = transition.exit else {
+                continue;
+            };
+            let cause = match cause {
+                psi_typed_trees::signature::CrashCause::Trap => psi_checked_trees::CrashCause::Trap,
+                psi_typed_trees::signature::CrashCause::Abort => {
+                    psi_checked_trees::CrashCause::Abort
+                }
+            };
+            sites.push(psi_checked_trees::CheckedCrashSite::new(
+                psi_checked_trees::CrashSiteLocation::new(
+                    state.symbol,
+                    u32::try_from(statement_ordinal)
+                        .expect("state-local statement ordinal exceeds checked identity range"),
+                ),
+                cause,
+            ));
+        }
     }
+    sites
 }
 
 fn is_true_crash_route(program: &TypedTrees, fact: &psi_typed_trees::domain::ProofFact) -> bool {

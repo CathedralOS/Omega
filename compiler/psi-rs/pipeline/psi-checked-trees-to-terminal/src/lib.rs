@@ -1322,14 +1322,11 @@ fn lower_explicit_crash_machine(
                 "crash-only machine result must be a primitive Boolean or integer",
             ))?,
     )?;
-    let [StatementNode::Transition(transition)] = checked
+    let [StatementNode::Transition(_transition)] = checked
         .statement_table
         .statements(entry_state.statement_nodes)
     else {
         unreachable!("crash-only source shape was selected above")
-    };
-    let TransitionExit::Crash(source_cause) = transition.exit else {
-        unreachable!("crash-only source shape carries an explicit crash exit")
     };
     let Some(crash_plan) = checked
         .facts
@@ -1339,17 +1336,14 @@ fn lower_explicit_crash_machine(
     else {
         return unsupported("explicit crash has no checked machine-contract plan");
     };
+    let Some(checked_site) = crash_plan.checked_site_at(entry_state.symbol, 0) else {
+        return unsupported("explicit crash has no body-derived checked crash-site row");
+    };
     let matching_contracts = crash_plan
         .published()
         .iter()
-        .filter_map(|bucket| match (bucket.cause(), source_cause) {
-            (psi_checked_trees::CrashCause::Trap, psi_typed_trees::signature::CrashCause::Trap)
-            | (
-                psi_checked_trees::CrashCause::Abort,
-                psi_typed_trees::signature::CrashCause::Abort,
-            ) if bucket.is_unconditional() => Some(bucket.containment_demand()),
-            _ => None,
-        })
+        .filter(|bucket| bucket.cause() == checked_site.cause() && bucket.is_unconditional())
+        .map(|bucket| bucket.containment_demand())
         .collect::<Vec<_>>();
     let [damage_scope] = matching_contracts.as_slice() else {
         return unsupported(
@@ -1400,13 +1394,9 @@ fn lower_explicit_crash_machine(
                     operations: Vec::new(),
                     terminator: Terminator::Crash {
                         edge: edge_id(1),
-                        cause: match source_cause {
-                            psi_typed_trees::signature::CrashCause::Trap => {
-                                TerminalCrashCause::Trap
-                            }
-                            psi_typed_trees::signature::CrashCause::Abort => {
-                                TerminalCrashCause::Abort
-                            }
+                        cause: match checked_site.cause() {
+                            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
                         },
                         damage_scope: (*damage_scope).to_owned(),
                         frontier_lower_bound: Vec::new(),
