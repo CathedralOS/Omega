@@ -2344,6 +2344,62 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
         }
     }
 
+    machine conjunct_guarded_body(flag: bool, other: bool) -> i32
+    crashes Trap Activation
+        flag
+    {
+        transition {
+            flag && other -> fail()
+            _ -> 0i32
+        }
+
+        state fail() -> i32 {
+            crash Trap;
+        }
+    }
+
+    machine demorgan_guarded_body(flag: bool, other: bool) -> i32
+    crashes Trap Activation
+        !flag
+    {
+        transition {
+            flag || other -> 0i32
+            _ -> fail()
+        }
+
+        state fail() -> i32 {
+            crash Trap;
+        }
+    }
+
+    machine disjunction_does_not_cover(flag: bool, other: bool) -> i32
+    crashes Trap Activation
+        flag
+    {
+        transition {
+            flag || other -> fail()
+            _ -> 0i32
+        }
+
+        state fail() -> i32 {
+            crash Trap;
+        }
+    }
+
+    machine negated_conjunction_does_not_cover(flag: bool, other: bool) -> i32
+    crashes Trap Activation
+        !flag
+    {
+        transition {
+            flag && other -> 0i32
+            _ -> fail()
+        }
+
+        state fail() -> i32 {
+            crash Trap;
+        }
+    }
+
     machine narrow_abort() -> i32
     crashes Abort Activation
     {
@@ -2434,6 +2490,33 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             .is_some_and(|bucket| !bucket.is_unconditional()
                 && bucket.cause() == psi_checked_trees::CrashCause::Trap)
     );
+
+    for name in ["conjunct_guarded_body", "demorgan_guarded_body"] {
+        let [site] = plan(name).crash.checked_sites() else {
+            panic!("{name} should retain one explicit crash site")
+        };
+        let [bucket] = site.guard_covering_buckets() else {
+            panic!("{name} should prove its structurally implied route")
+        };
+        assert!(
+            plan(name)
+                .crash
+                .published_bucket(*bucket)
+                .is_some_and(|bucket| bucket.cause() == psi_checked_trees::CrashCause::Trap)
+        );
+    }
+    for name in [
+        "disjunction_does_not_cover",
+        "negated_conjunction_does_not_cover",
+    ] {
+        let [site] = plan(name).crash.checked_sites() else {
+            panic!("{name} should retain one explicit crash site")
+        };
+        assert!(
+            site.guard_covering_buckets().is_empty(),
+            "{name} must not use the unsound converse implication"
+        );
+    }
 
     let [narrow_abort_site] = plan("narrow_abort").crash.checked_sites() else {
         panic!("the narrow abort should retain its explicit crash site")
