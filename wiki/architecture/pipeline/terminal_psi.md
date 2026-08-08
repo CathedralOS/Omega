@@ -202,7 +202,9 @@ targets. Short-circuit return leaves use reserved value-producing decision
 blocks. Unconditional jumps use the same leaves to bind authored targets;
 multi-value tuples evaluate each element left-to-right in a separate stage,
 carry prior results through later decision trees, and converge once before the
-authored target. Loops remain a later slice.
+authored target. Conditional successors route computed Boolean payloads through
+the same arm-local blocks and decision trees, so an unselected expression has
+no operations or fuel charge. Loops remain a later slice.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -269,16 +271,16 @@ each linear block owns one unconditional successor, and leaves return a
 recursively nested integer expression. Successors bind ordered already-defined
 Boolean or integer parameters with exact target types; an unconditional jump
 may instead compute recursively nested parameter/literal integer expressions
-before binding its target. Joins are explicit block-parameter merges. Direct
-guards currently exclude short-circuit operations, and conditional edge
-bindings still name existing parameters because terminal edges do not own
+before binding its target. Joins are explicit block-parameter merges.
+Short-circuit guards use explicit decision blocks, and computed conditional
+edge bindings use selected-arm blocks because terminal edges do not own
 operations. This preserves source ordering and keeps each branch's computation
 local to its selected path. The
 parallel Boolean conditional form accepts the recursive Boolean vocabulary in
 its positive guard and both branch returns. A short-circuit guard sends its
 terminal test edges directly to the selected branch with the authored entry
-arguments; short-circuit arms remain local decision trees and only the selected
-arm is charged. All accepted forms require a matching closed
+arguments; computed successor payloads remain arm-local decision trees and only
+the selected arm is charged. All accepted forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
