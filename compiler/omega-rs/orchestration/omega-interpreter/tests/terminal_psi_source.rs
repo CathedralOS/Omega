@@ -3331,7 +3331,7 @@ fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_native_
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         assert_eq!(
             lowered.semantic_module.semantic_version,
-            SemanticVersion::V26
+            SemanticVersion::CURRENT
         );
         assert!(
             lowered.semantic_module.machines[0]
@@ -3428,6 +3428,91 @@ fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_native_
                 "{machine} native result"
             );
         }
+    }
+}
+
+#[test]
+fn checked_source_address_identity_survives_artifacts_and_native_realization() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("address identity source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_address_reflexive")
+        .expect("address identity should lower to terminal Psi");
+    let address = IntegerType::address(64).expect("addr");
+    let address_scalar = ScalarType::Integer(address);
+    let u64_scalar = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).expect("ordinary u64 carrier"),
+    );
+
+    assert_eq!(
+        lowered.semantic_module.semantic_version,
+        SemanticVersion::V27
+    );
+    assert_eq!(
+        lowered.semantic_module.machines[0].parameters[0].scalar_type,
+        address_scalar
+    );
+    assert_eq!(
+        lowered.semantic_module.machines[0].result.scalar_type,
+        ScalarType::Boolean
+    );
+    assert_ne!(address_scalar, u64_scalar);
+
+    let semantic = encode_module(&lowered.semantic_module).expect("address semantic bytes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("address proof bytes");
+    drop(lowered);
+    let decoded = decode_module(&semantic).expect("decode address semantic bytes");
+    assert!(matches!(
+        decoded.machines[0].parameters[0].scalar_type,
+        ScalarType::Integer(integer_type) if integer_type.is_address()
+    ));
+
+    let input = IntegerValue::Unsigned(0xfedc_ba98_7654_3210);
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Integer {
+            scalar_type: address,
+            value: input,
+        }],
+    )
+    .expect("decoded address artifact should interpret");
+    assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(measured.usage().total_units(), 2);
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("address artifact should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("address identity should select");
+        let TerminalTargetOperation::ReturnBooleanExpression { expression, .. } =
+            &target_operations.functions[0].operation
+        else {
+            panic!("address comparison should return a Boolean expression");
+        };
+        let TerminalTargetBooleanExpression::IntegerEqual { scalar_type, .. } = expression else {
+            panic!("address comparison should retain integer equality");
+        };
+        assert!(scalar_type.is_address());
+        let assigned = assign_registers(&target_operations).expect("address homes should assign");
+        emit_machine_code(&assigned).expect("address identity should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("address host selection");
+        let assigned = assign_registers(&target_operations).expect("address host homes");
+        let machine_code = emit_machine_code(&assigned).expect("address host emission");
+        let object = build_terminal_object_artifact(&machine_code).expect("address host object");
+        assert!(host_machine_code_with_two_u64_matches(
+            object.entry_function().bytes(&object),
+            0xfedc_ba98_7654_3210,
+            0,
+            1,
+        ));
     }
 }
 

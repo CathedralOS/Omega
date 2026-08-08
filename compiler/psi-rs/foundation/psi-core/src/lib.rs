@@ -23,6 +23,6 @@ pub use identity::{
     PropositionId, PsiSemanticId, ValueId,
 };
 pub use proposition::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,
-    ScalarTerm, ScalarType,
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
+    PropositionError, ScalarTerm, ScalarType,
 };

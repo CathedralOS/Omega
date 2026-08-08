@@ -35,6 +35,13 @@ ensures 42u8 == 42u8
     42u8
 }
 
+machine terminal_address_reflexive(value: addr) -> bool
+requires true == true
+ensures true == true
+{
+    value == value
+}
+
 machine terminal_closed_integer_chain() -> u8 in Wrapping
 requires 42u8 == 42u8
 ensures 42u8 == 42u8

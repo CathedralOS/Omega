@@ -52,9 +52,11 @@ terminator carrying a closed cause, one nominal damage scope, and the
 machine-local claim frontier known to be abandoned; v23 separates that scope
 into a body-derived damage minimum and selected published containment demand;
 v24 adds a canonical sparse per-cause context maximum to each machine
-contract; v25 adds total fixed-width integer bitwise complement; and current
-v26 adds universally total fixed-width `i*`/`u*` widening whose target contains
-the complete source range.
+contract; v25 adds total fixed-width integer bitwise complement; v26 adds
+universally total fixed-width `i*`/`u*` widening whose target contains the
+complete source range; and current v27 distinguishes the target-selected
+address carrier from an ordinary same-width unsigned integer while retaining
+its current 64-bit representation.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -335,8 +337,10 @@ unit. This includes unsigned-to-signed widening when the signed target has a
 strictly larger width. Narrowing, same-width signedness changes,
 signed-to-unsigned casts, and conversions whose totality depends
 on occurrence range evidence remain outside this scalar slice rather than
-being mistaken for identities. `addr` also remains outside until terminal Psi
-retains its distinct carrier identity instead of conflating it with `u64`.
+being mistaken for identities. Terminal Psi v27 retains `addr` distinctly from
+`u64` across declarations, scalar terms, comparisons, artifacts, and Omega
+realization. Cross-carrier conversions to or from `addr` remain outside rather
+than being mistaken for representation identities.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -946,8 +950,10 @@ integer count type; version 22 adds the explicit `Crash` terminator, closed
 frontier lower bound; version 23 separates the body-derived damage minimum
 from the selected published containment demand; version 24 adds canonical
 sparse per-cause crash-context maxima; version 25 adds total
-`IntegerBitwiseNot` operations and recursive scalar terms; and current version
-26 adds total range-contained `IntegerWiden` operations and recursive scalar terms.
+`IntegerBitwiseNot` operations and recursive scalar terms; version 26 adds
+total range-contained `IntegerWiden` operations and recursive scalar terms; and
+current version 27 adds a distinct address-carrier integer-type tag without a
+new executable operation.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -959,18 +965,19 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v25 modules under their original
+execution continue to accept valid v1 through v26 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v26 translation.
+`migrate_module_to_current` is an explicit validated older-to-v27 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
 canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain archived v1 through v24 identities and
-independently freeze the v25 integer-bitwise-complement fixture and current v26
-integer-widening fixture, plus the v10 identity-reshuffle fixture, v11 sum-case
+independently freeze the v25 integer-bitwise-complement fixture, the v26
+integer-widening fixture, and the current v27 address-carrier fixture, plus the
+v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
 fixture, v17 Boolean-equality fixture, v18 integer-equality fixture, the
@@ -991,8 +998,10 @@ terms; format v12 adds recursive integer-equality terms; format v13 adds
 recursive integer less-than and less-or-equal terms; and format v14 adds
 recursive integer bitwise AND, OR, and XOR terms; format v15 adds recursive
 wrapping left/right shift terms with independent value and count integer
-types; format v16 adds recursive integer bitwise-complement terms; and format
-v17 adds recursive integer-widening terms with exact source and target types.
+types; format v16 adds recursive integer bitwise-complement terms; format v17
+adds recursive integer-widening terms with exact source and target types; and
+format v18 distinguishes address-typed terms from ordinary same-width unsigned
+integer terms.
 The encoder selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the

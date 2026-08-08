@@ -12,14 +12,23 @@ pub enum IntegerSign {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IntegerCarrier {
+    Fixed,
+    Address,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntegerType {
+    carrier: IntegerCarrier,
     sign: IntegerSign,
     bits: u16,
 }
 
 impl IntegerType {
     pub fn can_widen_to(self, target: Self) -> bool {
-        self.bits < target.bits
+        self.carrier == IntegerCarrier::Fixed
+            && target.carrier == IntegerCarrier::Fixed
+            && self.bits < target.bits
             && (self.sign == target.sign
                 || matches!(
                     (self.sign, target.sign),
@@ -47,7 +56,30 @@ impl IntegerType {
         if !(1..=128).contains(&bits) {
             return Err(PropositionError::InvalidIntegerWidth(bits));
         }
-        Ok(Self { sign, bits })
+        Ok(Self {
+            carrier: IntegerCarrier::Fixed,
+            sign,
+            bits,
+        })
+    }
+
+    pub fn address(bits: u16) -> Result<Self, PropositionError> {
+        if !(1..=128).contains(&bits) {
+            return Err(PropositionError::InvalidIntegerWidth(bits));
+        }
+        Ok(Self {
+            carrier: IntegerCarrier::Address,
+            sign: IntegerSign::Unsigned,
+            bits,
+        })
+    }
+
+    pub const fn carrier(self) -> IntegerCarrier {
+        self.carrier
+    }
+
+    pub const fn is_address(self) -> bool {
+        matches!(self.carrier, IntegerCarrier::Address)
     }
 
     pub const fn sign(self) -> IntegerSign {
@@ -1785,6 +1817,21 @@ mod tests {
         let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type");
         assert!(ScalarTerm::integer(u8_type, IntegerValue::Unsigned(255)).is_ok());
         assert!(ScalarTerm::integer(u8_type, IntegerValue::Unsigned(256)).is_err());
+    }
+
+    #[test]
+    fn address_carriers_remain_distinct_from_same_width_unsigned_integers() {
+        let address = IntegerType::address(64).expect("addr");
+        let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+
+        assert_eq!(address.carrier(), IntegerCarrier::Address);
+        assert!(address.is_address());
+        assert_eq!(address.sign(), IntegerSign::Unsigned);
+        assert_eq!(address.bits(), 64);
+        assert_ne!(address, u64_type);
+        assert!(!address.can_widen_to(u64_type));
+        assert!(!u64_type.can_widen_to(address));
+        assert!(address.admits(IntegerValue::Unsigned(u64::MAX.into())));
     }
 
     #[test]
