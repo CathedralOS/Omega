@@ -1551,3 +1551,34 @@ pub(crate) fn canonical_crash_path_predicate(
     );
     psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
 }
+
+/// Canonical identity of a checker-derived binary predicate assembled from
+/// existing typed operands. This uses the published crash-route encoder but
+/// never rewrites the published contract itself.
+pub(crate) fn canonical_crash_binary_path_predicate(
+    program: &TypedTrees,
+    operator: psi_typed_trees::expression::BinaryOperator,
+    left: psi_typed_trees::expression::ExpressionHandle,
+    right: psi_typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
+    content_conservation: &[psi_validation::ContentConservationSourcePlan],
+) -> psi_checked_trees::CrashPredicateIdentity {
+    let mut bytes = vec![1]; // ProofFact::Expression
+    bytes.push(1); // ExpressionNode::Binary
+    bytes.push(operator as u8);
+    encode_contract_expression_canonical(
+        program,
+        left,
+        parameter_names,
+        content_conservation,
+        &mut bytes,
+    );
+    encode_contract_expression_canonical(
+        program,
+        right,
+        parameter_names,
+        content_conservation,
+        &mut bytes,
+    );
+    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+}

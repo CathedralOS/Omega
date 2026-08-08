@@ -215,7 +215,9 @@ Remaining:
   their fallthrough negations now join to identical normalized published
   alternatives. The first broader implication slice also derives every
   positive-conjunction conjunct and every negated-disjunction consequence,
-  including nested logical negation, while rejecting the unsound converses.
+  including nested logical negation, comparison operand reversal, and
+  equality/inequality negation, while rejecting unsound converses and ordered
+  complements without total-order evidence.
   Each site separately retains the canonical conjunction of exact incoming
   predicates so implication evidence does not replace its derived path guard;
   reports expose that carrier. Richer guard entailment remains. Each site now retains the
@@ -268,8 +270,11 @@ Remaining:
   demand covers the selected route and whose guard is unconditional, exactly
   matches the surviving predicate, or is one of the invocation's retained
   path consequences. Positive conjunction, negated disjunction, nested
-  negation, and Boolean-literal equality/inequality normalization feed that
-  same set without replacing the exact conjunction. Callable trait requirements
+  negation, Boolean-literal equality/inequality normalization, comparison
+  operand reversal, and equality/inequality negation normalization feed that
+  same set without replacing the exact conjunction. Ordered-comparison
+  negation remains opaque until the checker carries total-order/type evidence;
+  this is required for future unordered float values. Callable trait requirements
   and unresolved compile-time machine parameters now retain source-independent
   crash-contract capsules: each capsule pins the normalized public crash
   buckets to the complete callable-contract fingerprint, and checked calls

@@ -2660,8 +2660,118 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     assert_eq!(call.path_guard_conjuncts().len(), 1);
     assert_eq!(
         call.path_guard_consequences().len(),
-        2,
-        "the exact equality and its implied operand should remain separate"
+        3,
+        "the exact equality, reversed equality, and implied operand remain separate"
+    );
+}
+
+#[test]
+fn crash_guard_entailment_normalizes_comparison_equivalences() {
+    let source = r#"
+    machine risky() -> i32
+    crashes Trap Activation
+    { 1 }
+
+    machine reversed_order(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        right > left
+    {
+        transition {
+            left < right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine ordered_fallthrough_stays_opaque(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left >= right
+    {
+        transition {
+            left < right -> 0i32
+            _ -> fail()
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine negated_equality(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left != right
+    {
+        transition {
+            left == right -> 0i32
+            _ -> fail()
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine reversed_equality(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        right == left
+    {
+        transition {
+            left == right -> fail()
+            _ -> 0i32
+        }
+        state fail() -> i32 { crash Trap; }
+    }
+
+    machine guarded_call(left: i32, right: i32) -> i32
+    crashes Trap Activation
+        left != right
+    {
+        transition {
+            left == right -> 0i32
+            _ -> invoke()
+        }
+        state invoke() -> i32 { risky() }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("equivalent comparison spellings should cover crash routes");
+    let plan = |name: &str| {
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan")
+    };
+
+    for name in ["reversed_order", "negated_equality", "reversed_equality"] {
+        let [site] = plan(name).crash.checked_sites() else {
+            panic!("{name} should retain one crash site")
+        };
+        assert_eq!(
+            site.guard_covering_buckets().len(),
+            1,
+            "{name} should cover its equivalent comparison route"
+        );
+    }
+
+    let [opaque_site] = plan("ordered_fallthrough_stays_opaque")
+        .crash
+        .checked_sites()
+    else {
+        panic!("ordered fallthrough should retain one crash site")
+    };
+    assert!(
+        opaque_site.guard_covering_buckets().is_empty(),
+        "ordered negation needs total-order evidence before it may normalize"
+    );
+
+    let [call] = plan("guarded_call").crash.checked_calls() else {
+        panic!("guarded_call should retain one checked call")
+    };
+    assert!(
+        call.path_guard_consequences().len() >= 3,
+        "the exact fallthrough predicate and normalized comparison forms remain distinct"
     );
 }
 
