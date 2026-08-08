@@ -511,7 +511,8 @@ TargetSlotDeclaration {
     schema,
     direction: EnvironmentToProgram | ProgramToProvider,
     binding_shape: ExactRequirement(requirement)
-                 | CompleteConformance(trait),
+                 | CompleteConformance(trait)
+                 | EntryMachine(entry_shape),
     lifecycle,
     cardinality,
     index_policy,
@@ -525,7 +526,7 @@ TargetSlotBinding {
     normalized_contract_or_map,
 }
 
-EntryAdapterShape {
+EntryShape {
     arrival_requirement,
     visible_parameters,
     result,
@@ -535,10 +536,12 @@ EntryAdapterShape {
 
 The slot declares the accepted semantic tier. Exact bindings expose only one
 requirement contract; complete bindings retain the whole conformance map and
-laws. Direction distinguishes external roots from outbound providers, while
-lifecycle and cardinality remain orthogonal. The selected target owns required-
-slot completeness, so a cross-profile binding, duplicate binding, or missing
-required build-bound slot rejects.
+laws; entry-machine bindings select one source machine whose visible shape is
+adapted by the target-owned entry schema. Direction distinguishes external
+roots from outbound providers, while lifecycle and cardinality remain
+orthogonal. The selected target owns required-slot completeness, so a
+cross-profile binding, duplicate binding, or missing required build-bound slot
+rejects.
 
 An entry schema selects one physical arrival requirement, contributes
 calling/state policy, and declares the source-visible continuation shape.

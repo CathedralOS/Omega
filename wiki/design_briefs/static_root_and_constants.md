@@ -1,4 +1,4 @@
-# Design Brief — Constants And Provisioned Root State
+# Design Brief — Constants And Provisioned Entry State
 
 > **Status:** Settled design; engineering incomplete. **Driver:** Omega needs
 > immutable compile-time values and long-lived program state without ambient
@@ -43,7 +43,7 @@ identity and grants no authority.
 
 ## Stateless entry
 
-A hosted program that needs no root state binds a free machine:
+A hosted program that needs no receiver state binds a free machine:
 
 ```omega
 machine start() {
@@ -61,8 +61,8 @@ allocated merely because the artifact has an entry point.
 
 ## Receiver-bound entry
 
-Attaching the selected entry to data and taking `&mut self` requests one root
-instance:
+Attaching the selected entry to data and taking `&mut self` requests one
+receiver instance:
 
 ```omega
 data Application {
@@ -92,6 +92,12 @@ the launch call. The generated bridge:
 3. lends the only reference as `&mut self`;
 4. runs ordinary cleanup if the entry returns normally; and
 5. records abandonment through the ordinary crash frontier otherwise.
+
+`data Application` remains an ordinary data declaration. Binding the attached
+machine does not turn the type or its values into a content root, assign a
+storage class to the declaration, or establish a domain qualification on every
+`Application`. The bridge establishes this one receiver occurrence in storage
+whose root lineage and backing are already accounted for.
 
 The receiver is not globally nameable. Interrupt handlers, tasks, and other
 roots cannot reach it unless the program explicitly transfers a capability,
