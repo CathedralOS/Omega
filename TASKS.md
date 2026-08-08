@@ -216,7 +216,9 @@ Remaining:
   alternatives. The first broader implication slice also derives every
   positive-conjunction conjunct and every negated-disjunction consequence,
   including nested logical negation, while rejecting the unsound converses.
-  Richer guard entailment remains. Each site now retains the
+  Each site separately retains the canonical conjunction of exact incoming
+  predicates so implication evidence does not replace its derived path guard;
+  reports expose that carrier. Richer guard entailment remains. Each site now retains the
   intrinsic cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`),
   and the checked plan distinguishes guard-covering buckets from buckets whose
   containment demand also covers that minimum. Reports expose both sets;

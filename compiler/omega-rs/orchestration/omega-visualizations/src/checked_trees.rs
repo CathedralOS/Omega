@@ -1693,6 +1693,18 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 );
                 json.push_str(", \"damage_minimum\": ");
                 push_json_string(&mut json, site.damage_minimum());
+                json.push_str(", \"path_guard_conjuncts\": [");
+                for (guard_index, predicate) in site.path_guard_conjuncts().iter().enumerate() {
+                    if guard_index > 0 {
+                        json.push_str(", ");
+                    }
+                    let mut identity = String::from("0x");
+                    for byte in predicate.canonical_bytes() {
+                        identity.push_str(&format!("{byte:02x}"));
+                    }
+                    push_json_string(&mut json, &identity);
+                }
+                json.push(']');
                 json.push_str(", \"guard_covering_buckets\": [");
                 for (coverage_index, bucket) in site.guard_covering_buckets().iter().enumerate() {
                     if coverage_index > 0 {
@@ -3177,12 +3189,19 @@ mod tests {
             ordinal: 0,
         };
         let crash = crash
-            .with_checked_sites(vec![psi_checked_trees::CheckedCrashSite::new(
-                psi_checked_trees::CrashSiteLocation::new(state_symbol, 4),
-                psi_checked_trees::CrashCause::Abort,
-                vec![abort_bucket],
-                vec![abandoned_claim],
-            )])
+            .with_checked_sites(vec![
+                psi_checked_trees::CheckedCrashSite::new(
+                    psi_checked_trees::CrashSiteLocation::new(state_symbol, 4),
+                    psi_checked_trees::CrashCause::Abort,
+                    vec![abort_bucket],
+                    vec![abandoned_claim],
+                )
+                .with_path_guard_conjuncts(vec![
+                    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(vec![
+                        1, 9, 0, 0, 0, 0,
+                    ]),
+                ]),
+            ])
             .expect("one crash site per source location");
         let mut machine = Machine {
             symbol,
@@ -3286,7 +3305,7 @@ mod tests {
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
+            "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"damage_minimum\": \"ExecutionDomain\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
         assert!(
             json[implementation_start..]

@@ -88,7 +88,9 @@ Exact retained incoming guards, including the negations accumulated by later
 dispatch arms, now join to identical canonical published predicates without
 entering public contract identity. Positive conjunctions also imply each
 conjunct, negated disjunctions imply each negated disjunct, and nested logical
-negation flips polarity; converse implications remain rejected.
+negation flips polarity; converse implications remain rejected. Checked sites
+retain their exact incoming-predicate conjunction separately from these
+coverage consequences.
 Checked ownership also reconstructs a canonical lower bound of stable claim
 identities that are definitely live and non-conditional at the site. A crash
 abandons those claims without cleanup or consumption. Terminal production maps
