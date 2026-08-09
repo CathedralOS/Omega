@@ -2265,11 +2265,26 @@ fn analyze(
                     primitive_name(target),
                 )));
             }
-            // The cast bounds the value to the target type's range (and re-tags its
-            // domain), so it is a widening/narrowing escape from an overflow.
-            let interval = primitive
-                .and_then(primitive_range)
-                .unwrap_or(Interval::UNBOUNDED);
+            // Numeric conversion of a Boolean preserves its binary value. Keep
+            // that stronger fact instead of widening the result to the target's
+            // complete carrier: foreign bitmask construction such as
+            // `(flag as i32) << 10` is therefore ordinary provable Exact
+            // arithmetic, not a reason to weaken the operation to Wrapping.
+            // Other casts bound the value to the target type's range (and
+            // re-tag its domain), so they remain a widening/narrowing escape
+            // from an overflow.
+            let interval = if source.primitive == Some(PrimitiveType::Bool)
+                && primitive.is_some_and(|target| integer_bit_width(target).is_some())
+            {
+                Interval {
+                    low: Some(0),
+                    high: Some(1),
+                }
+            } else {
+                primitive
+                    .and_then(primitive_range)
+                    .unwrap_or(Interval::UNBOUNDED)
+            };
             Analysis {
                 domain: Some(cast.domain),
                 interval,
