@@ -426,6 +426,13 @@ Remaining:
   their constant-addend reconstruction. Canonical artifacts, existing proof
   terms, selected-path fuel, interpretation, and both native targets carry the
   relational addition slice.
+  Terminal Psi v44 extends the joint Exact-add upper-bound form to signed
+  nonnegative runtime addends. A preceding checked path proves `0 <= right`,
+  making `MAX - right` Exact-safe; the nested true edge then proves
+  `left <= MAX - right`. The verifier independently requires both facts and
+  reconstructs their conjunction for the addition. Earlier versions retain
+  their prior surface. Existing proof terms, canonical artifacts, selected-path
+  fuel, interpretation, and both native targets carry the signed slice.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

@@ -104,6 +104,12 @@ reconstructs truth for that subtraction and selects the exact carried
 comparison as the addition's operation-owned proposition. Earlier versions
 retain the v31 constant-addend surface.
 
+Terminal Psi v44 extends the same upper-bound form to signed addends on a path
+carrying `0 <= right`. That sign fact makes `MAX - right` Exact-safe; a nested
+true edge establishes `left <= MAX - right`. The subtraction selects the sign
+fact, and the addition selects the canonical conjunction of the sign and bound
+facts. Earlier versions retain their prior reconstruction.
+
 Terminal Psi v32 applies the split to Exact fixed-integer subtraction. The
 operation carries its two same-typed operands and obligation identity, while
 the verifier independently resolves a terminal-known right operand and
