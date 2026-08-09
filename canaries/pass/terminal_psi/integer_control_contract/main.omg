@@ -1187,6 +1187,44 @@ ensures 0i32 == 0i32
     }
 }
 
+machine terminal_exact_divide_guarded_negative_one_range(value: i32, divisor: i32) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+{
+    transition divisor <= -1i32 {
+        true -> prove_exact_divide_negative_one_dividend(value, divisor)
+        _ -> finish_exact_divide_negative_one_range(0i32)
+    }
+
+    state prove_exact_divide_negative_one_dividend(value: i32, divisor: i32) -> i32 {
+        transition -2147483647i32 <= value {
+            true -> finish_exact_divide_negative_one_range(value / divisor)
+            _ -> finish_exact_divide_negative_one_range(0i32)
+        }
+    }
+
+    state finish_exact_divide_negative_one_range(value: i32) -> i32 {
+        value
+    }
+}
+
+machine terminal_wrapping_divide_guarded_negative_one_range(
+    value: i32 in Wrapping,
+    divisor: i32 in Wrapping
+) -> i32 in Wrapping
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+{
+    transition divisor <= -1i32 {
+        true -> finish_wrapping_divide_negative_one_range(value / divisor)
+        _ -> finish_wrapping_divide_negative_one_range(0i32)
+    }
+
+    state finish_wrapping_divide_negative_one_range(value: i32 in Wrapping) -> i32 in Wrapping {
+        value
+    }
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true
