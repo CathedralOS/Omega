@@ -348,9 +348,9 @@ Remaining:
   unrelated runtime factors still fail closed. Proof format v24 carries the
   exact-multiply term.
   Terminal Psi v34 now carries proof-gated Exact fixed-integer division.
-  Source validation still proves a nonzero divisor and quotient
-  representability first; the terminal verifier independently reconstructs
-  safety when the right operand is terminal-known. Any nonzero unsigned
+  Source validation independently rejects a provably zero divisor and retains
+  the operation; the terminal verifier reconstructs non-trapping safety when
+  the right operand is terminal-known. Any nonzero unsigned
   divisor is total. A signed divisor other than zero and negative one is total;
   negative one requires `MIN + 1 <= dividend`. Two compile-known operands
   reduce to truth only when truncating division is defined and representable.
