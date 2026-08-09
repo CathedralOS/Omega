@@ -256,6 +256,16 @@ fn record_crash_frontier_lower_bounds(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) {
+    let incoming_guards_by_machine = program
+        .machines()
+        .iter()
+        .map(|machine| {
+            (
+                machine.symbol,
+                super::ranges::incoming_guards::collect_incoming_guard_facts(program, machine),
+            )
+        })
+        .collect::<Vec<_>>();
     let mut derived = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(machine) = program
@@ -284,8 +294,10 @@ fn record_crash_frontier_lower_bounds(
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
         apply_recorded_state_entry_events(&events, &facts.flow.ownership.segments, &mut places);
-        let incoming =
-            super::ranges::incoming_guards::collect_incoming_guard_facts(program, machine);
+        let incoming = incoming_guards_by_machine
+            .iter()
+            .find_map(|(symbol, guards)| (*symbol == machine.symbol).then_some(guards.as_slice()))
+            .unwrap_or_default();
         let proven_conditional_claims =
             proven_conditional_entry_claims(program, state, &incoming, &places);
 

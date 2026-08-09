@@ -214,6 +214,7 @@ fn validate_program_internal(
     machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
     invocations::validate_invocation_contracts(program, &mut diagnostics);
 
+    let call_frames = calls::CallFrameResolver::new(program);
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
@@ -386,7 +387,6 @@ fn validate_program_internal(
                 // fences.
                 arithmetic_domains::incoming_guard_env(program, machine, state)
             };
-            let call_frames = calls::CallFrameResolver::new(program);
             for statement in program.statement_table.statements(state.statement_nodes) {
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
@@ -395,9 +395,13 @@ fn validate_program_internal(
                 // carries a pre-call fact across a mutating value call. A
                 // call-free expression reports an empty frame; any unresolved
                 // call fails closed and clears the environment.
-                let value_written = call_frames
-                    .as_ref()
-                    .and_then(|frames| frames.statement_value_may_write_paths(machine, statement));
+                let value_written = call_frames.as_ref().and_then(|frames| {
+                    frames.statement_value_may_write_paths_with_symbols(
+                        machine,
+                        &machine_symbols,
+                        statement,
+                    )
+                });
                 if let Some(written) = value_written {
                     value_env.invalidate_written_paths(&written);
                 } else {

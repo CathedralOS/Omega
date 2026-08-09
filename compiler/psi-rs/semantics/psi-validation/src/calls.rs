@@ -134,6 +134,16 @@ impl<'program> CallFrameResolver<'program> {
             .into_complete_paths()
     }
 
+    pub(crate) fn statement_value_may_write_paths_with_symbols(
+        &self,
+        current_machine: &'program Machine,
+        machine_symbols: &MachineSymbols<'program>,
+        statement: &StatementNode,
+    ) -> Option<Vec<String>> {
+        self.statement_value_write_frame_with_symbols(current_machine, machine_symbols, statement)
+            .into_complete_paths()
+    }
+
     pub fn statement_value_write_frame(
         &self,
         current_machine: &'program Machine,
@@ -145,6 +155,15 @@ impl<'program> CallFrameResolver<'program> {
         if !diagnostics.is_empty() {
             return NormalizedWriteFrame::opaque();
         }
+        self.statement_value_write_frame_with_symbols(current_machine, &machine_symbols, statement)
+    }
+
+    fn statement_value_write_frame_with_symbols(
+        &self,
+        current_machine: &'program Machine,
+        machine_symbols: &MachineSymbols<'program>,
+        statement: &StatementNode,
+    ) -> NormalizedWriteFrame {
         let mut written = Vec::new();
         let mut active_states = Vec::new();
         for expression in statement_value_expression_roots(self.program, statement) {
@@ -152,7 +171,7 @@ impl<'program> CallFrameResolver<'program> {
                 self.program,
                 expression,
                 current_machine,
-                &machine_symbols,
+                machine_symbols,
                 &self.symbols,
                 &mut active_states,
                 &mut written,
