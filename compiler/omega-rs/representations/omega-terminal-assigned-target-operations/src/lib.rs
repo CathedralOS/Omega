@@ -286,6 +286,12 @@ pub enum TerminalAssignedIntegerExpression {
         value: Box<TerminalAssignedIntegerExpression>,
         count: Box<TerminalAssignedIntegerExpression>,
     },
+    ExactShiftLeft {
+        psi_operation: OperationId,
+        count_type: IntegerType,
+        value: Box<TerminalAssignedIntegerExpression>,
+        count: Box<TerminalAssignedIntegerExpression>,
+    },
     ExactShiftRight {
         psi_operation: OperationId,
         count_type: IntegerType,

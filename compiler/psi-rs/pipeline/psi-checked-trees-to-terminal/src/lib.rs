@@ -182,6 +182,7 @@ enum LoweredIntegerBinaryKind {
     BitwiseXor,
     WrappingShiftLeft,
     WrappingShiftRight,
+    ExactShiftLeft,
     ExactShiftRight,
     WrappingAdd,
     SaturatingAdd,
@@ -269,6 +270,16 @@ impl LoweredIntegerBinaryKind {
             Self::WrappingShiftRight => OperationKind::WrappingIntegerShiftRight {
                 value: left,
                 count: right,
+            },
+            Self::ExactShiftLeft => OperationKind::ExactIntegerShiftLeft {
+                value: left,
+                count: right,
+                obligation: obligation_id(
+                    operation
+                        .get()
+                        .checked_add(1)
+                        .expect("exact-shift obligation follows its operation identity"),
+                ),
             },
             Self::ExactShiftRight => OperationKind::ExactIntegerShiftRight {
                 value: left,
@@ -1785,6 +1796,9 @@ fn lower_checked_scalar_expression(
                 CheckedIntegerBinaryKind::WrappingShiftRight => {
                     LoweredIntegerBinaryKind::WrappingShiftRight
                 }
+                CheckedIntegerBinaryKind::ExactShiftLeft => {
+                    LoweredIntegerBinaryKind::ExactShiftLeft
+                }
                 CheckedIntegerBinaryKind::ExactShiftRight => {
                     LoweredIntegerBinaryKind::ExactShiftRight
                 }
@@ -2128,6 +2142,12 @@ fn evaluate_lowered_integer_binary(
                 return None;
             };
             integer_type.wrapping_shift_right(left, count_type, right)
+        }
+        LoweredIntegerBinaryKind::ExactShiftLeft => {
+            let ScalarType::Integer(count_type) = count_type else {
+                return None;
+            };
+            integer_type.exact_shift_left(left, count_type, right)
         }
         LoweredIntegerBinaryKind::ExactShiftRight => {
             let ScalarType::Integer(count_type) = count_type else {

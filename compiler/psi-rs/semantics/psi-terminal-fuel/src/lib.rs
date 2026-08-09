@@ -53,6 +53,7 @@ impl TerminalFuelSchedule {
             | OperationKind::IntegerBitwiseXor { .. }
             | OperationKind::WrappingIntegerShiftLeft { .. }
             | OperationKind::WrappingIntegerShiftRight { .. }
+            | OperationKind::ExactIntegerShiftLeft { .. }
             | OperationKind::ExactIntegerShiftRight { .. }
             | OperationKind::WrappingIntegerAdd { .. }
             | OperationKind::SaturatingIntegerAdd { .. }

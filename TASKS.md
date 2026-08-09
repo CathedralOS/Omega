@@ -284,21 +284,25 @@ Remaining:
   one-unit fuel, artifact interpretation, Omega lowering, and x86-64/AArch64
   emission are live. More complex nonliteral range proofs continue to fail
   closed when the independent terminal verifier cannot reconstruct them.
-  Terminal Psi v29 now carries proof-gated Exact fixed-integer right shift.
+  Terminal Psi v29 carries proof-gated Exact fixed-integer right shift.
   Checked retention preserves a nonliteral `value >> count` only where the
   existing range checker proves `0 <= count < value_width`; the operation owns
   a dedicated obligation, and the verifier reconstructs the necessary lower
   and upper bounds from exact value/count carriers and path-local terminal
-  facts. Proof format v20 carries the exact-shift term. Canonical artifacts,
+  facts. Proof format v20 carries the exact-right-shift term. Canonical artifacts,
   one-unit operation fuel, artifact interpretation, Omega lowering, and
   logical/arithmetic x86-64/AArch64 emission are live. Missing evidence and an
-  out-of-range path reject. Source validation now independently proves the
-  mathematical result interval for Exact left shift and rejects a legal-count
-  shift whose value may overflow; signed extrema and the `-1 << 63` boundary
-  are covered without host-overflow shortcuts. Terminal retention of Exact
-  left shift remains the next implementation slice because its artifact still
-  needs a value-dependent no-overflow obligation; it must not reuse the count
-  proof as overflow authority.
+  out-of-range path reject. Terminal Psi v30 now carries proof-gated Exact
+  fixed-integer left shift. Source validation independently proves the
+  mathematical result interval and rejects a legal-count shift whose value may
+  overflow; signed extrema and the `-1 << 63` boundary are covered without
+  host-overflow shortcuts. The terminal verifier reconstructs one
+  operation-owned conjunction containing count legality plus a distinct
+  no-overflow bound. The first general runtime slice uses carrier-only
+  worst-count bounds (`value <= 1` unsigned, `-1 <= value <= 0` signed), so
+  more precise count-correlated cases still fail closed. Proof format v21,
+  canonical semantic v30 bytes, one-unit fuel, artifact interpretation, Omega
+  lowering, and x86-64/AArch64 emission are live.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

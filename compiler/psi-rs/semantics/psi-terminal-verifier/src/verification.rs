@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{IntegerValue, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId};
+use psi_core::{
+    IntegerSign, IntegerValue, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId,
+};
 use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
     verify_obligation,
@@ -146,6 +148,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
             matches!(
                 operation.kind,
                 OperationKind::IntegerExactCast { .. }
+                    | OperationKind::ExactIntegerShiftLeft { .. }
                     | OperationKind::ExactIntegerShiftRight { .. }
             )
         })
@@ -451,6 +454,39 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     .expect("validator requires exact exact-shift operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
+                OperationKind::ExactIntegerShiftLeft {
+                    value,
+                    count,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires exact-shift integer result type")
+                    };
+                    let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
+                        unreachable!("validator requires exact-shift integer count type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: exact_integer_shift_left_obligation(
+                                value_type,
+                                count_type,
+                                value_term(value),
+                                value_term(count),
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::exact_integer_shift_left(
+                        value_type,
+                        count_type,
+                        value_term(value),
+                        value_term(count),
+                    )
+                    .expect("validator requires exact exact-shift operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires wrapping-add integer result type")
@@ -680,6 +716,35 @@ fn exact_integer_shift_obligation(
         1 => bounds.pop().expect("one exact-shift bound exists"),
         _ => Proposition::Conjunction(bounds),
     }
+}
+
+fn exact_integer_shift_left_obligation(
+    value_type: psi_core::IntegerType,
+    count_type: psi_core::IntegerType,
+    value: ScalarTerm,
+    count: ScalarTerm,
+) -> Proposition {
+    let count_bounds = exact_integer_shift_obligation(value_type, count_type, count);
+    let mut bounds = match count_bounds {
+        Proposition::Conjunction(bounds) => bounds,
+        bound => vec![bound],
+    };
+    match value_type.sign() {
+        IntegerSign::Unsigned => {
+            let one = ScalarTerm::integer(value_type, IntegerValue::Unsigned(1))
+                .expect("unsigned fixed integer types admit one");
+            bounds.push(Proposition::LessOrEqual(value, one));
+        }
+        IntegerSign::Signed => {
+            let negative_one = ScalarTerm::integer(value_type, IntegerValue::Signed(-1))
+                .expect("signed fixed integer types admit negative one");
+            let zero = ScalarTerm::integer(value_type, IntegerValue::Signed(0))
+                .expect("signed fixed integer types admit zero");
+            bounds.push(Proposition::LessOrEqual(negative_one, value.clone()));
+            bounds.push(Proposition::LessOrEqual(value, zero));
+        }
+    }
+    Proposition::Conjunction(bounds)
 }
 
 fn integer_value_cmp(left: IntegerValue, right: IntegerValue) -> std::cmp::Ordering {
@@ -966,6 +1031,17 @@ fn substitute_scalar_term_values(
             value,
             count,
         } => ScalarTerm::ExactIntegerShiftRight {
+            value_type: *value_type,
+            count_type: *count_type,
+            value: Box::new(recurse(value)),
+            count: Box::new(recurse(count)),
+        },
+        ScalarTerm::ExactIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count,
+        } => ScalarTerm::ExactIntegerShiftLeft {
             value_type: *value_type,
             count_type: *count_type,
             value: Box::new(recurse(value)),

@@ -151,8 +151,10 @@ Terminal Psi v29 admits proof-gated Exact integer right shift when the checked
 count range lies within `[0, value_width)`. The artifact operation carries a
 dedicated obligation, and the verifier independently rebuilds the required
 lower/upper count proposition from the exact carriers and path facts. The
-operation costs one unit. Exact left shift remains outside this slice until its
-separate value-dependent no-overflow obligation is represented and discharged.
+operation costs one unit. Terminal Psi v30 adds proof-gated Exact integer left
+shift with one operation-owned conjunction that separately proves count
+validity and value representability; proof format v21 carries its recursive
+term, and the operation also costs one unit.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

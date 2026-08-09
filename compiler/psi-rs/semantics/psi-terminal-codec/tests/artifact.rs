@@ -54,10 +54,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&21_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&22_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(21))
+        Err(ProofCodecError::UnsupportedFormatVersion(22))
     );
 }
 
@@ -445,6 +445,45 @@ fn proof_format_v20_canonically_encodes_exact_right_shifts() {
     assert!(matches!(
         decode_proof_bundle(&old_version),
         Err(ProofCodecError::InvalidTag("ScalarTerm", 23))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
+}
+
+#[test]
+fn proof_format_v21_canonically_encodes_exact_left_shifts() {
+    let value_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let value = ScalarTerm::integer(value_type, IntegerValue::Unsigned(1)).unwrap();
+    let count = ScalarTerm::integer(count_type, IntegerValue::Unsigned(31)).unwrap();
+    let shifted =
+        ScalarTerm::exact_integer_shift_left(value_type, count_type, value, count).unwrap();
+    let goal = Proposition::Equal(shifted.clone(), shifted);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(111),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(111),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: proof.clone(),
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+        .expect("reflexive exact-left-shift certificate");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v21 bytes");
+    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&20_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("ScalarTerm", 24))
             | Err(ProofCodecError::NonCanonicalEncoding)
     ));
 }

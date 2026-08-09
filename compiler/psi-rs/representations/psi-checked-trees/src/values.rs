@@ -176,6 +176,7 @@ pub enum CheckedIntegerBinaryKind {
     BitwiseXor,
     WrappingShiftLeft,
     WrappingShiftRight,
+    ExactShiftLeft,
     ExactShiftRight,
 }
 
