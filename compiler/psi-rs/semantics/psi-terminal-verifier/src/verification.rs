@@ -150,6 +150,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                 OperationKind::IntegerExactCast { .. }
                     | OperationKind::ExactIntegerShiftLeft { .. }
                     | OperationKind::ExactIntegerShiftRight { .. }
+                    | OperationKind::ExactIntegerAdd { .. }
             )
         })
     });
@@ -486,6 +487,35 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                         value_term(count),
                     )
                     .expect("validator requires exact exact-shift operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
+                OperationKind::ExactIntegerAdd {
+                    left,
+                    right,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires exact-add integer result type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: exact_integer_add_obligation(
+                                integer_type,
+                                value_term(left),
+                                value_term(right),
+                                &axioms,
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::exact_integer_add(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact exact-add operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
                 OperationKind::WrappingIntegerAdd { left, right } => {
@@ -877,6 +907,83 @@ fn integer_value_cmp(left: IntegerValue, right: IntegerValue) -> std::cmp::Order
     }
 }
 
+fn exact_integer_add_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
+    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
+    if let (Some(left), Some(right)) = (known_left, known_right) {
+        return if integer_type.exact_add(left, right).is_some() {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
+    let (variable, constant) = match (known_left, known_right) {
+        (Some(constant), None) => (right, constant),
+        (None, Some(constant)) => (left, constant),
+        (None, None) => return Proposition::Falsehood,
+        (Some(_), Some(_)) => unreachable!("known exact-add operands returned above"),
+    };
+    match (integer_type.sign(), constant) {
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
+        | (IntegerSign::Signed, IntegerValue::Signed(0)) => Proposition::Truth,
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(constant)) => {
+            let IntegerValue::Unsigned(maximum) = integer_type.maximum_value() else {
+                unreachable!("unsigned type has unsigned maximum")
+            };
+            let boundary =
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(maximum - constant))
+                    .expect("exact-add unsigned boundary remains in the carrier");
+            Proposition::LessOrEqual(variable, boundary)
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(constant)) if constant > 0 => {
+            let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
+                unreachable!("signed type has signed maximum")
+            };
+            let boundary =
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(maximum - constant))
+                    .expect("exact-add signed upper boundary remains in the carrier");
+            Proposition::LessOrEqual(variable, boundary)
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(constant)) => {
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                unreachable!("signed type has signed minimum")
+            };
+            let boundary =
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(minimum - constant))
+                    .expect("exact-add signed lower boundary remains in the carrier");
+            Proposition::LessOrEqual(boundary, variable)
+        }
+        _ => Proposition::Falsehood,
+    }
+}
+
+fn known_integer_term_value(
+    integer_type: psi_core::IntegerType,
+    term: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Option<IntegerValue> {
+    let (known_type, value) = term.integer_value().or_else(|| {
+        semantic_axioms.iter().rev().find_map(|axiom| {
+            let Proposition::Equal(left, right) = axiom else {
+                return None;
+            };
+            if left == term {
+                right.integer_value()
+            } else if right == term {
+                left.integer_value()
+            } else {
+                None
+            }
+        })
+    })?;
+    (known_type == integer_type && integer_type.admits(value)).then_some(value)
+}
+
 fn true_condition_fact(
     condition: ValueId,
     axioms: &[Proposition],
@@ -1155,6 +1262,15 @@ fn substitute_scalar_term_values(
             count_type: *count_type,
             value: Box::new(recurse(value)),
             count: Box::new(recurse(count)),
+        },
+        ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } => ScalarTerm::ExactIntegerAdd {
+            scalar_type: *scalar_type,
+            left: Box::new(recurse(left)),
+            right: Box::new(recurse(right)),
         },
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,

@@ -159,6 +159,14 @@ operation costs one unit. Terminal Psi v30 adds proof-gated Exact integer left
 shift with one operation-owned conjunction that separately proves count
 validity and value representability; proof format v21 carries its recursive
 term, and the operation also costs one unit.
+Terminal Psi v31 adds proof-gated Exact fixed-integer addition. The verifier
+uses terminal literals/equalities to identify one constant addend and derives
+the exact carrier upper or lower bound required of the other addend. It does
+not trust the checked interval that admitted the source expression. Proof
+format v22 carries the recursive exact-add term, the operation costs one unit,
+and verified Omega lowering uses the ordinary fixed-width target add. Two
+unrelated runtime addends remain fail-closed until the terminal proposition
+surface can express and prove their joint relation.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

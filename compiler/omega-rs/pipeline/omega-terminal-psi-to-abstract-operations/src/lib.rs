@@ -297,7 +297,8 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         count,
                     });
                 }
-                OperationKind::WrappingIntegerAdd { left, right } => {
+                OperationKind::ExactIntegerAdd { left, right, .. }
+                | OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));
                     };

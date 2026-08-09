@@ -165,6 +165,7 @@ pub enum CheckedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedIntegerBinaryKind {
+    ExactAdd,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,

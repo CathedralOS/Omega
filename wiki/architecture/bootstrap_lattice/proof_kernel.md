@@ -88,6 +88,15 @@ minimum and maximum for the largest possible count and retains the exact ceiling
 as a certificate conjunct. Both paths use terminal carriers and path-local facts
 rather than producer range metadata.
 
+Terminal Psi v31 applies the same split to Exact fixed-integer addition. The
+operation carries its two same-typed addends and obligation identity, while the
+verifier independently resolves terminal-known constants and reconstructs the
+carrier-tight bound on the other addend. The producer's interval proof is not
+an axiom. The first surface therefore accepts literal/terminal-equality addends
+under matching path-local bounds and rejects two unrelated runtime addends.
+Native wrapping-width addition is authorized only after that certificate has
+established representability.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

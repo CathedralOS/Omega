@@ -749,6 +749,7 @@ fn checked_integer_binary_kind(
         (BinaryOperator::ShiftLeft, ArithmeticDomain::Exact) => {
             Some(CheckedIntegerBinaryKind::ExactShiftLeft)
         }
+        (BinaryOperator::Add, ArithmeticDomain::Exact) => Some(CheckedIntegerBinaryKind::ExactAdd),
         (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
             Some(CheckedIntegerBinaryKind::WrappingAdd)
         }

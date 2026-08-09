@@ -58,7 +58,8 @@ complete source range; v27 distinguishes the target-selected
 address carrier from an ordinary same-width unsigned integer while retaining
 its current 64-bit representation; v28 adds proof-gated exact conversions
 between fixed integer carriers; v29 adds proof-gated Exact integer right shift;
-and current v30 adds proof-gated Exact integer left shift.
+v30 adds proof-gated Exact integer left shift; and current v31 adds proof-gated
+Exact integer addition.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -76,6 +77,13 @@ retains the exact ceiling fact in the reconstructed certificate proposition.
 Otherwise the general runtime proof surface uses the carrier-safe worst legal
 count: `value <= 1` for unsigned carriers and `-1 <= value <= 0` for signed
 carriers.
+An Exact addition retains two values of the same fixed integer type and owns a
+dedicated representability obligation. The first v31 reconstruction surface
+requires at least one addend to be known from a terminal literal or prior
+terminal equality. With one known constant it derives the carrier-tight upper
+or lower bound on the other addend; with two known representable addends it
+reduces to truth. Two unrelated runtime addends fail closed rather than
+borrowing the producer's interval result.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -382,6 +390,16 @@ runtime surface uses a carrier-only bound safe at every legal count: `value <=
 1` for unsigned carriers, or `-1 <= value <= 0` for signed carriers. Joint
 value/count correlations that do not reduce to one rectangular ceiling remain
 fail-closed rather than being imported from checked-tree metadata.
+Terminal Psi v31 retains Exact fixed-integer addition as
+`ExactIntegerAdd { left, right, obligation }`. The verifier resolves a
+terminal-known addend from a literal-result equality or another path-local
+equality. An unsigned constant `k` reconstructs `variable <= MAX - k`; a
+positive signed `k` reconstructs the same upper-bound shape, while a negative
+signed `k` reconstructs `MIN - k <= variable`. Zero requires no proof beyond
+truth, and two known operands reduce to truth only when their mathematical sum
+is admitted. Both-runtime relational shapes currently reconstruct falsehood
+and therefore reject. Once verified, Omega may select an ordinary fixed-width
+add because the proof establishes equivalence to the mathematical result.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1005,9 +1023,11 @@ frontier lower bound; version 23 separates the body-derived damage minimum
 from the selected published containment demand; version 24 adds canonical
 sparse per-cause crash-context maxima; version 25 adds total
 `IntegerBitwiseNot` operations and recursive scalar terms; version 26 adds
-total range-contained `IntegerWiden` operations and recursive scalar terms; and
-current version 27 adds a distinct address-carrier integer-type tag without a
-new executable operation.
+total range-contained `IntegerWiden` operations and recursive scalar terms;
+version 27 adds a distinct address-carrier integer-type tag without a new
+executable operation; version 28 adds exact integer casts; versions 29 and 30
+add exact right and left shifts; and current version 31 adds exact integer
+addition with an operation-owned obligation.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1019,10 +1039,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v30 modules under their original
+execution continue to accept valid v1 through v31 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v30 translation.
+`migrate_module_to_current` is an explicit validated older-to-v31 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1031,8 +1051,8 @@ retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain archived v1 through v24 identities and
 independently freeze the v25 integer-bitwise-complement fixture, the v26
 integer-widening fixture, the v27 address-carrier fixture, the v28 exact-cast
-fixture, the v29 exact-right-shift fixture, and the current v30 exact-left-shift
-fixture, plus the
+fixture, the v29 exact-right-shift fixture, the v30 exact-left-shift fixture,
+and the current-vocabulary v31 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
@@ -1059,7 +1079,8 @@ adds recursive integer-widening terms with exact source and target types; and
 format v18 distinguishes address-typed terms from ordinary same-width unsigned
 integer terms; format v19 adds recursive exact-integer-cast terms; and format
 v20 adds recursive exact-right-shift terms with independent value and count
-integer types; and v21 adds recursive exact-left-shift terms.
+integer types; v21 adds recursive exact-left-shift terms; and v22 adds recursive
+exact-integer-add terms.
 The encoder selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
