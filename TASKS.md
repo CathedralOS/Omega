@@ -446,6 +446,13 @@ Remaining:
   and reversed or missing relations remain fail-closed. Existing proof terms,
   canonical artifacts, selected-path fuel, interpretation, and both native
   targets carry the relational subtraction slice.
+  Terminal Psi v47 extends joint Exact subtraction to signed nonnegative
+  runtime subtrahends. A preceding path proves `0 <= right`, making
+  `MIN + right` Exact-safe; the nested true edge proves
+  `MIN + right <= left`. The verifier independently requires both facts and
+  reconstructs their conjunction for the subtraction. Earlier versions retain
+  their prior surface. Existing proof terms, canonical artifacts, selected-path
+  fuel, interpretation, and both native targets carry the signed slice.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

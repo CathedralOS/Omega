@@ -132,6 +132,13 @@ the unsigned subtraction's no-underflow obligation; the verifier selects that
 carried proposition directly. Earlier versions retain the v32 constant-right
 surface.
 
+Terminal Psi v47 extends joint subtraction to a signed nonnegative runtime
+subtrahend. A checked path carrying `0 <= right` makes `MIN + right`
+Exact-safe; a nested true edge establishes `MIN + right <= left`. The bound
+addition selects the sign fact, and the subtraction selects the canonical
+conjunction of the sign and bound facts. Earlier versions retain their prior
+reconstruction.
+
 Terminal Psi v33 applies the split to Exact fixed-integer multiplication. The
 verifier may resolve either factor from terminal literals/equalities and
 reconstructs the carrier-tight interval of the other factor, including signed
