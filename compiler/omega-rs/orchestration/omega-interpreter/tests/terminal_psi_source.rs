@@ -2123,6 +2123,58 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
 }
 
 #[test]
+fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("negative signed joint-bound exact-multiply source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_negative_bound").expect(
+        "negative signed joint-bound exact multiplication should use all path propositions",
+    );
+    assert_eq!(
+        lowered.semantic_module.vocabulary_marker,
+        VocabularyMarker::CURRENT
+    );
+    let semantic = encode_module(&lowered.semantic_module).expect("negative multiply semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("negative multiply proof");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i32_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execute = |left, right| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(left), argument(right)],
+        )
+        .expect("verified negative signed joint-bound multiplication should interpret")
+    };
+    assert_eq!(execute(-1_073_741_823, -2).value(), argument(2_147_483_646));
+    assert_eq!(
+        execute(1_073_741_824, -2).value(),
+        argument(i32::MIN as i128)
+    );
+    assert_eq!(execute(-715_827_882, -3).value(), argument(2_147_483_646));
+    assert_eq!(execute(715_827_882, -3).value(), argument(-2_147_483_646));
+    assert_eq!(execute(-1_073_741_824, -2).value(), argument(0));
+    assert_eq!(execute(1_073_741_825, -2).value(), argument(0));
+    assert_eq!(execute(20, -1).value(), argument(0));
+    assert_eq!(execute(20, 0).value(), argument(0));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("negative signed joint-bound multiplication should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("negative signed joint-bound multiplication should select");
+        let assigned = assign_registers(&target_operations)
+            .expect("negative signed joint-bound exact-multiply homes should assign");
+        emit_machine_code(&assigned)
+            .expect("negative signed joint-bound exact multiplication should emit");
+    }
+}
+
+#[test]
 fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-divisor exact-divide source canary should compile");

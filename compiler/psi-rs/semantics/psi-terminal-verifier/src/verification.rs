@@ -1554,27 +1554,64 @@ fn exact_integer_multiply_obligation(
             if integer_type.sign() == IntegerSign::Signed {
                 let one = ScalarTerm::integer(integer_type, IntegerValue::Signed(1))
                     .expect("one belongs to every signed carrier");
+                let negative_two = ScalarTerm::integer(integer_type, IntegerValue::Signed(-2))
+                    .expect("negative two belongs to every signed carrier");
                 for (variable, factor) in [(&left, &right), (&right, &left)] {
                     let positive = Proposition::LessOrEqual(one.clone(), factor.clone());
-                    if !semantic_axioms.contains(&positive) {
+                    if semantic_axioms.contains(&positive) {
+                        let lower = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                            Proposition::LessOrEqual(bound, bound_variable) => {
+                                bound_variable == variable
+                                    && is_minimum_divide(
+                                        integer_type,
+                                        bound,
+                                        factor,
+                                        semantic_axioms,
+                                    )
+                            }
+                            _ => false,
+                        });
+                        let upper = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                            Proposition::LessOrEqual(bound_variable, bound) => {
+                                bound_variable == variable
+                                    && is_maximum_divide(
+                                        integer_type,
+                                        bound,
+                                        factor,
+                                        semantic_axioms,
+                                    )
+                            }
+                            _ => false,
+                        });
+                        if let (Some(lower), Some(upper)) = (lower, upper) {
+                            return canonical_conjunction(vec![
+                                positive,
+                                lower.clone(),
+                                upper.clone(),
+                            ]);
+                        }
+                    }
+
+                    let negative = Proposition::LessOrEqual(factor.clone(), negative_two.clone());
+                    if !semantic_axioms.contains(&negative) {
                         continue;
                     }
                     let lower = semantic_axioms.iter().rev().find(|axiom| match axiom {
                         Proposition::LessOrEqual(bound, bound_variable) => {
                             bound_variable == variable
-                                && is_minimum_divide(integer_type, bound, factor, semantic_axioms)
+                                && is_maximum_divide(integer_type, bound, factor, semantic_axioms)
                         }
                         _ => false,
                     });
                     let upper = semantic_axioms.iter().rev().find(|axiom| match axiom {
                         Proposition::LessOrEqual(bound_variable, bound) => {
                             bound_variable == variable
-                                && is_maximum_divide(integer_type, bound, factor, semantic_axioms)
+                                && is_minimum_divide(integer_type, bound, factor, semantic_axioms)
                         }
                         _ => false,
                     });
                     if let (Some(lower), Some(upper)) = (lower, upper) {
-                        return canonical_conjunction(vec![positive, lower.clone(), upper.clone()]);
+                        return canonical_conjunction(vec![negative, lower.clone(), upper.clone()]);
                     }
                 }
             }
@@ -2782,6 +2819,44 @@ mod tests {
             exact_integer_multiply_obligation(integer_type, left.clone(), right.clone(), &axioms,),
             canonical_conjunction(vec![
                 positive.clone(),
+                lower_bound.clone(),
+                upper_bound.clone(),
+            ])
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(integer_type, left, right, &axioms[..2],),
+            Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn reconstructs_signed_negative_joint_exact_multiply_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = ScalarTerm::value(
+            ValueId::new(18).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(19).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let negative_two =
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(-2)).expect("-2i8");
+        let minimum =
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(-128)).expect("-128i8");
+        let maximum = ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8");
+        let lower = ScalarTerm::exact_integer_divide(integer_type, maximum, right.clone())
+            .expect("127 / right");
+        let upper = ScalarTerm::exact_integer_divide(integer_type, minimum, right.clone())
+            .expect("-128 / right");
+        let negative = Proposition::LessOrEqual(right.clone(), negative_two);
+        let lower_bound = Proposition::LessOrEqual(lower, left.clone());
+        let upper_bound = Proposition::LessOrEqual(left.clone(), upper);
+        let axioms = vec![negative.clone(), lower_bound.clone(), upper_bound.clone()];
+        assert_eq!(
+            exact_integer_multiply_obligation(integer_type, left.clone(), right.clone(), &axioms,),
+            canonical_conjunction(vec![
+                negative.clone(),
                 lower_bound.clone(),
                 upper_bound.clone(),
             ])
