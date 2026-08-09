@@ -450,6 +450,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
                 slot_matches_table_path(slot, &path)
             })
         })
+        .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path))
     {
         // A root segment that carries an element index (`items[0].value` where
         // `items` is the matched frame slot) only resolves to a static place when
@@ -2094,7 +2095,8 @@ pub(super) fn resolve_runtime_storage_leaf_descriptor_in_table(
         latest_dispatch_frame_slot(input, dispatch_index, |slot| {
             slot_matches_table_path(slot, &path)
         })
-    });
+    })
+    .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path));
 
     let Some(slot) = slot else {
         // Not a frame slot: most `data` fields are machine-owned. Resolve the
@@ -3811,6 +3813,87 @@ fn slot_matches_root(slot_symbol: SymbolHandle, root_symbol: SymbolHandle) -> bo
     slot_symbol.is_valid() && root_symbol.is_valid() && slot_symbol == root_symbol
 }
 
+/// Resolve a materialized local whose checked expression still carries the
+/// source declaration symbol while runtime-storage planning has cloned and
+/// re-symbolized the local. Identify the source declaration by symbol when it
+/// survived; otherwise require one unique same-spelled declaration in the exact
+/// source state. The planned slot must then have that declaration's statement
+/// coordinate and spelling. This keeps same-named locals in other inline scopes
+/// ineligible while allowing later arithmetic to read the slot that captured
+/// this declaration's value.
+fn resymbolized_local_slot_for_path<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    path: &StorageNamePath<'_>,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    let source_symbol = path.head_symbol();
+    if !source_symbol.is_valid() {
+        return None;
+    }
+    let root_name = path.member(0)?;
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statements = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes);
+    let exact_declaration =
+        statements
+            .iter()
+            .enumerate()
+            .find_map(|(statement_index, statement)| {
+                let psi_checked_trees::statement::StatementNode::LocalData(local) = statement
+                else {
+                    return None;
+                };
+                (local.symbol == source_symbol).then_some((statement_index, &local.name))
+            });
+    let (declaration_index, declaration_name) = exact_declaration.or_else(|| {
+        let mut declarations =
+            statements
+                .iter()
+                .enumerate()
+                .filter_map(|(statement_index, statement)| {
+                    let psi_checked_trees::statement::StatementNode::LocalData(local) = statement
+                    else {
+                        return None;
+                    };
+                    (local.name == *root_name).then_some((statement_index, &local.name))
+                });
+        let declaration = declarations.next()?;
+        declarations.next().is_none().then_some(declaration)
+    })?;
+    if root_name != declaration_name {
+        return None;
+    }
+
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (slot.dispatch_index <= dispatch_index
+                && state_key_matches_statement_source(slot.source_key, source_key)
+                && slot.statement_index == declaration_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                )
+                && slot.name == *declaration_name)
+                .then_some(slot)
+        })
+        .max_by_key(|slot| slot.dispatch_index)
+}
+
 /// Byte size of one element of the slice (or fixed array) named by `expression`,
 /// from the resolved frame slot's element type. Used to scale subslice pointer
 /// arithmetic on a runtime slice descriptor.
@@ -3849,6 +3932,7 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
             slot_matches_table_path(slot, &path)
         })
     })
+    .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path))
 }
 
 /// GENUINELY SCOPED frame-slot resolution for a name-path expression under
