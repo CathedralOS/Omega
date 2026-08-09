@@ -876,7 +876,8 @@ fn atomics_cross_platform_emits_real_atomics() {
     let win_regions = fs::read_to_string(win_dir.join("13_executable_regions.json"))
         .expect("windows atomic final executable-region evidence should be emitted");
     assert!(
-        win_regions.contains("\"certificate_format_version\": 141")
+        win_regions
+            .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
             && win_regions.contains("\"compiler_function_body_specification_subset\""),
         "Windows atomics must reach final-byte validation"
     );
@@ -918,7 +919,8 @@ fn atomics_cross_platform_emits_real_atomics() {
     let arm_regions = fs::read_to_string(arm_dir.join("13_executable_regions.json"))
         .expect("AArch64 atomic final executable-region evidence should be emitted");
     assert!(
-        arm_regions.contains("\"certificate_format_version\": 141")
+        arm_regions
+            .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
             && arm_regions.contains("\"compiler_function_body_specification_subset\""),
         "AArch64 atomics must reach final-byte validation"
     );
@@ -1172,9 +1174,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     );
     assert!(
         executable_regions.contains(
-            "\"certificate_schema\": \"omega.final-footprint-certificate\""
+            "\"certificate_marker\": \"omega.final-footprint-certificate.current\""
         )
-            && executable_regions.contains("\"certificate_format_version\": 141")
             && executable_regions.contains("\"certificate_fingerprint\": \"0x")
             && executable_regions.contains("\"coverage_fingerprint\": \"0x")
             && executable_regions.contains("\"placement_stage\": \"final_image\"")
@@ -3148,7 +3149,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("general x86 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 141")
+        regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "general x86 text assembly must reach final-image validation"
     );
@@ -3209,7 +3210,8 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain both wire append footprints without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire appends must reach final-byte validation"
         );
@@ -3280,7 +3282,8 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact wire text-append footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire text append must reach final-byte validation"
         );
@@ -3353,7 +3356,8 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact wire scalar-slice footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire scalar-slice append must reach final-byte validation"
         );
@@ -3430,7 +3434,8 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
             "{target} artifact must retain the exact guarded repeated-scalar footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire repeated-scalar appends must reach final-byte validation"
         );
@@ -3502,7 +3507,8 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact zero-copy byte-slice footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire byte-slice read must reach final-byte validation"
         );
@@ -3582,7 +3588,8 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain exact nested-open and nested-close footprints without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} nested-boundary checks must reach final-byte validation"
         );
@@ -3660,7 +3667,8 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the exact repeated-scalar-read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} guarded repeated-scalar read must reach final-byte validation"
         );
@@ -3723,7 +3731,8 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the expected-byte read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire expected-byte read must reach final-byte validation"
         );
@@ -3796,7 +3805,8 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
             "{target} artifact must retain the scalar-varint read footprint without claiming completeness"
         );
         assert!(
-            regions.contains("\"certificate_format_version\": 141")
+            regions
+                .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
                 && regions.contains("\"compiler_function_body_specification_subset\""),
             "{target} wire scalar-varint reads must reach final-byte validation"
         );
@@ -3836,7 +3846,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     let regions = fs::read_to_string(output.join("13_executable_regions.json"))
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
-        regions.contains("\"certificate_format_version\": 141")
+        regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
@@ -44487,7 +44497,7 @@ fn efi_vtable_call_emits_indirect_dispatch() {
     let regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
         .expect("vtable-call executable-region evidence should be emitted");
     assert!(
-        regions.contains("\"certificate_format_version\": 141")
+        regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
             && regions.contains("\"compiler_function_body_specification_subset\""),
         "vtable dispatch must reach final-byte replay"
     );
