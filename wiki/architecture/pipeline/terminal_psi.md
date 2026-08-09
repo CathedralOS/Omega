@@ -57,19 +57,21 @@ universally total fixed-width `i*`/`u*` widening whose target contains the
 complete source range; v27 distinguishes the target-selected
 address carrier from an ordinary same-width unsigned integer while retaining
 its current 64-bit representation; v28 adds proof-gated exact conversions
-between fixed integer carriers; and current v29 adds proof-gated Exact integer
-right shift.
+between fixed integer carriers; v29 adds proof-gated Exact integer right shift;
+and current v30 adds proof-gated Exact integer left shift.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
 An Exact right shift retains the same operand types and requires a dedicated
 proof that the count denotes a value in `[0, value_width)`. Its signedness-aware
-result is otherwise total. Exact left shift remains outside the terminal slice
-because it also requires a value-dependent no-overflow proof. Source validation
-already checks that second fact by bounding the mathematical `value * 2^count`
-result; terminal retention must preserve it as independently checkable evidence
-rather than treating the count certificate as overflow authority.
+result is otherwise total. An Exact left shift additionally requires a
+value-dependent no-overflow fact. Source validation bounds the mathematical
+`value * 2^count` result, and terminal v30 preserves count legality and overflow
+safety as distinct conjuncts of the operation-owned obligation rather than
+treating the count proof as overflow authority. Its first general runtime proof
+surface uses the carrier-safe worst legal count: `value <= 1` for unsigned
+carriers and `-1 <= value <= 0` for signed carriers.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -359,6 +361,13 @@ The result uses logical shift for unsigned value carriers and arithmetic shift
 for signed value carriers. Missing evidence or a path without the required
 bound rejects; the verifier never adopts native count masking as Exact
 semantics.
+Terminal Psi v30 retains a nonliteral Exact integer left shift as
+`ExactIntegerShiftLeft { value, count, obligation }`. Its verifier-owned
+proposition conjoins the v29 count bounds with a distinct no-overflow bound.
+The first general runtime surface uses a carrier-only bound safe at every legal
+count: `value <= 1` for unsigned carriers, or `-1 <= value <= 0` for signed
+carriers. More precise value/count correlations remain fail-closed rather than
+being imported from checked-tree metadata.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -996,10 +1005,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v29 modules under their original
+execution continue to accept valid v1 through v30 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v29 translation.
+`migrate_module_to_current` is an explicit validated older-to-v30 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1008,7 +1017,8 @@ retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain archived v1 through v24 identities and
 independently freeze the v25 integer-bitwise-complement fixture, the v26
 integer-widening fixture, the v27 address-carrier fixture, the v28 exact-cast
-fixture, and the current v29 exact-right-shift fixture, plus the
+fixture, the v29 exact-right-shift fixture, and the current v30 exact-left-shift
+fixture, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
@@ -1035,7 +1045,7 @@ adds recursive integer-widening terms with exact source and target types; and
 format v18 distinguishes address-typed terms from ordinary same-width unsigned
 integer terms; format v19 adds recursive exact-integer-cast terms; and format
 v20 adds recursive exact-right-shift terms with independent value and count
-integer types.
+integer types; and v21 adds recursive exact-left-shift terms.
 The encoder selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the

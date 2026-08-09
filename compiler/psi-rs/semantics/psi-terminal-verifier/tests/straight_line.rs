@@ -1330,6 +1330,90 @@ fn v29_exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
+fn v30_exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
+    let value_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 value"));
+    let count_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).expect("i16 count"));
+    let value = ValueId::new(190).expect("value");
+    let count = ValueId::new(191).expect("count");
+    let computed = ValueId::new(192).expect("computed");
+    let result = ValueId::new(193).expect("result");
+    let mut module = TerminalModule {
+        semantic_version: SemanticVersion::V30,
+        entry: MachineId::new(190).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(190).expect("machine"),
+            parameters: vec![
+                ValueDeclaration {
+                    id: value,
+                    scalar_type: value_type,
+                },
+                ValueDeclaration {
+                    id: count,
+                    scalar_type: count_type,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: value_type,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(190).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(190).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(190).expect("operation"),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: value_type,
+                    },
+                    kind: OperationKind::ExactIntegerShiftLeft {
+                        value,
+                        count,
+                        obligation: ObligationId::new(190).expect("shift obligation"),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(190).expect("edge"),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(190).expect("contract"),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    validate_module(&module).expect("v30 admits proof-gated exact left shift");
+
+    let mut old = module.clone();
+    old.semantic_version = SemanticVersion::V29;
+    assert_eq!(
+        validate_module(&old).expect_err("v29 cannot contain exact left shifts"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(190).expect("operation"),
+            required: SemanticVersion::V30,
+            actual: SemanticVersion::V29,
+        }
+    );
+
+    module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::ExactIntegerShiftOperandTypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn v21_wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");

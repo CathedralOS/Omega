@@ -280,6 +280,23 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         count,
                     });
                 }
+                OperationKind::ExactIntegerShiftLeft { value, count, .. } => {
+                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedExactShiftMalformed(operation.id));
+                    };
+                    let Some(ScalarType::Integer(count_type)) = value_types.get(&count).copied()
+                    else {
+                        return Err(LoweringError::VerifiedExactShiftMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::ExactIntegerShiftLeft {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        value_type,
+                        count_type,
+                        value,
+                        count,
+                    });
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));

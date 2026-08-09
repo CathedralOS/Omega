@@ -1186,6 +1186,12 @@ fn emit_x86_64_expression_node(
             count,
             ..
         }
+        | TerminalAssignedIntegerExpression::ExactShiftLeft {
+            count_type,
+            value,
+            count,
+            ..
+        }
         | TerminalAssignedIntegerExpression::ExactShiftRight {
             count_type,
             value,
@@ -1205,6 +1211,9 @@ fn emit_x86_64_expression_node(
             bytes.extend_from_slice(&[0x83, 0xe1, (scalar_type.bits() - 1) as u8]); // and ecx, width - 1
             match expression {
                 TerminalAssignedIntegerExpression::WrappingShiftLeft { .. } => {
+                    bytes.extend_from_slice(&[0x49, 0xd3, 0xe2]); // shl r10, cl
+                }
+                TerminalAssignedIntegerExpression::ExactShiftLeft { .. } => {
                     bytes.extend_from_slice(&[0x49, 0xd3, 0xe2]); // shl r10, cl
                 }
                 TerminalAssignedIntegerExpression::WrappingShiftRight { .. } => {
@@ -1731,6 +1740,12 @@ fn emit_aarch64_expression_node(
             count,
             ..
         }
+        | TerminalAssignedIntegerExpression::ExactShiftLeft {
+            count_type,
+            value,
+            count,
+            ..
+        }
         | TerminalAssignedIntegerExpression::ExactShiftRight {
             count_type,
             value,
@@ -1762,6 +1777,9 @@ fn emit_aarch64_expression_node(
             instructions.push(0x9240_0000 | ((count_mask_bits - 1) << 10)); // and x0, x0, #width-1
             match expression {
                 TerminalAssignedIntegerExpression::WrappingShiftLeft { .. } => {
+                    instructions.push(0x9ac0_2120); // lslv x0, x9, x0
+                }
+                TerminalAssignedIntegerExpression::ExactShiftLeft { .. } => {
                     instructions.push(0x9ac0_2120); // lslv x0, x9, x0
                 }
                 TerminalAssignedIntegerExpression::WrappingShiftRight { .. } => {
@@ -2024,6 +2042,7 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         | TerminalAssignedIntegerExpression::BitwiseXor { left, .. }
         | TerminalAssignedIntegerExpression::WrappingShiftLeft { value: left, .. }
         | TerminalAssignedIntegerExpression::WrappingShiftRight { value: left, .. }
+        | TerminalAssignedIntegerExpression::ExactShiftLeft { value: left, .. }
         | TerminalAssignedIntegerExpression::ExactShiftRight { value: left, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, .. }

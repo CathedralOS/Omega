@@ -78,8 +78,12 @@ obligation identity. The verifier derives the nonnegative and/or
 `value_width - 1` bounds that the count carrier does not guarantee, reconstructs
 path-local comparison facts, and asks the kernel to check the dedicated
 certificate. Count masking in a native instruction cannot discharge this
-obligation. Exact left shift remains separate because count validity alone says
-nothing about value overflow.
+obligation. Terminal Psi v30 closes the left-shift side without collapsing the
+facts: its operation-owned proposition conjoins those count bounds with a
+distinct value no-overflow bound. The first runtime surface uses bounds safe at
+the worst legal count (`value <= 1` unsigned; `-1 <= value <= 0` signed), all
+reconstructed from terminal carriers and path-local facts rather than producer
+range metadata.
 
 ## Trust and meaning
 

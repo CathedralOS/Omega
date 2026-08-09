@@ -151,6 +151,14 @@ pub enum TerminalAbstractOperation {
         value: ValueId,
         count: ValueId,
     },
+    ExactIntegerShiftLeft {
+        psi_operation: OperationId,
+        result: ValueId,
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ValueId,
+        count: ValueId,
+    },
     ExactIntegerShiftRight {
         psi_operation: OperationId,
         result: ValueId,

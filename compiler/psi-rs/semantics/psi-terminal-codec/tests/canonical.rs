@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "c1097d26cc617bde3d533c5ea7d3af91c3e019222a00355a9c014b35f0cedaa7"
+        "817247f205384c1d4a01eb3d204b5823e6a4a0aaf44bab662cf71cc2211f9463"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -716,6 +716,77 @@ fn v29_exact_right_shift_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "8172fa79e963cb3f26c6fced3d89656a1f69faab5d3eaaf0e85a84f4993eace2"
+    );
+}
+
+#[test]
+fn v30_exact_left_shift_has_stable_canonical_bytes() {
+    let value_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let value = value_id(28);
+    let count = value_id(29);
+    let computed = value_id(30);
+    let result = value_id(31);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V30,
+        entry: machine_id(20),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(20),
+            parameters: vec![
+                ValueDeclaration {
+                    id: value,
+                    scalar_type: ScalarType::Integer(value_type),
+                },
+                ValueDeclaration {
+                    id: count,
+                    scalar_type: ScalarType::Integer(count_type),
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Integer(value_type),
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(20),
+            blocks: vec![Block {
+                id: block_id(20),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(20),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: ScalarType::Integer(value_type),
+                    },
+                    kind: OperationKind::ExactIntegerShiftLeft {
+                        value,
+                        count,
+                        obligation: obligation_id(20),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(20),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(20),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let bytes = encode_module(&module).expect("v30 exact left shift should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "661538f8719fb7c200f7a74e4265bda127f290fc0a5556e53c0b26ec92e4b5da"
     );
 }
 

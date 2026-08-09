@@ -499,6 +499,33 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::ExactIntegerShiftLeft {
+                psi_operation,
+                result,
+                value_type,
+                count_type,
+                value,
+                count,
+            } => {
+                let shifted = lower_exact_shift_left(
+                    &values,
+                    *result,
+                    *value_type,
+                    *count_type,
+                    *value,
+                    *count,
+                    *psi_operation,
+                )?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *value_type,
+                        value: shifted,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::WrappingIntegerAdd {
                 psi_operation,
                 result,
@@ -2090,6 +2117,27 @@ fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            *psi_operation,
+            *result,
+            *value_type,
+            lower_exact_shift_left(
+                values,
+                *result,
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+                *psi_operation,
+            )?,
+        ),
         _ => return Ok(false),
     };
     insert_value(values, result, KnownScalar::Integer { scalar_type, value })?;
@@ -2196,6 +2244,42 @@ fn lower_exact_shift_right(
             )
         }
         (value, count) => KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactShiftRight {
+            psi_operation,
+            count_type,
+            value: Box::new(value.into_expression(value_id)),
+            count: Box::new(count.into_expression(count_id)),
+        }),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_exact_shift_left(
+    values: &BTreeMap<ValueId, KnownScalar>,
+    result: ValueId,
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value_id: ValueId,
+    count_id: ValueId,
+    psi_operation: psi_core::OperationId,
+) -> Result<KnownInteger, LoweringError> {
+    let operand = |id, expected_type| match values.get(&id).cloned() {
+        Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
+            Ok(value)
+        }
+        Some(_) => Err(LoweringError::ExactShiftOperandTypeMismatch(result)),
+        None => Err(LoweringError::UnknownValue(id)),
+    };
+    let value = operand(value_id, value_type)?;
+    let count = operand(count_id, count_type)?;
+    Ok(match (value, count) {
+        (KnownInteger::Immediate(value), KnownInteger::Immediate(count)) => {
+            KnownInteger::Immediate(
+                value_type
+                    .exact_shift_left(value, count_type, count)
+                    .ok_or(LoweringError::ExactShiftOperandTypeMismatch(result))?,
+            )
+        }
+        (value, count) => KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactShiftLeft {
             psi_operation,
             count_type,
             value: Box::new(value.into_expression(value_id)),
@@ -2653,6 +2737,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::IntegerBitwiseXor { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerShiftLeft { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerShiftRight { psi_operation, .. }
+            | TerminalAbstractOperation::ExactIntegerShiftLeft { psi_operation, .. }
             | TerminalAbstractOperation::ExactIntegerShiftRight { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }

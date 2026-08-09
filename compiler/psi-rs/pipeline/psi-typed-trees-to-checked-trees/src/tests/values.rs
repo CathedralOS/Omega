@@ -253,6 +253,45 @@ fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
     );
 }
 
+#[test]
+fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
+    let source = r#"
+        machine shift(value: u32, count: u32) -> u32 {
+            transition count <= 31u32 {
+                true -> prove_value(value, count)
+                _ -> finish(0u32)
+            }
+
+            state prove_value(value: u32, count: u32) -> u32 {
+                transition value <= 1u32 {
+                    true -> finish(value << count)
+                    _ -> finish(0u32)
+                }
+            }
+
+            state finish(value: u32) -> u32 { value }
+        }
+    "#;
+
+    let checked = lower_typed_trees(typed_trees(source))
+        .expect("the dominating guards prove exact left-shift count and value safety");
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .iter()
+            .any(|located| matches!(
+                located.expression,
+                psi_checked_trees::CheckedScalarExpression::IntegerBinary {
+                    kind: psi_checked_trees::CheckedIntegerBinaryKind::ExactShiftLeft,
+                    ..
+                }
+            ))
+    );
+}
+
 fn typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

@@ -58,6 +58,9 @@ use psi_core::{
 /// Version 28 adds proof-gated exact casts between fixed integer carriers.
 /// Version 29 adds proof-gated exact integer right shift. The count retains its
 /// own fixed integer type and must denote a value in `[0, value_width)`.
+/// Version 30 adds proof-gated exact integer left shift. Its reconstructed
+/// obligation proves both count validity and mathematical result
+/// representability.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -92,7 +95,8 @@ impl SemanticVersion {
     pub const V27: Self = Self(NonZeroU16::new(27).expect("twenty-seven is nonzero"));
     pub const V28: Self = Self(NonZeroU16::new(28).expect("twenty-eight is nonzero"));
     pub const V29: Self = Self(NonZeroU16::new(29).expect("twenty-nine is nonzero"));
-    pub const CURRENT: Self = Self::V29;
+    pub const V30: Self = Self(NonZeroU16::new(30).expect("thirty is nonzero"));
+    pub const CURRENT: Self = Self::V30;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -419,6 +423,11 @@ pub enum OperationKind {
     WrappingIntegerShiftRight {
         value: ValueId,
         count: ValueId,
+    },
+    ExactIntegerShiftLeft {
+        value: ValueId,
+        count: ValueId,
+        obligation: ObligationId,
     },
     ExactIntegerShiftRight {
         value: ValueId,

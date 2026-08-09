@@ -76,6 +76,7 @@ pub fn validate_module(
             | SemanticVersion::V27
             | SemanticVersion::V28
             | SemanticVersion::V29
+            | SemanticVersion::V30
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -174,7 +175,8 @@ fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }
             | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_address(operand),
-            ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+            ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
                 scalar_term_uses_address(value) || scalar_term_uses_address(count)
             }
             ScalarTerm::BooleanEqual { left, right }
@@ -595,6 +597,25 @@ fn validate_machine(
                         return Err(ModuleError::OperationRequiresSemanticVersion {
                             operation: operation.id,
                             required: SemanticVersion::V29,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerShiftLeft { obligation, .. } => {
+                    if semantic_version < SemanticVersion::V30 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V30,
                             actual: semantic_version,
                         });
                     }
@@ -1582,6 +1603,18 @@ fn validate_term_semantic_version(
             validate_term_semantic_version(value, semantic_version, contract, clause)?;
             validate_term_semantic_version(count, semantic_version, contract, clause)
         }
+        ScalarTerm::ExactIntegerShiftLeft { value, count, .. } => {
+            if semantic_version < SemanticVersion::V30 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V30,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(value, semantic_version, contract, clause)?;
+            validate_term_semantic_version(count, semantic_version, contract, clause)
+        }
         ScalarTerm::IntegerBitwiseAnd { left, right, .. }
         | ScalarTerm::IntegerBitwiseOr { left, right, .. }
         | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
@@ -1785,6 +1818,7 @@ fn validate_term_scope(
         }
         ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
         | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             validate_term_scope(value, allowed, contract, clause)?;
             validate_term_scope(count, allowed, contract, clause)?;
@@ -2159,7 +2193,9 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::ExactIntegerShiftRight { value, count, .. } = operation.kind {
+    if let OperationKind::ExactIntegerShiftLeft { value, count, .. }
+    | OperationKind::ExactIntegerShiftRight { value, count, .. } = operation.kind
+    {
         require_defined(value, value_types, defined)?;
         require_defined(count, value_types, defined)?;
         let expected_value = operation.result.scalar_type;
@@ -2212,6 +2248,7 @@ fn validate_operation_operands(
         | OperationKind::IntegerBitwiseXor { .. }
         | OperationKind::WrappingIntegerShiftLeft { .. }
         | OperationKind::WrappingIntegerShiftRight { .. }
+        | OperationKind::ExactIntegerShiftLeft { .. }
         | OperationKind::ExactIntegerShiftRight { .. } => None,
     }) else {
         return Ok(());

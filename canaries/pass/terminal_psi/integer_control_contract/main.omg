@@ -873,6 +873,27 @@ ensures 0u64 == 0u64
     }
 }
 
+machine terminal_exact_shift_left_runtime(value: u32, count: u32) -> u32
+requires 0u32 == 0u32
+ensures 0u32 == 0u32
+{
+    transition count <= 31u32 {
+        true -> prove_value(value, count)
+        _ -> finish_exact_left(0u32)
+    }
+
+    state prove_value(value: u32, count: u32) -> u32 {
+        transition value <= 1u32 {
+            true -> finish_exact_left(value << count)
+            _ -> finish_exact_left(0u32)
+        }
+    }
+
+    state finish_exact_left(value: u32) -> u32 {
+        value
+    }
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true
