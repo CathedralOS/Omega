@@ -69,8 +69,9 @@ path-proved signed runtime divisors at most negative two; v42 extends that range
 through negative one with the additional dividend bound required by Exact
 division/remainder; v43 admits a joint unsigned Exact-add bound; v44 extends
 that upper-bound form to signed nonnegative addends; v45 adds the symmetric
-signed nonpositive lower-bound form; and current v46 admits a direct unsigned
-two-runtime Exact-subtract bound.
+signed nonpositive lower-bound form; v46 admits a direct unsigned two-runtime
+Exact-subtract bound; and current v47 adds a signed lower-bound form for
+nonnegative runtime subtrahends.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -120,6 +121,9 @@ An unknown right operand fails closed because subtraction is not commutative.
 Starting in v46, an unsigned pair can instead carry the exact path proposition
 `right <= left`. That proposition is the complete no-underflow obligation and
 is selected directly; missing or reversed relations still fail closed.
+Starting in v47, a signed nonnegative subtrahend may carry `0 <= right` plus
+`MIN + right <= left`. The sign fact proves the Exact bound addition itself
+representable, and the subtraction reconstructs the conjunction of both facts.
 An Exact multiplication retains two values of the same fixed integer type and
 owns a dedicated representability obligation. The first v33 reconstruction
 surface accepts a terminal-known factor on either side. A nonzero unsigned
@@ -518,6 +522,9 @@ the mathematical result.
 Terminal Psi v46 additionally recognizes a directly carried unsigned
 `right <= left` proposition as the Exact subtraction obligation. Earlier
 versions retain the terminal-known-right surface.
+Terminal Psi v47 recognizes the signed lower-bound form when the path carries
+both `0 <= right` and `MIN + right <= left`. The bound addition independently
+selects the sign fact; the subtraction selects their conjunction.
 Terminal Psi v33 retains Exact fixed-integer multiplication as
 `ExactIntegerMultiply { left, right, obligation }`. The verifier resolves a
 terminal-known factor from a literal-result equality or another path-local
@@ -1230,8 +1237,9 @@ negative-two reconstruction; and version 42 extends that reconstruction through
 negative one with an Exact-only dividend bound; version 43 adds one joint
 unsigned Exact-add reconstruction; version 44 extends its upper-bound form to
 signed nonnegative addends; version 45 adds the symmetric signed nonpositive
-lower-bound form; and version 46 adds one joint unsigned Exact-subtract
-reconstruction, without adding operation tags.
+lower-bound form; version 46 adds one joint unsigned Exact-subtract
+reconstruction; and version 47 adds its signed nonnegative-subtrahend
+lower-bound form, without adding operation tags.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1243,10 +1251,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v46 modules under their original
+execution continue to accept valid v1 through v47 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v46 translation.
+`migrate_module_to_current` is an explicit validated older-to-v47 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1260,7 +1268,7 @@ the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
 exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
 fixture, the v36 wrapping-divide fixture, the v37 wrapping-remainder fixture,
 the v38 saturating-divide fixture, the v39 saturating-remainder fixture, and the
-current-vocabulary v46 identity, plus the
+current-vocabulary v47 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
