@@ -604,6 +604,17 @@ fn assign_expression(
             value: Box::new(assign_expression(value, locations)?),
             count: Box::new(assign_expression(count, locations)?),
         }),
+        TerminalTargetIntegerExpression::ExactShiftRight {
+            psi_operation,
+            count_type,
+            value,
+            count,
+        } => Ok(TerminalAssignedIntegerExpression::ExactShiftRight {
+            psi_operation: *psi_operation,
+            count_type: *count_type,
+            value: Box::new(assign_expression(value, locations)?),
+            count: Box::new(assign_expression(count, locations)?),
+        }),
         TerminalTargetIntegerExpression::WrappingAdd {
             psi_operation,
             left,
@@ -819,6 +830,11 @@ fn expression_parameter_locations(
                 ..
             }
             | TerminalTargetIntegerExpression::WrappingShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | TerminalTargetIntegerExpression::ExactShiftRight {
                 value: left,
                 count: right,
                 ..

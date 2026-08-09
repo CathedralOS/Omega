@@ -1040,6 +1040,115 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
 }
 
 #[test]
+fn checked_source_exact_right_shift_carries_independently_verified_count_evidence() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("exact right-shift source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_shift_right_runtime")
+        .expect("exact right shift should lower with path evidence");
+    let shift_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::ExactIntegerShiftRight { .. }))
+        .expect("the proof-gated right shift remains explicit terminal work");
+    let OperationKind::ExactIntegerShiftRight {
+        obligation: shift_obligation,
+        ..
+    } = shift_operation.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.operation_units(&shift_operation.kind),
+        1
+    );
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == shift_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+
+    let semantic = encode_module(&lowered.semantic_module).expect("exact shift semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact shift proof");
+    let module = decode_module(&semantic).expect("decode exact shift semantics");
+    let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode exact shift proof");
+    missing_shift_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != shift_obligation);
+    assert!(matches!(
+        verify_module(
+            &module,
+            &missing_shift_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == shift_obligation
+    ));
+
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u64_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execute = |value, count| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(value), argument(count)],
+        )
+        .expect("verified exact right shift should interpret")
+    };
+    let shifted = execute(1u128 << 63, 63);
+    let rejected = execute(1u128 << 63, 64);
+    assert_eq!(shifted.value(), argument(1));
+    assert_eq!(rejected.value(), argument(0));
+    assert_eq!(shifted.usage().total_units(), 6);
+    assert_eq!(
+        shifted.usage().total_units(),
+        rejected.usage().total_units()
+    );
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("exact shift should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| {
+                matches!(
+                    operation,
+                    TerminalAbstractOperation::ExactIntegerShiftRight { .. }
+                )
+            })
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("exact shift should select");
+        let assigned =
+            assign_registers(&target_operations).expect("exact shift homes should assign");
+        emit_machine_code(&assigned).expect("exact shift should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("exact shift host selection");
+        let assigned = assign_registers(&target_operations).expect("exact shift host homes");
+        let machine_code = emit_machine_code(&assigned).expect("exact shift host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("exact shift host object");
+        let entry = object.entry_function().bytes(&object);
+        assert_eq!(run_host_machine_code_with_two_u64(entry, 1u64 << 63, 63), 1);
+        assert_eq!(run_host_machine_code_with_two_u64(entry, 1u64 << 63, 64), 0);
+    }
+}
+
+#[test]
 fn checked_source_conditional_survives_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi conditional source canary should compile");

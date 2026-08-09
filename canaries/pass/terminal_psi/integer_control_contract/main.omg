@@ -859,6 +859,20 @@ ensures 0i64 == 0i64
     value >> count
 }
 
+machine terminal_exact_shift_right_runtime(value: u64, count: u64) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    transition count <= 63u64 {
+        true -> finish(value >> count)
+        _ -> finish(0u64)
+    }
+
+    state finish(value: u64) -> u64 {
+        value
+    }
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true

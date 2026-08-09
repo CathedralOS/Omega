@@ -142,10 +142,13 @@ pub fn reconstruct_operation_obligations(
 /// successor parameters. Merge and return facts remain intersection-only.
 fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMachineSemantics {
     let reconstruct_path_facts = machine.blocks.iter().any(|block| {
-        block
-            .operations
-            .iter()
-            .any(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
+        block.operations.iter().any(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::IntegerExactCast { .. }
+                    | OperationKind::ExactIntegerShiftRight { .. }
+            )
+        })
     });
     let value_types = machine
         .parameters
@@ -416,6 +419,38 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     .expect("validator requires exact wrapping-shift operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
+                OperationKind::ExactIntegerShiftRight {
+                    value,
+                    count,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires exact-shift integer result type")
+                    };
+                    let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
+                        unreachable!("validator requires exact-shift integer count type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: exact_integer_shift_obligation(
+                                value_type,
+                                count_type,
+                                value_term(count),
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::exact_integer_shift_right(
+                        value_type,
+                        count_type,
+                        value_term(value),
+                        value_term(count),
+                    )
+                    .expect("validator requires exact exact-shift operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires wrapping-add integer result type")
@@ -604,6 +639,45 @@ fn exact_integer_cast_obligation(
     match bounds.len() {
         0 => unreachable!("validator rejects exact casts whose source range already fits"),
         1 => bounds.pop().expect("one exact-cast bound exists"),
+        _ => Proposition::Conjunction(bounds),
+    }
+}
+
+fn exact_integer_shift_obligation(
+    value_type: psi_core::IntegerType,
+    count_type: psi_core::IntegerType,
+    count: ScalarTerm,
+) -> Proposition {
+    let mut bounds = Vec::with_capacity(2);
+    if count_type.minimum_value() != IntegerValue::Unsigned(0)
+        && integer_value_cmp(count_type.minimum_value(), IntegerValue::Unsigned(0)).is_lt()
+    {
+        let zero = ScalarTerm::integer(
+            count_type,
+            match count_type.sign() {
+                psi_core::IntegerSign::Signed => IntegerValue::Signed(0),
+                psi_core::IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+            },
+        )
+        .expect("fixed integer count types admit zero");
+        bounds.push(Proposition::LessOrEqual(zero, count.clone()));
+    }
+    let maximum = u128::from(value_type.bits() - 1);
+    let maximum = match count_type.sign() {
+        psi_core::IntegerSign::Signed => i128::try_from(maximum).ok().map(IntegerValue::Signed),
+        psi_core::IntegerSign::Unsigned => Some(IntegerValue::Unsigned(maximum)),
+    };
+    if let Some(maximum) = maximum
+        && count_type.admits(maximum)
+        && integer_value_cmp(count_type.maximum_value(), maximum).is_gt()
+    {
+        let maximum = ScalarTerm::integer(count_type, maximum)
+            .expect("admitted exact-shift maximum remains in the count type");
+        bounds.push(Proposition::LessOrEqual(count, maximum));
+    }
+    match bounds.len() {
+        0 => Proposition::Conjunction(Vec::new()),
+        1 => bounds.pop().expect("one exact-shift bound exists"),
         _ => Proposition::Conjunction(bounds),
     }
 }
@@ -881,6 +955,17 @@ fn substitute_scalar_term_values(
             value,
             count,
         } => ScalarTerm::WrappingIntegerShiftRight {
+            value_type: *value_type,
+            count_type: *count_type,
+            value: Box::new(recurse(value)),
+            count: Box::new(recurse(count)),
+        },
+        ScalarTerm::ExactIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+        } => ScalarTerm::ExactIntegerShiftRight {
             value_type: *value_type,
             count_type: *count_type,
             value: Box::new(recurse(value)),

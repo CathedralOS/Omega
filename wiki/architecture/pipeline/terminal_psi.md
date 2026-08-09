@@ -54,13 +54,19 @@ into a body-derived damage minimum and selected published containment demand;
 v24 adds a canonical sparse per-cause context maximum to each machine
 contract; v25 adds total fixed-width integer bitwise complement; v26 adds
 universally total fixed-width `i*`/`u*` widening whose target contains the
-complete source range; and current v27 distinguishes the target-selected
+complete source range; v27 distinguishes the target-selected
 address carrier from an ordinary same-width unsigned integer while retaining
-its current 64-bit representation.
+its current 64-bit representation; v28 adds proof-gated exact conversions
+between fixed integer carriers; and current v29 adds proof-gated Exact integer
+right shift.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
+An Exact right shift retains the same operand types and requires a dedicated
+proof that the count denotes a value in `[0, value_width)`. Its signedness-aware
+result is otherwise total. Exact left shift remains outside this slice because
+it also requires a value-dependent no-overflow proof.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -353,6 +359,17 @@ version, or additional fuel. Terminal Psi v27 retains `addr` distinctly from
 `u64` across declarations, scalar terms, comparisons, artifacts, and Omega
 realization. Cross-carrier conversions to or from `addr` remain outside rather
 than being mistaken for representation identities.
+Terminal Psi v29 retains a nonliteral Exact integer right shift as
+`ExactIntegerShiftRight { value, count, obligation }`. The checked range engine
+must first accept the count, but the verifier does not trust that retained
+range: it independently reconstructs whichever of `0 <= count` and
+`count <= value_width - 1` are not already guaranteed by the fixed count
+carrier, using path-local comparison facts and successor-parameter rewrites.
+The operation's dedicated certificate must discharge that exact proposition.
+The result uses logical shift for unsigned value carriers and arithmetic shift
+for signed value carriers. Missing evidence or a path without the required
+bound rejects; the verifier never adopts native count masking as Exact
+semantics.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -519,6 +536,13 @@ carrier. The proof makes that conversion total on the selected path; native
 realization adds no trap or fallback policy. The guarded `u64 -> u8` canary
 round-trips semantic v28 and its mandatory certificate, interprets both arms,
 emits both targets, and executes 255 at the proved boundary and zero at 256.
+Proof-gated Exact right shifts retain the value and independently typed count
+carriers in Omega's terminal abstract and target operations. The guarded
+`u64 >> u64` canary round-trips semantic v29 and its mandatory proof-format-v20
+certificate, interprets both arms, emits both targets, and executes the proved
+count-63 boundary while selecting the fallback at 64. Native selection masks
+the count only as an ISA preparation whose semantic no-op status follows from
+the verified bound; it is not the source behavior.
 Runtime wrapping shifts retain the count operand's independent integer type,
 reduce that value modulo the shifted width, and select logical or arithmetic
 right shift from the shifted value's signedness. Current native source widths
@@ -988,10 +1012,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v26 modules under their original
+execution continue to accept valid v1 through v29 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v27 translation.
+`migrate_module_to_current` is an explicit validated older-to-v29 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -999,7 +1023,8 @@ canonical bytes and a new semantic fingerprint. An unchanged proof bundle
 retains its separate bytes and identity but is verified again against the
 migrated module. Golden tests retain archived v1 through v24 identities and
 independently freeze the v25 integer-bitwise-complement fixture, the v26
-integer-widening fixture, and the current v27 address-carrier fixture, plus the
+integer-widening fixture, the v27 address-carrier fixture, the v28 exact-cast
+fixture, and the current v29 exact-right-shift fixture, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
@@ -1024,7 +1049,9 @@ wrapping left/right shift terms with independent value and count integer
 types; format v16 adds recursive integer bitwise-complement terms; format v17
 adds recursive integer-widening terms with exact source and target types; and
 format v18 distinguishes address-typed terms from ordinary same-width unsigned
-integer terms.
+integer terms; format v19 adds recursive exact-integer-cast terms; and format
+v20 adds recursive exact-right-shift terms with independent value and count
+integer types.
 The encoder selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
