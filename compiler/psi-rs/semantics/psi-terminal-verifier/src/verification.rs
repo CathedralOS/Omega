@@ -724,61 +724,70 @@ fn exact_integer_shift_left_obligation(
 ) -> Proposition {
     if let Some(count) = exact_known_shift_count(value_type, count_type, &count, semantic_axioms) {
         let mut bounds = Vec::with_capacity(2);
-        match value_type.sign() {
-            IntegerSign::Unsigned => {
-                let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
-                    unreachable!("unsigned fixed integer type has an unsigned maximum")
-                };
-                if count != 0 {
-                    let maximum =
-                        ScalarTerm::integer(value_type, IntegerValue::Unsigned(maximum >> count))
-                            .expect("shifted unsigned maximum remains in its carrier");
-                    bounds.push(Proposition::LessOrEqual(value, maximum));
-                }
-            }
-            IntegerSign::Signed => {
-                let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
-                    (value_type.minimum_value(), value_type.maximum_value())
-                else {
-                    unreachable!("signed fixed integer type has signed bounds")
-                };
-                if count != 0 {
-                    let minimum =
-                        ScalarTerm::integer(value_type, IntegerValue::Signed(minimum >> count))
-                            .expect("shifted signed minimum remains in its carrier");
-                    let maximum =
-                        ScalarTerm::integer(value_type, IntegerValue::Signed(maximum >> count))
-                            .expect("shifted signed maximum remains in its carrier");
-                    bounds.push(Proposition::LessOrEqual(minimum, value.clone()));
-                    bounds.push(Proposition::LessOrEqual(value, maximum));
-                }
-            }
-        }
+        append_exact_shift_left_value_bounds(&mut bounds, value_type, value, count);
         return canonical_conjunction(bounds);
     }
 
-    let count_bounds = exact_integer_shift_obligation(value_type, count_type, count);
+    let count_bounds = exact_integer_shift_obligation(value_type, count_type, count.clone());
     let mut bounds = match count_bounds {
         Proposition::Truth => Vec::new(),
         Proposition::Conjunction(bounds) => bounds,
         bound => vec![bound],
     };
+    let known_maximum = known_shift_count_maximum(value_type, count_type, &count, semantic_axioms);
+    if let Some(maximum) = known_maximum {
+        bounds
+            .retain(|bound| !matches!(bound, Proposition::LessOrEqual(left, _) if left == &count));
+        let maximum = ScalarTerm::integer(
+            count_type,
+            match count_type.sign() {
+                IntegerSign::Signed => IntegerValue::Signed(i128::from(maximum)),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(maximum)),
+            },
+        )
+        .expect("known exact-shift maximum remains in its count carrier");
+        bounds.push(Proposition::LessOrEqual(count, maximum));
+    }
+    let maximum_count = known_maximum.unwrap_or_else(|| u32::from(value_type.bits() - 1));
+    append_exact_shift_left_value_bounds(&mut bounds, value_type, value, maximum_count);
+    canonical_conjunction(bounds)
+}
+
+fn append_exact_shift_left_value_bounds(
+    bounds: &mut Vec<Proposition>,
+    value_type: psi_core::IntegerType,
+    value: ScalarTerm,
+    maximum_count: u32,
+) {
+    if maximum_count == 0 {
+        return;
+    }
     match value_type.sign() {
         IntegerSign::Unsigned => {
-            let one = ScalarTerm::integer(value_type, IntegerValue::Unsigned(1))
-                .expect("unsigned fixed integer types admit one");
-            bounds.push(Proposition::LessOrEqual(value, one));
+            let IntegerValue::Unsigned(maximum) = value_type.maximum_value() else {
+                unreachable!("unsigned fixed integer type has an unsigned maximum")
+            };
+            let maximum =
+                ScalarTerm::integer(value_type, IntegerValue::Unsigned(maximum >> maximum_count))
+                    .expect("shifted unsigned maximum remains in its carrier");
+            bounds.push(Proposition::LessOrEqual(value, maximum));
         }
         IntegerSign::Signed => {
-            let negative_one = ScalarTerm::integer(value_type, IntegerValue::Signed(-1))
-                .expect("signed fixed integer types admit negative one");
-            let zero = ScalarTerm::integer(value_type, IntegerValue::Signed(0))
-                .expect("signed fixed integer types admit zero");
-            bounds.push(Proposition::LessOrEqual(negative_one, value.clone()));
-            bounds.push(Proposition::LessOrEqual(value, zero));
+            let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                (value_type.minimum_value(), value_type.maximum_value())
+            else {
+                unreachable!("signed fixed integer type has signed bounds")
+            };
+            let minimum =
+                ScalarTerm::integer(value_type, IntegerValue::Signed(minimum >> maximum_count))
+                    .expect("shifted signed minimum remains in its carrier");
+            let maximum =
+                ScalarTerm::integer(value_type, IntegerValue::Signed(maximum >> maximum_count))
+                    .expect("shifted signed maximum remains in its carrier");
+            bounds.push(Proposition::LessOrEqual(minimum, value.clone()));
+            bounds.push(Proposition::LessOrEqual(value, maximum));
         }
     }
-    canonical_conjunction(bounds)
 }
 
 fn canonical_conjunction(mut conjuncts: Vec<Proposition>) -> Proposition {
@@ -817,6 +826,34 @@ fn exact_known_shift_count(
         IntegerValue::Signed(count) => u32::try_from(count).ok()?,
     };
     (count < u32::from(value_type.bits())).then_some(count)
+}
+
+fn known_shift_count_maximum(
+    value_type: psi_core::IntegerType,
+    count_type: psi_core::IntegerType,
+    count: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Option<u32> {
+    semantic_axioms
+        .iter()
+        .filter_map(|axiom| {
+            let Proposition::LessOrEqual(left, right) = axiom else {
+                return None;
+            };
+            if left != count {
+                return None;
+            }
+            let (bound_type, bound) = right.integer_value()?;
+            if bound_type != count_type || !count_type.admits(bound) {
+                return None;
+            }
+            let bound = match bound {
+                IntegerValue::Unsigned(bound) => u32::try_from(bound).ok()?,
+                IntegerValue::Signed(bound) => u32::try_from(bound).ok()?,
+            };
+            (bound < u32::from(value_type.bits())).then_some(bound)
+        })
+        .min()
 }
 
 fn integer_value_cmp(left: IntegerValue, right: IntegerValue) -> std::cmp::Ordering {
