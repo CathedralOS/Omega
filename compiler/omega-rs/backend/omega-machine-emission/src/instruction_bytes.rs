@@ -995,10 +995,28 @@ fn compiler_instruction_validation_kind(
                         },
                     ));
                 }
+                // Mixed scalar/aggregate imports use the same normalized
+                // CallPlan replay whether their source boundary was authored
+                // as `Custom` or supplied by the standard host catalog.  The
+                // Objective-C/CoreGraphics entries below were previously
+                // emitted by the ordinary host encoder but left without a
+                // final-image identity solely because this structural replay
+                // gate admitted only custom capabilities.
                 if matches!(
                     operation_key.capability,
                     omega_calling_conventions::HostCapability::Custom(_)
                         | omega_calling_conventions::HostCapability::Unknown
+                ) || matches!(
+                    (operation_key.capability, operation_key.operation),
+                    (
+                        omega_calling_conventions::HostCapability::ObjectiveC,
+                        omega_calling_conventions::HostOperation::MsgSendRect
+                            | omega_calling_conventions::HostOperation::MsgSendImageSize
+                    ) | (
+                        omega_calling_conventions::HostCapability::CoreGraphics,
+                        omega_calling_conventions::HostOperation::RectMaxX
+                            | omega_calling_conventions::HostOperation::RectMaxY
+                    )
                 ) {
                     let result_operand_count = usize::from(binding.call_plan().result.is_some());
                     let Some(arguments) = operands.get(result_operand_count..) else {
@@ -1154,7 +1172,8 @@ fn compiler_instruction_validation_kind(
                             ) && matches!(
                                 operands.first().map(|operand| &operand.kind),
                                 Some(
-                                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarFloat { .. }
+                                    omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarInteger { .. }
+                                        | omega_assigned_target_operations::InstructionOperandKind::RuntimeScalarFloat { .. }
                                 )
                             ) =>
                         {

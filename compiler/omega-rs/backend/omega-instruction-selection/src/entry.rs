@@ -1837,11 +1837,27 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
         let Some(selected_operands) = operands.span(*operand_span) else {
             continue;
         };
-        if !matches!(binding.mechanism, HostBindingMechanism::Import { .. })
-            || matches!(
+        let uses_plan_driven_mixed_import_class = matches!(
+            operation.operation_key.capability,
+            HostCapability::Custom(_) | HostCapability::Unknown
+        ) || matches!(
+            (
                 operation.operation_key.capability,
-                HostCapability::Custom(_) | HostCapability::Unknown
-            ) != matches!(
+                operation.operation_key.operation,
+            ),
+            (
+                HostCapability::ObjectiveC,
+                omega_calling_conventions::HostOperation::MsgSendRect
+                    | omega_calling_conventions::HostOperation::MsgSendImageSize
+            ) | (
+                HostCapability::CoreGraphics,
+                omega_calling_conventions::HostOperation::RectMaxX
+                    | omega_calling_conventions::HostOperation::RectMaxY
+            )
+        );
+        if !matches!(binding.mechanism, HostBindingMechanism::Import { .. })
+            || uses_plan_driven_mixed_import_class
+                != matches!(
                 argument_class,
                 DirectImportArgumentClass::Authored
                     | DirectImportArgumentClass::AuthoredResult
@@ -2102,7 +2118,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                             result.shape.class,
                             omega_calling_conventions::ValueClass::Integer
                                 | omega_calling_conventions::ValueClass::Float
-                        ) || binding.call_plan().parameters.len() + 1 != selected_operands.len()
+                            ) || binding.call_plan().parameters.len() + 1 != selected_operands.len()
                             || match result.shape.class {
                                 omega_calling_conventions::ValueClass::Integer => !matches!(
                                     selected_operands.first().map(|operand| &operand.kind),
@@ -2110,7 +2126,10 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                                 ),
                                 omega_calling_conventions::ValueClass::Float => !matches!(
                                     selected_operands.first().map(|operand| &operand.kind),
-                                    Some(InstructionOperandKind::RuntimeScalarFloat { .. })
+                                    Some(
+                                        InstructionOperandKind::RuntimeScalarInteger { .. }
+                                            | InstructionOperandKind::RuntimeScalarFloat { .. }
+                                    )
                                 ),
                                 _ => true,
                             }
