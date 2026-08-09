@@ -66,6 +66,7 @@ use psi_core::{
 /// operation's fixed integer type.
 /// Version 32 adds proof-gated exact integer subtraction.
 /// Version 33 adds proof-gated exact integer multiplication.
+/// Version 34 adds proof-gated exact integer division.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -104,7 +105,8 @@ impl SemanticVersion {
     pub const V31: Self = Self(NonZeroU16::new(31).expect("thirty-one is nonzero"));
     pub const V32: Self = Self(NonZeroU16::new(32).expect("thirty-two is nonzero"));
     pub const V33: Self = Self(NonZeroU16::new(33).expect("thirty-three is nonzero"));
-    pub const CURRENT: Self = Self::V33;
+    pub const V34: Self = Self(NonZeroU16::new(34).expect("thirty-four is nonzero"));
+    pub const CURRENT: Self = Self::V34;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -453,6 +455,11 @@ pub enum OperationKind {
         obligation: ObligationId,
     },
     ExactIntegerMultiply {
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+    },
+    ExactIntegerDivide {
         left: ValueId,
         right: ValueId,
         obligation: ObligationId,

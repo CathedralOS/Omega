@@ -325,6 +325,26 @@ impl IntegerType {
         self.admits(result).then_some(result)
     }
 
+    /// Divide two admitted values with truncation toward zero when the divisor
+    /// is nonzero and the mathematical quotient remains admitted.
+    pub fn exact_div(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        let result = match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => IntegerValue::Unsigned(left.checked_div(right)?),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                IntegerValue::Signed(left.checked_div(right)?)
+            }
+            _ => return None,
+        };
+        self.admits(result).then_some(result)
+    }
+
     /// Subtract two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -768,6 +788,11 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    ExactIntegerDivide {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1080,6 +1105,19 @@ impl ScalarTerm {
         })
     }
 
+    pub fn exact_integer_divide(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::ExactIntegerDivide {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn integer(
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1227,6 +1265,7 @@ impl ScalarTerm {
             | Self::ExactIntegerAdd { scalar_type, .. }
             | Self::ExactIntegerSubtract { scalar_type, .. }
             | Self::ExactIntegerMultiply { scalar_type, .. }
+            | Self::ExactIntegerDivide { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerSubtract { scalar_type, .. }
@@ -1467,6 +1506,18 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.exact_mul(left, right)?))
+            }
+            Self::ExactIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.exact_div(left, right)?))
             }
             _ => None,
         }
@@ -1712,6 +1763,15 @@ impl ScalarTerm {
                 validate_integer_operands(*scalar_type, left, right)
             }
             Self::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                validate_integer_operands(*scalar_type, left, right)
+            }
+            Self::ExactIntegerDivide {
                 scalar_type,
                 left,
                 right,
@@ -1988,6 +2048,7 @@ impl PropositionContext {
             ScalarTerm::ExactIntegerAdd { left, right, .. }
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
             | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
             | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -2719,6 +2780,28 @@ mod tests {
         assert_eq!(
             term.integer_value(),
             Some((u8_type, IntegerValue::Unsigned(255)))
+        );
+    }
+
+    #[test]
+    fn exact_div_rejects_zero_and_signed_overflow() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert_eq!(
+            u8_type.exact_div(IntegerValue::Unsigned(255), IntegerValue::Unsigned(5)),
+            Some(IntegerValue::Unsigned(51))
+        );
+        assert_eq!(
+            u8_type.exact_div(IntegerValue::Unsigned(255), IntegerValue::Unsigned(0)),
+            None
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        assert_eq!(
+            i8_type.exact_div(IntegerValue::Signed(-127), IntegerValue::Signed(-1)),
+            Some(IntegerValue::Signed(127))
+        );
+        assert_eq!(
+            i8_type.exact_div(IntegerValue::Signed(-128), IntegerValue::Signed(-1)),
+            None
         );
     }
 

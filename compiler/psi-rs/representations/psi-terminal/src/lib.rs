@@ -14,8 +14,12 @@
 //! independent machine-local entry-claim bindings, v15 adds Boolean logical
 //! negation, v16 adds nominal proposition declarations and normalized
 //! application identities, v17 adds total Boolean equality, v18 adds total
-//! integer equality, v19 adds signedness-aware integer ordering, and current
-//! v20 adds total integer bitwise AND, OR, and XOR.
+//! integer equality, v19 adds signedness-aware integer ordering, v20 adds total
+//! integer bitwise operations, v21 adds wrapping shifts, v22-v24 add the
+//! legacy crash schema, v25 adds integer complement, v26-v27 add widening and
+//! the address carrier, v28-v33 add proof-gated exact casts, shifts, addition,
+//! subtraction, and multiplication, and current v34 adds proof-gated exact
+//! division.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other

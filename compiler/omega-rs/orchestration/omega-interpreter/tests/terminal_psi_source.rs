@@ -1428,7 +1428,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-add semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-add proof");
     let module = decode_module(&semantic).expect("decode exact-add semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V33);
+    assert_eq!(module.semantic_version, SemanticVersion::V34);
     let mut missing_add_proof = decode_proof_bundle(&proof).expect("decode exact-add proof");
     missing_add_proof
         .evidence
@@ -1522,7 +1522,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-subtract semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-subtract proof");
     let module = decode_module(&semantic).expect("decode exact-subtract semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V33);
+    assert_eq!(module.semantic_version, SemanticVersion::V34);
     let mut missing_subtract_proof =
         decode_proof_bundle(&proof).expect("decode exact-subtract proof");
     missing_subtract_proof
@@ -1621,7 +1621,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-multiply semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-multiply proof");
     let module = decode_module(&semantic).expect("decode exact-multiply semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V33);
+    assert_eq!(module.semantic_version, SemanticVersion::V34);
     let mut missing_multiply_proof =
         decode_proof_bundle(&proof).expect("decode exact-multiply proof");
     missing_multiply_proof
@@ -1691,6 +1691,143 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
             858_993_460,
             0,
             0
+        ));
+    }
+}
+
+#[test]
+fn checked_source_exact_divide_uses_known_nonzero_divisor() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("known-divisor exact-divide source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_divide_known_right")
+        .expect("known nonzero exact division should lower");
+    let divide_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::ExactIntegerDivide { .. }))
+        .expect("proof-gated exact division remains explicit terminal work");
+    let OperationKind::ExactIntegerDivide { obligation, .. } = divide_operation.kind else {
+        unreachable!()
+    };
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.operation_units(&divide_operation.kind),
+        1
+    );
+    assert!(
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == obligation)
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("exact-divide semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-divide proof");
+    let module = decode_module(&semantic).expect("decode exact-divide semantics");
+    assert_eq!(module.semantic_version, SemanticVersion::V34);
+    let mut missing_divide_proof = decode_proof_bundle(&proof).expect("decode exact-divide proof");
+    missing_divide_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != obligation);
+    assert!(matches!(
+        verify_module(
+            &module,
+            &missing_divide_proof,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+            if missing == obligation
+    ));
+
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u32_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(500), argument(0)],
+    )
+    .expect("verified exact division should interpret");
+    assert_eq!(execution.value(), argument(100));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("exact division should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::ExactIntegerDivide { .. }
+            ))
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("exact division should select");
+        let assigned =
+            assign_registers(&target_operations).expect("exact-divide homes should assign");
+        emit_machine_code(&assigned).expect("exact division should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("exact-divide host selection");
+        let assigned = assign_registers(&target_operations).expect("exact-divide host homes");
+        let machine_code = emit_machine_code(&assigned).expect("exact-divide host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("exact-divide host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(entry, 500, 0, 100));
+    }
+}
+
+#[test]
+fn checked_source_signed_exact_divide_truncates_toward_zero() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("signed exact-divide source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_signed_divide_known_right")
+        .expect("known signed exact division should lower");
+    let semantic = encode_module(&lowered.semantic_module).expect("signed exact-divide semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed exact-divide proof");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(-101), argument(0)],
+    )
+    .expect("verified signed exact division should interpret");
+    assert_eq!(execution.value(), argument(-50));
+
+    #[cfg(unix)]
+    {
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("signed exact division should cross the Omega boundary");
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("signed exact-divide host selection");
+        let assigned = assign_registers(&target_operations).expect("signed exact-divide homes");
+        let machine_code = emit_machine_code(&assigned).expect("signed exact-divide host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("signed exact-divide host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(
+            entry,
+            (-101_i64) as u64,
+            0,
+            (-50_i64) as u64,
         ));
     }
 }

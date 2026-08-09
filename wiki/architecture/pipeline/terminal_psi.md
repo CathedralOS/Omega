@@ -59,8 +59,9 @@ address carrier from an ordinary same-width unsigned integer while retaining
 its current 64-bit representation; v28 adds proof-gated exact conversions
 between fixed integer carriers; v29 adds proof-gated Exact integer right shift;
 v30 adds proof-gated Exact integer left shift; v31 adds proof-gated Exact
-integer addition; v32 adds proof-gated Exact integer subtraction; and current
-v33 adds proof-gated Exact integer multiplication.
+integer addition; v32 adds proof-gated Exact integer subtraction; v33 adds
+proof-gated Exact integer multiplication; and current v34 adds
+proof-gated Exact integer division.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -100,6 +101,13 @@ factor `k` requires `value <= MAX / k`. Signed factors reconstruct the exact
 lower and upper quotient bounds; zero and one are total, while negative one
 requires `MIN + 1 <= value`. Two known operands reduce to truth only when their
 mathematical product is admitted. Two unrelated runtime factors fail closed.
+An Exact division retains two values of the same fixed integer type and owns a
+dedicated definedness-and-representability obligation. The first v34
+reconstruction surface requires a terminal-known right operand. A nonzero
+unsigned divisor is total. A signed divisor other than zero and negative one is
+total; negative one requires `MIN + 1 <= dividend`. Two known operands reduce
+to truth only when truncating-toward-zero division is defined and admitted by
+the result carrier. A zero or runtime-unknown divisor fails closed.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -436,6 +444,15 @@ negative `k`. Zero and one require no proof beyond truth, negative one excludes
 the signed minimum, and two known operands reduce to truth only when their
 mathematical product is admitted. Two-runtime relational shapes reconstruct
 falsehood. Once verified, Omega may select ordinary fixed-width multiplication.
+Terminal Psi v34 retains Exact fixed-integer division as
+`ExactIntegerDivide { left, right, obligation }`. The verifier resolves a
+terminal-known divisor from a literal-result equality or another path-local
+equality. Nonzero unsigned divisors and signed divisors other than negative one
+require no additional bound. Negative one reconstructs `MIN + 1 <= left`,
+excluding the sole fixed-width signed overflow. Zero and an unknown divisor
+reconstruct falsehood. Two known operands reduce to truth only when the exact
+truncating quotient is admitted. Once verified, Omega may select ordinary
+signed or unsigned fixed-width division.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1089,10 +1106,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v33 modules under their original
+execution continue to accept valid v1 through v34 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v33 translation.
+`migrate_module_to_current` is an explicit validated older-to-v34 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1103,7 +1120,8 @@ independently freeze the v25 integer-bitwise-complement fixture, the v26
 integer-widening fixture, the v27 address-carrier fixture, the v28 exact-cast
 fixture, the v29 exact-right-shift fixture, the v30 exact-left-shift fixture,
 the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
-exact-multiply fixture, and the current-vocabulary v33 identity, plus the
+exact-multiply fixture, the v34 exact-divide fixture, and the current-vocabulary
+v34 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary

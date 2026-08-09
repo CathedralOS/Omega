@@ -115,6 +115,14 @@ proof remains unavailable as an axiom. Two unrelated runtime factors reject;
 native wrapping-width multiplication is authorized only after the independent
 certificate establishes representability.
 
+Terminal Psi v34 applies the same split to Exact fixed-integer division. Source
+validation proves divisor nonzeroness and quotient representability, while the
+terminal verifier reconstructs the operation-owned proposition from terminal
+facts. A known nonzero divisor is total except for signed negative one, which
+requires `MIN + 1 <= dividend`; zero and an unknown divisor reconstruct
+falsehood. Native truncating division is authorized only after that proposition
+is checked.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate
