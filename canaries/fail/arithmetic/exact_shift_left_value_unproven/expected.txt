@@ -1,0 +1,1 @@
+exact arithmetic in machine `Main::main` state `main` local `shifted` may overflow `u32`
