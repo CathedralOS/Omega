@@ -5,8 +5,7 @@
 // clamped to the u8 maximum (255), NOT wrapped to 44 (which is what `Wrapping`
 // would give). The native x86_64 backend emits a width-correct add then a
 // carry-flag check + `cmov` to the unsigned max; the interpreter clamps to the
-// same range so the differential oracle agrees. See
-// wiki/architecture/arithmetic_domains_implementation_map.md.
+// same range so the differential oracle agrees.
 
 use omega::language::std::console;
 

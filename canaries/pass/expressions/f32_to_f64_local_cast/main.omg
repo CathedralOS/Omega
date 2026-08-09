@@ -8,7 +8,6 @@
 // chain builds (cvtss2sd then cvttsd2si).
 //
 // Before the fix: native exited 71 (n never written); interpreter exited 70.
-// See wiki/architecture/scalar_width_rederivation_smell.md.
 
 use omega::language::std::console;
 
