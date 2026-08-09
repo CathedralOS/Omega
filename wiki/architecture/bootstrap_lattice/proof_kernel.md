@@ -140,6 +140,40 @@ port of an existing checker tests the compilation path but is not implementation
 diversity. The Beta and Gamma implementations remain the low-rung reference
 route unless a separately justified trust transition replaces them.
 
+## Settled certificate growth
+
+The live kernel does not yet check source-level recursive proofs or algebraic
+normalization. When those enter the shared calculus, they follow one settled
+shape rather than importing the legacy entailment engine as trusted code.
+
+A recursive certificate is organized by the strongly connected component of
+the proof-call graph. The component cites its ranking relation and one proof of
+that relation's well-foundedness. Each application edge within the component
+then proves only its local obligation:
+
+```text
+ranking_relation(callee_measure, caller_measure)
+```
+
+The component rule makes every member's contract available only at strictly
+smaller measures. A call outside the component is an ordinary contract
+application. Thus self induction and mutual induction use the same kernel rule,
+while an unmeasured proof cycle cannot disguise itself as a sequence of
+ordinary citations. The well-foundedness proof is shared component evidence;
+the decrease proof is edge evidence. Both participate in provenance.
+
+A normalization certificate identifies the selected conformance and exact law
+evidence used to justify the canonicalization. Replaying a total normalizer may
+compress primitive inference steps, but it does not erase premises. The trust
+closure of every cited law is inherited by the normalized conclusion, including
+admitted laws.
+
+The review synopsis is a deterministic projection of the checked certificate,
+not a source-side explanation pass. It names the certificate fingerprint and
+renders its recursive components, closure rules, cited laws, and trust closure.
+Source attribution may decorate certificate nodes, but cannot substitute for a
+certified derivation.
+
 ## Scope discipline
 
 - The kernel contains proof rules and deterministic certificate checking.
@@ -153,6 +187,10 @@ route unless a separately justified trust transition replaces them.
 
 - Finish the formal soundness bridge to the canonical execution semantics.
 - Stabilize the certificate vocabulary consumed by terminal Psi.
+- Extend that vocabulary with the settled recursive-component and
+  law-normalization rules, transitive premise provenance, and deterministic
+  certificate synopsis rendering when the source automation bridge reaches
+  those proof families.
 - Connect `psi-terminal-verifier` to the low-rung kernel format and decide the
   final trust placement of terminal-Psi obligation reconstruction: low reference
   verifier, checked derivation of reconstruction, or explicit trusted component.
