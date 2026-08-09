@@ -312,7 +312,9 @@ sum-case paths, partition composition, entry claims, Boolean operations,
 proposition vocabulary, integer equality and ordering, and bitwise operations.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
-fingerprint. The current proof vocabulary covers every terminal proposition and
+fingerprint. Certificate envelopes carry one current proof-system marker, not a
+version ladder; stale markers reject during decode. The current proof vocabulary
+covers every terminal proposition and
 scalar term, including content conservation, structural places, Boolean and
 integer operations, address identity, exact arithmetic, and all three arithmetic
 policies. Evidence entries are strictly ordered by `ObligationId`; the closed

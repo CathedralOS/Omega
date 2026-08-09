@@ -6,7 +6,7 @@ use psi_core::{
 };
 use psi_proof_kernel::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment,
-    ProofNode, ProofRule, ProofSystemVersion,
+    ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 use sha2::{Digest, Sha256};
@@ -256,7 +256,7 @@ fn encode_evidence(
         EvidenceRoute::CertificateDerived(certificate) => {
             writer.u8(2);
             writer.id(certificate.identity);
-            writer.u16(certificate.proof_system_version.get());
+            writer.u16(certificate.proof_system_marker.get());
             encode_proof_node(writer, &certificate.proof, 0, format_marker)?;
         }
         EvidenceRoute::Admitted(evidence) => {
@@ -825,12 +825,16 @@ fn decode_evidence(
     let obligation = reader.id("ObligationId")?;
     let route = match reader.u8()? {
         1 => EvidenceRoute::KernelDerived(decode_primitive(reader)?),
-        2 => EvidenceRoute::CertificateDerived(CertificateEnvelope {
-            identity: reader.id("EvidenceIdentity")?,
-            proof_system_version: ProofSystemVersion::new(reader.u16()?)
-                .ok_or(ProofCodecError::ZeroProofSystemVersion)?,
-            proof: decode_proof_node(reader, 0, format_marker)?,
-        }),
+        2 => {
+            let identity = reader.id("EvidenceIdentity")?;
+            let raw_marker = reader.u16()?;
+            EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity,
+                proof_system_marker: ProofSystemMarker::new(raw_marker)
+                    .ok_or(ProofCodecError::UnsupportedProofSystemMarker(raw_marker))?,
+                proof: decode_proof_node(reader, 0, format_marker)?,
+            })
+        }
         3 => EvidenceRoute::Admitted(AdmissionEvidence {
             site: reader.id("AdmissionSiteId")?,
             kind: decode_admission_kind(reader)?,
@@ -1409,7 +1413,7 @@ impl<'bytes> Reader<'bytes> {
 pub enum ProofCodecError {
     InvalidMagic,
     UnsupportedFormatMarker(u16),
-    ZeroProofSystemVersion,
+    UnsupportedProofSystemMarker(u16),
     UnexpectedEnd,
     TrailingBytes(usize),
     InvalidBoolean(u8),

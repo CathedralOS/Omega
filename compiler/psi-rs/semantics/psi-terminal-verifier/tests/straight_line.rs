@@ -7,7 +7,7 @@ use psi_core::{
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemVersion,
+    ProofSystemMarker,
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
@@ -118,7 +118,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(10).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -189,7 +189,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(20).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::EqualityTransitivity {
@@ -304,7 +304,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(30).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::EqualityTransitivity {
@@ -426,7 +426,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(40).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::EqualityTransitivity {
@@ -570,7 +570,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(50).expect("certificate"),
-                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: goal,
                         rule: ProofRule::EqualityTransitivity {
@@ -703,7 +703,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(60 + u64::from(kind)).expect("certificate"),
-                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: goal,
                         rule: ProofRule::EqualityTransitivity {
@@ -809,7 +809,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(65).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::EqualityTransitivity {
@@ -903,7 +903,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(68).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::EqualityTransitivity {
@@ -1829,7 +1829,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(70 + u64::from(kind)).expect("certificate"),
-                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: goal,
                         rule: ProofRule::EqualityTransitivity {
@@ -1885,7 +1885,7 @@ fn content_conservation_accepts_a_replaceable_certificate() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(80).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
@@ -1907,7 +1907,7 @@ fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(90).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::SemanticAxiom { index: 0 },
@@ -1943,7 +1943,7 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(91).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::SemanticAxiom { index: 0 },
@@ -1964,7 +1964,7 @@ fn partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(92).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::SemanticAxiom { index: 1 },
@@ -1996,7 +1996,7 @@ fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(93).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::SemanticAxiom { index: 0 },
@@ -2591,7 +2591,7 @@ fn wrapping_add_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(20).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -2653,7 +2653,7 @@ fn saturating_add_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(30).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -2715,7 +2715,7 @@ fn wrapping_subtract_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(40).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -2777,7 +2777,7 @@ fn saturating_subtract_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(50).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -2839,7 +2839,7 @@ fn wrapping_multiply_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(60).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -2901,7 +2901,7 @@ fn saturating_multiply_axiom_proves_the_return_contract() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(70).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -3541,7 +3541,7 @@ impl Fixture {
                 obligation: self.obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(1).expect("certificate"),
-                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof_system_marker: ProofSystemMarker::CURRENT,
                     proof,
                 }),
             }],

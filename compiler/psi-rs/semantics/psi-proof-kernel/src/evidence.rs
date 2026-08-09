@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::num::NonZeroU16;
 
 use psi_core::{
     AdmissionSiteId, EvidenceIdentity, ObligationId, ProfileDecisionId, Proposition,
@@ -36,24 +35,28 @@ pub struct Obligation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProofSystemVersion(NonZeroU16);
+pub struct ProofSystemMarker;
 
-impl ProofSystemVersion {
-    pub const CURRENT: Self = Self(NonZeroU16::MIN);
+impl ProofSystemMarker {
+    pub const CURRENT: Self = Self;
 
-    pub fn new(raw: u16) -> Option<Self> {
-        NonZeroU16::new(raw).map(Self)
+    pub const fn new(raw: u16) -> Option<Self> {
+        if raw == Self::CURRENT.get() {
+            Some(Self::CURRENT)
+        } else {
+            None
+        }
     }
 
     pub const fn get(self) -> u16 {
-        self.0.get()
+        1
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CertificateEnvelope {
     pub identity: EvidenceIdentity,
-    pub proof_system_version: ProofSystemVersion,
+    pub proof_system_marker: ProofSystemMarker,
     pub proof: ProofNode,
 }
 
@@ -106,7 +109,7 @@ pub enum AcceptedFactRoute {
     KernelDerived(PrimitiveJudgment),
     CertificateDerived {
         identity: EvidenceIdentity,
-        proof_system_version: ProofSystemVersion,
+        proof_system_marker: ProofSystemMarker,
     },
     Admitted(AdmissionEvidence),
 }
@@ -136,11 +139,6 @@ pub fn verify_obligation(
             AcceptedFactRoute::KernelDerived(judgment)
         }
         EvidenceRoute::CertificateDerived(certificate) => {
-            if certificate.proof_system_version != ProofSystemVersion::CURRENT {
-                return Err(EvidenceError::UnsupportedProofSystemVersion(
-                    certificate.proof_system_version,
-                ));
-            }
             check_certificate(
                 context,
                 &obligation.proposition,
@@ -151,7 +149,7 @@ pub fn verify_obligation(
             .map_err(EvidenceError::Certificate)?;
             AcceptedFactRoute::CertificateDerived {
                 identity: certificate.identity,
-                proof_system_version: certificate.proof_system_version,
+                proof_system_marker: certificate.proof_system_marker,
             }
         }
         EvidenceRoute::Admitted(evidence) => {
@@ -198,7 +196,6 @@ pub enum EvidenceError {
     MalformedProposition(psi_core::PropositionError),
     Kernel(crate::KernelError),
     Certificate(crate::ProofError),
-    UnsupportedProofSystemVersion(ProofSystemVersion),
     AdmissionCannotReplaceDerivation,
     AdmissionSiteMismatch,
     AdmissionNotAcceptedByProfile,
@@ -342,28 +339,9 @@ mod tests {
     }
 
     #[test]
-    fn certificate_version_is_checked_separately_from_semantics() {
-        let certificate = CertificateEnvelope {
-            identity: EvidenceIdentity::new(7).expect("certificate identity"),
-            proof_system_version: ProofSystemVersion::new(2).expect("version 2"),
-            proof: ProofNode {
-                conclusion: Proposition::Truth,
-                rule: crate::ProofRule::Primitive(PrimitiveJudgment::Truth),
-            },
-        };
-        assert_eq!(
-            verify_obligation(
-                &PropositionContext::default(),
-                &obligation(Proposition::Truth, ObligationClass::Derivable),
-                &[],
-                &[],
-                EvidenceRoute::CertificateDerived(certificate),
-                &AdmissionProfile::default(),
-            )
-            .expect_err("unsupported proof-system version must reject"),
-            EvidenceError::UnsupportedProofSystemVersion(
-                ProofSystemVersion::new(2).expect("version 2")
-            )
-        );
+    fn proof_system_marker_has_no_compatibility_ladder() {
+        assert_eq!(ProofSystemMarker::new(1), Some(ProofSystemMarker::CURRENT));
+        assert_eq!(ProofSystemMarker::new(0), None);
+        assert_eq!(ProofSystemMarker::new(2), None);
     }
 }

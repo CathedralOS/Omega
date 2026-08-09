@@ -14,7 +14,7 @@ mod proof;
 pub use evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
     AdmissionProfile, AuthorizedAdmission, CertificateEnvelope, EvidenceError, EvidenceRoute,
-    Obligation, ObligationClass, ProofSystemVersion, verify_obligation,
+    Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use proof::{ProofError, ProofNode, ProofRule, check_certificate};
