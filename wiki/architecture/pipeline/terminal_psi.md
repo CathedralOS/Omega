@@ -67,7 +67,8 @@ adds proof-gated Saturating integer division; v39 adds proof-gated Saturating
 integer remainder; v40 adds path-proved positive runtime divisors; v41 adds
 path-proved signed runtime divisors at most negative two; v42 extends that range
 through negative one with the additional dividend bound required by Exact
-division/remainder; and current v43 admits a joint unsigned Exact-add bound.
+division/remainder; v43 admits a joint unsigned Exact-add bound; and current
+v44 extends that upper-bound form to signed nonnegative addends.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -98,6 +99,10 @@ an Exact operation whose known maximum minuend makes it total. The verifier
 proves that operation independently and selects the carried comparison as the
 addition's representability obligation. Other two-runtime relations still fail
 closed.
+Starting in v44, the same upper-bound relation applies to signed addition when
+the path also carries `0 <= right`. The sign fact proves `MAX - right` itself
+representable, and the addition reconstructs the conjunction of that fact with
+`left <= MAX - right`. Other signed two-runtime shapes still fail closed.
 An Exact subtraction likewise retains two values of the same fixed integer type
 and owns a dedicated representability obligation. The first v32 reconstruction
 surface requires the right operand to be known from a terminal literal or prior
@@ -483,6 +488,10 @@ unsigned `left <= MAX - right` bound after independently proving the bound's
 Exact subtraction. Other both-runtime relational shapes reconstruct falsehood.
 Once verified, Omega may select an ordinary fixed-width add because the proof
 establishes equivalence to the mathematical result.
+Terminal Psi v44 extends that recognition to a signed runtime addend when the
+path separately proves it nonnegative. Its reconstructed obligation conjoins
+`0 <= right` with `left <= MAX - right`; the bound subtraction independently
+selects the sign fact as its own obligation.
 Terminal Psi v32 retains Exact fixed-integer subtraction as
 `ExactIntegerSubtract { left, right, obligation }`. The verifier resolves a
 terminal-known right operand from a literal-result equality or another
@@ -1203,8 +1212,9 @@ division and remainder; versions 38–39 add saturating integer division and
 remainder with operation-owned obligations; version 40 adds a relational
 positive-divisor reconstruction; version 41 adds the complementary signed
 negative-two reconstruction; and version 42 extends that reconstruction through
-negative one with an Exact-only dividend bound; and version 43 adds one joint
-unsigned Exact-add reconstruction, without adding operation tags.
+negative one with an Exact-only dividend bound; version 43 adds one joint
+unsigned Exact-add reconstruction; and version 44 extends its upper-bound form
+to signed nonnegative addends, without adding operation tags.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1216,10 +1226,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v43 modules under their original
+execution continue to accept valid v1 through v44 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v43 translation.
+`migrate_module_to_current` is an explicit validated older-to-v44 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1233,7 +1243,7 @@ the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
 exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
 fixture, the v36 wrapping-divide fixture, the v37 wrapping-remainder fixture,
 the v38 saturating-divide fixture, the v39 saturating-remainder fixture, and the
-current-vocabulary v43 identity, plus the
+current-vocabulary v44 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary

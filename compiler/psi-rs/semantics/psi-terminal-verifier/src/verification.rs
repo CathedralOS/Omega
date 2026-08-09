@@ -1186,14 +1186,9 @@ fn exact_integer_add_obligation(
                 if let Some(bound) = semantic_axioms.iter().rev().find(|axiom| match axiom {
                     Proposition::LessOrEqual(bound_left, bound_right) => {
                         (bound_left == &left
-                            && is_unsigned_maximum_minus(
-                                integer_type,
-                                bound_right,
-                                &right,
-                                semantic_axioms,
-                            ))
+                            && is_maximum_minus(integer_type, bound_right, &right, semantic_axioms))
                             || (bound_left == &right
-                                && is_unsigned_maximum_minus(
+                                && is_maximum_minus(
                                     integer_type,
                                     bound_right,
                                     &left,
@@ -1203,6 +1198,32 @@ fn exact_integer_add_obligation(
                     _ => false,
                 }) {
                     return bound.clone();
+                }
+            }
+            if semantic_version >= SemanticVersion::V44
+                && integer_type.sign() == IntegerSign::Signed
+            {
+                let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
+                    .expect("zero belongs to every signed carrier");
+                for (variable, addend) in [(&left, &right), (&right, &left)] {
+                    let nonnegative = Proposition::LessOrEqual(zero.clone(), addend.clone());
+                    if !semantic_axioms.contains(&nonnegative) {
+                        continue;
+                    }
+                    if let Some(bound) = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                        Proposition::LessOrEqual(bound_left, bound_right) => {
+                            bound_left == variable
+                                && is_maximum_minus(
+                                    integer_type,
+                                    bound_right,
+                                    addend,
+                                    semantic_axioms,
+                                )
+                        }
+                        _ => false,
+                    }) {
+                        return canonical_conjunction(vec![nonnegative, bound.clone()]);
+                    }
                 }
             }
             return Proposition::Falsehood;
@@ -1243,7 +1264,7 @@ fn exact_integer_add_obligation(
     }
 }
 
-fn is_unsigned_maximum_minus(
+fn is_maximum_minus(
     integer_type: psi_core::IntegerType,
     term: &ScalarTerm,
     subtrahend: &ScalarTerm,
@@ -1299,6 +1320,17 @@ fn exact_integer_subtract_obligation(
                 let boundary = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(constant))
                     .expect("known unsigned minuend belongs to its carrier");
                 return Proposition::LessOrEqual(right, boundary);
+            }
+        }
+        if semantic_version >= SemanticVersion::V44
+            && integer_type.sign() == IntegerSign::Signed
+            && known_left == Some(integer_type.maximum_value())
+        {
+            let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
+                .expect("zero belongs to every signed carrier");
+            let nonnegative = Proposition::LessOrEqual(zero, right);
+            if semantic_axioms.contains(&nonnegative) {
+                return nonnegative;
             }
         }
         return Proposition::Falsehood;
@@ -2280,6 +2312,46 @@ mod tests {
                 SemanticVersion::V42,
             ),
             Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn v44_reconstructs_signed_nonnegative_joint_exact_add_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = ScalarTerm::value(
+            ValueId::new(4).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(5).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("0i8");
+        let maximum = ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8");
+        let remainder = ScalarTerm::exact_integer_subtract(integer_type, maximum, right.clone())
+            .expect("127 - right");
+        let nonnegative = Proposition::LessOrEqual(zero, right.clone());
+        let bound = Proposition::LessOrEqual(left.clone(), remainder);
+        let axioms = vec![nonnegative.clone(), bound.clone()];
+        assert_eq!(
+            exact_integer_add_obligation(
+                integer_type,
+                left,
+                right.clone(),
+                &axioms,
+                SemanticVersion::V44,
+            ),
+            canonical_conjunction(vec![nonnegative.clone(), bound])
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8"),
+                right,
+                std::slice::from_ref(&nonnegative),
+                SemanticVersion::V44,
+            ),
+            nonnegative
         );
     }
 
