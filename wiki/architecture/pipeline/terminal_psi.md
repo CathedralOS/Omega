@@ -83,8 +83,13 @@ verifier requires its frontier to equal every still-live entry claim (terminal
 Psi has no claim-consuming operation yet), direct interpretation reports a
 distinct terminal crash outcome and never replays it after resume, canonical
 bytes and semantic identity cover every field, and fuel charges its edge.
-Omega native lowering rejects the row until target crash lowering is represented;
-it never silently treats a crash as a return or ordinary terminal transition.
+An unconditional crash-only function now retains the complete row through the
+artifact-root Omega boundary, target selection, and assignment, then emits
+`ud2` on x86-64 or `brk #0` on AArch64. The distinct `Trap`/`Abort` cause remains
+in the selected operation and terminal artifact identity. Guarded mixed
+return/crash control still rejects at target selection until crash leaves are
+part of the recursive target control vocabulary; no crash is treated as a
+return or ordinary transition.
 The source frontend currently retains fingerprinted legacy
 `crashes Cause Scope` buckets and explicit `crash Cause;` exits. Source
 production accepts exactly one prechecked covering bucket, emits its legacy

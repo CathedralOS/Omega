@@ -462,14 +462,14 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                 cause,
                 damage_minimum,
                 containment_demand,
-                ..
+                frontier_lower_bound,
             } => {
-                return Err(LoweringError::CrashLoweringUnsupported {
-                    machine: machine.id,
-                    edge: *edge,
+                operations.push(TerminalAbstractOperation::Crash {
+                    psi_edge: *edge,
                     cause: *cause,
                     damage_minimum: damage_minimum.clone(),
                     containment_demand: containment_demand.clone(),
+                    frontier_lower_bound: frontier_lower_bound.clone(),
                 });
             }
         }
@@ -499,17 +499,9 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
 pub enum LoweringError {
     SemanticIdentity(CodecError),
     VerifiedEntryMachineMissing(MachineId),
-    VerifiedBlockMissing {
-        machine: MachineId,
-        block: BlockId,
-    },
-    VerifiedControlCycle {
-        machine: MachineId,
-        block: BlockId,
-    },
-    VerifiedJumpArityMismatch {
-        edge: psi_core::EdgeId,
-    },
+    VerifiedBlockMissing { machine: MachineId, block: BlockId },
+    VerifiedControlCycle { machine: MachineId, block: BlockId },
+    VerifiedJumpArityMismatch { edge: psi_core::EdgeId },
     VerifiedWrappingAddMalformed(psi_core::OperationId),
     VerifiedSaturatingAddMalformed(psi_core::OperationId),
     VerifiedWrappingSubtractMalformed(psi_core::OperationId),
@@ -521,13 +513,6 @@ pub enum LoweringError {
     VerifiedIntegerExactCastMalformed(psi_core::OperationId),
     VerifiedWrappingShiftMalformed(psi_core::OperationId),
     VerifiedExactShiftMalformed(psi_core::OperationId),
-    CrashLoweringUnsupported {
-        machine: MachineId,
-        edge: psi_core::EdgeId,
-        cause: psi_terminal::CrashCause,
-        damage_minimum: String,
-        containment_demand: String,
-    },
 }
 
 #[derive(Debug)]

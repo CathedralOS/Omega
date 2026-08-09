@@ -47,6 +47,19 @@ fn assign_function(
     architecture: Architecture,
 ) -> Result<TerminalAssignedFunction, AssignmentError> {
     let operation = match &function.operation {
+        TerminalTargetOperation::Crash {
+            psi_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => TerminalAssignedOperation::Crash {
+            psi_edge: *psi_edge,
+            cause: *cause,
+            damage_minimum: damage_minimum.clone(),
+            containment_demand: containment_demand.clone(),
+            frontier_lower_bound: frontier_lower_bound.clone(),
+        },
         TerminalTargetOperation::ReturnIntegerImmediate {
             psi_edge,
             source_value,

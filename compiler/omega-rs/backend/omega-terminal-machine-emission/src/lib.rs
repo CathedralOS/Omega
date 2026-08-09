@@ -42,6 +42,14 @@ fn emit_function(
     architecture: Architecture,
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
     let bytes = match &function.operation {
+        // The verified cause remains in the assigned operation and terminal
+        // artifact identity. Both closed causes realize as the target's
+        // unconditional synchronous fault until a platform crash dispatcher
+        // supplies a cause-specific entry contract.
+        TerminalAssignedOperation::Crash { .. } => match architecture {
+            Architecture::Aarch64 => vec![0x00, 0x00, 0x20, 0xd4], // brk #0
+            Architecture::X86_64 => vec![0x0f, 0x0b],              // ud2
+        },
         TerminalAssignedOperation::ReturnIntegerImmediate {
             source_value,
             scalar_type,
@@ -2450,11 +2458,14 @@ mod tests {
         ))
         .unwrap();
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
-        assert!(
-            instructions
-                .windows(3)
-                .any(|window| window == [0x1a9f_17e0, 0x9100_43ff, 0x3400_0060])
-        );
+        assert!(instructions.windows(5).any(|window| window
+            == [
+                0x1a9f_17e0,
+                0x9100_43ff,
+                0x2a00_03f1,
+                0xaa10_03e0,
+                0x3400_0071,
+            ]));
     }
 
     #[test]
