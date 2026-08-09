@@ -57,6 +57,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ExactIntegerShiftRight { .. }
             | OperationKind::ExactIntegerAdd { .. }
             | OperationKind::ExactIntegerSubtract { .. }
+            | OperationKind::ExactIntegerMultiply { .. }
             | OperationKind::WrappingIntegerAdd { .. }
             | OperationKind::SaturatingIntegerAdd { .. }
             | OperationKind::WrappingIntegerSubtract { .. }

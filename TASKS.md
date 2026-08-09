@@ -334,6 +334,19 @@ Remaining:
   x86-64/AArch64 emission. An unknown right operand and relational shapes the
   terminal verifier cannot reduce to one constant-relative bound still fail
   closed. Proof format v23 carries the exact-subtract term.
+  Terminal Psi v33 now carries proof-gated Exact fixed-integer multiplication.
+  Source validation still proves the mathematical product first; the terminal
+  verifier independently reconstructs representability when either factor is
+  terminal-known. Unsigned nonzero constants require
+  `variable <= maximum / constant`; signed constants reconstruct the exact
+  carrier interval, with zero/one total and negative one excluding only the
+  signed minimum. Two compile-known representable factors reduce to truth.
+  The live source canary obtains the unsigned upper bound from a true
+  comparison edge, requires the operation-owned certificate, survives
+  canonical semantic/proof round trips, costs one fuel unit, interprets from
+  artifact sections, and lowers through Omega to x86-64/AArch64 emission. Two
+  unrelated runtime factors still fail closed. Proof format v24 carries the
+  exact-multiply term.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
