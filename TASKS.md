@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-08.
+Last pruned: 2026-08-09.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -52,55 +52,31 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS.** Finish target-declared typed slots around the live
-  ordinary `builder.roots.bind(target::ProgramEntry, Exact::machine)` binding
-  and exact backend entry selection. Hosted free/receiver-bound source-shape
-  checks, receiver ZII validation, and fail-closed rejection of bindings owned
-  by a non-selected target profile are live. A target profile owns each slot
-  identity, schema, direction, lifecycle, cardinality, and exact-requirement,
-  complete-conformance, or entry-machine binding shape; `build.omg` names the
-  exact entry machine and performs no discovery. Let a target entry schema
-  expose only the parameters its program author must handle. A hosted schema
-  normally exposes none; a freestanding schema may expose admitted image and
-  initial-storage roots.
-  Generate the physical bridge from the target's arrival requirement and
-  selected calling policy, derive and compose the bridge's complete contract, and call the bound
-  entry through its declared source shape. A free entry gets no implicit state.
-  An entry with one `&mut self` receiver gets exactly one ZII-valid receiver,
-  provisioned beneath an admitted entry storage root and lent only for that
-  activation. Record its target-selected image or runtime-storage placement,
-  derive image sections as subextents, and allocate later frames/task stacks
-  from existing roots. Migrate the corpus and remove the compatibility fallback
-  that still recognizes `main`/`Main::run` only when no root binding exists. Do
-  not recognize a unique export by convention, and do not introduce ambient
-  `static` storage.
-- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Connect a real
-  content-bearing source program to the existing terminal-Psi rows. Add sealed
-  content-introduction and custody-exit frontier rows; derive residual geometry
-  for partial bodyless boundaries and admit only provider custody acceptance.
-  Infer only identity-preserving reshuffles; partition-changing primitives must
-  author a theorem and wrappers may compose it.
-- **ROOT-INTRODUCTION-AND-BACKING.** Give every content-capable root one internal
-  algebra account and classify each fresh establishment occurrence from its
-  authority source: compiler-provisioned sealed declared capacity is
-  program-local; selected admitted issuance is provider-backed. A checked
-  runtime establishment may expose or transform an existing account but never
-  originate one. Keep nominal data and algebra denominators free of origin
-  policy. Record exact route, capacity, lineage,
-  qualification, backing identity, and provenance per root. An operation that
-  realizes content against an external substrate must identify an exact
-  qualified root and carry correspondence to the same selected provider;
-  matching denominator arithmetic alone grants no authority. Report modeled
-  identity coverage and reject cross-root recomposition.
-- **BOUNDARY-ISSUANCE — depends on the conservation work above.** Derive
-  per-invocation geometry from ordinary parameters, entry places, and returned
-  values. Retain external ownership, fresh issuance, custody delegation,
-  aliasing class, and partitioned succession separately. Provider assertions
-  may attest custody; they may not supply computable interval arithmetic.
-- Finish routed task-claim establishment, stack-resource authority,
-  cancellation conformance, and transactional custody under TR3-TR8. Deferred
-  acknowledgements lease the installed interrupt root and controller
-  configuration; reconfiguration drains them rather than revoking them.
+- **ENTRY-CONTENT-ROOTS.** Complete target-owned typed root slots and physical
+  entry bridges around the live exact binding. The selected target owns slot
+  schema and calling policy; `build.omg` names one machine and performs no
+  discovery. Provision a receiver only for a ZII-valid `&mut self` entry, under
+  admitted storage and for one activation. Record image/runtime placement,
+  derive image subextents, migrate the corpus, and delete `main`/`Main::run`
+  fallback discovery. No ambient `static` storage.
+- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
+  content-bearing source program through terminal Psi. Add sealed introduction
+  and custody-exit frontiers, derive residual geometry at partial bodyless
+  boundaries, and admit only provider custody. Infer identity-preserving
+  reshuffles; partition changes require an authored theorem.
+- **ROOT-INTRODUCTION-AND-BACKING.** Give each content root one algebra account.
+  Fresh capacity is either compiler-provisioned sealed local capacity or
+  selected provider issuance; runtime establishment only transforms an existing
+  account. Retain route, capacity, lineage, qualification, backing identity,
+  provenance, and exact root/provider correspondence. Reject cross-root
+  recomposition.
+- **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
+  parameters, entry places, and results. Keep ownership, issuance, custody,
+  aliasing, and partition succession distinct. Providers may attest custody,
+  never computable interval arithmetic.
+- Under **TR3-TR8**, finish routed task claims, stack authority, cancellation,
+  and transactional custody. Deferred acknowledgements lease the interrupt root
+  and controller configuration; reconfiguration drains them.
 
 Acceptance: reconstructed carriers mint no authority; every introduced content
 claim traces to compiler-provisioned sealed local capacity or admitted provider
@@ -119,47 +95,36 @@ Owners:
 
 #### L4/L5 — plan-laid views
 
-- Finish source-visible validation/materialization over owned storage.
-- Complete non-scalar tiling and mutable-view establishment beyond the live
-  record/fixed-array/interior-slice representation checks.
-- Keep raw bytes from establishing typed facts without the selected validated
-  plan and exact field identities.
+- Finish source-visible materialization over owned storage, including
+  non-scalar tiling and mutable views beyond current record/array/slice checks.
+  Raw bytes establish no typed fact without a selected validated plan and exact
+  field identities.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
-- Derive borrowed and owned `Placed<P, T>` establishment and retirement from
-  `Extent in Granted`; source spelling uses ordinary `&`/`&mut` subrange
-  projections, not `ExtentLoan`.
-- Implement `Stable` adopt/initialize/validate and `External` adopt. Borrowed
-  cleanup ends inside the loan; owned destruction returns
-  `Extent in Granted & Vacant` before general allocator/free integration.
-- Derive per-field readable, destructive-read, writable, and atomic accessors.
-  Preserve logical field extents separately from whole-transfer effect
-  footprints. Destructive reads and RMW reserve the complete affected transfer
-  unit.
-- Enforce per-operation representation and transfer laws: total decode for
-  externally readable fields, total/value-proved encode for writes, exact
-  provider-supported width/alignment, and operation-specific atomic laws.
-  External multi-transfer reads, synthesized RMW, and External initialization
-  remain rejected.
-- Keep admission polarity (Omega-view alias exclusion) separate from access
-  permission. Access-plan rights authorize External reads/writes; `&mut` must
-  not falsely claim exclusivity against the device.
-- Connect x86-64/AArch64 emission for admitted whole-container External and
-  atomic transfers. Publish one sealed core requirement per atomic operation;
-  missing conformance means the operation is unavailable.
-- Retain schema/device correspondence, optional runtime revision evidence, and
-  provider-instance identity separately from storage compatibility.
+- Derive borrowed/owned `Placed<P, T>` establishment and retirement from
+  `Extent in Granted`, using ordinary subrange borrows. Implement `Stable`
+  adopt/initialize/validate and `External` adopt; owned destruction returns
+  `Granted & Vacant` before allocator integration.
+- Derive readable, destructive-read, writable, and atomic field accessors while
+  keeping logical extents distinct from whole-transfer footprints. Enforce
+  total decode/encode, exact provider width/alignment, and operation-specific
+  atomic laws. Continue rejecting External initialization, multi-transfer
+  reads, and synthesized RMW.
+- Keep alias-exclusion admission separate from access rights; `&mut` does not
+  claim exclusivity against a device. Connect admitted whole-container External
+  and atomic transfers to both native backends through one sealed core
+  requirement per atomic operation.
+- Retain schema/device correspondence, runtime revision evidence, and provider
+  identity separately from storage compatibility.
 
 #### L6c — symbolic materialization
 
 - Carry symbolic sources, placement constraints, immutable post-handoff bytes,
-  exact footprint, and invocation plan through final artifacts.
-- Connect final placed fragments to source-level provider invocation after
-  materialization establishment. Provider preparation must not generate host
-  code.
-- Bind validation to exact final bytes and placement; fingerprints remain
-  report/cache identity, never authority.
+  exact footprint, and invocation plan through final artifacts. Connect placed
+  fragments to source-level provider invocation after establishment; provider
+  preparation generates no host code. Validate exact bytes and placement;
+  fingerprints remain report/cache identity, never authority.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -177,43 +142,26 @@ Owners:
 
 Remaining:
 
-- **PSIIR.** Grow terminal production in obligation-complete vertical slices:
-  operation semantics, generated obligations, proof rules, interpreter behavior,
-  Omega lowering, canonical encoding, and fuel identity land together. Add
-  general blocks, calls, aggregate values, structural places, cleanup and
-  transfer actions, boundary operations, loops, suspension, and scoped ordering.
-  Retire the legacy backend lane as consumers move. No terminal producer or
-  consumer may depend on typed trees, `ExpressionHandle`, source rendering, or
-  an Omega-to-Psi bridge.
-- **CRASH-CONTRACT.** Replace the legacy `(cause, scope)` production schema
-  with cause, canonical route guards, and the abandonment-frontier lower bound.
-  Stop producing scope, damage, demand, and context maxima; none is survivor-
-  safety evidence. Extend guarded production and implication beyond the current
-  acyclic scalar forms while keeping crash as a distinct no-successor outcome.
-  Native lowering must preserve every reachable crash leaf. Imported-artifact
-  crash capsules remain design blocked on semantic import/export identity and
-  certificate binding; diagnostic JSON is not evidence.
-- Re-root the reference interpreter and abstract-operation construction fully
-  on decoded, verified terminal Psi. The terminal interpreter and
-  terminal-Psi-to-abstract-operation builder now have parallel artifact-root
-  entries that canonical-decode semantic/proof section bytes and verify them
-  under an explicit admission profile before execution or realization
-  planning; no producer-owned module or checked tree crosses either entry.
-  Continue replacing the legacy checked-tree vocabulary so the shared
-  interpreter/native oracle covers the complete language.
-- **PROOF-CERTIFICATION-BRIDGE.** Make source proof automation emit
-  kernel-checkable certificates rather than remain trusted entailment. A
-  recursive proof certificate owns one strongly connected component: it cites
-  the selected ranking relation and that relation's well-foundedness evidence
-  once, then proves strict decrease separately for every intra-component
-  application edge. Ordinary nonrecursive calls remain ordinary contract
-  applications. A normalization step cites the exact selected conformance and
-  law evidence it used; the resulting proof retains the transitive trust
-  closure, so any admitted law or well-foundedness premise remains visible in
-  every dependent conclusion. Generate the human proof synopsis as a
-  deterministic rendering of the checked certificate, bound to the
-  certificate fingerprint and its source-attribution metadata; never rebuild a
-  parallel explanation from source.
+- **PSIIR.** Add general blocks, calls, aggregates, structural places, cleanup,
+  transfer, boundaries, loops, suspension, and scoped ordering in complete
+  vertical slices: semantics, obligations, proof rules, encoding, fuel,
+  interpretation, and Omega lowering. Retire legacy consumers as each slice
+  moves. Nothing below terminal Psi may depend on typed/source trees,
+  `ExpressionHandle`, source rendering, or an Omega-to-Psi bridge.
+- **CRASH-CONTRACT.** Replace `(cause, scope)` with cause, canonical route guards,
+  and abandonment-frontier lower bound; stop producing scope/damage/demand/
+  context maxima. Extend guarded implication beyond acyclic scalars, preserve
+  every reachable no-successor crash leaf in native lowering, and keep imported
+  crash capsules design-blocked on artifact identity and certificate binding.
+- Re-root remaining interpretation and abstract-operation construction on
+  canonical-decoded, verified semantic/proof bytes under an explicit admission
+  profile. No producer module or checked tree crosses either artifact entry.
+- **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
+  automation. One recursive certificate owns one SCC, cites its ranking and
+  well-foundedness evidence once, and proves every internal edge decreases;
+  ordinary calls remain contract applications. Normalization cites exact
+  conformance/law evidence and preserves transitive trust. Render the human
+  synopsis deterministically from the accepted certificate and fingerprint.
 
   Acceptance: perturbing any recursive edge decrease, component
   well-foundedness reference, normalized-law identity, or cited premise
@@ -221,22 +169,19 @@ Remaining:
   recursion checks while an unmeasured cycle rejects; an admitted law makes
   every dependent normalization admission-dependent; and every synopsis names
   and renders the exact certificate the kernel accepted.
-- **PCC verifier closure.** The artifact determines its complete obligation
-  set; proof bundles only discharge it. Connect `psi-terminal-verifier` to the
-  low-rung proof-kernel calculus and choose one auditable closure recorded in
-  the architecture: a low reference artifact verifier, a checked
-  obligation-reconstruction derivation, or an explicitly trusted Psi verifier.
-  A Psi-hosted proof-kernel port is not by itself this closure.
-- **IRFUEL.** Extend the live acyclic entry/segment certificates to loops and
-  build-time migration. Add attributed response outcomes only after terminal
-  Psi has wait/foreign edges from which the verifier can derive them. Migrate
-  Cathedral hard roots and later add native metering that preserves accounting
-  provenance. Keep target WCET and wall-clock conversion separate.
-- **PROOF-RELEVANCE-MIGRATION:** implement binding-level `[erased]` relevance,
-  checked noninterference, erased-stripped layout, and obligation preservation.
-  Explicit relevance takes precedence over the transitional “recursive means
-  proof-only” classifier; non-layoutable `Type` values remain legal only in
-  erased positions. Do not infer carrier relation roles from relevance.
+- **PCC verifier closure.** The artifact determines obligations; bundles only
+  discharge them. Connect `psi-terminal-verifier` to the low-rung kernel and
+  record one auditable closure: low reference verifier, checked reconstruction
+  derivation, or explicitly trusted Psi verifier. A Psi kernel port alone is
+  insufficient.
+- **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
+  add attributed response outcomes only when terminal wait/foreign edges can
+  derive them. Migrate Cathedral hard roots, then add provenance-preserving
+  native metering. Keep WCET and wall-clock conversion separate.
+- **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
+  noninterference, erased-stripped layout, and obligation preservation. Explicit
+  relevance supersedes “recursive means proof-only”; non-layoutable `Type`
+  values remain erased-only. Do not infer carrier relation roles from relevance.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the
@@ -261,16 +206,12 @@ Owners:
 
 #### ENT2c — normalized ABI lowering
 
-- Remove remaining production paths that reconstruct ABI placement from target
-  catalogs instead of consuming the selected `CallPlan + StatePlan`.
-- Finish retained foreign-storage custody and provider-owned view invalidation.
-  Borrow-derived custody cannot survive return; durable retention consumes an
-  owned claim and ends through an explicit protocol receipt.
-- Add a focused write-only view model rather than disguising write-only foreign
-  access as readable memory.
-- Keep named no-plan encoders only as differential oracles. Production layout,
-  emission, and relocation must require the retained authoritative plan and
-  fail closed when it is absent or incompatible.
+- Remove production ABI reconstruction from target catalogs; layout, emission,
+  and relocation must consume the selected `CallPlan + StatePlan`. Keep no-plan
+  encoders only as differential oracles.
+- Finish foreign-storage custody and provider-view invalidation. Borrowed
+  custody ends at return; durable retention consumes an owned claim and ends
+  through a receipt. Add an explicit write-only view.
 
 #### ENT3 — final state-footprint validation
 
@@ -286,17 +227,13 @@ Remaining:
 
 #### ENT4 — registered callbacks
 
-- Let one named static boundary machine satisfy a foreign callback requirement;
-  retain its exact calling/state plans and emit the thunk only from selected
-  binding lowering.
-- Model durable registration as a linear package value with explicit unregister
-  and any required code/component lease.
-- Implement the narrow Windows `user32` canary (`RegisterClassEx`,
-  `CreateWindowEx`/`WM_NCCREATE`, `GetMessage`, `DispatchMessage`,
-  `DefWindowProc`, `DestroyWindow`, `UnregisterClass`) without exposing a raw
-  code address.
-- Derive `Atomic::interruption_fence` same-context evidence from the installed
-  external-root route; reject it elsewhere.
+- Bind one named static boundary machine to a callback requirement, retain exact
+  call/state plans, and emit its thunk only from selected binding lowering.
+  Registration is linear, explicitly unregisters, and retains required code/
+  component leases.
+- Implement the narrow Windows `user32` canary without exposing a raw code
+  address. Derive `Atomic::interruption_fence` same-context evidence from the
+  installed external-root route and reject it elsewhere.
 
 Acceptance: changing a normalized plan changes lowering or rejects; forbidden
 state introduced anywhere in final executable text rejects; a registered
@@ -381,58 +318,35 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **SELECTED-WITNESS-EVIDENCE:** bind a privately selected, name-first
-  conformance block to one carrierless proof term
-  at a named `ensures` assignment; consume its complete normalized requirement
-  map.
-  Named `requires` clauses retain positional erased input terms and project
-  members through ordinary `term.member` syntax. Calls pass those terms
-  explicitly in clause order after the `;` lane separator. Do not infer a term,
-  conformance, carrier, or row from visible facts or attached state names.
-- Add named-ensures definite assignment per applicable outcome path and
-  inferred, source-unnameable, compiler-generated nominal output packages.
-  Reserve contextual `value` for the runtime result, erase evidence fields,
-  require complete destructuring or explicit multiplicity-valid `_`, and make
-  guarded evidence fields exist only in the matching outcome refinement. Keep
-  ordinary machine return syntax unchanged when no `ensures` clause is named.
-  Preserve separate normalized identities for the proposition application,
-  retained evidence term, and derivation provenance.
-- Finish name-owned generic telescopes and the explicit evidence-binder grammar:
-  `Name<Telescope>: [Subject] satisfies Trait { ... }` declares one named
-  closed implementation, while `Evidence: Subject satisfies Trait` binds one
-  explicitly passed implementation. The subject may be omitted for
-  carrierless evidence. Move carrier-owned conformance symbols from the
-  transitional carrier-child identity to the package-scoped declared name;
-  retain the name, telescope, optional subject, instantiated trait, and
-  normalized rows in semantic identity. No unique-visible, priority, or
-  specificity selection is permitted.
-- Add carrierless evidence projection from the complete conformance-block map.
-  Repeated projection of one retained term yields the same opaque symbols;
-  forwarding preserves the term; separate introductions may retain different
-  witnesses. Keep the producer out of mathematical signatures and reject any
-  attempt to eliminate proof evidence into runtime computation.
-- Add `Respects` over compiler-derived parallel callable argument telescopes.
-  Positions are semantic and source names are debug aliases. Derive the
-  representative-dependent domain by semantic dependency, the pointwise input
-  relation from the selected quotient relations, and the result relation from
-  the requested lifted codomain.
-- Add proposition-valued heterogeneous constructor lifts selected for exact
-  `(quotient relation, container family)` pairs. Transparent dependent records
-  lift in dependency order; coarser earlier-field relations generate checked
-  proposition-transport obligations owned by the quotient. Do not add global
-  carrier roles or an ambient/default relator.
-- Extend R6's typed carrier-family binder so reusable relator traits quantify
-  over a constructor and expose proposition-valued members. This is the
-  higher-kinded/index-telescope prerequisite already owned by the dependent
-  ladder, not a quotient-local parallel abstraction.
-- Gate runtime decider derivation when a lifted relation depends on erased
-  `Type` content: require checked determination by the runtime projection or
-  report the undetermined component.
-- Migrate `%` from executable-Boolean relations and suffix law discovery to
-  proposition evidence plus explicit selected conformances after the work
-  above.
-- Expand the checked `Nat`, `Int`, `Rat`, sequence/Cauchy, and approximation
-  corpus needed for `Real`; keep `Real` proof-only and core-level.
+- **SELECTED-WITNESS-EVIDENCE.** Bind a privately selected named conformance to
+  one carrierless term at named `ensures`; consume its normalized requirement
+  map. Named `requires` terms are positional erased inputs, passed explicitly
+  after `;` and projected as `term.member`. Never infer evidence from visible
+  facts or attached state names.
+- Add named-ensures definite assignment per outcome and compiler-generated
+  nominal output packages. `value` is the runtime result; evidence erases,
+  destructuring is complete or explicitly `_`, and guarded fields exist only
+  in the matching refinement. Keep proposition, evidence-term, and provenance
+  identities separate.
+- Finish name-owned generic telescopes and explicit binders:
+  `Name<Telescope>: [Subject] satisfies Trait { ... }` declares an
+  implementation; `Evidence: Subject satisfies Trait` binds one. Identity
+  retains declared name, telescope, optional subject, instantiated trait, and
+  normalized rows. No visibility-, priority-, or specificity-based selection.
+- Project carrierless evidence from the complete conformance map. Projection is
+  stable per retained term and forwarding preserves it; separate introductions
+  may differ. Evidence cannot eliminate into runtime computation.
+- Add `Respects` over compiler-derived positional call telescopes, deriving its
+  dependent domain, pointwise input relations, and lifted result relation.
+- Add exact-pair-selected heterogeneous constructor lifts. Dependent records
+  lift in order and generate checked transport obligations for coarser earlier
+  fields. Extend R6 carrier-family binders for reusable proposition-valued
+  relators; add no global carrier role or default relator.
+- Gate runtime deciders whose lifted relation depends on erased `Type` content;
+  require determination by the runtime projection or report the component.
+- Then migrate `%` and suffix law discovery to propositions plus explicit
+  conformances, and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation
+  corpus. `Real` remains proof-only and core-level.
 
 Acceptance: an admitted axiom cannot license quotient formation; selected
 Reflexive/Symmetric/Transitive evidence and every `Respects` proof are explicit;
@@ -456,47 +370,35 @@ checked-result arithmetic decision listed below.
 
 ### Lifetimes, dynamic traits, and build-time evaluation
 
-- Finish general outlives constraints, persistent owners, aggregate borrow
-  propagation, parameter-backed storage, broader runtime-indexed expressions,
-  state-parameter loan-root rebasing, and exact R5 preservation.
-- Finish physical descriptor/table materialization for pass-through, rebound,
-  and escaping borrowed `dyn` values. Every adapter and dynamic call must
-  consume the retained exact conformance row map and declaring-trait symbol;
-  no backend lookup by attached-machine name is permitted. Bodyless static
-  conformances and bare exact-requirement satisfiers do not license `dyn`.
-  Require one complete conformance per concrete carrier at a bare dynamic
-  boundary; same-carrier ambiguity requires the exact conformance name.
-- Complete hermetic semantic evaluation: invocation-specific crash-route
-  refinement, target-semantic capsule, separate semantic result and usage
-  identities, deterministic progress, and constant/runtime equivalence.
-- Add `Hermetic | Receipted | Volatile` observation ceilings and publish realized
-  replay/rebuild provenance separately from source semantics.
-- Complete the ordinary `Build` API and package executor: bind dependency aliases
-  to exact sources, compile each dependency build against package-scoped
-  providers, reject ambient/general filesystem escape, and recheck generated
-  Omega under the consuming artifact's runtime ceilings.
-- Harden the resolver as a separate authority boundary with revision/content
-  verification, archive path containment, expansion limits, scoped destination
-  writes, and receipts. Generate the unified dependency/build/trust lock,
-  fingerprint imported boundary claims as one package claim set, and invalidate
-  root acceptance on any member diff. Release-capable standard providers must be
-  hermetic or receipted; volatile observations remain explicit development
-  policy and fail source-rebuildable release.
+- Finish outlives constraints, persistent/parameter-backed owners, aggregate
+  borrow propagation, runtime indices, loan-root rebasing, and exact R5 facts.
+- Materialize dynamic descriptors for pass-through, rebound, and escaping
+  borrows from the retained exact conformance rows and declaring-trait symbol.
+  Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
+  boundaries name the exact complete conformance.
+- Complete hermetic evaluation with crash refinement, target capsule, separate
+  result/usage identities, deterministic progress, and runtime equivalence.
+  Publish `Hermetic | Receipted | Volatile` ceilings and realized provenance.
+- Complete the ordinary `Build` API/executor with exact dependency aliases,
+  package-scoped providers, no ambient filesystem escape, and generated-source
+  rechecking under consumer ceilings.
+- Harden resolution with content/revision checks, archive containment, limits,
+  scoped writes, receipts, and one dependency/build/trust lock. Any imported
+  claim-set diff invalidates root acceptance; release providers are hermetic or
+  receipted, and volatile observations cannot pass source-rebuildable release.
 
 ### Components and executable trust
 
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.
-- **TCBMANIFEST:** finish build-profile selection and derive executable TCB
-  metadata from selected-provider closure. Keep known entries separate from
-  proved completeness; retain provider/executable/plan identity, execution
-  scope, origin, implementation evidence, and independent containment axes.
-- Extend separate-compilation artifacts with target/runtime stack needs,
-  mapping cohorts, two-sided import/export validation, boundary multiplicity,
-  custody receipts, and enumerable state roots. Runtime drain/coexistence,
-  migration scheduling, and resource provisioning remain consumer/runtime
-  work.
+- **TCBMANIFEST:** derive executable TCB metadata from the selected-provider
+  closure and build profile. Separate known entries from proved completeness;
+  retain provider/executable/plan identity, scope, origin, implementation
+  evidence, and independent containment axes.
+- Extend component artifacts with stack needs, mapping cohorts, two-sided
+  import/export checks, boundary multiplicity, custody receipts, and enumerable
+  roots. Drain/coexistence, scheduling, and provisioning remain runtime work.
 - **REPLACE-OPAQUE:** extend replaceable-component tests beyond the live mapping quarantine,
   manifest union, service handover, callback gateway/unregister, and era-ledger
   slice. Proven quiescence is the only route back to reusable mapping capacity.

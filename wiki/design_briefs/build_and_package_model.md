@@ -479,23 +479,12 @@ the build tool discovers the nearest enclosing workspace/build entry.
 
 ## Current engineering delta
 
-The interpreter already has real/virtual filesystem modes and a scoped
-filesystem-backed build executor. Remaining work:
-
-- adopt the `build(builder, filesystem)` entry and standard provider injection;
-- replace the retired empty-effect gate with decision-22 normalized ceiling
-  checks;
-- converge Console/platform entries onto boundary traits;
-- finish the `Build` dependency and target-profile API;
-- implement target-declared typed root/provider slots, exact implementation
-  bindings, required-slot validation, and derived generated-bridge contracts;
-- expose target-profile defaults and type-per-slot provider overrides through
-  ordinary `Build` library machines;
-- make name resolution consult the declared dependency aliases;
-- generate/check the unified lock and trust artifact;
-- publish build-observation ceilings, realized receipt evidence, and both
-  reproducibility verdicts; and
-- remove target-block and hand-written BuildLog compatibility paths.
+The scoped filesystem executor and real/virtual filesystem modes are the live
+foundation. `TASKS.md` owns provider injection, normalized ceilings, the
+dependency/target API, typed root slots and bridges, declared-alias resolution,
+the unified lock/trust artifact, observation provenance, and retirement of old
+target/build-log paths. This brief owns their semantics, not a second progress
+ledger.
 
 ## Still open
 

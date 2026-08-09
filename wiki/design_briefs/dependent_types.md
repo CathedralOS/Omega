@@ -544,73 +544,15 @@ also sees only fully elaborated terms), state machines as sole control flow
 the AST extension node), and the borrow system (ghost values are copied
 freely and never borrowed).
 
-## 8. Implementation lab agenda (the next conversation)
+## 8. Implementation boundary
 
-Ordered rungs, each independently shippable, each with its acceptance driver:
-
-- **R1 — Symbolic atoms:** range endpoints and guard establishments go value-vs-value
-  (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
-  Engine: DBM atoms already relational; plumbing + surface only. Driver:
-  matrix agreement.
-- **R2 — Couplings + loans (partially landed 2026-07-17):** data default-domain
-  clauses, exact construction gates, range-as-domain sugar, recursive gating,
-  standing scalar bounds, direct/nested/indexed consumption-point windows, and
-  loan-on-witness pinning and flow-proven local construction are live.
-  Byte-predicate domain facts now participate in zero validity,
-  literal construction, standing facts, and window restoration; versioned
-  expression provenance proves identical and affine correlations across
-  construction and adjacent writes, while invalidating them on overwrite.
-  The `.len` and `.capacity` measure facts follow supported zero values,
-  literals, and place copies through construction and writes. Symbolic
-  provenance also canonicalizes commutative binary operators without assuming
-  associativity, so equivalent operand order restores a coupling while
-  subtraction order remains distinct. Remaining implementation is other
-  other operator/measure facts, broader relational evaluation beyond
-  this normalization, and finer read-consumption precision.
-- **R3 — Bounded-product rule** in the polynomial engine. Drivers: `y*W+x`
-  (unblocks the TASKS.md nonlinear-index entry), `i*stride`.
-- **R4 — View parameters + boundary witness establishment:** out-params as
-  witnesses, decode-established subdomains, the recast-borrow obligation wired to
-  couplings. Driver: the memory-map walk (rides Cathedral M2's recast).
-- **R5 — Frames:** preserve-unless-written and authored state-level `requires`
-  plus arrival facts are live; monotone counter inference crosses disjoint
-  sibling-call frames, and symbolic `i < self.collection.len` loop-head facts
-  now meet semantically across distinct entry/back-edge guards. Stable
-  bound-to-length chains now compose finite authored arrival relations through
-  multiple intermediate places under machine-wide frame stability, with
-  strictness preserved across every link and cycle-safe traversal. The July 30
-  ruling retired authored boundary write clauses in favor of inferred
-  implementation summaries, narrow mutable signatures, and ordinary
-  preservation `ensures`; no source `stores` surface remains blocked or
-  planned. Remaining work is additional relational Houdini candidates, finer
-  read-consumption precision, and broader exact summaries for implementation
-  shapes that remain opaque. Acyclic state-transition graphs now compose exact
-  frames, including conditional-arm union, positional argument forwarding, and
-  nested value-call frames across every state expression position. Direct
-  bare-self loops retain that finite frame. Named edges back to the same state
-  also retain it when every state parameter is forwarded by exact symbol
-  identity. Multi-state cycles retain the same finite summary when each
-  cycle-closing edge forwards source parameters to target parameters at the
-  same ordinal; any rebinding and every genuinely unresolved frame remain
-  opaque. Normalized per-state frame publication is live and kept outside
-  public contract identity. Driver:
-  dependent facts across sibling-machine calls.
-- **R6 — Proof propositions and index telescopes:** add `proposition` families
-  over representative values, typed proof-static carrier-family index packs,
-  higher-kinded carrier-family binders for reusable relators,
-  proposition-valued heterogeneous constructor lifts, and carrierless
-  selected-conformance evidence. Establish one requirement projection with
-  runtime and proof strata; witness-bearing propositions retain exact erased
-  terms projected through their declared interfaces. Derive parallel callable
-  argument telescopes and representative-dependent domains, then add
-  dependency-ordered
-  structural lifting, checked proposition transport, the decomposed
-  relation-property hierarchy, and `Respects` domain/result laws. No global
-  carrier-parameter role or ambient default relator participates.
-  This rung is the hard predecessor of N6 quotient migration, not an
-  independently orderable follow-up. Drivers: a decidable rational relation,
-  heterogeneous `CauchySeq<A>`/`CauchySeq<B>` convergence evidence, and a
-  partial lifted operation whose precondition is representative-invariant.
+`TASKS.md` owns the live R1-R6 queue. This brief fixes the dependency order:
+symbolic atoms and couplings support bounded products and boundary witnesses;
+exact inferred frames preserve those facts across calls; typed proposition and
+index telescopes then enable carrierless evidence, structural relation lifts,
+and `Respects`. R6 remains a hard predecessor of quotient migration. Landed
+coverage and individual inference cases belong in tests and Git history rather
+than an accumulating status diary here.
 
 ## 9. Key sources
 

@@ -319,46 +319,15 @@ hatch. A local cache substitutes for work still belonging to the current build
 graph; published evidence moves the proved contract into the producer's
 artifact.
 
-## Current state and implementation sequence
+## Implementation boundary
 
-- Constant positions, const-generic leaves, machine-backed domain facts, and
-  layout/wire/calling policy sites already use the reference interpreter.
-- The interpreter publishes deterministic measured outcomes under the current
-  evaluator schedule and records exact recursively retained `result_cells`;
-  logical word, aggregate-construction, and peak-live-cell telemetry, progress
-  attribution, cache charging, and root-selected warning/ceiling policy remain.
-- Canonical service reach, recursive suspension/blocking summaries, and
-  ordinary checked termination across the concrete typed call closure are
-  checked. Pre-check semantic positions consume the same pure termination
-  judgment later retained in checked facts; machine-entry-symbol backedges
-  normalize to their entry state, so unmeasured recursion cannot masquerade as
-  an acyclic body. Fresh owned argument graphs, fresh machine instances, and
-  snapshot-only results enforce the no-escaping-mutation axis at the evaluator
-  boundary. Reachable explicit linear runtime carriers also reject until a
-  proof/build-admission exists. Authority, trust, guarded-crash, and richer
-  resource axes still need implementation in the common admission floor.
-- Build-time admission substitutes the concrete invocation into published
-  `crashes` routes and rejects when any route survives. This is
-  invocation-specific: a trap-capable operation such as division is admissible
-  when the supplied values disprove all of its routes. The evaluator never
-  interprets a crash as a value result, catchable failure, or ordinary terminal
-  edge.
-- The positive normalized termination variant, snapshots, artifacts,
-  diagnostics, and code use the settled `Terminates` vocabulary.
-- Add the target semantic capsule and split semantic result keys from canonical
-  usage records.
-- Add constant/runtime target-equivalence canaries, with float operations as
-  the sharpest customer.
-- Add deterministic progress reporting before optional warning/ceiling policy.
-- Generalize trait-generator expansion; migrate `Equatable` and `Hashable` off
-  hand-written compiler synthesis.
-- Complete const type parameters and `terminates by`-gated recursive
-  proof/constant evaluation.
-
-Touches: symbol-resolved const queries, the interpreter's semantic-evaluation
-entry point, normalized contract admission, resolved-to-typed generator
-expansion, validation of facts derived from results, cache/provenance artifacts,
-and build-progress reporting.
+The reference interpreter already serves constant, domain, layout, wire, and
+calling-policy positions under deterministic termination, reach,
+suspension/blocking, snapshot, and invocation-specific crash checks. `TASKS.md`
+owns the remaining semantic capsule, result/usage identity split, telemetry,
+progress policy, const parameters, recursive evaluation, and generator
+expansion. This brief defines their contract; tests and Git history record which
+individual sites have landed.
 
 ## Trait-body and reflection rules
 
