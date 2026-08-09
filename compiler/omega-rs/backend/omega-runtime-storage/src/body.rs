@@ -1184,7 +1184,6 @@ pub(super) fn call_result_slot_symbol_and_name(
     // local. Leave the scratch anonymous (the caller falls back to a generated
     // `__call_result` name); the call result is written by POSITION
     // (call_result_slot_by_ordinal), never by this name, so nothing else breaks.
-    // See wiki/architecture/value_call_in_binary_slot_collision.md.
     if !local_data.initial_value.is_valid() {
         return None;
     }

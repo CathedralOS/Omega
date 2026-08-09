@@ -1,18 +1,9 @@
-# Design Brief — The Index, Count & Address Model (retiring `usize`)
+# Design Brief — The Index, Count & Address Model
 
-> **For:** Omega maintainer · **Status:** SETTLED; migration UNDERWAY (stages
-> 1+2 done 2026-07-15: termination accepts u64 naturals, the corpus is swept
-> usize -> u64 -- see
-> [`architecture/usize_retirement_execution.md`](../architecture/usize_retirement_execution.md);
-> the compiler rejection is the remaining stage) · **Driver:** `usize` is a
-> conflated, ISA-pinned type that doubles as the index type, and the index check
-> has a confirmed lower-bound soundness hole (a negative signed index segfaults).
->
-> Synthesized from a 29-language survey (Rust, Zig, Hare, C3, Odin, Roc, Unison,
-> Idris/Agda/Lean, ATS, Dafny, F\*, Whiley, Dex, Chapel, Futhark, Carbon, Mojo,
-> Hylo, Pony, …) plus a design discussion. Companion to
-> [`decision-17 arithmetic domains`] and the live `index-lower-bound-soundness-hole`
-> thread.
+> **For:** Omega maintainer · **Status:** SETTLED and implemented: `usize` and
+> `isize` are rejected, counts use explicit integer carriers, and addresses use
+> `addr`. Signed indices require a proved nonnegative lower bound; unsigned
+> indices establish it by type.
 
 ---
 
@@ -162,14 +153,13 @@ is the one "E" idea with real teeth (matrices/grids/tensors), because it *dodges
 a hard proof rather than solving it. Not now; a later rung built *on top of* the
 model above (a multidim index still lowers to a proven integer).
 
-## 9. Follow-up work this brief authorizes
+## 9. Current implementation and later work
 
-- **Migrate `usize` → count / `addr`** across the stdlib surface and samples; name
-  the address type honestly. *(Corpus + samples swept 2026-07-15 -- u64 is the
-  count primitive; the compiler-rejection stage remains.)*
-- **Land the signed-index soundness fix**: require `0 <= i` only for *signed*
-  indices (unsigned exempt by type), scoped per the `index-lower-bound-soundness-hole`
-  thread.
+- The source corpus uses `u64` for general counts and `addr` for addresses;
+  `usize` and `isize` reject. Signed-index lower bounds are checked.
+- Compiler-facing `i64` fields that actually represent counts remain migration
+  debt. A dedicated count carrier may replace source `u64` later without
+  coupling count width to address width.
 - **Not on the critical path:** relational domains (an `Index(c)` whose predicate
   references another field, `self < c.len`) are *not* needed — dynamic collections
   prove the bound with a `requires` against the live length, not a domain. Index

@@ -1,6 +1,5 @@
-// PENDING CANARY -- native/interpreter DIVERGENCE on i32 overflow in a nested
-// value operand. Found 2026-06-14 probing the "integer-arm nested-binary width"
-// re-derivation site named in wiki/architecture/scalar_width_rederivation_smell.md.
+// FAIL CANARY. Exact i32 multiplication must reject when its result cannot be
+// proved representable, including when it is nested inside another operand.
 //
 // `(self.a * self.b) % 7` with a = b = 100000, so a*b = 10_000_000_000, which
 // overflows i32 (max ~2.1e9). The multiply is a NESTED value operand feeding

@@ -1,13 +1,5 @@
-// RUN CANARY (exit 70) + interpreter differential. Termination measures
-// typed u64 verify exactly like usize ones: the usize retirement (owner
-// directive 2026-07-13 -- "we do not have usize. We have addr, we have
-// primitives") rewrites the corpus usize -> u64, and the termination
-// checker's natural-measure class treats the two names as equivalent
-// (natural_measure_names_match; `.len` projections and subtraction
-// measures still synthesize "usize" internally until the type dies). This
-// canary is the migration enabler's pin: an existing usize decreases
-// canary rewritten wholesale to u64, proving + running unchanged. Recipe:
-// wiki/architecture/usize_retirement_execution.md.
+// RUN CANARY (exit 70) + interpreter differential. Termination measures use
+// explicit u64 counts after the retirement of the pointer-sized integer aliases.
 // RUN CANARY (exit 70) -- the fence-exemption ACCEPTANCE TEST, promoted
 // 2026-07-09f: a value call to an EFFECTFUL re-entrant machine (per-entry
 // `self.hits` bump, SelfTarget re-entry) ROUTES TO DISPATCH and delivers both

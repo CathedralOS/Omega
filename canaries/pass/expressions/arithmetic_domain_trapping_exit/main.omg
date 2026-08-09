@@ -4,8 +4,7 @@
 // 100 + 50 = 150, which fits in u8, so `u8 in Trapping` produces 150 and the
 // program exits 70. The overflow case (which aborts via `ud2`) is exercised
 // separately by a native-only test, since a trap is not a clean exit the
-// differential oracle can compare. See
-// wiki/architecture/arithmetic_domains_implementation_map.md.
+// differential oracle can compare.
 
 use omega::language::std::console;
 
