@@ -188,6 +188,7 @@ enum LoweredIntegerBinaryKind {
     ExactSubtract,
     ExactMultiply,
     ExactDivide,
+    ExactRemainder,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -333,6 +334,16 @@ impl LoweredIntegerBinaryKind {
                         .get()
                         .checked_add(1)
                         .expect("exact-divide obligation follows its operation identity"),
+                ),
+            },
+            Self::ExactRemainder => OperationKind::ExactIntegerRemainder {
+                left,
+                right,
+                obligation: obligation_id(
+                    operation
+                        .get()
+                        .checked_add(1)
+                        .expect("exact-remainder obligation follows its operation identity"),
                 ),
             },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
@@ -1821,6 +1832,9 @@ fn lower_checked_scalar_expression(
                 CheckedIntegerBinaryKind::ExactSubtract => LoweredIntegerBinaryKind::ExactSubtract,
                 CheckedIntegerBinaryKind::ExactMultiply => LoweredIntegerBinaryKind::ExactMultiply,
                 CheckedIntegerBinaryKind::ExactDivide => LoweredIntegerBinaryKind::ExactDivide,
+                CheckedIntegerBinaryKind::ExactRemainder => {
+                    LoweredIntegerBinaryKind::ExactRemainder
+                }
                 CheckedIntegerBinaryKind::WrappingAdd => LoweredIntegerBinaryKind::WrappingAdd,
                 CheckedIntegerBinaryKind::SaturatingAdd => LoweredIntegerBinaryKind::SaturatingAdd,
                 CheckedIntegerBinaryKind::WrappingSubtract => {
@@ -2207,6 +2221,7 @@ fn evaluate_lowered_integer_binary(
         LoweredIntegerBinaryKind::ExactSubtract => integer_type.exact_sub(left, right),
         LoweredIntegerBinaryKind::ExactMultiply => integer_type.exact_mul(left, right),
         LoweredIntegerBinaryKind::ExactDivide => integer_type.exact_div(left, right),
+        LoweredIntegerBinaryKind::ExactRemainder => integer_type.exact_rem(left, right),
         LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
         LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
         LoweredIntegerBinaryKind::WrappingSubtract => integer_type.wrapping_sub(left, right),

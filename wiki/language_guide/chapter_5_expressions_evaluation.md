@@ -340,6 +340,12 @@ the compiler cannot prove an operation safe, it is a **compile error** — there
 is no unexpected arithmetic and no silent wraparound. (Decided 2026-06-14; this
 is the Ada/SPARK model — range types plus a prover — not a build-mode flag.)
 
+Fixed-width integer `/` truncates its quotient toward zero. Integer `%` is the
+corresponding remainder, so a nonzero signed result has the dividend's sign;
+it is not Euclidean modulo. Both operations require a nonzero divisor, and the
+signed `MIN / -1` and `MIN % -1` cases are outside Exact because their common
+quotient is not representable in the carrier.
+
 To perform arithmetic that *can* overflow, the value lives in an explicit
 primitive **domain** that defines the behavior:
 

@@ -49,7 +49,8 @@ while retaining its current 64-bit representation, v28 adds proof-gated exact
 fixed-integer casts, v29 and v30 add proof-gated Exact right and left shifts,
 v31 adds proof-gated Exact fixed-integer addition, v32 adds proof-gated Exact
 fixed-integer subtraction, v33 adds proof-gated Exact fixed-integer
-multiplication, and current v34 adds proof-gated Exact fixed-integer division.
+multiplication, v34 adds proof-gated Exact fixed-integer division, and current
+v35 adds proof-gated Exact fixed-integer remainder.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -57,8 +58,9 @@ every return path, rejects
 unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
 semantic-axiom citations, equality composition, and closed integer relations
-over all six arithmetic terms. Wrapping addition reduces modulo the declared
-1–128-bit width and interprets signed reduced bits as two's complement;
+over the complete current arithmetic vocabulary. Wrapping addition reduces
+modulo the declared 1–128-bit width and interprets signed reduced bits as two's
+complement;
 saturating addition clamps at the declared signed or unsigned bounds. Wrapping
 and saturating subtraction apply the same policies to `left - right`;
 wrapping multiplication reduces the product at the declared width, while
@@ -67,7 +69,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v34 row. Artifact-root native lowering
+validation, and fuel cover the complete v35 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -195,6 +197,15 @@ signed divisors other than negative one are total. Signed negative one requires
 known operands reduce to truth only when truncating-toward-zero division is
 defined and admitted. Proof format v25, canonical semantics, exact fuel,
 artifact interpretation, and both native targets carry the complete row.
+Terminal Psi v35 adds proof-gated Exact fixed-integer remainder. The operation
+owns one obligation, and the verifier reconstructs the same known-divisor
+definedness boundary as division. Nonzero unsigned divisors and signed divisors
+other than negative one are total; signed negative one requires
+`MIN + 1 <= dividend`. Zero and runtime-unknown divisors fail closed. Two known
+operands reduce to truth only when truncating remainder is defined and admitted.
+Proof format v26, canonical semantics, exact fuel, artifact interpretation, and
+both native targets carry the complete row. Signed `%` keeps the dividend's
+sign and is distinct from Euclidean modulo used for wrapping shift counts.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

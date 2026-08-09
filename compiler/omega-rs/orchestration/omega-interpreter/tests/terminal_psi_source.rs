@@ -1428,7 +1428,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-add semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-add proof");
     let module = decode_module(&semantic).expect("decode exact-add semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V34);
+    assert_eq!(module.semantic_version, SemanticVersion::V35);
     let mut missing_add_proof = decode_proof_bundle(&proof).expect("decode exact-add proof");
     missing_add_proof
         .evidence
@@ -1522,7 +1522,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-subtract semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-subtract proof");
     let module = decode_module(&semantic).expect("decode exact-subtract semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V34);
+    assert_eq!(module.semantic_version, SemanticVersion::V35);
     let mut missing_subtract_proof =
         decode_proof_bundle(&proof).expect("decode exact-subtract proof");
     missing_subtract_proof
@@ -1621,7 +1621,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-multiply semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-multiply proof");
     let module = decode_module(&semantic).expect("decode exact-multiply semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V34);
+    assert_eq!(module.semantic_version, SemanticVersion::V35);
     let mut missing_multiply_proof =
         decode_proof_bundle(&proof).expect("decode exact-multiply proof");
     missing_multiply_proof
@@ -1725,7 +1725,7 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-divide proof");
     let module = decode_module(&semantic).expect("decode exact-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V34);
+    assert_eq!(module.semantic_version, SemanticVersion::V35);
     let mut missing_divide_proof = decode_proof_bundle(&proof).expect("decode exact-divide proof");
     missing_divide_proof
         .evidence
@@ -1828,6 +1828,146 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
             (-101_i64) as u64,
             0,
             (-50_i64) as u64,
+        ));
+    }
+}
+
+#[test]
+fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("known-divisor exact-remainder source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_remainder_known_right")
+        .expect("known nonzero exact remainder should lower");
+    let remainder_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::ExactIntegerRemainder { .. }))
+        .expect("proof-gated exact remainder remains explicit terminal work");
+    let OperationKind::ExactIntegerRemainder { obligation, .. } = remainder_operation.kind else {
+        unreachable!()
+    };
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.operation_units(&remainder_operation.kind),
+        1
+    );
+    assert!(
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == obligation)
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("exact-remainder semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-remainder proof");
+    let module = decode_module(&semantic).expect("decode exact-remainder semantics");
+    assert_eq!(module.semantic_version, SemanticVersion::V35);
+    let mut missing_remainder_proof =
+        decode_proof_bundle(&proof).expect("decode exact-remainder proof");
+    missing_remainder_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != obligation);
+    assert!(matches!(
+        verify_module(
+            &module,
+            &missing_remainder_proof,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+            if missing == obligation
+    ));
+
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u32_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(503), argument(0)],
+    )
+    .expect("verified exact remainder should interpret");
+    assert_eq!(execution.value(), argument(3));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("exact remainder should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::ExactIntegerRemainder { .. }
+            ))
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("exact remainder should select");
+        let assigned =
+            assign_registers(&target_operations).expect("exact-remainder homes should assign");
+        emit_machine_code(&assigned).expect("exact remainder should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("exact-remainder host selection");
+        let assigned = assign_registers(&target_operations).expect("exact-remainder host homes");
+        let machine_code = emit_machine_code(&assigned).expect("exact-remainder host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("exact-remainder host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(entry, 503, 0, 3));
+    }
+}
+
+#[test]
+fn checked_source_signed_exact_remainder_is_truncating() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("signed exact-remainder source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_signed_remainder_known_right")
+        .expect("known signed exact remainder should lower");
+    let semantic =
+        encode_module(&lowered.semantic_module).expect("signed exact-remainder semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed exact-remainder proof");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(-101), argument(0)],
+    )
+    .expect("verified signed exact remainder should interpret");
+    assert_eq!(execution.value(), argument(-1));
+
+    #[cfg(unix)]
+    {
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("signed exact remainder should cross the Omega boundary");
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("signed exact-remainder host selection");
+        let assigned = assign_registers(&target_operations).expect("signed exact-remainder homes");
+        let machine_code =
+            emit_machine_code(&assigned).expect("signed exact-remainder host emission");
+        let object = build_terminal_object_artifact(&machine_code)
+            .expect("signed exact-remainder host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(
+            entry,
+            (-101_i64) as u64,
+            0,
+            (-1_i64) as u64,
         ));
     }
 }

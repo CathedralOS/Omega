@@ -352,6 +352,18 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::ExactIntegerRemainder { left, right, .. } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedExactRemainderMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::ExactIntegerRemainder {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        left,
+                        right,
+                    });
+                }
                 OperationKind::SaturatingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedSaturatingAddMalformed(operation.id));
@@ -523,6 +535,7 @@ pub enum LoweringError {
     VerifiedSaturatingSubtractMalformed(psi_core::OperationId),
     VerifiedWrappingMultiplyMalformed(psi_core::OperationId),
     VerifiedExactDivideMalformed(psi_core::OperationId),
+    VerifiedExactRemainderMalformed(psi_core::OperationId),
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
     VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
     VerifiedIntegerWidenMalformed(psi_core::OperationId),

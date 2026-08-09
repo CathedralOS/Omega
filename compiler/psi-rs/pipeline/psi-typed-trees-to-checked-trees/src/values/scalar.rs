@@ -759,6 +759,9 @@ fn checked_integer_binary_kind(
         (BinaryOperator::Divide, ArithmeticDomain::Exact) => {
             Some(CheckedIntegerBinaryKind::ExactDivide)
         }
+        (BinaryOperator::Modulo, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactRemainder)
+        }
         (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
             Some(CheckedIntegerBinaryKind::WrappingAdd)
         }

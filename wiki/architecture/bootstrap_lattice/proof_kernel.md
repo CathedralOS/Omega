@@ -124,6 +124,13 @@ requires `MIN + 1 <= dividend`; zero and an unknown divisor reconstruct
 falsehood. Native truncating division is authorized only after that proposition
 is checked.
 
+Terminal Psi v35 applies the same boundary to Exact fixed-integer remainder.
+The terminal verifier requires a known nonzero divisor and excludes the signed
+`MIN % -1` quotient-overflow case with `MIN + 1 <= dividend`; zero and unknown
+divisors reconstruct falsehood. Native truncating remainder is authorized only
+after that operation-owned proposition is checked. Its signed result follows
+the dividend and is not Euclidean modulo.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate
