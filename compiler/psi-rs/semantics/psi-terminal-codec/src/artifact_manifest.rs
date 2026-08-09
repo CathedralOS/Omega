@@ -137,7 +137,7 @@ fn artifact_identity(
 ) -> TerminalArtifactIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&MANIFEST_FORMAT_VERSION.to_le_bytes());
-    bytes.extend_from_slice(&semantic.semantic_version.get().to_le_bytes());
+    bytes.extend_from_slice(&semantic.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
     bytes.extend_from_slice(proof.as_bytes());
     encode_optional_fingerprint(&mut bytes, installation);

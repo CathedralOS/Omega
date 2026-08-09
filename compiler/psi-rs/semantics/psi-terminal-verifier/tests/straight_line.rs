@@ -12,8 +12,8 @@ use psi_proof_kernel::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    MachineContract, Operation, OperationKind, SemanticVersion, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    MachineContract, Operation, OperationKind, StructuralPlaceDeclaration, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -50,14 +50,14 @@ fn verifier_reconstructs_every_contract_obligation() {
 }
 
 #[test]
-fn v2_boolean_constant_axiom_proves_the_return_contract() {
+fn boolean_constant_axiom_proves_the_return_contract() {
     let constant = ValueId::new(10).expect("constant");
     let result = ValueId::new(11).expect("result");
     let obligation = ObligationId::new(10).expect("obligation");
     let term = |id| ScalarTerm::value(id, ScalarType::Boolean);
     let goal = Proposition::Equal(term(result), ScalarTerm::boolean(true));
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V2,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(10).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -125,11 +125,11 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v2 Boolean semantics should reconstruct both axioms");
+        .expect("Boolean semantics should reconstruct both axioms");
 }
 
 #[test]
-fn v15_boolean_not_axiom_proves_the_return_contract() {
+fn boolean_not_axiom_proves_the_return_contract() {
     let parameter = ValueId::new(20).expect("parameter");
     let negated = ValueId::new(21).expect("negated");
     let result = ValueId::new(22).expect("result");
@@ -138,7 +138,7 @@ fn v15_boolean_not_axiom_proves_the_return_contract() {
     let not_parameter = ScalarTerm::boolean_not(term(parameter)).unwrap();
     let goal = Proposition::Equal(term(result), not_parameter.clone());
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V15,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(20).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -208,38 +208,7 @@ fn v15_boolean_not_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v15 Boolean-not semantics should reconstruct operation and return axioms");
-
-    let mut old_operation = module.clone();
-    old_operation.semantic_version = SemanticVersion::V14;
-    assert_eq!(
-        validate_module(&old_operation).expect_err("v14 cannot contain a Boolean-not operation"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(20).expect("operation"),
-            required: SemanticVersion::V15,
-            actual: SemanticVersion::V14,
-        }
-    );
-
-    let mut old_proposition = module.clone();
-    old_proposition.semantic_version = SemanticVersion::V14;
-    old_proposition.machines[0].blocks[0].operations[0].kind =
-        OperationKind::BooleanConstant { value: true };
-    old_proposition.machines[0].contract.ensures.clear();
-    old_proposition.machines[0].contract.requires = vec![Proposition::Equal(
-        ScalarTerm::boolean_not(ScalarTerm::boolean(false)).unwrap(),
-        ScalarTerm::boolean(true),
-    )];
-    assert_eq!(
-        validate_module(&old_proposition)
-            .expect_err("v14 cannot contain a Boolean-not proposition term"),
-        ModuleError::PropositionRequiresSemanticVersion {
-            contract: ContractId::new(20).expect("contract"),
-            clause: ContractClauseKind::Requires,
-            required: SemanticVersion::V15,
-            actual: SemanticVersion::V14,
-        }
-    );
+        .expect("Boolean-not semantics should reconstruct operation and return axioms");
 
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 operand type"));
@@ -268,7 +237,7 @@ fn v15_boolean_not_axiom_proves_the_return_contract() {
 }
 
 #[test]
-fn v17_boolean_equality_axiom_proves_the_return_contract() {
+fn boolean_equality_axiom_proves_the_return_contract() {
     let left = ValueId::new(30).expect("left parameter");
     let right = ValueId::new(31).expect("right parameter");
     let compared = ValueId::new(32).expect("compared");
@@ -278,7 +247,7 @@ fn v17_boolean_equality_axiom_proves_the_return_contract() {
     let equality = ScalarTerm::boolean_equal(term(left), term(right)).unwrap();
     let goal = Proposition::Equal(term(result), equality.clone());
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V17,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(30).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -354,18 +323,7 @@ fn v17_boolean_equality_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v17 Boolean-equality semantics should reconstruct operation and return axioms");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V16;
-    assert_eq!(
-        validate_module(&old).expect_err("v16 cannot contain a Boolean-equality operation"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(30).expect("operation"),
-            required: SemanticVersion::V17,
-            actual: SemanticVersion::V16,
-        }
-    );
+        .expect("Boolean-equality semantics should reconstruct operation and return axioms");
 
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 operand type"));
@@ -393,7 +351,7 @@ fn v17_boolean_equality_axiom_proves_the_return_contract() {
 }
 
 #[test]
-fn v18_integer_equality_axiom_proves_the_return_contract() {
+fn integer_equality_axiom_proves_the_return_contract() {
     let integer =
         IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 integer-equality operand type");
     let integer_scalar = ScalarType::Integer(integer);
@@ -411,7 +369,7 @@ fn v18_integer_equality_axiom_proves_the_return_contract() {
     .expect("matching integer operands form equality");
     let goal = Proposition::Equal(value(result, ScalarType::Boolean), equality.clone());
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V18,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(40).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -493,33 +451,7 @@ fn v18_integer_equality_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v18 integer-equality semantics should reconstruct operation and return axioms");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V17;
-    assert_eq!(
-        validate_module(&old).expect_err("v17 cannot contain an integer-equality operation"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(40).expect("operation"),
-            required: SemanticVersion::V18,
-            actual: SemanticVersion::V17,
-        }
-    );
-
-    let mut old_proposition = module.clone();
-    old_proposition.semantic_version = SemanticVersion::V17;
-    old_proposition.machines[0].blocks[0].operations[0].kind =
-        OperationKind::BooleanConstant { value: true };
-    assert_eq!(
-        validate_module(&old_proposition)
-            .expect_err("v17 cannot contain an integer-equality proposition term"),
-        ModuleError::PropositionRequiresSemanticVersion {
-            contract: ContractId::new(40).expect("contract"),
-            clause: ContractClauseKind::Ensures,
-            required: SemanticVersion::V18,
-            actual: SemanticVersion::V17,
-        }
-    );
+        .expect("integer-equality semantics should reconstruct operation and return axioms");
 
     let signed_integer =
         IntegerType::new(IntegerSign::Signed, 8).expect("i8 mismatched operand type");
@@ -548,7 +480,7 @@ fn v18_integer_equality_axiom_proves_the_return_contract() {
 }
 
 #[test]
-fn v19_integer_ordering_axioms_prove_return_contracts() {
+fn integer_ordering_axioms_prove_return_contracts() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8 ordering type");
     let integer_scalar = ScalarType::Integer(integer);
     let left = ValueId::new(50).expect("left parameter");
@@ -581,7 +513,7 @@ fn v19_integer_ordering_axioms_prove_return_contracts() {
             OperationKind::IntegerLessThan { left, right }
         };
         let module = TerminalModule {
-            semantic_version: SemanticVersion::V19,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(50).expect("machine"),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -662,62 +594,33 @@ fn v19_integer_ordering_axioms_prove_return_contracts() {
             }],
         };
         verify_module(&module, &bundle, &AdmissionProfile::default())
-            .expect("v19 ordering reconstructs the exact operation and return axioms");
+            .expect("ordering reconstructs the exact operation and return axioms");
 
-        let mut old = module.clone();
-        old.semantic_version = SemanticVersion::V18;
+        let mut wrong_operand = module.clone();
+        wrong_operand.machines[0].contract.ensures.clear();
+        wrong_operand.machines[0].parameters[1].scalar_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 mismatch"));
+        assert!(matches!(
+            validate_module(&wrong_operand),
+            Err(ModuleError::IntegerOrderingOperandTypeMismatch { .. })
+        ));
+
+        let mut wrong_result = module.clone();
+        wrong_result.machines[0].contract.ensures.clear();
+        wrong_result.machines[0].blocks[0].operations[0]
+            .result
+            .scalar_type = integer_scalar;
         assert_eq!(
-            validate_module(&old).expect_err("v18 cannot contain ordering"),
-            ModuleError::OperationRequiresSemanticVersion {
-                operation: OperationId::new(50).expect("operation"),
-                required: SemanticVersion::V19,
-                actual: SemanticVersion::V18,
-            }
+            validate_module(&wrong_result).expect_err("integer ordering requires a Boolean result"),
+            ModuleError::IntegerOrderingRequiresBooleanResult(
+                OperationId::new(50).expect("operation")
+            )
         );
-        if !inclusive {
-            let mut old_proposition = module.clone();
-            old_proposition.semantic_version = SemanticVersion::V18;
-            old_proposition.machines[0].blocks[0].operations[0].kind =
-                OperationKind::BooleanConstant { value: true };
-            assert_eq!(
-                validate_module(&old_proposition)
-                    .expect_err("v18 cannot contain an integer-ordering proposition term"),
-                ModuleError::PropositionRequiresSemanticVersion {
-                    contract: ContractId::new(50).expect("contract"),
-                    clause: ContractClauseKind::Ensures,
-                    required: SemanticVersion::V19,
-                    actual: SemanticVersion::V18,
-                }
-            );
-
-            let mut wrong_operand = module.clone();
-            wrong_operand.machines[0].contract.ensures.clear();
-            wrong_operand.machines[0].parameters[1].scalar_type = ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 mismatch"),
-            );
-            assert!(matches!(
-                validate_module(&wrong_operand),
-                Err(ModuleError::IntegerOrderingOperandTypeMismatch { .. })
-            ));
-
-            let mut wrong_result = module.clone();
-            wrong_result.machines[0].contract.ensures.clear();
-            wrong_result.machines[0].blocks[0].operations[0]
-                .result
-                .scalar_type = integer_scalar;
-            assert_eq!(
-                validate_module(&wrong_result)
-                    .expect_err("integer ordering requires a Boolean result"),
-                ModuleError::IntegerOrderingRequiresBooleanResult(
-                    OperationId::new(50).expect("operation")
-                )
-            );
-        }
     }
 }
 
 #[test]
-fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
+fn integer_bitwise_axioms_prove_exact_result_contracts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 bitwise type");
     let scalar_type = ScalarType::Integer(integer);
     let left = ValueId::new(60).expect("left");
@@ -743,7 +646,7 @@ fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
         let goal = Proposition::Equal(value(result), term.clone());
         let obligation = ObligationId::new(60 + u64::from(kind)).expect("obligation");
         let module = TerminalModule {
-            semantic_version: SemanticVersion::V20,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(60).expect("machine"),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -818,61 +721,33 @@ fn v20_integer_bitwise_axioms_prove_exact_result_contracts() {
             }],
         };
         verify_module(&module, &bundle, &AdmissionProfile::default())
-            .expect("v20 reconstructs the exact bitwise result axiom");
+            .expect("reconstructs the exact bitwise result axiom");
 
-        let mut old = module.clone();
-        old.semantic_version = SemanticVersion::V19;
+        let mut wrong_operand = module.clone();
+        wrong_operand.machines[0].contract.ensures.clear();
+        wrong_operand.machines[0].parameters[1].scalar_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8 mismatch"));
+        assert!(matches!(
+            validate_module(&wrong_operand),
+            Err(ModuleError::IntegerBitwiseOperandTypeMismatch { .. })
+        ));
+
+        let mut wrong_result = module.clone();
+        wrong_result.machines[0].contract.ensures.clear();
+        wrong_result.machines[0].blocks[0].operations[0]
+            .result
+            .scalar_type = ScalarType::Boolean;
         assert_eq!(
-            validate_module(&old).expect_err("v19 cannot contain bitwise operations"),
-            ModuleError::OperationRequiresSemanticVersion {
-                operation: OperationId::new(60).expect("operation"),
-                required: SemanticVersion::V20,
-                actual: SemanticVersion::V19,
-            }
+            validate_module(&wrong_result).expect_err("integer bitwise requires an integer result"),
+            ModuleError::IntegerBitwiseRequiresIntegerResult(
+                OperationId::new(60).expect("operation")
+            )
         );
-        if kind == 0 {
-            let mut old_term = module.clone();
-            old_term.semantic_version = SemanticVersion::V19;
-            old_term.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
-                value: IntegerValue::Unsigned(0),
-            };
-            assert_eq!(
-                validate_module(&old_term).expect_err("v19 cannot contain a bitwise term"),
-                ModuleError::PropositionRequiresSemanticVersion {
-                    contract: ContractId::new(60).expect("contract"),
-                    clause: ContractClauseKind::Ensures,
-                    required: SemanticVersion::V20,
-                    actual: SemanticVersion::V19,
-                }
-            );
-
-            let mut wrong_operand = module.clone();
-            wrong_operand.machines[0].contract.ensures.clear();
-            wrong_operand.machines[0].parameters[1].scalar_type =
-                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8 mismatch"));
-            assert!(matches!(
-                validate_module(&wrong_operand),
-                Err(ModuleError::IntegerBitwiseOperandTypeMismatch { .. })
-            ));
-
-            let mut wrong_result = module.clone();
-            wrong_result.machines[0].contract.ensures.clear();
-            wrong_result.machines[0].blocks[0].operations[0]
-                .result
-                .scalar_type = ScalarType::Boolean;
-            assert_eq!(
-                validate_module(&wrong_result)
-                    .expect_err("integer bitwise requires an integer result"),
-                ModuleError::IntegerBitwiseRequiresIntegerResult(
-                    OperationId::new(60).expect("operation")
-                )
-            );
-        }
     }
 }
 
 #[test]
-fn v25_integer_bitwise_not_reconstructs_its_exact_result_axiom() {
+fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type");
     let scalar_type = ScalarType::Integer(integer);
     let operand = ValueId::new(65).expect("operand");
@@ -883,7 +758,7 @@ fn v25_integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     let goal = Proposition::Equal(value(result), term.clone());
     let obligation = ObligationId::new(65).expect("obligation");
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V25,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(65).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -952,18 +827,7 @@ fn v25_integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         }],
     };
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v25 reconstructs the exact bitwise-not result axiom");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V24;
-    assert_eq!(
-        validate_module(&old).expect_err("v24 cannot contain bitwise-not"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(65).expect("operation"),
-            required: SemanticVersion::V25,
-            actual: SemanticVersion::V24,
-        }
-    );
+        .expect("reconstructs the exact bitwise-not result axiom");
 
     let mut wrong_operand = module;
     wrong_operand.machines[0].contract.ensures.clear();
@@ -975,7 +839,7 @@ fn v25_integer_bitwise_not_reconstructs_its_exact_result_axiom() {
 }
 
 #[test]
-fn v26_integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts() {
+fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts() {
     let source_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let target_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let source_scalar = ScalarType::Integer(source_type);
@@ -988,7 +852,7 @@ fn v26_integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_cas
     let goal = Proposition::Equal(ScalarTerm::value(result, target_scalar), widened.clone());
     let obligation = ObligationId::new(68).expect("obligation");
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V26,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(68).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1063,18 +927,7 @@ fn v26_integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_cas
         }],
     };
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v26 reconstructs the exact widening result axiom");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V25;
-    assert_eq!(
-        validate_module(&old).expect_err("v25 cannot contain integer widening"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(68).expect("operation"),
-            required: SemanticVersion::V26,
-            actual: SemanticVersion::V25,
-        }
-    );
+        .expect("reconstructs the exact widening result axiom");
 
     let mut narrowing = module.clone();
     narrowing.machines[0].contract.ensures.clear();
@@ -1104,12 +957,12 @@ fn v26_integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_cas
 }
 
 #[test]
-fn v27_preserves_address_carrier_identity_and_v26_rejects_it() {
+fn preserves_address_carrier_identity() {
     let address = ScalarType::Integer(IntegerType::address(64).expect("addr"));
     let parameter = ValueId::new(168).expect("parameter");
     let result = ValueId::new(169).expect("result");
-    let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V27,
+    let module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(168).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1146,19 +999,11 @@ fn v27_preserves_address_carrier_identity_and_v26_rejects_it() {
         }],
     };
 
-    validate_module(&module).expect("v27 admits the distinct address carrier");
-    module.semantic_version = SemanticVersion::V26;
-    assert_eq!(
-        validate_module(&module).expect_err("v26 cannot encode address identity"),
-        ModuleError::AddressCarrierRequiresSemanticVersion {
-            required: SemanticVersion::V27,
-            actual: SemanticVersion::V26,
-        }
-    );
+    validate_module(&module).expect("the distinct address carrier is admitted");
 }
 
 #[test]
-fn v28_exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligation() {
+fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligation() {
     let source =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 source"));
     let target =
@@ -1168,7 +1013,7 @@ fn v28_exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_oblig
     let result = ValueId::new(172).expect("result");
     let cast_obligation = ObligationId::new(170).expect("cast obligation");
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V28,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(170).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1214,18 +1059,7 @@ fn v28_exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_oblig
             },
         }],
     };
-    validate_module(&module).expect("v28 admits a proof-owned fixed partial conversion");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V27;
-    assert_eq!(
-        validate_module(&old).expect_err("v27 cannot contain exact casts"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(170).expect("operation"),
-            required: SemanticVersion::V28,
-            actual: SemanticVersion::V27,
-        }
-    );
+    validate_module(&module).expect("admits a proof-owned fixed partial conversion");
 
     let mut redundant = module.clone();
     redundant.machines[0].blocks[0].operations[0]
@@ -1246,7 +1080,7 @@ fn v28_exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_oblig
 }
 
 #[test]
-fn v29_exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
+fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
     let value_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 value"));
     let count_type =
@@ -1256,7 +1090,7 @@ fn v29_exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
     let computed = ValueId::new(182).expect("computed");
     let result = ValueId::new(183).expect("result");
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V29,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(180).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1309,18 +1143,7 @@ fn v29_exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
             },
         }],
     };
-    validate_module(&module).expect("v29 admits proof-gated exact right shift");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V28;
-    assert_eq!(
-        validate_module(&old).expect_err("v28 cannot contain exact right shifts"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(180).expect("operation"),
-            required: SemanticVersion::V29,
-            actual: SemanticVersion::V28,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact right shift");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1330,7 +1153,7 @@ fn v29_exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
-fn v30_exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
+fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
     let value_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 value"));
     let count_type =
@@ -1340,7 +1163,7 @@ fn v30_exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
     let computed = ValueId::new(192).expect("computed");
     let result = ValueId::new(193).expect("result");
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V30,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(190).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1393,18 +1216,7 @@ fn v30_exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
             },
         }],
     };
-    validate_module(&module).expect("v30 admits proof-gated exact left shift");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V29;
-    assert_eq!(
-        validate_module(&old).expect_err("v29 cannot contain exact left shifts"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(190).expect("operation"),
-            required: SemanticVersion::V30,
-            actual: SemanticVersion::V29,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact left shift");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1414,7 +1226,7 @@ fn v30_exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
-fn v31_exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
+fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let left = ValueId::new(194).expect("left");
@@ -1423,7 +1235,7 @@ fn v31_exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
     let result = ValueId::new(197).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V31,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(194).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1461,18 +1273,7 @@ fn v31_exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
             },
         }],
     };
-    validate_module(&module).expect("v31 admits proof-gated exact addition");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V30;
-    assert_eq!(
-        validate_module(&old).expect_err("v30 cannot contain exact addition"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(194).expect("operation"),
-            required: SemanticVersion::V31,
-            actual: SemanticVersion::V30,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact addition");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1482,7 +1283,7 @@ fn v31_exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
-fn v32_exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
+fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let left = ValueId::new(198).expect("left");
@@ -1491,7 +1292,7 @@ fn v32_exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
     let result = ValueId::new(201).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V32,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(198).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1529,18 +1330,7 @@ fn v32_exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
             },
         }],
     };
-    validate_module(&module).expect("v32 admits proof-gated exact subtraction");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V31;
-    assert_eq!(
-        validate_module(&old).expect_err("v31 cannot contain exact subtraction"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(198).expect("operation"),
-            required: SemanticVersion::V32,
-            actual: SemanticVersion::V31,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact subtraction");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1550,7 +1340,7 @@ fn v32_exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
-fn v33_exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
+fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let left = ValueId::new(202).expect("left");
@@ -1559,7 +1349,7 @@ fn v33_exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     let result = ValueId::new(205).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V33,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(202).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1597,18 +1387,7 @@ fn v33_exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
             },
         }],
     };
-    validate_module(&module).expect("v33 admits proof-gated exact multiplication");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V32;
-    assert_eq!(
-        validate_module(&old).expect_err("v32 cannot contain exact multiplication"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(202).expect("operation"),
-            required: SemanticVersion::V33,
-            actual: SemanticVersion::V32,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact multiplication");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1618,7 +1397,7 @@ fn v33_exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
-fn v34_exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
+fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let left = ValueId::new(212).expect("left");
@@ -1627,7 +1406,7 @@ fn v34_exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let result = ValueId::new(215).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V34,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(212).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1665,18 +1444,7 @@ fn v34_exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             },
         }],
     };
-    validate_module(&module).expect("v34 admits proof-gated exact division");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V33;
-    assert_eq!(
-        validate_module(&old).expect_err("v33 cannot contain exact division"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(212).expect("operation"),
-            required: SemanticVersion::V34,
-            actual: SemanticVersion::V33,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact division");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1686,7 +1454,7 @@ fn v34_exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
-fn v35_exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
+fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let left = ValueId::new(222).expect("left");
@@ -1695,7 +1463,7 @@ fn v35_exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() 
     let result = ValueId::new(225).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V35,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(222).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1733,18 +1501,7 @@ fn v35_exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() 
             },
         }],
     };
-    validate_module(&module).expect("v35 admits proof-gated exact remainder");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V34;
-    assert_eq!(
-        validate_module(&old).expect_err("v34 cannot contain exact remainder"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(222).expect("operation"),
-            required: SemanticVersion::V35,
-            actual: SemanticVersion::V34,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated exact remainder");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1754,7 +1511,7 @@ fn v35_exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() 
 }
 
 #[test]
-fn v36_wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
+fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32"));
     let left = ValueId::new(232).expect("left");
     let right = ValueId::new(233).expect("right");
@@ -1762,7 +1519,7 @@ fn v36_wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() 
     let result = ValueId::new(235).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V36,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(232).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1800,18 +1557,7 @@ fn v36_wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() 
             },
         }],
     };
-    validate_module(&module).expect("v36 admits proof-gated wrapping division");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V35;
-    assert_eq!(
-        validate_module(&old).expect_err("v35 cannot contain wrapping division"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(232).expect("operation"),
-            required: SemanticVersion::V36,
-            actual: SemanticVersion::V35,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated wrapping division");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1821,7 +1567,7 @@ fn v36_wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() 
 }
 
 #[test]
-fn v37_wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
+fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32"));
     let left = ValueId::new(242).expect("left");
     let right = ValueId::new(243).expect("right");
@@ -1829,7 +1575,7 @@ fn v37_wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation
     let result = ValueId::new(245).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V37,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(242).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1867,18 +1613,7 @@ fn v37_wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation
             },
         }],
     };
-    validate_module(&module).expect("v37 admits proof-gated wrapping remainder");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V36;
-    assert_eq!(
-        validate_module(&old).expect_err("v36 cannot contain wrapping remainder"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(242).expect("operation"),
-            required: SemanticVersion::V37,
-            actual: SemanticVersion::V36,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated wrapping remainder");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1888,7 +1623,7 @@ fn v37_wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation
 }
 
 #[test]
-fn v38_saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
+fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32"));
     let left = ValueId::new(252).expect("left");
     let right = ValueId::new(253).expect("right");
@@ -1896,7 +1631,7 @@ fn v38_saturating_divide_requires_same_fixed_integer_operands_and_an_obligation(
     let result = ValueId::new(255).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V38,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(252).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1934,18 +1669,7 @@ fn v38_saturating_divide_requires_same_fixed_integer_operands_and_an_obligation(
             },
         }],
     };
-    validate_module(&module).expect("v38 admits proof-gated saturating division");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V37;
-    assert_eq!(
-        validate_module(&old).expect_err("v37 cannot contain saturating division"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(252).expect("operation"),
-            required: SemanticVersion::V38,
-            actual: SemanticVersion::V37,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated saturating division");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -1955,7 +1679,7 @@ fn v38_saturating_divide_requires_same_fixed_integer_operands_and_an_obligation(
 }
 
 #[test]
-fn v39_saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
+fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32"));
     let left = ValueId::new(256).expect("left");
     let right = ValueId::new(257).expect("right");
@@ -1963,7 +1687,7 @@ fn v39_saturating_remainder_requires_same_fixed_integer_operands_and_an_obligati
     let result = ValueId::new(259).expect("result");
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let mut module = TerminalModule {
-        semantic_version: SemanticVersion::V39,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(256).expect("machine"),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -2001,18 +1725,7 @@ fn v39_saturating_remainder_requires_same_fixed_integer_operands_and_an_obligati
             },
         }],
     };
-    validate_module(&module).expect("v39 admits proof-gated saturating remainder");
-
-    let mut old = module.clone();
-    old.semantic_version = SemanticVersion::V38;
-    assert_eq!(
-        validate_module(&old).expect_err("v38 cannot contain saturating remainder"),
-        ModuleError::OperationRequiresSemanticVersion {
-            operation: OperationId::new(256).expect("operation"),
-            required: SemanticVersion::V39,
-            actual: SemanticVersion::V38,
-        }
-    );
+    validate_module(&module).expect("admits proof-gated saturating remainder");
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
@@ -2022,7 +1735,7 @@ fn v39_saturating_remainder_requires_same_fixed_integer_operands_and_an_obligati
 }
 
 #[test]
-fn v21_wrapping_shift_axioms_preserve_the_count_type() {
+fn wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");
     let value_scalar = ScalarType::Integer(value_type);
@@ -2059,7 +1772,7 @@ fn v21_wrapping_shift_axioms_preserve_the_count_type() {
         let goal = Proposition::Equal(value_term(result), term.clone());
         let obligation = ObligationId::new(70 + u64::from(kind)).expect("obligation");
         let module = TerminalModule {
-            semantic_version: SemanticVersion::V21,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(70).expect("machine"),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -2137,18 +1850,7 @@ fn v21_wrapping_shift_axioms_preserve_the_count_type() {
             }],
         };
         verify_module(&module, &bundle, &AdmissionProfile::default())
-            .expect("v21 reconstructs the exact wrapping-shift result axiom");
-
-        let mut old = module.clone();
-        old.semantic_version = SemanticVersion::V20;
-        assert_eq!(
-            validate_module(&old).expect_err("v20 cannot contain wrapping shifts"),
-            ModuleError::OperationRequiresSemanticVersion {
-                operation: OperationId::new(70).expect("operation"),
-                required: SemanticVersion::V21,
-                actual: SemanticVersion::V20,
-            }
-        );
+            .expect("reconstructs the exact wrapping-shift result axiom");
 
         if kind == 0 {
             let mut wrong_count = module.clone();
@@ -2176,7 +1878,7 @@ fn v21_wrapping_shift_axioms_preserve_the_count_type() {
 }
 
 #[test]
-fn v9_content_conservation_accepts_a_replaceable_certificate() {
+fn content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {
         evidence: vec![ObligationEvidence {
@@ -2193,12 +1895,12 @@ fn v9_content_conservation_accepts_a_replaceable_certificate() {
     };
 
     let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v9 content proposition and certificate");
+        .expect("content proposition and certificate");
     assert_eq!(verified.accepted_facts().len(), 1);
 }
 
 #[test]
-fn v10_identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
+fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
     let (module, goal, obligation) = identity_reshuffle_module();
     let bundle = ProofBundle {
         evidence: vec![ObligationEvidence {
@@ -2220,13 +1922,14 @@ fn v10_identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
 }
 
 #[test]
-fn v11_sum_case_identity_reshuffle_reconstructs_content_equality() {
+fn sum_case_identity_reshuffle_reconstructs_content_equality() {
     let (mut module, _, obligation) = identity_reshuffle_module();
-    module.semantic_version = SemanticVersion::V11;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
     let segments = vec![
         ContentPlaceSegment::Case("Present".to_owned()),
         ContentPlaceSegment::Field("region".to_owned()),
     ];
+    module.machines[0].content_entry_claims[0].input.segments = segments.clone();
     let reshuffle = &mut module.machines[0].content_identity_reshuffles[0];
     reshuffle.input.segments = segments.clone();
     reshuffle.output.segments = segments;
@@ -2250,11 +1953,11 @@ fn v11_sum_case_identity_reshuffle_reconstructs_content_equality() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("a v11 case-plus-field reshuffle should establish its content equality");
+        .expect("a case-plus-field reshuffle should establish its content equality");
 }
 
 #[test]
-fn v12_partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
+fn partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
     let (module, goal, obligation) = partition_composition_module();
     let bundle = ProofBundle {
         evidence: vec![ObligationEvidence {
@@ -2271,13 +1974,13 @@ fn v12_partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("an exact v12 theorem substitution should be reconstructed");
+        .expect("an exact theorem substitution should be reconstructed");
 }
 
 #[test]
-fn v14_partition_uses_an_entry_claim_without_manufacturing_an_equality() {
+fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
     let (mut module, goal, obligation) = partition_composition_module();
-    module.semantic_version = SemanticVersion::V14;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
     let machine = &mut module.machines[0];
     let reshuffle = machine.content_identity_reshuffles[0].clone();
     let claim = ClaimId::new(1).expect("dense claim");
@@ -2307,25 +2010,10 @@ fn v14_partition_uses_an_entry_claim_without_manufacturing_an_equality() {
 }
 
 #[test]
-fn v14_entry_claims_require_dense_unique_parameter_bindings() {
-    let (mut old, _, _) = identity_reshuffle_module();
-    let reshuffle = old.machines[0].content_identity_reshuffles[0].clone();
-    old.machines[0].content_entry_claims = vec![ContentEntryClaim {
-        claim: ClaimId::new(1).expect("claim"),
-        input: reshuffle.input.clone(),
-        projections: reshuffle.projections.clone(),
-    }];
-    assert!(matches!(
-        validate_module(&old),
-        Err(ModuleError::ContentEntryClaimsRequireSemanticVersion {
-            required: SemanticVersion::V14,
-            actual: SemanticVersion::V10,
-            ..
-        })
-    ));
-
+fn entry_claims_require_dense_unique_parameter_bindings() {
     let (mut sparse, _, _) = identity_reshuffle_module();
-    sparse.semantic_version = SemanticVersion::V14;
+    let reshuffle = sparse.machines[0].content_identity_reshuffles[0].clone();
+    sparse.vocabulary_marker = VocabularyMarker::CURRENT;
     sparse.machines[0].content_identity_reshuffles.clear();
     sparse.machines[0].content_entry_claims = vec![ContentEntryClaim {
         claim: ClaimId::new(2).expect("sparse claim"),
@@ -2341,7 +2029,7 @@ fn v14_entry_claims_require_dense_unique_parameter_bindings() {
     );
 
     let (mut overlapping, _, _) = identity_reshuffle_module();
-    overlapping.semantic_version = SemanticVersion::V14;
+    overlapping.vocabulary_marker = VocabularyMarker::CURRENT;
     overlapping.machines[0].content_identity_reshuffles.clear();
     let first = ContentEntryClaim {
         claim: ClaimId::new(1).expect("first claim"),
@@ -2362,9 +2050,12 @@ fn v14_entry_claims_require_dense_unique_parameter_bindings() {
 }
 
 #[test]
-fn v22_crash_is_an_explicit_versioned_no_successor_exit() {
+fn crash_is_an_explicit_no_successor_exit() {
     let mut module = Fixture::new().module;
-    module.semantic_version = SemanticVersion::V21;
+    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+        cause: CrashCause::Abort,
+        maximum_scope: "ExecutionDomain".to_owned(),
+    }];
     module.machines[0].contract.ensures.clear();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: EdgeId::new(10).expect("crash edge"),
@@ -2373,17 +2064,7 @@ fn v22_crash_is_an_explicit_versioned_no_successor_exit() {
         containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::CrashRequiresSemanticVersion {
-            required: SemanticVersion::V22,
-            actual: SemanticVersion::V21,
-            ..
-        })
-    ));
-
-    module.semantic_version = SemanticVersion::V22;
-    validate_module(&module).expect("v22 explicitly represents a no-cleanup crash");
+    validate_module(&module).expect("Psi explicitly represents a no-cleanup crash");
 
     let Terminator::Crash { damage_minimum, .. } = &mut module.machines[0].blocks[1].terminator
     else {
@@ -2398,9 +2079,12 @@ fn v22_crash_is_an_explicit_versioned_no_successor_exit() {
 }
 
 #[test]
-fn v23_crash_requires_a_demand_covering_its_separate_damage_minimum() {
+fn crash_requires_a_demand_covering_its_separate_damage_minimum() {
     let mut module = Fixture::new().module;
-    module.semantic_version = SemanticVersion::V22;
+    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+        cause: CrashCause::Trap,
+        maximum_scope: "ExecutionDomain".to_owned(),
+    }];
     module.machines[0].contract.ensures.clear();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: EdgeId::new(10).expect("crash edge"),
@@ -2409,16 +2093,6 @@ fn v23_crash_requires_a_demand_covering_its_separate_damage_minimum() {
         containment_demand: "ExecutionDomain".to_owned(),
         frontier_lower_bound: Vec::new(),
     };
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::SeparatedCrashScopesRequireSemanticVersion {
-            required: SemanticVersion::V23,
-            actual: SemanticVersion::V22,
-            ..
-        })
-    ));
-
-    module.semantic_version = SemanticVersion::V23;
     validate_module(&module).expect("execution-domain demand covers an activation minimum");
 
     let Terminator::Crash {
@@ -2450,9 +2124,9 @@ fn v23_crash_requires_a_demand_covering_its_separate_damage_minimum() {
 }
 
 #[test]
-fn v24_crash_requires_a_per_cause_context_maximum_covering_its_demand() {
+fn crash_requires_a_per_cause_context_maximum_covering_its_demand() {
     let mut module = Fixture::new().module;
-    module.semantic_version = SemanticVersion::V24;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
     module.machines[0].contract.ensures.clear();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: EdgeId::new(10).expect("crash edge"),
@@ -2485,7 +2159,7 @@ fn v24_crash_requires_a_per_cause_context_maximum_covering_its_demand() {
 #[test]
 fn crash_frontier_must_name_every_still_live_entry_claim() {
     let (mut module, _, _) = identity_reshuffle_module();
-    module.semantic_version = SemanticVersion::V22;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
     let reshuffle = module.machines[0].content_identity_reshuffles.remove(0);
     let claim = ClaimId::new(1).expect("claim");
     module.machines[0].content_entry_claims = vec![ContentEntryClaim {
@@ -2494,6 +2168,10 @@ fn crash_frontier_must_name_every_still_live_entry_claim() {
         projections: reshuffle.projections,
     }];
     module.machines[0].contract.ensures.clear();
+    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+        cause: CrashCause::Trap,
+        maximum_scope: "Activation".to_owned(),
+    }];
     module.machines[0].blocks[0].terminator = Terminator::Crash {
         edge: EdgeId::new(90).expect("crash edge"),
         cause: CrashCause::Trap,
@@ -2519,20 +2197,7 @@ fn crash_frontier_must_name_every_still_live_entry_claim() {
 }
 
 #[test]
-fn v12_partition_composition_rejects_old_versions_and_theorem_drift() {
-    let (mut old, _, _) = partition_composition_module();
-    old.semantic_version = SemanticVersion::V11;
-    assert!(matches!(
-        validate_module(&old),
-        Err(
-            ModuleError::ContentPartitionCompositionsRequireSemanticVersion {
-                required: SemanticVersion::V12,
-                actual: SemanticVersion::V11,
-                ..
-            }
-        )
-    ));
-
+fn partition_composition_rejects_theorem_drift() {
     let (mut drifted, _, _) = partition_composition_module();
     let composition = &mut drifted.machines[0].content_partition_compositions[0];
     let ContentTerm::Separate(children) = composition.derived.right().clone() else {
@@ -2550,27 +2215,13 @@ fn v12_partition_composition_rejects_old_versions_and_theorem_drift() {
 }
 
 #[test]
-fn sum_case_content_paths_require_v11_and_nonempty_case_names() {
-    let (mut old_version, _, _) = identity_reshuffle_module();
-    old_version.machines[0].content_identity_reshuffles[0]
-        .input
-        .segments = vec![ContentPlaceSegment::Case("Present".to_owned())];
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(
-            ModuleError::ContentIdentityCasePathRequiresSemanticVersion {
-                required: SemanticVersion::V11,
-                actual: SemanticVersion::V10,
-                ..
-            }
-        )
-    ));
-
+fn sum_case_content_paths_require_nonempty_case_names() {
     let (mut empty, _, _) = identity_reshuffle_module();
-    empty.semantic_version = SemanticVersion::V11;
     empty.machines[0].content_identity_reshuffles[0]
         .input
         .segments = vec![ContentPlaceSegment::Case(String::new())];
+    empty.machines[0].content_entry_claims[0].input.segments =
+        vec![ContentPlaceSegment::Case(String::new())];
     assert_eq!(
         validate_module(&empty).expect_err("case spellings are semantic identity"),
         ModuleError::MalformedProposition(PropositionError::EmptyContentCaseName)
@@ -2578,115 +2229,26 @@ fn sum_case_content_paths_require_v11_and_nonempty_case_names() {
 }
 
 #[test]
-fn v10_identity_reshuffles_fail_closed_when_malformed() {
-    let (mut old_version, _, _) = identity_reshuffle_module();
-    old_version.semantic_version = SemanticVersion::V9;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(
-            ModuleError::ContentIdentityReshufflesRequireSemanticVersion {
-                required: SemanticVersion::V10,
-                actual: SemanticVersion::V9,
-                ..
-            }
-        )
-    ));
-
+fn identity_reshuffles_fail_closed_when_malformed() {
     let (mut empty, _, _) = identity_reshuffle_module();
     empty.machines[0].content_identity_reshuffles[0]
         .projections
         .clear();
     assert_eq!(
         validate_module(&empty).expect_err("a claim must preserve named content"),
-        ModuleError::ContentIdentityReshuffleHasNoProjections(ClaimId::new(90).expect("claim"))
+        ModuleError::ContentIdentityReshuffleHasNoProjections(ClaimId::new(1).expect("claim"))
     );
 
     let (mut wrong_input, _, _) = identity_reshuffle_module();
     wrong_input.machines[0].content_identity_reshuffles[0]
         .input
         .version = ContentPlaceVersion::Current;
+    wrong_input.machines[0].content_entry_claims[0]
+        .input
+        .version = ContentPlaceVersion::Current;
     assert_eq!(
         validate_module(&wrong_input).expect_err("input must denote parameter entry content"),
-        ModuleError::ContentIdentityReshuffleRequiresEntryParameter(
-            ClaimId::new(90).expect("claim")
-        )
-    );
-
-    let (mut duplicate, _, _) = identity_reshuffle_module();
-    let mut second = duplicate.machines[0].content_identity_reshuffles[0].clone();
-    second.claim = ClaimId::new(91).expect("second claim");
-    second.output.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
-    duplicate.machines[0]
-        .content_identity_reshuffles
-        .push(second);
-    assert!(matches!(
-        validate_module(&duplicate),
-        Err(ModuleError::DuplicateContentIdentityInput(_))
-    ));
-
-    let (mut overlapping_input, _, _) = identity_reshuffle_module();
-    overlapping_input.machines[0].content_identity_reshuffles[0]
-        .input
-        .segments = vec![ContentPlaceSegment::Field("payload".to_owned())];
-    let mut child = overlapping_input.machines[0].content_identity_reshuffles[0].clone();
-    child.claim = ClaimId::new(91).expect("second claim");
-    child
-        .input
-        .segments
-        .push(ContentPlaceSegment::Field("child".to_owned()));
-    child.output.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
-    overlapping_input.machines[0]
-        .content_identity_reshuffles
-        .push(child);
-    assert!(matches!(
-        validate_module(&overlapping_input),
-        Err(ModuleError::OverlappingContentIdentityInput { .. })
-    ));
-
-    let (mut overlapping_output, _, _) = identity_reshuffle_module();
-    overlapping_output.machines[0].content_identity_reshuffles[0]
-        .input
-        .segments = vec![ContentPlaceSegment::Field("first".to_owned())];
-    overlapping_output.machines[0].content_identity_reshuffles[0]
-        .output
-        .segments = vec![ContentPlaceSegment::Field("payload".to_owned())];
-    let mut child = overlapping_output.machines[0].content_identity_reshuffles[0].clone();
-    child.claim = ClaimId::new(91).expect("second claim");
-    child.input.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
-    child
-        .output
-        .segments
-        .push(ContentPlaceSegment::Field("child".to_owned()));
-    overlapping_output.machines[0]
-        .content_identity_reshuffles
-        .push(child);
-    assert!(matches!(
-        validate_module(&overlapping_output),
-        Err(ModuleError::OverlappingContentIdentityOutput { .. })
-    ));
-
-    let (mut mismatched_algebra, _, _) = identity_reshuffle_module();
-    mismatched_algebra.machines[0].content_identity_reshuffles[0]
-        .input
-        .segments = vec![ContentPlaceSegment::Field("first".to_owned())];
-    mismatched_algebra.machines[0].content_identity_reshuffles[0]
-        .output
-        .segments = vec![ContentPlaceSegment::Field("first".to_owned())];
-    let mut second = mismatched_algebra.machines[0].content_identity_reshuffles[0].clone();
-    second.claim = ClaimId::new(91).expect("second claim");
-    second.input.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
-    second.output.segments = vec![ContentPlaceSegment::Field("second".to_owned())];
-    second.projections[0].algebra.parameter = "Element".to_owned();
-    mismatched_algebra.machines[0]
-        .content_identity_reshuffles
-        .push(second);
-    assert_eq!(
-        validate_module(&mismatched_algebra)
-            .expect_err("one projection identity cannot name two algebras"),
-        ModuleError::ContentProjectionAlgebraMismatch(ContentProjectionIdentity {
-            domain: ContentDomainId::new(90).expect("content domain"),
-            projection_fingerprint: 0x9055,
-        })
+        ModuleError::ContentEntryClaimRequiresEntryParameter(ClaimId::new(1).expect("claim"))
     );
 }
 
@@ -2695,8 +2257,9 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     let result = ValueId::new(91).expect("result");
     let input_root = PlaceId::new(90).expect("input place");
     let output_root = PlaceId::new(91).expect("output place");
+    let claim = ClaimId::new(1).expect("claim");
     let reshuffle = ContentIdentityReshuffle {
-        claim: ClaimId::new(90).expect("claim"),
+        claim,
         input: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,
             root: input_root,
@@ -2746,7 +2309,11 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
                 kind: StructuralPlaceKind::Result,
             },
         ],
-        content_entry_claims: Vec::new(),
+        content_entry_claims: vec![ContentEntryClaim {
+            claim,
+            input: reshuffle.input.clone(),
+            projections: reshuffle.projections.clone(),
+        }],
         content_identity_reshuffles: vec![reshuffle],
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(90).expect("block"),
@@ -2771,7 +2338,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V10,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -2784,7 +2351,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
 
 fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId) {
     let (mut module, _, obligation) = identity_reshuffle_module();
-    module.semantic_version = SemanticVersion::V12;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
     let machine = &mut module.machines[0];
     let input_root = machine.content_identity_reshuffles[0].input.root;
     let result_root = machine.content_identity_reshuffles[0].output.root;
@@ -2879,20 +2446,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
 }
 
 #[test]
-fn content_conservation_is_v9_ensures_only_and_entry_cannot_name_result() {
-    let (mut old_module, _, _) = reflexive_content_module();
-    old_module.semantic_version = SemanticVersion::V8;
-    old_module.machines[0].structural_places.clear();
-    assert_eq!(
-        validate_module(&old_module).expect_err("content propositions require v9"),
-        ModuleError::PropositionRequiresSemanticVersion {
-            contract: ContractId::new(80).expect("contract"),
-            clause: ContractClauseKind::Ensures,
-            required: SemanticVersion::V9,
-            actual: SemanticVersion::V8,
-        }
-    );
-
+fn content_conservation_is_ensures_only_and_entry_cannot_name_result() {
     let (mut requires_module, goal, _) = reflexive_content_module();
     requires_module.machines[0].contract.ensures.clear();
     requires_module.machines[0].contract.requires.push(goal);
@@ -3001,7 +2555,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V9,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -3013,7 +2567,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
 }
 
 #[test]
-fn v3_wrapping_add_axiom_proves_the_return_contract() {
+fn wrapping_add_axiom_proves_the_return_contract() {
     let (module, goal, obligation) = wrapping_add_module();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -3044,22 +2598,11 @@ fn v3_wrapping_add_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v3 wrapping-add semantics should reconstruct both axioms");
+        .expect("wrapping-add semantics should reconstruct both axioms");
 }
 
 #[test]
-fn wrapping_add_requires_v3_and_defined_exact_type_operands() {
-    let (mut old_version, _, _) = wrapping_add_module();
-    old_version.semantic_version = SemanticVersion::V2;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(ModuleError::OperationRequiresSemanticVersion {
-            required: SemanticVersion::V3,
-            actual: SemanticVersion::V2,
-            ..
-        })
-    ));
-
+fn wrapping_add_requires_defined_exact_type_operands() {
     let (mut use_before_definition, _, _) = wrapping_add_module();
     use_before_definition.machines[0].blocks[0].operations[0].kind =
         OperationKind::WrappingIntegerAdd {
@@ -3086,7 +2629,7 @@ fn wrapping_add_requires_v3_and_defined_exact_type_operands() {
 }
 
 #[test]
-fn v4_saturating_add_axiom_proves_the_return_contract() {
+fn saturating_add_axiom_proves_the_return_contract() {
     let (module, goal, obligation) = saturating_add_module();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -3117,22 +2660,11 @@ fn v4_saturating_add_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v4 saturating-add semantics should reconstruct both axioms");
+        .expect("saturating-add semantics should reconstruct both axioms");
 }
 
 #[test]
-fn saturating_add_requires_v4_and_defined_exact_type_operands() {
-    let (mut old_version, _, _) = saturating_add_module();
-    old_version.semantic_version = SemanticVersion::V3;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(ModuleError::OperationRequiresSemanticVersion {
-            required: SemanticVersion::V4,
-            actual: SemanticVersion::V3,
-            ..
-        })
-    ));
-
+fn saturating_add_requires_defined_exact_type_operands() {
     let (mut use_before_definition, _, _) = saturating_add_module();
     use_before_definition.machines[0].blocks[0].operations[0].kind =
         OperationKind::SaturatingIntegerAdd {
@@ -3159,7 +2691,7 @@ fn saturating_add_requires_v4_and_defined_exact_type_operands() {
 }
 
 #[test]
-fn v5_wrapping_subtract_axiom_proves_the_return_contract() {
+fn wrapping_subtract_axiom_proves_the_return_contract() {
     let (module, goal, obligation) = wrapping_subtract_module();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -3190,22 +2722,11 @@ fn v5_wrapping_subtract_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v5 wrapping-subtract semantics should reconstruct both axioms");
+        .expect("wrapping-subtract semantics should reconstruct both axioms");
 }
 
 #[test]
-fn wrapping_subtract_requires_v5_and_defined_exact_type_operands() {
-    let (mut old_version, _, _) = wrapping_subtract_module();
-    old_version.semantic_version = SemanticVersion::V4;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(ModuleError::OperationRequiresSemanticVersion {
-            required: SemanticVersion::V5,
-            actual: SemanticVersion::V4,
-            ..
-        })
-    ));
-
+fn wrapping_subtract_requires_defined_exact_type_operands() {
     let (mut use_before_definition, _, _) = wrapping_subtract_module();
     use_before_definition.machines[0].blocks[0].operations[0].kind =
         OperationKind::WrappingIntegerSubtract {
@@ -3232,7 +2753,7 @@ fn wrapping_subtract_requires_v5_and_defined_exact_type_operands() {
 }
 
 #[test]
-fn v6_saturating_subtract_axiom_proves_the_return_contract() {
+fn saturating_subtract_axiom_proves_the_return_contract() {
     let (module, goal, obligation) = saturating_subtract_module();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -3263,22 +2784,11 @@ fn v6_saturating_subtract_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v6 saturating-subtract semantics should reconstruct both axioms");
+        .expect("saturating-subtract semantics should reconstruct both axioms");
 }
 
 #[test]
-fn saturating_subtract_requires_v6_and_defined_exact_type_operands() {
-    let (mut old_version, _, _) = saturating_subtract_module();
-    old_version.semantic_version = SemanticVersion::V5;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(ModuleError::OperationRequiresSemanticVersion {
-            required: SemanticVersion::V6,
-            actual: SemanticVersion::V5,
-            ..
-        })
-    ));
-
+fn saturating_subtract_requires_defined_exact_type_operands() {
     let (mut use_before_definition, _, _) = saturating_subtract_module();
     use_before_definition.machines[0].blocks[0].operations[0].kind =
         OperationKind::SaturatingIntegerSubtract {
@@ -3305,7 +2815,7 @@ fn saturating_subtract_requires_v6_and_defined_exact_type_operands() {
 }
 
 #[test]
-fn v7_wrapping_multiply_axiom_proves_the_return_contract() {
+fn wrapping_multiply_axiom_proves_the_return_contract() {
     let (module, goal, obligation) = wrapping_multiply_module();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -3336,22 +2846,11 @@ fn v7_wrapping_multiply_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v7 wrapping-multiply semantics should reconstruct both axioms");
+        .expect("wrapping-multiply semantics should reconstruct both axioms");
 }
 
 #[test]
-fn wrapping_multiply_requires_v7_and_defined_exact_type_operands() {
-    let (mut old_version, _, _) = wrapping_multiply_module();
-    old_version.semantic_version = SemanticVersion::V6;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(ModuleError::OperationRequiresSemanticVersion {
-            required: SemanticVersion::V7,
-            actual: SemanticVersion::V6,
-            ..
-        })
-    ));
-
+fn wrapping_multiply_requires_defined_exact_type_operands() {
     let (mut use_before_definition, _, _) = wrapping_multiply_module();
     use_before_definition.machines[0].blocks[0].operations[0].kind =
         OperationKind::WrappingIntegerMultiply {
@@ -3378,7 +2877,7 @@ fn wrapping_multiply_requires_v7_and_defined_exact_type_operands() {
 }
 
 #[test]
-fn v8_saturating_multiply_axiom_proves_the_return_contract() {
+fn saturating_multiply_axiom_proves_the_return_contract() {
     let (module, goal, obligation) = saturating_multiply_module();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
@@ -3409,22 +2908,11 @@ fn v8_saturating_multiply_axiom_proves_the_return_contract() {
     };
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("v8 saturating-multiply semantics should reconstruct both axioms");
+        .expect("saturating-multiply semantics should reconstruct both axioms");
 }
 
 #[test]
-fn saturating_multiply_requires_v8_and_defined_exact_type_operands() {
-    let (mut old_version, _, _) = saturating_multiply_module();
-    old_version.semantic_version = SemanticVersion::V7;
-    assert!(matches!(
-        validate_module(&old_version),
-        Err(ModuleError::OperationRequiresSemanticVersion {
-            required: SemanticVersion::V8,
-            actual: SemanticVersion::V7,
-            ..
-        })
-    ));
-
+fn saturating_multiply_requires_defined_exact_type_operands() {
     let (mut use_before_definition, _, _) = saturating_multiply_module();
     use_before_definition.machines[0].blocks[0].operations[0].kind =
         OperationKind::SaturatingIntegerMultiply {
@@ -3550,7 +3038,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V3,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -3623,7 +3111,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V4,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -3696,7 +3184,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V5,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -3769,7 +3257,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V6,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -3842,7 +3330,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V7,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -3915,7 +3403,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     };
     (
         TerminalModule {
-            semantic_version: SemanticVersion::V8,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
@@ -4003,7 +3491,7 @@ impl Fixture {
         };
         Self {
             module: TerminalModule {
-                semantic_version: SemanticVersion::CURRENT,
+                vocabulary_marker: VocabularyMarker::CURRENT,
                 entry: machine.id,
                 proposition_declarations: Vec::new(),
                 proposition_applications: Vec::new(),

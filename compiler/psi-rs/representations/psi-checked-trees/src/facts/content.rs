@@ -40,7 +40,7 @@ pub struct ContentPartitionCompositionFact {
     pub source_callable: SymbolHandle,
     pub source_fingerprint: u64,
     /// Number of checked wrapper-composition edges between this row's source
-    /// theorem and an authored conservation plan. Terminal Psi v12 accepts
+    /// theorem and an authored conservation plan. Terminal Psi accepts
     /// only zero because it cannot yet replay a transitive derivation chain.
     pub source_derivation_depth: u32,
     /// The exact theorem before caller-place substitution. Retaining the

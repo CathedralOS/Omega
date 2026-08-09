@@ -2539,7 +2539,7 @@ mod tests {
     };
     use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
     use psi_core::{EdgeId, MachineId, OperationId};
-    use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
+    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     fn emit_machine_code(
         plan: &TerminalTargetOperationPlan,
@@ -4132,7 +4132,7 @@ mod tests {
 
     fn identity() -> TerminalPsiIdentity {
         TerminalPsiIdentity {
-            semantic_version: SemanticVersion::CURRENT,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
         }
     }

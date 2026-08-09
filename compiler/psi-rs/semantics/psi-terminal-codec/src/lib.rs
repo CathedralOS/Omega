@@ -6,8 +6,6 @@
 //! records, and debug/source maps have separate identities and can be replaced
 //! without changing [`TerminalPsiIdentity`].
 
-use std::collections::BTreeMap;
-
 mod artifact_manifest;
 mod debug_map;
 mod proof_bundle;
@@ -38,9 +36,8 @@ use psi_terminal::{
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
     CrashContextMaximum, MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, SemanticVersion,
-    StructuralPlaceDeclaration, SuccessorEdge, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration,
+    SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -87,79 +84,9 @@ pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerpri
 
 pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdentity, CodecError> {
     Ok(TerminalPsiIdentity {
-        semantic_version: module.semantic_version,
+        vocabulary_marker: module.vocabulary_marker,
         program_fingerprint: semantic_fingerprint(module)?,
     })
-}
-
-/// Re-encode a valid older semantic module under the current vocabulary.
-///
-/// Migration is deliberately explicit: it preserves the executable graph and
-/// proof obligations, translates any newly required semantic metadata, and
-/// changes semantic version and therefore program fingerprint. Older bytes are
-/// never silently reinterpreted as the current version.
-pub fn migrate_module_to_current(module: &TerminalModule) -> Result<TerminalModule, CodecError> {
-    validate_canonical_order(module)?;
-    validate_module(module).map_err(CodecError::InvalidModule)?;
-    let mut migrated = module.clone();
-    if migrated.semantic_version < SemanticVersion::V14 {
-        for machine in &mut migrated.machines {
-            let mut claim_remap = BTreeMap::new();
-            for (index, reshuffle) in machine.content_identity_reshuffles.iter().enumerate() {
-                let claim = ClaimId::new(
-                    u64::try_from(index)
-                        .expect("an in-memory claim count fits u64")
-                        .checked_add(1)
-                        .expect("an in-memory claim count cannot exhaust u64"),
-                )
-                .expect("dense claim identities begin at one");
-                claim_remap.insert(reshuffle.claim, claim);
-            }
-            for reshuffle in &mut machine.content_identity_reshuffles {
-                reshuffle.claim = claim_remap[&reshuffle.claim];
-            }
-            for composition in &mut machine.content_partition_compositions {
-                for claim in &mut composition.input_claims {
-                    *claim = claim_remap[claim];
-                }
-                composition.input_claims.sort();
-            }
-            machine.content_entry_claims = machine
-                .content_identity_reshuffles
-                .iter()
-                .map(|reshuffle| ContentEntryClaim {
-                    claim: reshuffle.claim,
-                    input: reshuffle.input.clone(),
-                    projections: reshuffle.projections.clone(),
-                })
-                .collect();
-        }
-    }
-    if migrated.semantic_version < SemanticVersion::V24 {
-        for machine in &mut migrated.machines {
-            let mut causes = machine
-                .blocks
-                .iter()
-                .filter_map(|block| match block.terminator {
-                    Terminator::Crash { cause, .. } => Some(cause),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            causes.sort();
-            causes.dedup();
-            machine.contract.crash_context = causes
-                .into_iter()
-                .map(|cause| CrashContextMaximum {
-                    cause,
-                    maximum_scope: "ExecutionDomain".to_owned(),
-                })
-                .collect();
-        }
-    }
-    migrated.semantic_version = SemanticVersion::CURRENT;
-    validate_canonical_order(&migrated)?;
-    validate_module(&migrated).map_err(CodecError::InvalidModule)?;
-    Ok(migrated)
 }
 
 fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
@@ -173,12 +100,6 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 }
 
 fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
-    if module.semantic_version < SemanticVersion::V16
-        && (!module.proposition_declarations.is_empty()
-            || !module.proposition_applications.is_empty())
-    {
-        return Err(CodecError::PropositionVocabularyRequiresV16);
-    }
     if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
         |mut declaration| {
             declaration.id = PropositionId::new(1).expect("one is nonzero");
@@ -486,27 +407,25 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
     writer.u16(FORMAT_VERSION);
-    writer.u16(module.semantic_version.get());
+    writer.u16(module.vocabulary_marker.get());
     writer.id(module.entry);
-    if module.semantic_version >= SemanticVersion::V16 {
-        writer.len(
-            "proposition declarations",
-            module.proposition_declarations.len(),
-        )?;
-        for declaration in &module.proposition_declarations {
-            encode_proposition_declaration(&mut writer, declaration)?;
-        }
-        writer.len(
-            "proposition applications",
-            module.proposition_applications.len(),
-        )?;
-        for application in &module.proposition_applications {
-            encode_proposition_application(&mut writer, application)?;
-        }
+    writer.len(
+        "proposition declarations",
+        module.proposition_declarations.len(),
+    )?;
+    for declaration in &module.proposition_declarations {
+        encode_proposition_declaration(&mut writer, declaration)?;
+    }
+    writer.len(
+        "proposition applications",
+        module.proposition_applications.len(),
+    )?;
+    for application in &module.proposition_applications {
+        encode_proposition_application(&mut writer, application)?;
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
-        encode_machine(&mut writer, module.semantic_version, machine)?;
+        encode_machine(&mut writer, machine)?;
     }
     Ok(writer.finish())
 }
@@ -571,51 +490,39 @@ fn encode_proposition_application(
     Ok(())
 }
 
-fn encode_machine(
-    writer: &mut Writer,
-    semantic_version: SemanticVersion,
-    machine: &TerminalMachine,
-) -> Result<(), CodecError> {
+fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), CodecError> {
     writer.id(machine.id);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
     encode_declaration(writer, machine.result);
-    if semantic_version >= SemanticVersion::V9 {
-        writer.len("structural places", machine.structural_places.len())?;
-        for place in &machine.structural_places {
-            writer.id(place.id);
-            encode_structural_place_kind(writer, place.kind);
-        }
+    writer.len("structural places", machine.structural_places.len())?;
+    for place in &machine.structural_places {
+        writer.id(place.id);
+        encode_structural_place_kind(writer, place.kind);
     }
-    if semantic_version >= SemanticVersion::V14 {
-        writer.len("content entry claims", machine.content_entry_claims.len())?;
-        for binding in &machine.content_entry_claims {
-            encode_content_entry_claim(writer, binding)?;
-        }
+    writer.len("content entry claims", machine.content_entry_claims.len())?;
+    for binding in &machine.content_entry_claims {
+        encode_content_entry_claim(writer, binding)?;
     }
-    if semantic_version >= SemanticVersion::V10 {
-        writer.len(
-            "content identity reshuffles",
-            machine.content_identity_reshuffles.len(),
-        )?;
-        for reshuffle in &machine.content_identity_reshuffles {
-            encode_content_identity_reshuffle(writer, reshuffle)?;
-        }
+    writer.len(
+        "content identity reshuffles",
+        machine.content_identity_reshuffles.len(),
+    )?;
+    for reshuffle in &machine.content_identity_reshuffles {
+        encode_content_identity_reshuffle(writer, reshuffle)?;
     }
-    if semantic_version >= SemanticVersion::V12 {
-        writer.len(
-            "content partition compositions",
-            machine.content_partition_compositions.len(),
-        )?;
-        for composition in &machine.content_partition_compositions {
-            encode_content_partition_composition(writer, composition)?;
-        }
+    writer.len(
+        "content partition compositions",
+        machine.content_partition_compositions.len(),
+    )?;
+    for composition in &machine.content_partition_compositions {
+        encode_content_partition_composition(writer, composition)?;
     }
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
-        encode_block(writer, semantic_version, block)?;
+        encode_block(writer, block)?;
     }
-    encode_contract(writer, semantic_version, &machine.contract)
+    encode_contract(writer, &machine.contract)
 }
 
 fn encode_content_entry_claim(
@@ -705,11 +612,7 @@ fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
     encode_scalar_type(writer, declaration.scalar_type);
 }
 
-fn encode_block(
-    writer: &mut Writer,
-    semantic_version: SemanticVersion,
-    block: &Block,
-) -> Result<(), CodecError> {
+fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
     writer.len("operations", block.operations.len())?;
@@ -974,9 +877,7 @@ fn encode_block(
                 CrashCause::Trap => 1,
                 CrashCause::Abort => 2,
             });
-            if semantic_version >= SemanticVersion::V23 {
-                writer.string("crash damage minimum", damage_minimum)?;
-            }
+            writer.string("crash damage minimum", damage_minimum)?;
             writer.string("crash containment demand", containment_demand)?;
             writer.len("crash frontier lower bound", frontier_lower_bound.len())?;
             for claim in frontier_lower_bound {
@@ -997,21 +898,15 @@ fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Resu
     Ok(())
 }
 
-fn encode_contract(
-    writer: &mut Writer,
-    semantic_version: SemanticVersion,
-    contract: &MachineContract,
-) -> Result<(), CodecError> {
+fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<(), CodecError> {
     writer.id(contract.id);
-    if semantic_version >= SemanticVersion::V24 {
-        writer.len("crash context maxima", contract.crash_context.len())?;
-        for maximum in &contract.crash_context {
-            writer.u8(match maximum.cause {
-                CrashCause::Trap => 1,
-                CrashCause::Abort => 2,
-            });
-            writer.string("crash context maximum", &maximum.maximum_scope)?;
-        }
+    writer.len("crash context maxima", contract.crash_context.len())?;
+    for maximum in &contract.crash_context {
+        writer.u8(match maximum.cause {
+            CrashCause::Trap => 1,
+            CrashCause::Abort => 2,
+        });
+        writer.string("crash context maximum", &maximum.maximum_scope)?;
     }
     writer.len("requires", contract.requires.len())?;
     for proposition in &contract.requires {
@@ -1515,37 +1410,28 @@ fn encode_integer_value(writer: &mut Writer, value: IntegerValue) {
 }
 
 fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {
-    let semantic_version_raw = reader.u16()?;
-    let semantic_version =
-        SemanticVersion::new(semantic_version_raw).ok_or(CodecError::ZeroSemanticVersion)?;
+    let vocabulary_marker_raw = reader.u16()?;
+    let vocabulary_marker = VocabularyMarker::new(vocabulary_marker_raw).ok_or(
+        CodecError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
+    )?;
     let entry = reader.id("MachineId")?;
-    let proposition_declarations = if semantic_version >= SemanticVersion::V16 {
-        let count = reader.count()?;
-        let mut declarations = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            declarations.push(decode_proposition_declaration(reader)?);
-        }
-        declarations
-    } else {
-        Vec::new()
-    };
-    let proposition_applications = if semantic_version >= SemanticVersion::V16 {
-        let count = reader.count()?;
-        let mut applications = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            applications.push(decode_proposition_application(reader)?);
-        }
-        applications
-    } else {
-        Vec::new()
-    };
+    let count = reader.count()?;
+    let mut proposition_declarations = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        proposition_declarations.push(decode_proposition_declaration(reader)?);
+    }
+    let count = reader.count()?;
+    let mut proposition_applications = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        proposition_applications.push(decode_proposition_application(reader)?);
+    }
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
-        machines.push(decode_machine(reader, semantic_version)?);
+        machines.push(decode_machine(reader)?);
     }
     Ok(TerminalModule {
-        semantic_version,
+        vocabulary_marker,
         entry,
         proposition_declarations,
         proposition_applications,
@@ -1627,63 +1513,40 @@ fn decode_proposition_application(
     })
 }
 
-fn decode_machine(
-    reader: &mut Reader<'_>,
-    semantic_version: SemanticVersion,
-) -> Result<TerminalMachine, CodecError> {
+fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let parameters = decode_declarations(reader)?;
     let result = decode_declaration(reader)?;
-    let structural_places = if semantic_version >= SemanticVersion::V9 {
-        let count = reader.count()?;
-        let mut places = Vec::new();
-        for _ in 0..count {
-            places.push(StructuralPlaceDeclaration {
-                id: reader.id("PlaceId")?,
-                kind: decode_structural_place_kind(reader)?,
-            });
-        }
-        places
-    } else {
-        Vec::new()
-    };
-    let content_entry_claims = if semantic_version >= SemanticVersion::V14 {
-        let count = reader.count()?;
-        let mut bindings = Vec::new();
-        for _ in 0..count {
-            bindings.push(decode_content_entry_claim(reader)?);
-        }
-        bindings
-    } else {
-        Vec::new()
-    };
-    let content_identity_reshuffles = if semantic_version >= SemanticVersion::V10 {
-        let count = reader.count()?;
-        let mut reshuffles = Vec::new();
-        for _ in 0..count {
-            reshuffles.push(decode_content_identity_reshuffle(reader)?);
-        }
-        reshuffles
-    } else {
-        Vec::new()
-    };
-    let content_partition_compositions = if semantic_version >= SemanticVersion::V12 {
-        let count = reader.count()?;
-        let mut compositions = Vec::new();
-        for _ in 0..count {
-            compositions.push(decode_content_partition_composition(reader)?);
-        }
-        compositions
-    } else {
-        Vec::new()
-    };
+    let count = reader.count()?;
+    let mut structural_places = Vec::new();
+    for _ in 0..count {
+        structural_places.push(StructuralPlaceDeclaration {
+            id: reader.id("PlaceId")?,
+            kind: decode_structural_place_kind(reader)?,
+        });
+    }
+    let count = reader.count()?;
+    let mut content_entry_claims = Vec::new();
+    for _ in 0..count {
+        content_entry_claims.push(decode_content_entry_claim(reader)?);
+    }
+    let count = reader.count()?;
+    let mut content_identity_reshuffles = Vec::new();
+    for _ in 0..count {
+        content_identity_reshuffles.push(decode_content_identity_reshuffle(reader)?);
+    }
+    let count = reader.count()?;
+    let mut content_partition_compositions = Vec::new();
+    for _ in 0..count {
+        content_partition_compositions.push(decode_content_partition_composition(reader)?);
+    }
     let entry = reader.id("BlockId")?;
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
     for _ in 0..block_count {
-        blocks.push(decode_block(reader, semantic_version)?);
+        blocks.push(decode_block(reader)?);
     }
-    let contract = decode_contract(reader, semantic_version)?;
+    let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
         id,
         parameters,
@@ -1799,10 +1662,7 @@ fn decode_declaration(reader: &mut Reader<'_>) -> Result<ValueDeclaration, Codec
     })
 }
 
-fn decode_block(
-    reader: &mut Reader<'_>,
-    semantic_version: SemanticVersion,
-) -> Result<Block, CodecError> {
+fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
     let operation_count = reader.count()?;
@@ -1984,16 +1844,8 @@ fn decode_block(
                 2 => CrashCause::Abort,
                 tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
             };
-            let damage_minimum = if semantic_version >= SemanticVersion::V23 {
-                reader.string("crash damage minimum")?
-            } else {
-                reader.string("crash damage scope")?
-            };
-            let containment_demand = if semantic_version >= SemanticVersion::V23 {
-                reader.string("crash containment demand")?
-            } else {
-                damage_minimum.clone()
-            };
+            let damage_minimum = reader.string("crash damage minimum")?;
+            let containment_demand = reader.string("crash containment demand")?;
             let claim_count = reader.count()?;
             let mut frontier_lower_bound = Vec::with_capacity(claim_count as usize);
             for _ in 0..claim_count {
@@ -2032,29 +1884,21 @@ fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, Codec
     })
 }
 
-fn decode_contract(
-    reader: &mut Reader<'_>,
-    semantic_version: SemanticVersion,
-) -> Result<MachineContract, CodecError> {
+fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
     let id = reader.id("ContractId")?;
-    let crash_context = if semantic_version >= SemanticVersion::V24 {
-        let count = reader.count()?;
-        let mut maxima = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            let cause = match reader.u8()? {
-                1 => CrashCause::Trap,
-                2 => CrashCause::Abort,
-                tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
-            };
-            maxima.push(CrashContextMaximum {
-                cause,
-                maximum_scope: reader.string("crash context maximum")?,
-            });
-        }
-        maxima
-    } else {
-        Vec::new()
-    };
+    let count = reader.count()?;
+    let mut crash_context = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let cause = match reader.u8()? {
+            1 => CrashCause::Trap,
+            2 => CrashCause::Abort,
+            tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
+        };
+        crash_context.push(CrashContextMaximum {
+            cause,
+            maximum_scope: reader.string("crash context maximum")?,
+        });
+    }
     let requires_count = reader.count()?;
     let mut requires = Vec::new();
     for _ in 0..requires_count {
@@ -2577,7 +2421,7 @@ impl<'bytes> Reader<'bytes> {
 pub enum CodecError {
     InvalidMagic,
     UnsupportedFormatVersion(u16),
-    ZeroSemanticVersion,
+    UnsupportedVocabularyMarker(u16),
     UnexpectedEnd,
     TrailingBytes(usize),
     InvalidBoolean(u8),
@@ -2586,7 +2430,6 @@ pub enum CodecError {
     CollectionTooLong(&'static str),
     NonCanonicalOrder(&'static str),
     NonCanonicalEncoding,
-    PropositionVocabularyRequiresV16,
     NestedConjunction,
     PropositionNestingTooDeep,
     ScalarTermNestingTooDeep,

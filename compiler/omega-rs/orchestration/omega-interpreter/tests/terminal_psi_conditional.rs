@@ -16,8 +16,8 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, SemanticVersion, SuccessorEdge,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, MachineContract, Operation, OperationKind, SuccessorEdge, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -28,15 +28,15 @@ use psi_terminal_fuel::FuelChargeSite;
 use psi_terminal_verifier::{ProofBundle, verify_module};
 
 #[test]
-fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
-    let module = conditional_module(SemanticVersion::V13);
-    let identity = terminal_psi_identity(&module).expect("v13 identity");
+fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
+    let module = conditional_module(VocabularyMarker::CURRENT);
+    let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "0b851f3c9aae5523434ab415e1b14b9d1f7c4d37def9023879aa3f24ea11ed0f"
+        "16912280ab61d4359d90fd2a27e3d593e40ce9119f7de9b4cf3284c9f86af877"
     );
-    let bytes = encode_module(&module).expect("canonical v13 bytes");
-    let decoded = decode_module(&bytes).expect("decode canonical v13 module");
+    let bytes = encode_module(&module).expect("canonical bytes");
+    let decoded = decode_module(&bytes).expect("decode canonical module");
     assert_eq!(terminal_psi_identity(&decoded).unwrap(), identity);
     let verified = verify_module(
         &decoded,
@@ -165,7 +165,7 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
 
 #[test]
 fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
-    let mut module = conditional_module(SemanticVersion::V13);
+    let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].blocks[1].operations.push(Operation {
         id: OperationId::new(1).unwrap(),
         result: ValueDeclaration {
@@ -192,7 +192,7 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
 
 #[test]
 fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
-    let mut module = conditional_module(SemanticVersion::CURRENT);
+    let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].entry = BlockId::new(8).unwrap();
     module.machines[0].blocks.push(Block {
         id: BlockId::new(8).unwrap(),
@@ -653,27 +653,8 @@ fn nested_boolean_result_conditional_reaches_native_control() {
 }
 
 #[test]
-fn conditional_requires_semantic_v13() {
-    let module = conditional_module(SemanticVersion::V12);
-    assert!(matches!(
-        verify_module(
-            &module,
-            &ProofBundle::default(),
-            &AdmissionProfile::default(),
-        ),
-        Err(psi_terminal_verifier::VerificationError::Module(
-            psi_terminal_verifier::ModuleError::ConditionalRequiresSemanticVersion {
-                required: SemanticVersion::V13,
-                actual: SemanticVersion::V12,
-                ..
-            }
-        ))
-    ));
-}
-
-#[test]
 fn conditional_requires_boolean_condition_and_dominating_values() {
-    let mut wrong_condition = conditional_module(SemanticVersion::V13);
+    let mut wrong_condition = conditional_module(VocabularyMarker::CURRENT);
     let integer = wrong_condition.machines[0].parameters[1].scalar_type;
     wrong_condition.machines[0].parameters[0].scalar_type = integer;
     assert!(matches!(
@@ -687,7 +668,7 @@ fn conditional_requires_boolean_condition_and_dominating_values() {
         ))
     ));
 
-    let mut branch_local_leak = conditional_module(SemanticVersion::V13);
+    let mut branch_local_leak = conditional_module(VocabularyMarker::CURRENT);
     let true_parameter = branch_local_leak.machines[0].blocks[1].parameters[0].id;
     let Terminator::Return { value, .. } = &mut branch_local_leak.machines[0].blocks[2].terminator
     else {
@@ -706,7 +687,7 @@ fn conditional_requires_boolean_condition_and_dominating_values() {
     ));
 }
 
-fn conditional_module(semantic_version: SemanticVersion) -> TerminalModule {
+fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 terminal type"));
     let declaration = |raw, scalar_type| ValueDeclaration {
@@ -714,7 +695,7 @@ fn conditional_module(semantic_version: SemanticVersion) -> TerminalModule {
         scalar_type,
     };
     TerminalModule {
-        semantic_version,
+        vocabulary_marker,
         entry: MachineId::new(1).unwrap(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -787,7 +768,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
         scalar_type,
     };
     TerminalModule {
-        semantic_version: SemanticVersion::CURRENT,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -892,7 +873,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
         scalar_type,
     };
     TerminalModule {
-        semantic_version: SemanticVersion::CURRENT,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1008,7 +989,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
         scalar_type: ScalarType::Boolean,
     };
     TerminalModule {
-        semantic_version: SemanticVersion::CURRENT,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),

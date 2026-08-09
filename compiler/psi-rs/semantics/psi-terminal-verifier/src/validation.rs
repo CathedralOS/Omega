@@ -1,16 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentConservation, ContentPlaceSegment,
-    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, ClaimId, ContentAlgebra, ContentConservation, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId, ObligationId, OperationId,
+    PlaceId, Proposition, PropositionContext, PropositionError, PropositionId, ScalarTerm,
+    ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_language_semantics::crash::scope_covers_minimum;
 use psi_terminal::{
     ContentPartitionComposition, CrashCause, OperationKind, PropositionBinderArgumentKind,
-    PropositionBinderKind, PropositionEvidence, SemanticVersion, TerminalMachine, TerminalModule,
-    Terminator,
+    PropositionBinderKind, PropositionEvidence, TerminalMachine, TerminalModule, Terminator,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -45,72 +44,9 @@ impl<'module> ValidatedTerminalModule<'module> {
 pub fn validate_module(
     module: &TerminalModule,
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
-    if !matches!(
-        module.semantic_version,
-        SemanticVersion::V1
-            | SemanticVersion::V2
-            | SemanticVersion::V3
-            | SemanticVersion::V4
-            | SemanticVersion::V5
-            | SemanticVersion::V6
-            | SemanticVersion::V7
-            | SemanticVersion::V8
-            | SemanticVersion::V9
-            | SemanticVersion::V10
-            | SemanticVersion::V11
-            | SemanticVersion::V12
-            | SemanticVersion::V13
-            | SemanticVersion::V14
-            | SemanticVersion::V15
-            | SemanticVersion::V16
-            | SemanticVersion::V17
-            | SemanticVersion::V18
-            | SemanticVersion::V19
-            | SemanticVersion::V20
-            | SemanticVersion::V21
-            | SemanticVersion::V22
-            | SemanticVersion::V23
-            | SemanticVersion::V24
-            | SemanticVersion::V25
-            | SemanticVersion::V26
-            | SemanticVersion::V27
-            | SemanticVersion::V28
-            | SemanticVersion::V29
-            | SemanticVersion::V30
-            | SemanticVersion::V31
-            | SemanticVersion::V32
-            | SemanticVersion::V33
-            | SemanticVersion::V34
-            | SemanticVersion::V35
-            | SemanticVersion::V36
-            | SemanticVersion::V37
-            | SemanticVersion::V38
-            | SemanticVersion::V39
-            | SemanticVersion::V40
-            | SemanticVersion::V41
-            | SemanticVersion::V42
-            | SemanticVersion::V43
-            | SemanticVersion::V44
-            | SemanticVersion::V45
-            | SemanticVersion::V46
-            | SemanticVersion::V47
-            | SemanticVersion::V48
-            | SemanticVersion::V49
-    ) {
-        return Err(ModuleError::UnsupportedSemanticVersion(
-            module.semantic_version,
-        ));
-    }
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
-    if module.semantic_version < SemanticVersion::V27 && module_uses_address_carrier(module) {
-        return Err(ModuleError::AddressCarrierRequiresSemanticVersion {
-            required: SemanticVersion::V27,
-            actual: module.semantic_version,
-        });
-    }
-
     validate_proposition_vocabulary(module)?;
 
     let mut registry = IdRegistry::default();
@@ -125,7 +61,7 @@ pub fn validate_module(
             machine.contract.id,
             ModuleError::DuplicateContract,
         )?;
-        validate_machine(module.semantic_version, machine, &mut registry)?;
+        validate_machine(machine, &mut registry)?;
     }
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));
@@ -134,112 +70,7 @@ pub fn validate_module(
     Ok(ValidatedTerminalModule { module })
 }
 
-fn module_uses_address_carrier(module: &TerminalModule) -> bool {
-    module.machines.iter().any(|machine| {
-        machine
-            .parameters
-            .iter()
-            .chain(std::iter::once(&machine.result))
-            .any(|declaration| scalar_type_uses_address(declaration.scalar_type))
-            || machine.blocks.iter().any(|block| {
-                block
-                    .parameters
-                    .iter()
-                    .any(|declaration| scalar_type_uses_address(declaration.scalar_type))
-                    || block
-                        .operations
-                        .iter()
-                        .any(|operation| scalar_type_uses_address(operation.result.scalar_type))
-            })
-            || machine
-                .contract
-                .requires
-                .iter()
-                .any(proposition_uses_address)
-            || machine
-                .contract
-                .ensures
-                .iter()
-                .any(|clause| proposition_uses_address(&clause.proposition))
-    })
-}
-
-fn scalar_type_uses_address(scalar_type: ScalarType) -> bool {
-    matches!(scalar_type, ScalarType::Integer(integer_type) if integer_type.is_address())
-}
-
-fn proposition_uses_address(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_address(left) || scalar_term_uses_address(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_address),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_address(premise) || proposition_uses_address(conclusion),
-    }
-}
-
-fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
-    scalar_type_uses_address(term.scalar_type())
-        || match term {
-            ScalarTerm::BooleanNot { operand }
-            | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. }
-            | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_address(operand),
-            ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                scalar_term_uses_address(value) || scalar_term_uses_address(count)
-            }
-            ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-                scalar_term_uses_address(left) || scalar_term_uses_address(right)
-            }
-            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-                scalar_term_uses_address(value) || scalar_term_uses_address(count)
-            }
-            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-        }
-}
-
 fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), ModuleError> {
-    if module.semantic_version < SemanticVersion::V16
-        && (!module.proposition_declarations.is_empty()
-            || !module.proposition_applications.is_empty())
-    {
-        return Err(ModuleError::PropositionVocabularyRequiresSemanticVersion {
-            required: SemanticVersion::V16,
-            actual: module.semantic_version,
-        });
-    }
     let mut declarations = BTreeMap::new();
     let mut declaration_names = BTreeSet::new();
     for (index, declaration) in module.proposition_declarations.iter().enumerate() {
@@ -370,7 +201,6 @@ enum StructuralRootKey {
 }
 
 fn validate_machine(
-    semantic_version: SemanticVersion,
     machine: &TerminalMachine,
     registry: &mut IdRegistry,
 ) -> Result<(), ModuleError> {
@@ -381,39 +211,6 @@ fn validate_machine(
     let mut blocks = BTreeMap::new();
     let mut value_types = BTreeMap::new();
     let mut structural_roots = BTreeSet::new();
-    if semantic_version < SemanticVersion::V9 && !machine.structural_places.is_empty() {
-        return Err(ModuleError::StructuralPlacesRequireSemanticVersion {
-            machine: machine.id,
-            required: SemanticVersion::V9,
-            actual: semantic_version,
-        });
-    }
-    if semantic_version < SemanticVersion::V10 && !machine.content_identity_reshuffles.is_empty() {
-        return Err(
-            ModuleError::ContentIdentityReshufflesRequireSemanticVersion {
-                machine: machine.id,
-                required: SemanticVersion::V10,
-                actual: semantic_version,
-            },
-        );
-    }
-    if semantic_version < SemanticVersion::V14 && !machine.content_entry_claims.is_empty() {
-        return Err(ModuleError::ContentEntryClaimsRequireSemanticVersion {
-            machine: machine.id,
-            required: SemanticVersion::V14,
-            actual: semantic_version,
-        });
-    }
-    if semantic_version < SemanticVersion::V12 && !machine.content_partition_compositions.is_empty()
-    {
-        return Err(
-            ModuleError::ContentPartitionCompositionsRequireSemanticVersion {
-                machine: machine.id,
-                required: SemanticVersion::V12,
-                actual: semantic_version,
-            },
-        );
-    }
     let mut structural_place_kinds = BTreeMap::new();
     for place in &machine.structural_places {
         insert_unique(&mut registry.places, place.id, ModuleError::DuplicatePlace)?;
@@ -480,13 +277,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::BooleanConstant { .. } => {
-                    if semantic_version < SemanticVersion::V2 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V2,
-                            actual: semantic_version,
-                        });
-                    }
                     if operation.result.scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanConstantRequiresBooleanResult(
                             operation.id,
@@ -494,50 +284,22 @@ fn validate_machine(
                     }
                 }
                 OperationKind::BooleanNot { .. } => {
-                    if semantic_version < SemanticVersion::V15 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V15,
-                            actual: semantic_version,
-                        });
-                    }
                     if operation.result.scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanNotRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::BooleanEqual { .. } => {
-                    if semantic_version < SemanticVersion::V17 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V17,
-                            actual: semantic_version,
-                        });
-                    }
                     if operation.result.scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanEqualRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::IntegerEqual { .. } => {
-                    if semantic_version < SemanticVersion::V18 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V18,
-                            actual: semantic_version,
-                        });
-                    }
                     if operation.result.scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::IntegerEqualRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::IntegerLessThan { .. }
                 | OperationKind::IntegerLessOrEqual { .. } => {
-                    if semantic_version < SemanticVersion::V19 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V19,
-                            actual: semantic_version,
-                        });
-                    }
                     if operation.result.scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::IntegerOrderingRequiresBooleanResult(
                             operation.id,
@@ -547,13 +309,6 @@ fn validate_machine(
                 OperationKind::IntegerBitwiseAnd { .. }
                 | OperationKind::IntegerBitwiseOr { .. }
                 | OperationKind::IntegerBitwiseXor { .. } => {
-                    if semantic_version < SemanticVersion::V20 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V20,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
                             operation.id,
@@ -561,13 +316,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::IntegerBitwiseNot { .. } => {
-                    if semantic_version < SemanticVersion::V25 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V25,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
                             operation.id,
@@ -575,25 +323,11 @@ fn validate_machine(
                     }
                 }
                 OperationKind::IntegerWiden { .. } => {
-                    if semantic_version < SemanticVersion::V26 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V26,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::IntegerWidenRequiresIntegerResult(operation.id));
                     }
                 }
                 OperationKind::IntegerExactCast { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V28 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V28,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::IntegerExactCastRequiresIntegerResult(
                             operation.id,
@@ -607,13 +341,6 @@ fn validate_machine(
                 }
                 OperationKind::WrappingIntegerShiftLeft { .. }
                 | OperationKind::WrappingIntegerShiftRight { .. } => {
-                    if semantic_version < SemanticVersion::V21 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V21,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerShiftRequiresIntegerResult(
                             operation.id,
@@ -621,13 +348,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::ExactIntegerShiftRight { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V29 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V29,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
                             operation.id,
@@ -640,13 +360,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerShiftLeft { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V30 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V30,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
                             operation.id,
@@ -659,13 +372,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerAdd { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V31 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V31,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerAddRequiresIntegerResult(
                             operation.id,
@@ -678,13 +384,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerSubtract { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V32 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V32,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerSubtractRequiresIntegerResult(
                             operation.id,
@@ -697,13 +396,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerMultiply { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V33 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V33,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerMultiplyRequiresIntegerResult(
                             operation.id,
@@ -716,13 +408,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerDivide { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V34 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V34,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerDivideRequiresIntegerResult(
                             operation.id,
@@ -735,13 +420,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerRemainder { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V35 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V35,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::ExactIntegerRemainderRequiresIntegerResult(
                             operation.id,
@@ -754,13 +432,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::WrappingIntegerDivide { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V36 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V36,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerDivideRequiresIntegerResult(
                             operation.id,
@@ -773,13 +444,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::WrappingIntegerRemainder { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V37 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V37,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerRemainderRequiresIntegerResult(
                             operation.id,
@@ -792,13 +456,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::SaturatingIntegerDivide { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V38 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V38,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::SaturatingIntegerDivideRequiresIntegerResult(
                             operation.id,
@@ -811,13 +468,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::SaturatingIntegerRemainder { obligation, .. } => {
-                    if semantic_version < SemanticVersion::V39 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V39,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(
                             ModuleError::SaturatingIntegerRemainderRequiresIntegerResult(
@@ -832,13 +482,6 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::WrappingIntegerAdd { .. } => {
-                    if semantic_version < SemanticVersion::V3 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V3,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerAddRequiresIntegerResult(
                             operation.id,
@@ -846,13 +489,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::SaturatingIntegerAdd { .. } => {
-                    if semantic_version < SemanticVersion::V4 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V4,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::SaturatingIntegerAddRequiresIntegerResult(
                             operation.id,
@@ -860,13 +496,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::WrappingIntegerSubtract { .. } => {
-                    if semantic_version < SemanticVersion::V5 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V5,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerSubtractRequiresIntegerResult(
                             operation.id,
@@ -874,13 +503,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::SaturatingIntegerSubtract { .. } => {
-                    if semantic_version < SemanticVersion::V6 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V6,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::SaturatingIntegerSubtractRequiresIntegerResult(
                             operation.id,
@@ -888,13 +510,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::WrappingIntegerMultiply { .. } => {
-                    if semantic_version < SemanticVersion::V7 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V7,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerMultiplyRequiresIntegerResult(
                             operation.id,
@@ -902,13 +517,6 @@ fn validate_machine(
                     }
                 }
                 OperationKind::SaturatingIntegerMultiply { .. } => {
-                    if semantic_version < SemanticVersion::V8 {
-                        return Err(ModuleError::OperationRequiresSemanticVersion {
-                            operation: operation.id,
-                            required: SemanticVersion::V8,
-                            actual: semantic_version,
-                        });
-                    }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::SaturatingIntegerMultiplyRequiresIntegerResult(
                             operation.id,
@@ -916,24 +524,6 @@ fn validate_machine(
                     }
                 }
             }
-        }
-        if semantic_version < SemanticVersion::V13
-            && matches!(block.terminator, Terminator::Conditional { .. })
-        {
-            return Err(ModuleError::ConditionalRequiresSemanticVersion {
-                block: block.id,
-                required: SemanticVersion::V13,
-                actual: semantic_version,
-            });
-        }
-        if semantic_version < SemanticVersion::V22
-            && matches!(block.terminator, Terminator::Crash { .. })
-        {
-            return Err(ModuleError::CrashRequiresSemanticVersion {
-                block: block.id,
-                required: SemanticVersion::V22,
-                actual: semantic_version,
-            });
         }
         for edge in block.terminator.edges() {
             insert_unique(&mut registry.edges, edge, ModuleError::DuplicateEdge)?;
@@ -958,28 +548,10 @@ fn validate_machine(
             .map(|place| (place.id, place.kind)),
     )
     .map_err(ModuleError::MalformedProposition)?;
-    validate_content_entry_claims(
-        machine,
-        semantic_version,
-        registry,
-        &structural_place_kinds,
-        &context,
-    )?;
-    validate_content_identity_reshuffles(
-        machine,
-        semantic_version,
-        registry,
-        &structural_place_kinds,
-        &context,
-    )?;
-    validate_content_partition_compositions(
-        machine,
-        semantic_version,
-        registry,
-        &structural_place_kinds,
-        &context,
-    )?;
-    validate_crash_frontiers(machine, semantic_version)?;
+    validate_content_entry_claims(machine, registry, &structural_place_kinds, &context)?;
+    validate_content_identity_reshuffles(machine, registry, &structural_place_kinds, &context)?;
+    validate_content_partition_compositions(machine, registry, &structural_place_kinds, &context)?;
+    validate_crash_frontiers(machine)?;
     let requires_values = machine
         .parameters
         .iter()
@@ -988,9 +560,8 @@ fn validate_machine(
     let mut ensures_values = requires_values.clone();
     ensures_values.insert(machine.result.id);
     for proposition in &machine.contract.requires {
-        validate_proposition_semantic_version(
+        validate_contract_clause_kind(
             proposition,
-            semantic_version,
             machine.contract.id,
             ContractClauseKind::Requires,
         )?;
@@ -1010,9 +581,8 @@ fn validate_machine(
             clause.obligation,
             ModuleError::DuplicateObligation,
         )?;
-        validate_proposition_semantic_version(
+        validate_contract_clause_kind(
             &clause.proposition,
-            semantic_version,
             machine.contract.id,
             ContractClauseKind::Ensures,
         )?;
@@ -1030,17 +600,7 @@ fn validate_machine(
     validate_control_flow(machine, &blocks, &value_types)
 }
 
-fn validate_crash_frontiers(
-    machine: &TerminalMachine,
-    semantic_version: SemanticVersion,
-) -> Result<(), ModuleError> {
-    if semantic_version < SemanticVersion::V24 && !machine.contract.crash_context.is_empty() {
-        return Err(ModuleError::CrashContextRequiresSemanticVersion {
-            machine: machine.id,
-            required: SemanticVersion::V24,
-            actual: semantic_version,
-        });
-    }
+fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError> {
     if machine
         .contract
         .crash_context
@@ -1082,29 +642,20 @@ fn validate_crash_frontiers(
         if containment_demand.is_empty() {
             return Err(ModuleError::EmptyCrashContainmentDemand(block.id));
         }
-        if semantic_version < SemanticVersion::V23 && damage_minimum != containment_demand {
-            return Err(ModuleError::SeparatedCrashScopesRequireSemanticVersion {
-                block: block.id,
-                required: SemanticVersion::V23,
-                actual: semantic_version,
-            });
-        }
         if !scope_covers_minimum(damage_minimum, containment_demand) {
             return Err(ModuleError::CrashContainmentDemandTooNarrow { block: block.id });
         }
-        if semantic_version >= SemanticVersion::V24 {
-            let maximum = machine
-                .contract
-                .crash_context
-                .iter()
-                .find(|maximum| maximum.cause == *cause)
-                .ok_or(ModuleError::MissingCrashContextMaximum {
-                    block: block.id,
-                    cause: *cause,
-                })?;
-            if !scope_covers_minimum(containment_demand, &maximum.maximum_scope) {
-                return Err(ModuleError::CrashContextMaximumTooNarrow { block: block.id });
-            }
+        let maximum = machine
+            .contract
+            .crash_context
+            .iter()
+            .find(|maximum| maximum.cause == *cause)
+            .ok_or(ModuleError::MissingCrashContextMaximum {
+                block: block.id,
+                cause: *cause,
+            })?;
+        if !scope_covers_minimum(containment_demand, &maximum.maximum_scope) {
+            return Err(ModuleError::CrashContextMaximumTooNarrow { block: block.id });
         }
         if frontier_lower_bound
             .windows(2)
@@ -1126,14 +677,10 @@ fn validate_crash_frontiers(
 
 fn validate_content_entry_claims(
     machine: &TerminalMachine,
-    semantic_version: SemanticVersion,
     registry: &mut IdRegistry,
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
 ) -> Result<(), ModuleError> {
-    if semantic_version < SemanticVersion::V14 {
-        return Ok(());
-    }
     let mut inputs = BTreeSet::<ContentStructuralPlace>::new();
     for (index, binding) in machine.content_entry_claims.iter().enumerate() {
         let expected = ClaimId::new(
@@ -1216,7 +763,6 @@ fn validate_content_entry_claims(
 
 fn validate_content_identity_reshuffles(
     machine: &TerminalMachine,
-    semantic_version: SemanticVersion,
     registry: &mut IdRegistry,
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
@@ -1231,37 +777,19 @@ fn validate_content_identity_reshuffles(
                 reshuffle.claim,
             ));
         }
-        if semantic_version >= SemanticVersion::V14 {
-            let Some(binding) = machine
-                .content_entry_claims
-                .iter()
-                .find(|binding| binding.claim == reshuffle.claim)
-            else {
-                return Err(ModuleError::ContentIdentityClaimHasNoEntryBinding(
-                    reshuffle.claim,
-                ));
-            };
-            if binding.input != reshuffle.input || binding.projections != reshuffle.projections {
-                return Err(ModuleError::ContentIdentityEntryBindingMismatch(
-                    reshuffle.claim,
-                ));
-            }
-        }
-        if semantic_version < SemanticVersion::V11
-            && reshuffle
-                .input
-                .segments
-                .iter()
-                .chain(&reshuffle.output.segments)
-                .any(|segment| matches!(segment, ContentPlaceSegment::Case(_)))
-        {
-            return Err(
-                ModuleError::ContentIdentityCasePathRequiresSemanticVersion {
-                    claim: reshuffle.claim,
-                    required: SemanticVersion::V11,
-                    actual: semantic_version,
-                },
-            );
+        let Some(binding) = machine
+            .content_entry_claims
+            .iter()
+            .find(|binding| binding.claim == reshuffle.claim)
+        else {
+            return Err(ModuleError::ContentIdentityClaimHasNoEntryBinding(
+                reshuffle.claim,
+            ));
+        };
+        if binding.input != reshuffle.input || binding.projections != reshuffle.projections {
+            return Err(ModuleError::ContentIdentityEntryBindingMismatch(
+                reshuffle.claim,
+            ));
         }
         if reshuffle
             .projections
@@ -1346,7 +874,6 @@ fn validate_content_identity_reshuffles(
 
 fn validate_content_partition_compositions(
     machine: &TerminalMachine,
-    semantic_version: SemanticVersion,
     registry: &mut IdRegistry,
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
@@ -1399,7 +926,6 @@ fn validate_content_partition_compositions(
         context
             .validate(&composition.inferred_proposition())
             .map_err(ModuleError::MalformedProposition)?;
-        validate_partition_case_version(composition, semantic_version)?;
         register_partition_projections(registry, &composition.source)?;
         register_partition_projections(registry, &composition.derived)?;
 
@@ -1451,33 +977,18 @@ fn validate_content_partition_compositions(
             if subject.version != psi_core::ContentPlaceVersion::Entry {
                 continue;
             }
-            let matching = if semantic_version >= SemanticVersion::V14 {
-                machine
-                    .content_entry_claims
-                    .iter()
-                    .filter(|binding| {
-                        binding.input == subject
-                            && binding.projections.iter().any(|content| {
-                                content.projection == projection
-                                    && content.algebra == *composition.derived.algebra()
-                            })
-                    })
-                    .map(|binding| binding.claim)
-                    .collect::<Vec<_>>()
-            } else {
-                machine
-                    .content_identity_reshuffles
-                    .iter()
-                    .filter(|reshuffle| {
-                        reshuffle.input == subject
-                            && reshuffle.projections.iter().any(|content| {
-                                content.projection == projection
-                                    && content.algebra == *composition.derived.algebra()
-                            })
-                    })
-                    .map(|reshuffle| reshuffle.claim)
-                    .collect::<Vec<_>>()
-            };
+            let matching = machine
+                .content_entry_claims
+                .iter()
+                .filter(|binding| {
+                    binding.input == subject
+                        && binding.projections.iter().any(|content| {
+                            content.projection == projection
+                                && content.algebra == *composition.derived.algebra()
+                        })
+                })
+                .map(|binding| binding.claim)
+                .collect::<Vec<_>>();
             let [claim] = matching.as_slice() else {
                 return Err(ModuleError::ContentPartitionInputProjectionNotClaimBound(
                     subject,
@@ -1637,30 +1148,6 @@ fn register_partition_projections(
     Ok(())
 }
 
-fn validate_partition_case_version(
-    composition: &ContentPartitionComposition,
-    semantic_version: SemanticVersion,
-) -> Result<(), ModuleError> {
-    if semantic_version < SemanticVersion::V11
-        && [
-            composition.source.left(),
-            composition.source.right(),
-            composition.derived.left(),
-            composition.derived.right(),
-        ]
-        .into_iter()
-        .any(content_term_uses_case)
-    {
-        return Err(
-            ModuleError::ContentPartitionCasePathRequiresSemanticVersion {
-                required: SemanticVersion::V11,
-                actual: semantic_version,
-            },
-        );
-    }
-    Ok(())
-}
-
 fn content_places_overlap(left: &ContentStructuralPlace, right: &ContentStructuralPlace) -> bool {
     if left.version != right.version || left.root != right.root {
         return false;
@@ -1669,28 +1156,15 @@ fn content_places_overlap(left: &ContentStructuralPlace, right: &ContentStructur
     left.segments[..shared] == right.segments[..shared]
 }
 
-fn validate_proposition_semantic_version(
+fn validate_contract_clause_kind(
     proposition: &Proposition,
-    semantic_version: SemanticVersion,
     contract: ContractId,
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
         Proposition::Conjunction(conjuncts) => {
             for conjunct in conjuncts {
-                validate_proposition_semantic_version(
-                    conjunct,
-                    semantic_version,
-                    contract,
-                    clause,
-                )?;
+                validate_contract_clause_kind(conjunct, contract, clause)?;
             }
             Ok(())
         }
@@ -1698,367 +1172,13 @@ fn validate_proposition_semantic_version(
             premise,
             conclusion,
         } => {
-            validate_proposition_semantic_version(premise, semantic_version, contract, clause)?;
-            validate_proposition_semantic_version(conclusion, semantic_version, contract, clause)
+            validate_contract_clause_kind(premise, contract, clause)?;
+            validate_contract_clause_kind(conclusion, contract, clause)
         }
-        Proposition::ContentConservation(conservation) => {
-            if semantic_version < SemanticVersion::V9 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V9,
-                    actual: semantic_version,
-                });
-            }
-            if clause != ContractClauseKind::Ensures {
-                return Err(ModuleError::ContentConservationRequiresEnsures { contract });
-            }
-            if semantic_version < SemanticVersion::V11
-                && (content_term_uses_case(conservation.left())
-                    || content_term_uses_case(conservation.right()))
-            {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V11,
-                    actual: semantic_version,
-                });
-            }
-            Ok(())
+        Proposition::ContentConservation(_) if clause != ContractClauseKind::Ensures => {
+            Err(ModuleError::ContentConservationRequiresEnsures { contract })
         }
-    }
-}
-
-fn content_term_uses_case(term: &ContentTerm) -> bool {
-    match term {
-        ContentTerm::Projection { subject, .. } => subject
-            .segments
-            .iter()
-            .any(|segment| matches!(segment, ContentPlaceSegment::Case(_))),
-        ContentTerm::Separate(terms) => terms.iter().any(content_term_uses_case),
-    }
-}
-
-fn validate_term_semantic_version(
-    term: &ScalarTerm,
-    semantic_version: SemanticVersion,
-    contract: ContractId,
-    clause: ContractClauseKind,
-) -> Result<(), ModuleError> {
-    match term {
-        ScalarTerm::IntegerBitwiseNot { operand, .. } => {
-            if semantic_version < SemanticVersion::V25 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V25,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(operand, semantic_version, contract, clause)
-        }
-        ScalarTerm::IntegerWiden { operand, .. } => {
-            if semantic_version < SemanticVersion::V26 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V26,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(operand, semantic_version, contract, clause)
-        }
-        ScalarTerm::IntegerExactCast { operand, .. } => {
-            if semantic_version < SemanticVersion::V28 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V28,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(operand, semantic_version, contract, clause)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            if semantic_version < SemanticVersion::V21 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V21,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(value, semantic_version, contract, clause)?;
-            validate_term_semantic_version(count, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            if semantic_version < SemanticVersion::V29 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V29,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(value, semantic_version, contract, clause)?;
-            validate_term_semantic_version(count, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. } => {
-            if semantic_version < SemanticVersion::V30 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V30,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(value, semantic_version, contract, clause)?;
-            validate_term_semantic_version(count, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerAdd { left, right, .. } => {
-            if semantic_version < SemanticVersion::V31 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V31,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
-            if semantic_version < SemanticVersion::V32 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V32,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
-            if semantic_version < SemanticVersion::V33 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V33,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerDivide { left, right, .. } => {
-            if semantic_version < SemanticVersion::V34 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V34,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::ExactIntegerRemainder { left, right, .. } => {
-            if semantic_version < SemanticVersion::V35 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V35,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::WrappingIntegerDivide { left, right, .. } => {
-            if semantic_version < SemanticVersion::V36 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V36,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::WrappingIntegerRemainder { left, right, .. } => {
-            if semantic_version < SemanticVersion::V37 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V37,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::SaturatingIntegerDivide { left, right, .. } => {
-            if semantic_version < SemanticVersion::V38 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V38,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::SaturatingIntegerRemainder { left, right, .. } => {
-            if semantic_version < SemanticVersion::V39 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V39,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            if semantic_version < SemanticVersion::V20 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V20,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
-            if semantic_version < SemanticVersion::V19 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V19,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::IntegerEqual { left, right, .. } => {
-            if semantic_version < SemanticVersion::V18 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V18,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::BooleanEqual { left, right } => {
-            if semantic_version < SemanticVersion::V17 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V17,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::BooleanNot { operand } => {
-            if semantic_version < SemanticVersion::V15 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V15,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(operand, semantic_version, contract, clause)
-        }
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
-            if semantic_version < SemanticVersion::V3 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V3,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
-            if semantic_version < SemanticVersion::V4 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V4,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
-            if semantic_version < SemanticVersion::V5 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V5,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
-            if semantic_version < SemanticVersion::V6 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V6,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
-            if semantic_version < SemanticVersion::V7 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V7,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            if semantic_version < SemanticVersion::V8 {
-                return Err(ModuleError::PropositionRequiresSemanticVersion {
-                    contract,
-                    clause,
-                    required: SemanticVersion::V8,
-                    actual: semantic_version,
-                });
-            }
-            validate_term_semantic_version(left, semantic_version, contract, clause)?;
-            validate_term_semantic_version(right, semantic_version, contract, clause)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => Ok(()),
+        _ => Ok(()),
     }
 }
 
@@ -2923,16 +2043,7 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
-    UnsupportedSemanticVersion(SemanticVersion),
-    AddressCarrierRequiresSemanticVersion {
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
     EmptyModule,
-    PropositionVocabularyRequiresSemanticVersion {
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
     DuplicatePropositionDeclaration(PropositionId),
     DuplicatePropositionApplication(PropositionId),
     NonDensePropositionDeclaration {
@@ -2974,46 +2085,6 @@ pub enum ModuleError {
         clause: ContractClauseKind,
         value: ValueId,
     },
-    StructuralPlacesRequireSemanticVersion {
-        machine: MachineId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    ContentIdentityReshufflesRequireSemanticVersion {
-        machine: MachineId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    ContentEntryClaimsRequireSemanticVersion {
-        machine: MachineId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    ContentPartitionCompositionsRequireSemanticVersion {
-        machine: MachineId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    ConditionalRequiresSemanticVersion {
-        block: BlockId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    CrashRequiresSemanticVersion {
-        block: BlockId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    CrashContextRequiresSemanticVersion {
-        machine: MachineId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    SeparatedCrashScopesRequireSemanticVersion {
-        block: BlockId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
     EmptyCrashDamageMinimum(BlockId),
     EmptyCrashContainmentDemand(BlockId),
     CrashContainmentDemandTooNarrow {
@@ -3053,11 +2124,6 @@ pub enum ModuleError {
     NonCanonicalContentIdentityProjectionOrder(ClaimId),
     ContentIdentityReshuffleRequiresEntryParameter(ClaimId),
     ContentIdentityReshuffleRequiresCurrentResult(ClaimId),
-    ContentIdentityCasePathRequiresSemanticVersion {
-        claim: ClaimId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
     DuplicateContentIdentityInput(ContentStructuralPlace),
     DuplicateContentIdentityOutput(ContentStructuralPlace),
     OverlappingContentIdentityInput {
@@ -3084,10 +2150,6 @@ pub enum ModuleError {
     ContentPartitionInputProjectionNotClaimBound(ContentStructuralPlace),
     ContentPartitionInputClaimNotListed(ClaimId),
     ContentPartitionInputClaimUnused,
-    ContentPartitionCasePathRequiresSemanticVersion {
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
     ContentConservationRequiresEnsures {
         contract: ContractId,
     },
@@ -3263,17 +2325,6 @@ pub enum ModuleError {
         operand: ValueId,
         expected: ScalarType,
         actual: ScalarType,
-    },
-    OperationRequiresSemanticVersion {
-        operation: OperationId,
-        required: SemanticVersion,
-        actual: SemanticVersion,
-    },
-    PropositionRequiresSemanticVersion {
-        contract: ContractId,
-        clause: ContractClauseKind,
-        required: SemanticVersion,
-        actual: SemanticVersion,
     },
     JumpArityMismatch {
         edge: EdgeId,

@@ -186,47 +186,7 @@ axioms reference that binding. An identity-reshuffle row is emitted only for a
 separate one-to-one input/output equality; it is never required merely to name
 a partition input.
 
-Implementation checkpoint (2026-08-02): checked outcome maps now feed exact
-content-identity reshuffle rows. A row exists only when the input and output
-claim paths preserve one transfer-stable claim identity and both places select
-the same owner-unique terminal projection identity and algebra. The retained
-equality, claim identity, and input/output paths are emitted together in the
-claim-outcome proof/debug artifact. Multiple independent claims remain multiple
-rewrite rows; inference does not use whole-claim distinctness as evidence that
-their projected content is disjoint. Fresh claims and mismatched projection
-identities do not infer. Terminal v10 revalidates and reconstructs these exact
-rewrite axioms. Checked returned calls now instantiate an already-authored
-partition theorem only when every source entry projection binds to an exact
-caller-entry claim transferred into that call. A result may pass through an
-exact local chain and nested aggregate reconstruction only when each projected
-call-result claim is established at that exact call, survives the normalized
-outcome-map chain unchanged, and reaches one unique callable-result path. Each
-retained rewrite row binds the claim to its exact source and target structural places.
-An exact record, fixed-array, or active-case literal argument may likewise
-distribute a callee entry projection to one uniquely selected caller argument
-leaf; that leaf must still canonicalize to a transferred caller-entry claim at
-the exact call. Sum-payload normalization retains the resolved case segment
-before the payload field, and a mismatched active-case literal fails closed.
-Several staged authored-partition calls may independently contribute to one
-returned aggregate; the checker retains one composition row per exact call and
-requires each projected call-result claim to reach one unique result path.
-Fixed-point reuse records the source theorem's wrapper-derivation depth so a
-later boundary cannot mistake a derived theorem for an authored one.
-The derivation retains the source fingerprint, call site, input claim
-identities, their exact caller-entry structural-place bindings, result rewrite
-rows, and the substituted equation,
-while preserving rather than creating the theorem's `separate(...)` tree.
-Sealed frontier rows remain implementation work. Terminal semantic v12
-remains direct-wrapper-only: a checked row with staged-result rewrite evidence
-or a nonzero source-derivation depth fails closed at terminal production until
-reviewed terminal vocabulary can carry and revalidate that intermediate or
-transitive evidence. For direct rows v12 retains
-the exact source theorem, its fingerprint, dense input-claim references, the
-total place substitution, and the derived equation. Current terminal semantic
-v14 additionally retains dense machine-local entry-claim bindings with exact
-projection and algebra identity. The verifier binds every substituted entry
-projection to a listed entry claim, replays the substitution, and exposes only
-the replayed theorem—not the binding itself—as a semantic axiom.
+Current terminal production retains dense entry-claim bindings, exact one-to-one identity reshuffles, and direct authored partition substitutions. It independently replays every substitution and rejects ambiguous claim paths, theorem-shape or algebra drift, and staged derivations not represented by the current vocabulary. Sealed introduction and custody-exit frontier rows remain implementation work.
 
 ### Content-bearing claims
 
@@ -274,43 +234,7 @@ members, merges adjacency, and stores one representation of the empty set.
 canonical set difference, which may contain several intervals. Equality is
 structural equality of those canonical forms.
 
-Implementation checkpoint (2026-08-02): this exact algebra is live in
-`psi-language-semantics`, including canonical construction, partial n-ary
-separation, containment, and fragmented residuals over exact proof naturals. Content
-projection plans lift the core singleton spelling into an interval-set term;
-the set identity and member vector survive checked facts and debug artifacts
-under a schema-distinct stable fingerprint. Source-visible proof-only
-`entry(place)` and compiler-owned `separate(...)` now normalize exact
-owner-projection equations over entry/current structural places. Their stable
-semantic fingerprints survive checked facts, machine contract identity, and
-the claim-outcome artifact; runtime use and malformed, mixed-algebra,
-duplicate, or unqualified equations reject. Terminal Psi v9 now carries the
-canonical equation over declared structural roots, stable semantic-domain and
-projection identities, entry/current paths, fields, fixed indices, and flat
-separation without retaining arena-local symbols; canonical semantic/proof
-bytes and verifier-checked replaceable certificates pin the boundary.
-Identity-preserving reshuffle inference has a legacy checked precursor, while
-terminal semantic v10 independently carries canonical machine-local rows; the
-verifier checks one-to-one, non-overlapping
-parameter-entry/result-current paths and reconstructs their exact equalities as
-semantic axioms. Terminal semantic v11 and proof format v9 add distinct stable
-sum-case segments, so active payload paths retain case-plus-field identity
-without exporting arena-local symbols. Checked facts additionally retain exact
-wrapper instantiations of authored partition equations with their source
-theorem, call, transfer-stable input claims, and any exact staged/nested result
-rewrite rows. Exact record, fixed-array, and active-case literal arguments
-distribute structural entry paths to uniquely selected transferred
-caller-parameter leaves; sum payloads retain their case-plus-field identity and
-mismatched active cases reject. Multiple staged calls retain independent rows
-when their call-established claims reach unique returned-aggregate paths, and
-fixed-point reuse retains source-derivation depth. Sealed
-introduction/custody-exit rows and frontier discharge remain subsequent work.
-Terminal semantic v12 carries each depth-zero direct instantiation as an
-exact source-to-derived place substitution and rejects theorem-shape, algebra,
-claim-binding, or substitution drift before reconstructing the result.
-The frozen Omega-to-Psi bootstrap adapter no longer translates these content
-facts. Their real source producer must land with the frontend under Psi
-ownership; the terminal vocabulary and verifier remain source-independent.
+Terminal Psi carries canonical content equations over declared structural roots, stable domain and projection identities, entry/current paths, fields, fixed indices, sum cases, and flat separation. Canonical encoding and independent verification retain no source-arena identity. Sealed introduction and custody-exit rows remain implementation work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound

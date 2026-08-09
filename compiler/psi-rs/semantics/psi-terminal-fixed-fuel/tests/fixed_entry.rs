@@ -4,8 +4,8 @@ use psi_core::{
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, SemanticVersion,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -184,7 +184,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
     let goal = Proposition::Equal(literal.clone(), literal);
     let obligation = obligation_id(1);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::CURRENT,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),

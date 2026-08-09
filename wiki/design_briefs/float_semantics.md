@@ -131,44 +131,7 @@ This replaces the current folder path that can evaluate landed `f32` operations
 through host `f64`: the semantics becomes the folder, so build-time and runtime
 cannot acquire independent definitions.
 
-Implementation checkpoint (2026-07-28): the compiler-side shared engine now
-decodes binary32/binary64 into this payload-erased meaning, performs exact
-rational arithmetic, and rounds through the matching format record. Exact
-decimal landing and anonymous-constant landing use it, as do interpreter
-add/subtract/multiply/divide, partial comparisons, the settled min/max choice,
-and distinct multiply-then-add/fused-multiply-add definitions. The engine also
-now defines named classification, correctly rounded square root, float/integer
-and format conversions, and explicit directed-rounding variants. The
-interpreter consumes the shared square-root and conversion definitions,
-including full unsigned-64 bounds and the settled saturating/trapping edges.
-Its f64-backed runtime value carrier preserves f32 NaN sign and payload through
-typed landing and raw-bit recasts, so the proof projection can erase payloads
-without corrupting representation-sensitive consumers such as `F32::TotalOrder`.
-Backend guard-constant folding consumes the same functions rather than host
-floating arithmetic followed by a width cast.
-The compatibility x86-64 lowering uses a sticky-half-then-double sequence for
-upper-half `u64` inputs, while AArch64 selects `UCVTF`; both now preserve source
-signedness instead of routing every integer through a signed conversion.
-The compatibility `Math::fused_multiply_add` value call now routes through the
-shared fused definition in the interpreter, while the native libm binding and
-the interpreter are pinned by an edge where fused evaluation leaves a positive
-`2^-104` residual and multiply-then-add produces zero.
-`omega::language::core::float_operations` now publishes the pure
-`FloatSemantics` identities and contracted f32/f64 boundary requirements for
-primitive arithmetic/comparison spellings, distinct multiply-then-add/FMA,
-classification, and directed rounding. Checked operator evidence records the
-selected primitive identities while hardcoded instruction selection remains
-the bootstrap realization. Named F32/F64 FMA, classification, and directed
-rounding calls now use the same unique path-and-arity resolution in validation,
-checked flow, and the interpreter. The call boundary checks argument and result
-types, unknown names remain rejected, and executable results come from
-`FloatSemantics`. One semantic machine now runs both as a fixed-array-length
-build-time invocation and as an interpreted runtime call, with f32/f64 twins
-for rounding boundaries, subnormal underflow, overflow, signed zero,
-infinities, NaN comparison and min/max behavior, classification, square root,
-the directed arithmetic families, and fused-versus-unfused results. This
-completes F7 rung 1 for the settled operation surface. The legacy `as`
-evaluator path is only a compatibility consumer.
+The current shared engine defines binary32/binary64 decoding, exact rational operations, rounding, classification, square root, conversions, directed rounding, and distinct fused and unfused arithmetic. Folding, interpretation, checked operation evidence, and backend guard folding consume that one definition. Proof projection may erase NaN payloads while runtime carriers preserve exact representation bits. Target realizations remain independently validated; incomplete provider and proof work is tracked in `TASKS.md`.
 
 ### Public conversion family (settled 2026-07-31)
 

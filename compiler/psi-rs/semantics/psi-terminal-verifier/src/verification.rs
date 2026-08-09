@@ -7,7 +7,7 @@ use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
     verify_obligation,
 };
-use psi_terminal::{OperationKind, SemanticVersion, TerminalMachine, TerminalModule, Terminator};
+use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 
 use crate::{ModuleError, ValidatedTerminalModule, validate_module};
 
@@ -71,7 +71,7 @@ pub fn verify_module<'module>(
         let context = validated
             .value_context(machine)
             .map_err(VerificationError::Module)?;
-        let semantics = reconstruct_machine_semantics(machine, module.semantic_version);
+        let semantics = reconstruct_machine_semantics(machine);
         for site in &semantics.operation_obligations {
             let route = evidence
                 .remove(&site.obligation.id)
@@ -134,9 +134,7 @@ pub fn reconstruct_operation_obligations(
     Ok(module
         .machines
         .iter()
-        .flat_map(|machine| {
-            reconstruct_machine_semantics(machine, module.semantic_version).operation_obligations
-        })
+        .flat_map(|machine| reconstruct_machine_semantics(machine).operation_obligations)
         .collect())
 }
 
@@ -144,10 +142,7 @@ pub fn reconstruct_operation_obligations(
 /// on every return path. A true conditional edge establishes the predicate
 /// computed by its condition operation; edge bindings rewrite those facts to
 /// successor parameters. Merge and return facts remain intersection-only.
-fn reconstruct_machine_semantics(
-    machine: &TerminalMachine,
-    semantic_version: SemanticVersion,
-) -> ReconstructedMachineSemantics {
+fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMachineSemantics {
     let reconstruct_path_facts = machine.blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
             matches!(
@@ -518,7 +513,6 @@ fn reconstruct_machine_semantics(
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -548,7 +542,6 @@ fn reconstruct_machine_semantics(
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -578,7 +571,6 @@ fn reconstruct_machine_semantics(
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -603,12 +595,11 @@ fn reconstruct_machine_semantics(
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: exact_integer_divide_obligation_at_version(
+                            proposition: exact_integer_divide_obligation(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -633,12 +624,11 @@ fn reconstruct_machine_semantics(
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: exact_integer_remainder_obligation_at_version(
+                            proposition: exact_integer_remainder_obligation(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -663,12 +653,11 @@ fn reconstruct_machine_semantics(
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: wrapping_integer_divide_obligation_at_version(
+                            proposition: wrapping_integer_divide_obligation(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -693,12 +682,11 @@ fn reconstruct_machine_semantics(
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: wrapping_integer_remainder_obligation_at_version(
+                            proposition: wrapping_integer_remainder_obligation(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -723,12 +711,11 @@ fn reconstruct_machine_semantics(
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: saturating_integer_divide_obligation_at_version(
+                            proposition: saturating_integer_divide_obligation(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -753,12 +740,11 @@ fn reconstruct_machine_semantics(
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: saturating_integer_remainder_obligation_at_version(
+                            proposition: saturating_integer_remainder_obligation(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
-                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1166,7 +1152,6 @@ fn exact_integer_add_obligation(
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1181,9 +1166,7 @@ fn exact_integer_add_obligation(
         (Some(constant), None) => (right, constant),
         (None, Some(constant)) => (left, constant),
         (None, None) => {
-            if semantic_version >= SemanticVersion::V43
-                && integer_type.sign() == IntegerSign::Unsigned
-            {
+            if integer_type.sign() == IntegerSign::Unsigned {
                 if let Some(bound) = semantic_axioms.iter().rev().find(|axiom| match axiom {
                     Proposition::LessOrEqual(bound_left, bound_right) => {
                         (bound_left == &left
@@ -1201,9 +1184,7 @@ fn exact_integer_add_obligation(
                     return bound.clone();
                 }
             }
-            if semantic_version >= SemanticVersion::V44
-                && integer_type.sign() == IntegerSign::Signed
-            {
+            if integer_type.sign() == IntegerSign::Signed {
                 let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
                     .expect("zero belongs to every signed carrier");
                 for (variable, addend) in [(&left, &right), (&right, &left)] {
@@ -1227,9 +1208,7 @@ fn exact_integer_add_obligation(
                     }
                 }
             }
-            if semantic_version >= SemanticVersion::V45
-                && integer_type.sign() == IntegerSign::Signed
-            {
+            if integer_type.sign() == IntegerSign::Signed {
                 let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
                     .expect("zero belongs to every signed carrier");
                 for (variable, addend) in [(&left, &right), (&right, &left)] {
@@ -1354,7 +1333,6 @@ fn exact_integer_subtract_obligation(
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1366,14 +1344,13 @@ fn exact_integer_subtract_obligation(
         };
     }
     let Some(constant) = known_right else {
-        if semantic_version >= SemanticVersion::V46 && integer_type.sign() == IntegerSign::Unsigned
-        {
+        if integer_type.sign() == IntegerSign::Unsigned {
             let bound = Proposition::LessOrEqual(right.clone(), left.clone());
             if semantic_axioms.contains(&bound) {
                 return bound;
             }
         }
-        if semantic_version >= SemanticVersion::V47 && integer_type.sign() == IntegerSign::Signed {
+        if integer_type.sign() == IntegerSign::Signed {
             let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
                 .expect("zero belongs to every signed carrier");
             let nonnegative = Proposition::LessOrEqual(zero, right.clone());
@@ -1389,7 +1366,7 @@ fn exact_integer_subtract_obligation(
                 return canonical_conjunction(vec![nonnegative, bound.clone()]);
             }
         }
-        if semantic_version >= SemanticVersion::V48 && integer_type.sign() == IntegerSign::Signed {
+        if integer_type.sign() == IntegerSign::Signed {
             let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
                 .expect("zero belongs to every signed carrier");
             let nonpositive = Proposition::LessOrEqual(right.clone(), zero);
@@ -1405,20 +1382,17 @@ fn exact_integer_subtract_obligation(
                 return canonical_conjunction(vec![nonpositive, bound.clone()]);
             }
         }
-        if semantic_version >= SemanticVersion::V43 {
-            if let (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(constant))) =
-                (integer_type.sign(), known_left)
-            {
-                if IntegerValue::Unsigned(constant) == integer_type.maximum_value() {
-                    return Proposition::Truth;
-                }
-                let boundary = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(constant))
-                    .expect("known unsigned minuend belongs to its carrier");
-                return Proposition::LessOrEqual(right, boundary);
+        if let (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(constant))) =
+            (integer_type.sign(), known_left)
+        {
+            if IntegerValue::Unsigned(constant) == integer_type.maximum_value() {
+                return Proposition::Truth;
             }
+            let boundary = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(constant))
+                .expect("known unsigned minuend belongs to its carrier");
+            return Proposition::LessOrEqual(right, boundary);
         }
-        if semantic_version >= SemanticVersion::V44
-            && integer_type.sign() == IntegerSign::Signed
+        if integer_type.sign() == IntegerSign::Signed
             && known_left == Some(integer_type.maximum_value())
         {
             let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
@@ -1428,8 +1402,7 @@ fn exact_integer_subtract_obligation(
                 return nonnegative;
             }
         }
-        if semantic_version >= SemanticVersion::V45
-            && integer_type.sign() == IntegerSign::Signed
+        if integer_type.sign() == IntegerSign::Signed
             && known_left == Some(integer_type.minimum_value())
         {
             let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
@@ -1540,7 +1513,6 @@ fn exact_integer_multiply_obligation(
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1555,9 +1527,7 @@ fn exact_integer_multiply_obligation(
         (Some(constant), None) => (right, constant),
         (None, Some(constant)) => (left, constant),
         (None, None) => {
-            if semantic_version >= SemanticVersion::V49
-                && integer_type.sign() == IntegerSign::Unsigned
-            {
+            if integer_type.sign() == IntegerSign::Unsigned {
                 let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1))
                     .expect("one belongs to every unsigned carrier");
                 for (variable, factor) in [(&left, &right), (&right, &left)] {
@@ -1578,6 +1548,33 @@ fn exact_integer_multiply_obligation(
                         _ => false,
                     }) {
                         return canonical_conjunction(vec![positive, bound.clone()]);
+                    }
+                }
+            }
+            if integer_type.sign() == IntegerSign::Signed {
+                let one = ScalarTerm::integer(integer_type, IntegerValue::Signed(1))
+                    .expect("one belongs to every signed carrier");
+                for (variable, factor) in [(&left, &right), (&right, &left)] {
+                    let positive = Proposition::LessOrEqual(one.clone(), factor.clone());
+                    if !semantic_axioms.contains(&positive) {
+                        continue;
+                    }
+                    let lower = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                        Proposition::LessOrEqual(bound, bound_variable) => {
+                            bound_variable == variable
+                                && is_minimum_divide(integer_type, bound, factor, semantic_axioms)
+                        }
+                        _ => false,
+                    });
+                    let upper = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                        Proposition::LessOrEqual(bound_variable, bound) => {
+                            bound_variable == variable
+                                && is_maximum_divide(integer_type, bound, factor, semantic_axioms)
+                        }
+                        _ => false,
+                    });
+                    if let (Some(lower), Some(upper)) = (lower, upper) {
+                        return canonical_conjunction(vec![positive, lower.clone(), upper.clone()]);
                     }
                 }
             }
@@ -1676,12 +1673,40 @@ fn is_maximum_divide(
             == Some(integer_type.maximum_value())
 }
 
-fn exact_integer_divide_obligation_at_version(
+fn is_minimum_divide(
+    integer_type: psi_core::IntegerType,
+    term: &ScalarTerm,
+    divisor: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let definition = semantic_axioms
+        .iter()
+        .rev()
+        .find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == term => Some(right),
+            Proposition::Equal(left, right) if right == term => Some(left),
+            _ => None,
+        })
+        .unwrap_or(term);
+    let ScalarTerm::ExactIntegerDivide {
+        scalar_type,
+        left,
+        right,
+    } = definition
+    else {
+        return false;
+    };
+    *scalar_type == integer_type
+        && right.as_ref() == divisor
+        && known_integer_term_value(integer_type, left, semantic_axioms)
+            == Some(integer_type.minimum_value())
+}
+
+fn exact_integer_divide_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1712,23 +1737,15 @@ fn exact_integer_divide_obligation_at_version(
             Proposition::LessOrEqual(boundary, left)
         }
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(
-            integer_type,
-            left,
-            right,
-            semantic_axioms,
-            semantic_version,
-            false,
-        ),
+        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, false),
     }
 }
 
-fn exact_integer_remainder_obligation_at_version(
+fn exact_integer_remainder_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1755,23 +1772,15 @@ fn exact_integer_remainder_obligation_at_version(
             Proposition::LessOrEqual(boundary, left)
         }
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(
-            integer_type,
-            left,
-            right,
-            semantic_axioms,
-            semantic_version,
-            false,
-        ),
+        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, false),
     }
 }
 
-fn wrapping_integer_divide_obligation_at_version(
+fn wrapping_integer_divide_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1787,23 +1796,15 @@ fn wrapping_integer_divide_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(
-            integer_type,
-            left,
-            right,
-            semantic_axioms,
-            semantic_version,
-            true,
-        ),
+        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
     }
 }
 
-fn wrapping_integer_remainder_obligation_at_version(
+fn wrapping_integer_remainder_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1819,23 +1820,15 @@ fn wrapping_integer_remainder_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(
-            integer_type,
-            left,
-            right,
-            semantic_axioms,
-            semantic_version,
-            true,
-        ),
+        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
     }
 }
 
-fn saturating_integer_divide_obligation_at_version(
+fn saturating_integer_divide_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1851,23 +1844,15 @@ fn saturating_integer_divide_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(
-            integer_type,
-            left,
-            right,
-            semantic_axioms,
-            semantic_version,
-            true,
-        ),
+        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
     }
 }
 
-fn saturating_integer_remainder_obligation_at_version(
+fn saturating_integer_remainder_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1883,111 +1868,8 @@ fn saturating_integer_remainder_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => runtime_divisor_obligation(
-            integer_type,
-            left,
-            right,
-            semantic_axioms,
-            semantic_version,
-            true,
-        ),
+        _ => runtime_divisor_obligation(integer_type, left, right, semantic_axioms, true),
     }
-}
-
-#[cfg(test)]
-fn exact_integer_divide_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    exact_integer_divide_obligation_at_version(
-        integer_type,
-        left,
-        right,
-        semantic_axioms,
-        SemanticVersion::V39,
-    )
-}
-
-#[cfg(test)]
-fn exact_integer_remainder_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    exact_integer_remainder_obligation_at_version(
-        integer_type,
-        left,
-        right,
-        semantic_axioms,
-        SemanticVersion::V39,
-    )
-}
-
-#[cfg(test)]
-fn wrapping_integer_divide_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    wrapping_integer_divide_obligation_at_version(
-        integer_type,
-        left,
-        right,
-        semantic_axioms,
-        SemanticVersion::V39,
-    )
-}
-
-#[cfg(test)]
-fn wrapping_integer_remainder_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    wrapping_integer_remainder_obligation_at_version(
-        integer_type,
-        left,
-        right,
-        semantic_axioms,
-        SemanticVersion::V39,
-    )
-}
-
-#[cfg(test)]
-fn saturating_integer_divide_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    saturating_integer_divide_obligation_at_version(
-        integer_type,
-        left,
-        right,
-        semantic_axioms,
-        SemanticVersion::V39,
-    )
-}
-
-#[cfg(test)]
-fn saturating_integer_remainder_obligation(
-    integer_type: psi_core::IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Proposition {
-    saturating_integer_remainder_obligation_at_version(
-        integer_type,
-        left,
-        right,
-        semantic_axioms,
-        SemanticVersion::V39,
-    )
 }
 
 fn runtime_divisor_obligation(
@@ -1995,13 +1877,9 @@ fn runtime_divisor_obligation(
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
-    semantic_version: SemanticVersion,
     negative_one_is_total: bool,
 ) -> Proposition {
-    if semantic_version < SemanticVersion::V40 {
-        return Proposition::Falsehood;
-    }
-    if semantic_version >= SemanticVersion::V42 && integer_type.sign() == IntegerSign::Signed {
+    if integer_type.sign() == IntegerSign::Signed {
         let negative_one = ScalarTerm::integer(integer_type, IntegerValue::Signed(-1))
             .expect("every signed fixed integer carrier admits negative one");
         let negative_one_bound = Proposition::LessOrEqual(right.clone(), negative_one);
@@ -2023,7 +1901,7 @@ fn runtime_divisor_obligation(
             }
         }
     }
-    if semantic_version >= SemanticVersion::V41 && integer_type.sign() == IntegerSign::Signed {
+    if integer_type.sign() == IntegerSign::Signed {
         if let Ok(negative_two) = ScalarTerm::integer(integer_type, IntegerValue::Signed(-2)) {
             let negative_bound = Proposition::LessOrEqual(right.clone(), negative_two);
             if semantic_axioms.contains(&negative_bound) {
@@ -2506,7 +2384,7 @@ mod tests {
     use psi_core::{IntegerType, ScalarType, ValueId};
 
     #[test]
-    fn v43_reconstructs_unsigned_joint_exact_add_bounds() {
+    fn reconstructs_unsigned_joint_exact_add_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let left = ScalarTerm::value(
             ValueId::new(1).expect("left"),
@@ -2527,24 +2405,13 @@ mod tests {
                 left.clone(),
                 right.clone(),
                 std::slice::from_ref(&bound),
-                SemanticVersion::V43,
             ),
             bound.clone()
-        );
-        assert_eq!(
-            exact_integer_add_obligation(
-                integer_type,
-                left,
-                right,
-                std::slice::from_ref(&bound),
-                SemanticVersion::V42,
-            ),
-            Proposition::Falsehood
         );
     }
 
     #[test]
-    fn v44_reconstructs_signed_nonnegative_joint_exact_add_bounds() {
+    fn reconstructs_signed_nonnegative_joint_exact_add_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = ScalarTerm::value(
             ValueId::new(4).expect("left"),
@@ -2562,13 +2429,7 @@ mod tests {
         let bound = Proposition::LessOrEqual(left.clone(), remainder);
         let axioms = vec![nonnegative.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_add_obligation(
-                integer_type,
-                left,
-                right.clone(),
-                &axioms,
-                SemanticVersion::V44,
-            ),
+            exact_integer_add_obligation(integer_type, left, right.clone(), &axioms,),
             canonical_conjunction(vec![nonnegative.clone(), bound])
         );
         assert_eq!(
@@ -2577,14 +2438,13 @@ mod tests {
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8"),
                 right,
                 std::slice::from_ref(&nonnegative),
-                SemanticVersion::V44,
             ),
             nonnegative
         );
     }
 
     #[test]
-    fn v45_reconstructs_signed_nonpositive_joint_exact_add_bounds() {
+    fn reconstructs_signed_nonpositive_joint_exact_add_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = ScalarTerm::value(
             ValueId::new(6).expect("left"),
@@ -2603,13 +2463,7 @@ mod tests {
         let bound = Proposition::LessOrEqual(remainder, left.clone());
         let axioms = vec![nonpositive.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_add_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V45,
-            ),
+            exact_integer_add_obligation(integer_type, left.clone(), right.clone(), &axioms,),
             canonical_conjunction(vec![nonpositive.clone(), bound])
         );
         assert_eq!(
@@ -2618,19 +2472,8 @@ mod tests {
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(-128)).expect("-128i8"),
                 right.clone(),
                 std::slice::from_ref(&nonpositive),
-                SemanticVersion::V45,
             ),
             nonpositive
-        );
-        assert_eq!(
-            exact_integer_add_obligation(
-                integer_type,
-                left,
-                right.clone(),
-                &axioms,
-                SemanticVersion::V44,
-            ),
-            Proposition::Falsehood
         );
         assert_eq!(
             exact_integer_subtract_obligation(
@@ -2638,14 +2481,13 @@ mod tests {
                 ScalarTerm::integer(integer_type, IntegerValue::Signed(-128)).expect("-128i8"),
                 right,
                 &[axioms[1].clone()],
-                SemanticVersion::V45,
             ),
             Proposition::Falsehood
         );
     }
 
     #[test]
-    fn v46_reconstructs_unsigned_joint_exact_subtract_bounds() {
+    fn reconstructs_unsigned_joint_exact_subtract_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let left = ScalarTerm::value(
             ValueId::new(8).expect("left"),
@@ -2662,28 +2504,17 @@ mod tests {
                 left.clone(),
                 right.clone(),
                 std::slice::from_ref(&bound),
-                SemanticVersion::V46,
             ),
             bound.clone()
         );
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                std::slice::from_ref(&bound),
-                SemanticVersion::V45,
-            ),
-            Proposition::Falsehood
-        );
-        assert_eq!(
-            exact_integer_subtract_obligation(integer_type, left, right, &[], SemanticVersion::V46,),
+            exact_integer_subtract_obligation(integer_type, left, right, &[],),
             Proposition::Falsehood
         );
     }
 
     #[test]
-    fn v47_reconstructs_signed_nonnegative_joint_exact_subtract_bounds() {
+    fn reconstructs_signed_nonnegative_joint_exact_subtract_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = ScalarTerm::value(
             ValueId::new(10).expect("left"),
@@ -2702,39 +2533,17 @@ mod tests {
         let bound = Proposition::LessOrEqual(lower, left.clone());
         let axioms = vec![nonnegative.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V47,
-            ),
+            exact_integer_subtract_obligation(integer_type, left.clone(), right.clone(), &axioms,),
             canonical_conjunction(vec![nonnegative.clone(), bound.clone()])
         );
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V46,
-            ),
-            Proposition::Falsehood
-        );
-        assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left,
-                right,
-                &axioms[1..],
-                SemanticVersion::V47,
-            ),
+            exact_integer_subtract_obligation(integer_type, left, right, &axioms[1..],),
             Proposition::Falsehood
         );
     }
 
     #[test]
-    fn v48_reconstructs_signed_nonpositive_joint_exact_subtract_bounds() {
+    fn reconstructs_signed_nonpositive_joint_exact_subtract_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = ScalarTerm::value(
             ValueId::new(12).expect("left"),
@@ -2752,33 +2561,11 @@ mod tests {
         let bound = Proposition::LessOrEqual(left.clone(), upper);
         let axioms = vec![nonpositive.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V48,
-            ),
+            exact_integer_subtract_obligation(integer_type, left.clone(), right.clone(), &axioms,),
             canonical_conjunction(vec![nonpositive.clone(), bound.clone()])
         );
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V47,
-            ),
-            Proposition::Falsehood
-        );
-        assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                left,
-                right,
-                &axioms[1..],
-                SemanticVersion::V48,
-            ),
+            exact_integer_subtract_obligation(integer_type, left, right, &axioms[1..],),
             Proposition::Falsehood
         );
     }
@@ -2797,7 +2584,6 @@ mod tests {
                 unsigned_left.clone(),
                 unsigned_five.clone(),
                 &[],
-                SemanticVersion::V42,
             ),
             Proposition::LessOrEqual(unsigned_five, unsigned_left)
         );
@@ -2810,26 +2596,14 @@ mod tests {
         let positive = ScalarTerm::integer(i8_type, IntegerValue::Signed(8)).expect("8i8");
         let lower = ScalarTerm::integer(i8_type, IntegerValue::Signed(-120)).expect("-120i8");
         assert_eq!(
-            exact_integer_subtract_obligation(
-                i8_type,
-                signed_left.clone(),
-                positive,
-                &[],
-                SemanticVersion::V42,
-            ),
+            exact_integer_subtract_obligation(i8_type, signed_left.clone(), positive, &[],),
             Proposition::LessOrEqual(lower, signed_left.clone())
         );
 
         let negative = ScalarTerm::integer(i8_type, IntegerValue::Signed(-7)).expect("-7i8");
         let upper = ScalarTerm::integer(i8_type, IntegerValue::Signed(120)).expect("120i8");
         assert_eq!(
-            exact_integer_subtract_obligation(
-                i8_type,
-                signed_left.clone(),
-                negative,
-                &[],
-                SemanticVersion::V42,
-            ),
+            exact_integer_subtract_obligation(i8_type, signed_left.clone(), negative, &[],),
             Proposition::LessOrEqual(signed_left, upper)
         );
     }
@@ -2844,26 +2618,20 @@ mod tests {
             )
         };
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                value(1),
-                value(2),
-                &[],
-                SemanticVersion::V42,
-            ),
+            exact_integer_subtract_obligation(integer_type, value(1), value(2), &[],),
             Proposition::Falsehood
         );
 
         let four = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(4)).expect("4u8");
         let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
         assert_eq!(
-            exact_integer_subtract_obligation(integer_type, four, five, &[], SemanticVersion::V42,),
+            exact_integer_subtract_obligation(integer_type, four, five, &[],),
             Proposition::Falsehood
         );
     }
 
     #[test]
-    fn v43_reconstructs_known_unsigned_minuend_bounds() {
+    fn reconstructs_known_unsigned_minuend_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let right = ScalarTerm::value(
             ValueId::new(3).expect("right"),
@@ -2872,24 +2640,8 @@ mod tests {
         let maximum =
             ScalarTerm::integer(integer_type, IntegerValue::Unsigned(255)).expect("255u8");
         assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                maximum.clone(),
-                right.clone(),
-                &[],
-                SemanticVersion::V43,
-            ),
+            exact_integer_subtract_obligation(integer_type, maximum.clone(), right.clone(), &[],),
             Proposition::Truth
-        );
-        assert_eq!(
-            exact_integer_subtract_obligation(
-                integer_type,
-                maximum,
-                right,
-                &[],
-                SemanticVersion::V42,
-            ),
-            Proposition::Falsehood
         );
     }
 
@@ -2909,18 +2661,11 @@ mod tests {
                 unsigned_value.clone(),
                 unsigned_five.clone(),
                 &[],
-                SemanticVersion::V48,
             ),
             Proposition::LessOrEqual(unsigned_value.clone(), unsigned_maximum.clone())
         );
         assert_eq!(
-            exact_integer_multiply_obligation(
-                u8_type,
-                unsigned_five,
-                unsigned_value.clone(),
-                &[],
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(u8_type, unsigned_five, unsigned_value.clone(), &[],),
             Proposition::LessOrEqual(unsigned_value, unsigned_maximum)
         );
 
@@ -2938,23 +2683,11 @@ mod tests {
             Proposition::LessOrEqual(signed_value.clone(), positive_42.clone()),
         ]);
         assert_eq!(
-            exact_integer_multiply_obligation(
-                i8_type,
-                signed_value.clone(),
-                signed_three,
-                &[],
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(i8_type, signed_value.clone(), signed_three, &[],),
             expected.clone()
         );
         assert_eq!(
-            exact_integer_multiply_obligation(
-                i8_type,
-                signed_value,
-                negative_three,
-                &[],
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(i8_type, signed_value, negative_three, &[],),
             expected
         );
 
@@ -2966,13 +2699,7 @@ mod tests {
             ScalarType::Integer(i8_type),
         );
         assert_eq!(
-            exact_integer_multiply_obligation(
-                i8_type,
-                signed_value.clone(),
-                negative_one,
-                &[],
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(i8_type, signed_value.clone(), negative_one, &[],),
             Proposition::LessOrEqual(minimum_plus_one, signed_value)
         );
     }
@@ -2987,32 +2714,20 @@ mod tests {
             )
         };
         assert_eq!(
-            exact_integer_multiply_obligation(
-                integer_type,
-                value(1),
-                value(2),
-                &[],
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(integer_type, value(1), value(2), &[],),
             Proposition::Falsehood
         );
         let fifty_one =
             ScalarTerm::integer(integer_type, IntegerValue::Unsigned(51)).expect("51u8");
         let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
         assert_eq!(
-            exact_integer_multiply_obligation(
-                integer_type,
-                fifty_one,
-                five,
-                &[],
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(integer_type, fifty_one, five, &[],),
             Proposition::Truth
         );
     }
 
     #[test]
-    fn v49_reconstructs_unsigned_joint_exact_multiply_bounds() {
+    fn reconstructs_unsigned_joint_exact_multiply_bounds() {
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let left = ScalarTerm::value(
             ValueId::new(14).expect("left"),
@@ -3031,33 +2746,48 @@ mod tests {
         let bound = Proposition::LessOrEqual(left.clone(), upper);
         let axioms = vec![positive.clone(), bound.clone()];
         assert_eq!(
-            exact_integer_multiply_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V49,
-            ),
+            exact_integer_multiply_obligation(integer_type, left.clone(), right.clone(), &axioms,),
             canonical_conjunction(vec![positive.clone(), bound.clone()])
         );
         assert_eq!(
-            exact_integer_multiply_obligation(
-                integer_type,
-                left.clone(),
-                right.clone(),
-                &axioms,
-                SemanticVersion::V48,
-            ),
+            exact_integer_multiply_obligation(integer_type, left, right, &axioms[1..],),
             Proposition::Falsehood
         );
+    }
+
+    #[test]
+    fn reconstructs_signed_positive_joint_exact_multiply_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = ScalarTerm::value(
+            ValueId::new(16).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(17).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let one = ScalarTerm::integer(integer_type, IntegerValue::Signed(1)).expect("1i8");
+        let minimum =
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(-128)).expect("-128i8");
+        let maximum = ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8");
+        let lower = ScalarTerm::exact_integer_divide(integer_type, minimum, right.clone())
+            .expect("-128 / right");
+        let upper = ScalarTerm::exact_integer_divide(integer_type, maximum, right.clone())
+            .expect("127 / right");
+        let positive = Proposition::LessOrEqual(one, right.clone());
+        let lower_bound = Proposition::LessOrEqual(lower, left.clone());
+        let upper_bound = Proposition::LessOrEqual(left.clone(), upper);
+        let axioms = vec![positive.clone(), lower_bound.clone(), upper_bound.clone()];
         assert_eq!(
-            exact_integer_multiply_obligation(
-                integer_type,
-                left,
-                right,
-                &axioms[1..],
-                SemanticVersion::V49,
-            ),
+            exact_integer_multiply_obligation(integer_type, left.clone(), right.clone(), &axioms,),
+            canonical_conjunction(vec![
+                positive.clone(),
+                lower_bound.clone(),
+                upper_bound.clone(),
+            ])
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(integer_type, left, right, &axioms[..2],),
             Proposition::Falsehood
         );
     }
@@ -3096,14 +2826,10 @@ mod tests {
             ValueId::new(3).expect("divisor"),
             ScalarType::Integer(i8_type),
         );
+        let one = ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap();
         assert_eq!(
-            exact_integer_divide_obligation(
-                i8_type,
-                ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
-                unknown,
-                &[]
-            ),
-            Proposition::Falsehood
+            exact_integer_divide_obligation(i8_type, one.clone(), unknown.clone(), &[]),
+            Proposition::LessOrEqual(one, unknown)
         );
     }
 
@@ -3141,14 +2867,10 @@ mod tests {
             ValueId::new(3).expect("divisor"),
             ScalarType::Integer(i8_type),
         );
+        let one = ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap();
         assert_eq!(
-            exact_integer_remainder_obligation(
-                i8_type,
-                ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
-                unknown,
-                &[]
-            ),
-            Proposition::Falsehood
+            exact_integer_remainder_obligation(i8_type, one.clone(), unknown.clone(), &[]),
+            Proposition::LessOrEqual(one, unknown)
         );
     }
 
@@ -3179,14 +2901,10 @@ mod tests {
             ValueId::new(2).expect("divisor"),
             ScalarType::Integer(i8_type),
         );
+        let one = ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap();
         assert_eq!(
-            wrapping_integer_divide_obligation(
-                i8_type,
-                ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
-                unknown,
-                &[]
-            ),
-            Proposition::Falsehood
+            wrapping_integer_divide_obligation(i8_type, one.clone(), unknown.clone(), &[]),
+            Proposition::LessOrEqual(one, unknown)
         );
     }
 
@@ -3266,16 +2984,15 @@ mod tests {
     }
 
     #[test]
-    fn versioned_runtime_divisor_bounds_reconstruct_for_every_policy() {
-        type Reconstruct =
-            fn(IntegerType, ScalarTerm, ScalarTerm, &[Proposition], SemanticVersion) -> Proposition;
+    fn runtime_divisor_bounds_reconstruct_for_every_policy() {
+        type Reconstruct = fn(IntegerType, ScalarTerm, ScalarTerm, &[Proposition]) -> Proposition;
         let reconstructors: [Reconstruct; 6] = [
-            exact_integer_divide_obligation_at_version,
-            exact_integer_remainder_obligation_at_version,
-            wrapping_integer_divide_obligation_at_version,
-            wrapping_integer_remainder_obligation_at_version,
-            saturating_integer_divide_obligation_at_version,
-            saturating_integer_remainder_obligation_at_version,
+            exact_integer_divide_obligation,
+            exact_integer_remainder_obligation,
+            wrapping_integer_divide_obligation,
+            wrapping_integer_remainder_obligation,
+            saturating_integer_divide_obligation,
+            saturating_integer_remainder_obligation,
         ];
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let left = ScalarTerm::value(
@@ -3291,24 +3008,8 @@ mod tests {
 
         for &reconstruct in &reconstructors {
             assert_eq!(
-                reconstruct(
-                    integer_type,
-                    left.clone(),
-                    right.clone(),
-                    &[],
-                    SemanticVersion::V40,
-                ),
+                reconstruct(integer_type, left.clone(), right.clone(), &[],),
                 expected
-            );
-            assert_eq!(
-                reconstruct(
-                    integer_type,
-                    left.clone(),
-                    right.clone(),
-                    &[],
-                    SemanticVersion::V39,
-                ),
-                Proposition::Falsehood
             );
         }
 
@@ -3324,8 +3025,6 @@ mod tests {
         let negative_two =
             ScalarTerm::integer(signed_type, IntegerValue::Signed(-2)).expect("-2i8");
         let negative_bound = Proposition::LessOrEqual(right.clone(), negative_two);
-        let positive_one = ScalarTerm::integer(signed_type, IntegerValue::Signed(1)).expect("1i8");
-        let positive_bound = Proposition::LessOrEqual(positive_one, right.clone());
         for &reconstruct in &reconstructors {
             assert_eq!(
                 reconstruct(
@@ -3333,19 +3032,8 @@ mod tests {
                     left.clone(),
                     right.clone(),
                     std::slice::from_ref(&negative_bound),
-                    SemanticVersion::V41,
                 ),
                 negative_bound.clone()
-            );
-            assert_eq!(
-                reconstruct(
-                    signed_type,
-                    left.clone(),
-                    right.clone(),
-                    std::slice::from_ref(&negative_bound),
-                    SemanticVersion::V40,
-                ),
-                positive_bound.clone()
             );
         }
 
@@ -3364,40 +3052,12 @@ mod tests {
                 vec![negative_one_bound.clone()]
             };
             assert_eq!(
-                reconstruct(
-                    signed_type,
-                    left.clone(),
-                    right.clone(),
-                    &axioms,
-                    SemanticVersion::V42,
-                ),
+                reconstruct(signed_type, left.clone(), right.clone(), &axioms,),
                 if index < 2 {
                     exact_expected.clone()
                 } else {
                     negative_one_bound.clone()
                 }
-            );
-            if index < 2 {
-                assert_eq!(
-                    reconstruct(
-                        signed_type,
-                        left.clone(),
-                        right.clone(),
-                        std::slice::from_ref(&negative_one_bound),
-                        SemanticVersion::V42,
-                    ),
-                    positive_bound.clone()
-                );
-            }
-            assert_eq!(
-                reconstruct(
-                    signed_type,
-                    left.clone(),
-                    right.clone(),
-                    &axioms,
-                    SemanticVersion::V41,
-                ),
-                positive_bound.clone()
             );
         }
 
@@ -3411,13 +3071,7 @@ mod tests {
             ScalarType::Integer(signed_one_bit),
         );
         assert_eq!(
-            exact_integer_divide_obligation_at_version(
-                signed_one_bit,
-                left,
-                right,
-                &[],
-                SemanticVersion::V40,
-            ),
+            exact_integer_divide_obligation(signed_one_bit, left, right, &[],),
             Proposition::Falsehood
         );
     }

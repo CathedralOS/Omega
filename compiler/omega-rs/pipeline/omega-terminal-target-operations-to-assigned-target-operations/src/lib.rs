@@ -1174,7 +1174,7 @@ mod tests {
         TerminalTargetOperation,
     };
     use psi_core::{EdgeId, IntegerSign, IntegerType, OperationId};
-    use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
+    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     #[test]
     fn aarch64_expression_registers_receive_stable_frame_spills() {
@@ -1347,7 +1347,7 @@ mod tests {
     ) -> TerminalTargetOperationPlan {
         TerminalTargetOperationPlan {
             terminal_psi: TerminalPsiIdentity {
-                semantic_version: SemanticVersion::CURRENT,
+                vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([3; 32]),
             },
             target,

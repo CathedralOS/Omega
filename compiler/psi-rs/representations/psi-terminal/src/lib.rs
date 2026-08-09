@@ -2,42 +2,13 @@
 
 //! Self-contained, target-neutral terminal-Psi semantics.
 //!
-//! The frozen v1 vocabulary contains integer constants and a straight-line
-//! chain of explicit jump/return edges; v2 adds Boolean constants, v3 adds
-//! explicit wrapping integer addition, v4 adds saturating integer addition,
-//! v5 adds wrapping integer subtraction, v6 adds saturating integer
-//! subtraction, v7 adds wrapping integer multiplication, v8 adds saturating
-//! integer multiplication, v9 adds proof-only structural-place content
-//! conservation, v10 adds identity-preserving claim reshuffles, v11 adds
-//! stable sum-case structural paths, v12 adds exact authored partition
-//! substitutions, v13 adds ordered structural conditional edges, v14 adds
-//! independent machine-local entry-claim bindings, v15 adds Boolean logical
-//! negation, v16 adds nominal proposition declarations and normalized
-//! application identities, v17 adds total Boolean equality, v18 adds total
-//! integer equality, v19 adds signedness-aware integer ordering, v20 adds total
-//! integer bitwise operations, v21 adds wrapping shifts, v22-v24 add the
-//! legacy crash schema, v25 adds integer complement, v26-v27 add widening and
-//! the address carrier, v28-v33 add proof-gated exact casts, shifts, addition,
-//! subtraction, and multiplication, v34 adds proof-gated exact division, and
-//! v35 adds proof-gated exact remainder, v36 adds proof-gated wrapping
-//! division, v37 adds proof-gated wrapping remainder, v38 adds proof-gated
-//! saturating division, v39 adds proof-gated saturating remainder, v40 admits
-//! path-proved positive runtime divisors for fixed division and remainder, v41
-//! admits signed runtime divisors proven at most negative two, v42 admits
-//! negative-one-inclusive signed ranges with policy-appropriate dividend
-//! evidence, v43 admits a guarded two-runtime unsigned Exact-add bound, v44
-//! extends that upper-bound form to signed nonnegative addends, v45 adds the
-//! symmetric lower-bound form for signed nonpositive addends, v46 admits a
-//! direct unsigned two-runtime Exact-subtract bound, v47 adds the signed
-//! lower-bound form for nonnegative runtime subtrahends, v48 adds the symmetric
-//! upper-bound form for nonpositive runtime subtrahends, and current v49 admits
-//! unsigned Exact multiplication bounded by a positive factor.
-//! This small executable slice
-//! exercises values, control, bodyful contracts, and one width-relative
-//! arithmetic policy plus Boolean control without pretending that other
-//! arithmetic policies have already been specified. Every later operation extends this
-//! vocabulary together with its execution transition, generated facts, proof
-//! rule, and lowering contract.
+//! Omega and Psi are pre-release, so this crate exposes one current vocabulary
+//! rather than a compatibility ladder. It contains explicit values and control,
+//! bodyful contracts, structural content facts, crash containment, Boolean and
+//! fixed-integer operations, proof-gated exact arithmetic, and guarded runtime
+//! arithmetic reconstruction. Extending the vocabulary updates its execution,
+//! proof, serialization, fuel, and lowering contracts together; stale artifacts
+//! are rejected instead of migrated or assigned enduring semantic versions.
 
 mod identity;
 mod module;
