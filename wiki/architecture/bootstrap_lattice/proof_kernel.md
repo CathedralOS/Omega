@@ -110,6 +110,12 @@ true edge establishes `left <= MAX - right`. The subtraction selects the sign
 fact, and the addition selects the canonical conjunction of the sign and bound
 facts. Earlier versions retain their prior reconstruction.
 
+Terminal Psi v45 adds the symmetric lower-bound form for a signed addend on a
+path carrying `right <= 0`. That sign fact makes `MIN - right` Exact-safe; a
+nested true edge establishes `MIN - right <= left`. The subtraction selects
+the sign fact, and the addition selects the canonical conjunction of the sign
+and bound facts. Earlier versions retain their prior reconstruction.
+
 Terminal Psi v32 applies the split to Exact fixed-integer subtraction. The
 operation carries its two same-typed operands and obligation identity, while
 the verifier independently resolves a terminal-known right operand and
