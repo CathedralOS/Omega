@@ -1037,6 +1037,26 @@ ensures 0i64 == 0i64
     value % -1i64
 }
 
+machine terminal_saturating_divide_known_right(
+    value: u32 in Saturating,
+    ignored: u32 in Saturating
+) -> u32 in Saturating
+requires 0u32 == 0u32
+ensures 0u32 == 0u32
+{
+    value / 5u32
+}
+
+machine terminal_signed_saturating_divide_min(
+    value: i64 in Saturating,
+    ignored: i64 in Saturating
+) -> i64 in Saturating
+requires 0i64 == 0i64
+ensures 0i64 == 0i64
+{
+    value / -1i64
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true

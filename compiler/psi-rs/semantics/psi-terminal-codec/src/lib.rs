@@ -435,6 +435,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             | ScalarTerm::ExactIntegerRemainder { left, right, .. }
             | ScalarTerm::WrappingIntegerDivide { left, right, .. }
             | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
             | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -874,6 +875,16 @@ fn encode_block(
                 obligation,
             } => {
                 writer.u8(30);
+                writer.id(left);
+                writer.id(right);
+                writer.id(obligation);
+            }
+            OperationKind::SaturatingIntegerDivide {
+                left,
+                right,
+                obligation,
+            } => {
+                writer.u8(31);
                 writer.id(left);
                 writer.id(right);
                 writer.id(obligation);
@@ -1364,6 +1375,16 @@ fn encode_scalar_term(
             right,
         } => {
             writer.u8(31);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
+        ScalarTerm::SaturatingIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(32);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
@@ -1893,6 +1914,11 @@ fn decode_block(
                 right: reader.id("ValueId")?,
                 obligation: reader.id("ObligationId")?,
             },
+            31 => OperationKind::SaturatingIntegerDivide {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -2346,6 +2372,13 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let left = decode_scalar_term(reader, depth + 1)?;
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::wrapping_integer_remainder(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        32 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::saturating_integer_divide(scalar_type, left, right)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

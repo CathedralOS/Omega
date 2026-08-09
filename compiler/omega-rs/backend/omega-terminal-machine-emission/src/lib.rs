@@ -1456,6 +1456,57 @@ fn emit_x86_64_expression_node(
                 }
             }
         }
+        TerminalAssignedIntegerExpression::SaturatingDivide { left, right, .. } => {
+            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            bytes.push(0x50);
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.push(0x50); // push divisor
+            bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
+            match scalar_type.sign() {
+                IntegerSign::Unsigned => {
+                    bytes.extend_from_slice(&[0x31, 0xd2]);
+                    bytes.extend_from_slice(&[0x48, 0xf7, 0x34, 0x24]);
+                    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
+                    emit_x86_64_normalize(bytes, scalar_type);
+                }
+                IntegerSign::Signed => {
+                    let (_, maximum) = native_integer_bounds(scalar_type);
+                    let mut negative_one = vec![0x48, 0xf7, 0xd8]; // neg rax
+                    emit_x86_64_mov_r10(&mut negative_one, maximum);
+                    if scalar_type.bits() == 64 {
+                        negative_one.extend_from_slice(&[0x49, 0x0f, 0x40, 0xc2]); // cmovo rax, r10
+                    } else {
+                        negative_one.extend_from_slice(&[0x4c, 0x39, 0xd0]); // cmp rax, r10
+                        negative_one.extend_from_slice(&[0x49, 0x0f, 0x4f, 0xc2]); // cmovg rax, r10
+                    }
+                    negative_one.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
+                    emit_x86_64_normalize(&mut negative_one, scalar_type);
+
+                    let mut ordinary = vec![0x48, 0x99]; // cqo
+                    ordinary.extend_from_slice(&[0x48, 0xf7, 0x3c, 0x24]);
+                    ordinary.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
+                    emit_x86_64_normalize(&mut ordinary, scalar_type);
+
+                    bytes.extend_from_slice(&[0x48, 0x83, 0x3c, 0x24, 0xff]); // cmp [rsp], -1
+                    bytes.extend_from_slice(&[0x0f, 0x85]); // jne ordinary
+                    let ordinary_offset = i32::try_from(negative_one.len() + 5)
+                        .expect("saturating-divide branch is small");
+                    bytes.extend_from_slice(&ordinary_offset.to_le_bytes());
+                    bytes.extend_from_slice(&negative_one);
+                    bytes.push(0xe9); // jmp done
+                    let done_offset =
+                        i32::try_from(ordinary.len()).expect("saturating-divide branch is small");
+                    bytes.extend_from_slice(&done_offset.to_le_bytes());
+                    bytes.extend_from_slice(&ordinary);
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -2138,6 +2189,50 @@ fn emit_aarch64_expression_node(
             instructions.push(0x9b00_a540); // msub x0, x10, x0, x9
             emit_aarch64_normalize(instructions, scalar_type);
         }
+        TerminalAssignedIntegerExpression::SaturatingDivide { left, right, .. } => {
+            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                expression_source(left),
+                0,
+            )?);
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                expression_source(left),
+                0,
+            )?);
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            match scalar_type.sign() {
+                IntegerSign::Unsigned => instructions.push(0x9ac0_0920), // udiv x0, x9, x0
+                IntegerSign::Signed => {
+                    let (minimum, maximum) = native_integer_bounds(scalar_type);
+                    instructions.push(0x9ac0_0d2a); // sdiv x10, x9, x0
+                    instructions.push(0xcb09_03eb); // neg x11, x9
+                    emit_aarch64_mov_immediate(instructions, 12, maximum);
+                    if scalar_type.bits() == 64 {
+                        emit_aarch64_mov_immediate(instructions, 13, minimum);
+                        instructions.push(0xeb0d_013f); // cmp x9, x13
+                        instructions.push(aarch64_csel(11, 12, 11, 0)); // min ? max : -value
+                    } else {
+                        instructions.push(0xeb0c_017f); // cmp x11, x12
+                        instructions.push(aarch64_csel(11, 11, 12, 13)); // min(-value, max)
+                    }
+                    emit_aarch64_mov_immediate(instructions, 13, u64::MAX);
+                    instructions.push(0xeb0d_001f); // cmp x0, x13
+                    instructions.push(aarch64_csel(0, 11, 10, 0)); // divisor -1 ? clamp : quotient
+                }
+            }
+            emit_aarch64_normalize(instructions, scalar_type);
+        }
     }
     Ok(())
 }
@@ -2330,6 +2425,7 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         TerminalAssignedIntegerExpression::WrappingRemainder { left, .. } => {
             expression_source(left)
         }
+        TerminalAssignedIntegerExpression::SaturatingDivide { left, .. } => expression_source(left),
     }
 }
 
@@ -3444,6 +3540,59 @@ mod tests {
             assert!(instructions.contains(&0x9b00_a540));
             assert_eq!(instructions.last(), Some(&0xd65f_03c0));
         }
+    }
+
+    #[test]
+    fn emits_parameter_fed_saturating_divide_for_both_architectures() {
+        let scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let expression = |left, right| TerminalTargetIntegerExpression::SaturatingDivide {
+            psi_operation: OperationId::new(8).expect("operation"),
+            left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(1).expect("left"),
+                parameter_index: 0,
+                location: left,
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(2).expect("right"),
+                parameter_index: 1,
+                location: right,
+            }),
+        };
+        let x86 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_x64(),
+            scalar_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            ),
+        ))
+        .expect("x86-64 saturating divide emits");
+        assert!(
+            x86.functions[0]
+                .bytes
+                .windows(3)
+                .any(|window| window == [0x49, 0x0f, 0x40])
+        ); // cmovo
+        assert!(
+            x86.functions[0]
+                .bytes
+                .windows(5)
+                .any(|window| window == [0x48, 0x83, 0x3c, 0x24, 0xff])
+        );
+
+        let aarch64 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_arm64(),
+            scalar_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ),
+        ))
+        .expect("AArch64 saturating divide emits");
+        let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+        assert!(instructions.contains(&0x9ac0_0d2a)); // sdiv x10, x9, x0
+        assert!(instructions.contains(&aarch64_csel(0, 11, 10, 0)));
+        assert_eq!(instructions.last(), Some(&0xd65f_03c0));
     }
 
     #[test]

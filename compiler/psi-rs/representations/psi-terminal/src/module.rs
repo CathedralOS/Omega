@@ -111,7 +111,8 @@ impl SemanticVersion {
     pub const V35: Self = Self(NonZeroU16::new(35).expect("thirty-five is nonzero"));
     pub const V36: Self = Self(NonZeroU16::new(36).expect("thirty-six is nonzero"));
     pub const V37: Self = Self(NonZeroU16::new(37).expect("thirty-seven is nonzero"));
-    pub const CURRENT: Self = Self::V37;
+    pub const V38: Self = Self(NonZeroU16::new(38).expect("thirty-eight is nonzero"));
+    pub const CURRENT: Self = Self::V38;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -480,6 +481,11 @@ pub enum OperationKind {
         obligation: ObligationId,
     },
     WrappingIntegerRemainder {
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+    },
+    SaturatingIntegerDivide {
         left: ValueId,
         right: ValueId,
         obligation: ObligationId,

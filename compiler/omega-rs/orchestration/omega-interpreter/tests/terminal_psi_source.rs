@@ -1428,7 +1428,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-add semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-add proof");
     let module = decode_module(&semantic).expect("decode exact-add semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_add_proof = decode_proof_bundle(&proof).expect("decode exact-add proof");
     missing_add_proof
         .evidence
@@ -1522,7 +1522,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-subtract semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-subtract proof");
     let module = decode_module(&semantic).expect("decode exact-subtract semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_subtract_proof =
         decode_proof_bundle(&proof).expect("decode exact-subtract proof");
     missing_subtract_proof
@@ -1621,7 +1621,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-multiply semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-multiply proof");
     let module = decode_module(&semantic).expect("decode exact-multiply semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_multiply_proof =
         decode_proof_bundle(&proof).expect("decode exact-multiply proof");
     missing_multiply_proof
@@ -1725,7 +1725,7 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-divide proof");
     let module = decode_module(&semantic).expect("decode exact-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_divide_proof = decode_proof_bundle(&proof).expect("decode exact-divide proof");
     missing_divide_proof
         .evidence
@@ -1862,7 +1862,7 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-remainder proof");
     let module = decode_module(&semantic).expect("decode exact-remainder semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_remainder_proof =
         decode_proof_bundle(&proof).expect("decode exact-remainder proof");
     missing_remainder_proof
@@ -2002,7 +2002,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-divide proof");
     let module = decode_module(&semantic).expect("decode wrapping-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_divide_proof =
         decode_proof_bundle(&proof).expect("decode wrapping-divide proof");
     missing_divide_proof
@@ -2148,7 +2148,7 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-remainder proof");
     let module = decode_module(&semantic).expect("decode wrapping-remainder semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
     let mut missing_remainder_proof =
         decode_proof_bundle(&proof).expect("decode wrapping-remainder proof");
     missing_remainder_proof
@@ -2256,6 +2256,152 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
             i64::MIN as u64,
             0,
             0,
+        ));
+    }
+}
+
+#[test]
+fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("known-divisor saturating-divide source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_saturating_divide_known_right")
+        .expect("known nonzero saturating division should lower");
+    let divide_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::SaturatingIntegerDivide { .. }
+            )
+        })
+        .expect("proof-gated saturating division remains explicit terminal work");
+    let OperationKind::SaturatingIntegerDivide { obligation, .. } = divide_operation.kind else {
+        unreachable!()
+    };
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.operation_units(&divide_operation.kind),
+        1
+    );
+    assert!(
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == obligation)
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("saturating-divide semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("saturating-divide proof");
+    let module = decode_module(&semantic).expect("decode saturating-divide semantics");
+    assert_eq!(module.semantic_version, SemanticVersion::V38);
+    let mut missing_divide_proof =
+        decode_proof_bundle(&proof).expect("decode saturating-divide proof");
+    missing_divide_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != obligation);
+    assert!(matches!(
+        verify_module(
+            &module,
+            &missing_divide_proof,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+            if missing == obligation
+    ));
+
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u32_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(505), argument(0)],
+    )
+    .expect("verified saturating division should interpret");
+    assert_eq!(execution.value(), argument(101));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("saturating division should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::SaturatingIntegerDivide { .. }
+            ))
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("saturating division should select");
+        let assigned =
+            assign_registers(&target_operations).expect("saturating-divide homes should assign");
+        emit_machine_code(&assigned).expect("saturating division should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("saturating-divide host selection");
+        let assigned = assign_registers(&target_operations).expect("saturating-divide host homes");
+        let machine_code = emit_machine_code(&assigned).expect("saturating-divide host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("saturating-divide host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(entry, 505, 0, 101));
+    }
+}
+
+#[test]
+fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("signed saturating-divide source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_signed_saturating_divide_min")
+        .expect("known signed saturating division should lower");
+    let semantic =
+        encode_module(&lowered.semantic_module).expect("signed saturating-divide semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed saturating-divide proof");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(i64::MIN as i128), argument(0)],
+    )
+    .expect("verified signed saturating division should interpret");
+    assert_eq!(execution.value(), argument(i64::MAX as i128));
+
+    #[cfg(unix)]
+    {
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("signed saturating division should cross the Omega boundary");
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("signed saturating-divide host selection");
+        let assigned =
+            assign_registers(&target_operations).expect("signed saturating-divide homes");
+        let machine_code =
+            emit_machine_code(&assigned).expect("signed saturating-divide host emission");
+        let object = build_terminal_object_artifact(&machine_code)
+            .expect("signed saturating-divide host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(
+            entry,
+            i64::MIN as u64,
+            0,
+            i64::MAX as u64,
         ));
     }
 }

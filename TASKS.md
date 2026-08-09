@@ -384,6 +384,13 @@ Remaining:
   one-unit fuel, artifact interpretation, Omega lowering, and x86-64/AArch64
   native emission are live. x86-64 bypasses `idiv` for divisor `-1`; AArch64
   derives the remainder with its defined `sdiv` plus `msub` behavior.
+  Terminal Psi v38 now carries proof-gated Saturating fixed-integer division.
+  The terminal verifier requires a terminal-known nonzero divisor; every such
+  divisor is total, with signed `MIN / -1` clamped to `MAX`. Zero and
+  runtime-unknown divisors fail closed. Proof format v29, canonical semantic
+  v38 bytes, one-unit fuel, artifact interpretation, Omega lowering, and
+  x86-64/AArch64 native emission are live. Both backends explicitly select the
+  saturated negation for divisor `-1` instead of exposing the ISA overflow.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

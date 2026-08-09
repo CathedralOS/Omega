@@ -191,6 +191,7 @@ enum LoweredIntegerBinaryKind {
     ExactRemainder,
     WrappingDivide,
     WrappingRemainder,
+    SaturatingDivide,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -366,6 +367,16 @@ impl LoweredIntegerBinaryKind {
                         .get()
                         .checked_add(1)
                         .expect("wrapping-remainder obligation follows its operation identity"),
+                ),
+            },
+            Self::SaturatingDivide => OperationKind::SaturatingIntegerDivide {
+                left,
+                right,
+                obligation: obligation_id(
+                    operation
+                        .get()
+                        .checked_add(1)
+                        .expect("saturating-divide obligation follows its operation identity"),
                 ),
             },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
@@ -1863,6 +1874,9 @@ fn lower_checked_scalar_expression(
                 CheckedIntegerBinaryKind::WrappingRemainder => {
                     LoweredIntegerBinaryKind::WrappingRemainder
                 }
+                CheckedIntegerBinaryKind::SaturatingDivide => {
+                    LoweredIntegerBinaryKind::SaturatingDivide
+                }
                 CheckedIntegerBinaryKind::WrappingAdd => LoweredIntegerBinaryKind::WrappingAdd,
                 CheckedIntegerBinaryKind::SaturatingAdd => LoweredIntegerBinaryKind::SaturatingAdd,
                 CheckedIntegerBinaryKind::WrappingSubtract => {
@@ -2252,6 +2266,7 @@ fn evaluate_lowered_integer_binary(
         LoweredIntegerBinaryKind::ExactRemainder => integer_type.exact_rem(left, right),
         LoweredIntegerBinaryKind::WrappingDivide => integer_type.wrapping_div(left, right),
         LoweredIntegerBinaryKind::WrappingRemainder => integer_type.wrapping_rem(left, right),
+        LoweredIntegerBinaryKind::SaturatingDivide => integer_type.saturating_div(left, right),
         LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
         LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
         LoweredIntegerBinaryKind::WrappingSubtract => integer_type.wrapping_sub(left, right),
