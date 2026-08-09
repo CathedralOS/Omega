@@ -81,9 +81,10 @@ certificate. Count masking in a native instruction cannot discharge this
 obligation. Terminal Psi v30 closes the left-shift side without collapsing the
 facts: its operation-owned proposition conjoins those count bounds with a
 distinct value no-overflow bound. The first runtime surface uses bounds safe at
-the worst legal count (`value <= 1` unsigned; `-1 <= value <= 0` signed), all
-reconstructed from terminal carriers and path-local facts rather than producer
-range metadata.
+the worst legal count (`value <= 1` unsigned; `-1 <= value <= 0` signed) unless
+prior terminal equality facts determine one exact legal count. In that case the
+verifier reconstructs the carrier-tight shifted minimum and maximum. Both paths
+use terminal carriers and path-local facts rather than producer range metadata.
 
 ## Trust and meaning
 

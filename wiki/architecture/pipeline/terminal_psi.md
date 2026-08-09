@@ -69,9 +69,11 @@ result is otherwise total. An Exact left shift additionally requires a
 value-dependent no-overflow fact. Source validation bounds the mathematical
 `value * 2^count` result, and terminal v30 preserves count legality and overflow
 safety as distinct conjuncts of the operation-owned obligation rather than
-treating the count proof as overflow authority. Its first general runtime proof
-surface uses the carrier-safe worst legal count: `value <= 1` for unsigned
-carriers and `-1 <= value <= 0` for signed carriers.
+treating the count proof as overflow authority. When prior terminal facts
+determine one exact legal count, the verifier uses the carrier-tight shifted
+minimum and maximum. Otherwise the general runtime proof surface uses the
+carrier-safe worst legal count: `value <= 1` for unsigned carriers and
+`-1 <= value <= 0` for signed carriers.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -364,10 +366,12 @@ semantics.
 Terminal Psi v30 retains a nonliteral Exact integer left shift as
 `ExactIntegerShiftLeft { value, count, obligation }`. Its verifier-owned
 proposition conjoins the v29 count bounds with a distinct no-overflow bound.
-The first general runtime surface uses a carrier-only bound safe at every legal
-count: `value <= 1` for unsigned carriers, or `-1 <= value <= 0` for signed
-carriers. More precise value/count correlations remain fail-closed rather than
-being imported from checked-tree metadata.
+An exact count reconstructed from prior terminal equality facts selects the
+precise carrier bounds shifted right by that count. Without one exact count,
+the general runtime surface uses a carrier-only bound safe at every legal count:
+`value <= 1` for unsigned carriers, or `-1 <= value <= 0` for signed carriers.
+Non-singleton value/count correlations remain fail-closed rather than being
+imported from checked-tree metadata.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that

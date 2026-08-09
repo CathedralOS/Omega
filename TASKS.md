@@ -298,9 +298,11 @@ Remaining:
   overflow; signed extrema and the `-1 << 63` boundary are covered without
   host-overflow shortcuts. The terminal verifier reconstructs one
   operation-owned conjunction containing count legality plus a distinct
-  no-overflow bound. The first general runtime slice uses carrier-only
-  worst-count bounds (`value <= 1` unsigned, `-1 <= value <= 0` signed), so
-  more precise count-correlated cases still fail closed. Proof format v21,
+  no-overflow bound. When prior terminal facts determine one exact legal count,
+  the verifier now reconstructs the carrier-tight shifted minimum/maximum;
+  otherwise it uses carrier-only worst-count bounds (`value <= 1` unsigned,
+  `-1 <= value <= 0` signed). Non-singleton value/count correlations still
+  fail closed. Proof format v21,
   canonical semantic v30 bytes, one-unit fuel, artifact interpretation, Omega
   lowering, and x86-64/AArch64 emission are live.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
