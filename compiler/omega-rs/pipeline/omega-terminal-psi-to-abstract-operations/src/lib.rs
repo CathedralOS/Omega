@@ -390,6 +390,20 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::SaturatingIntegerDivide { left, right, .. } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedSaturatingDivideMalformed(
+                            operation.id,
+                        ));
+                    };
+                    operations.push(TerminalAbstractOperation::SaturatingIntegerDivide {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        left,
+                        right,
+                    });
+                }
                 OperationKind::SaturatingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedSaturatingAddMalformed(operation.id));
@@ -564,6 +578,7 @@ pub enum LoweringError {
     VerifiedExactRemainderMalformed(psi_core::OperationId),
     VerifiedWrappingDivideMalformed(psi_core::OperationId),
     VerifiedWrappingRemainderMalformed(psi_core::OperationId),
+    VerifiedSaturatingDivideMalformed(psi_core::OperationId),
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
     VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
     VerifiedIntegerWidenMalformed(psi_core::OperationId),

@@ -364,6 +364,11 @@ pub enum TerminalAssignedIntegerExpression {
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
+    SaturatingDivide {
+        psi_operation: OperationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
     SaturatingMultiply {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,

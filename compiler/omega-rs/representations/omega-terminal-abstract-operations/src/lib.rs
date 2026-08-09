@@ -231,6 +231,13 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    SaturatingIntegerDivide {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
     SaturatingIntegerMultiply {
         psi_operation: OperationId,
         result: ValueId,

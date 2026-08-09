@@ -62,8 +62,8 @@ v30 adds proof-gated Exact integer left shift; v31 adds proof-gated Exact
 integer addition; v32 adds proof-gated Exact integer subtraction; v33 adds
 proof-gated Exact integer multiplication; v34 adds proof-gated Exact integer
 division; v35 adds proof-gated Exact integer remainder; v36 adds proof-gated
-Wrapping integer division; and current v37 adds proof-gated Wrapping integer
-remainder.
+Wrapping integer division; v37 adds proof-gated Wrapping integer remainder; and
+current v38 adds proof-gated Saturating integer division.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -128,6 +128,11 @@ the same divisor-definedness boundary. The first v37 reconstruction surface
 requires a terminal-known right operand. Any nonzero divisor reduces to truth,
 including signed negative one: `MIN % -1` is zero at the declared width. Zero
 and runtime-unknown divisors fail closed.
+A Saturating division retains two values of the same fixed integer type and
+owns a divisor-definedness obligation. The first v38 reconstruction surface
+requires a terminal-known right operand. Any nonzero divisor reduces to truth,
+including signed negative one: `MIN / -1` clamps to `MAX` at the declared
+width. Zero and runtime-unknown divisors fail closed.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -490,6 +495,12 @@ terminal-known divisor and rejects zero or unknown values. Every known nonzero
 divisor is total, including signed negative one, whose result is zero. Once
 verified, Omega selects signed or unsigned fixed-width remainder while avoiding
 the x86-64 `MIN / -1` divide trap.
+Terminal Psi v38 retains Saturating fixed-integer division as
+`SaturatingIntegerDivide { left, right, obligation }`. The verifier resolves a
+terminal-known divisor and rejects zero or unknown values. Every known nonzero
+divisor is total; signed `MIN / -1` produces `MAX`. Once verified, Omega
+selects signed or unsigned fixed-width division with an explicit saturating
+negation path for divisor negative one on both native targets.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1131,8 +1142,9 @@ version 27 adds a distinct address-carrier integer-type tag without a new
 executable operation; version 28 adds exact integer casts; versions 29 and 30
 add exact right and left shifts; version 31 adds exact integer addition;
 version 32 adds exact integer subtraction; versions 33–35 add exact integer
-multiplication, division, and remainder; and versions 36–37 add wrapping
-integer division and remainder with operation-owned obligations.
+multiplication, division, and remainder; versions 36–37 add wrapping integer
+division and remainder; and version 38 adds saturating integer division with an
+operation-owned obligation.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1144,10 +1156,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v37 modules under their original
+execution continue to accept valid v1 through v38 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v37 translation.
+`migrate_module_to_current` is an explicit validated older-to-v38 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1160,7 +1172,8 @@ fixture, the v29 exact-right-shift fixture, the v30 exact-left-shift fixture,
 the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
 exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
 fixture, the v36 wrapping-divide fixture, the v37 wrapping-remainder fixture,
-and the current-vocabulary v37 identity, plus the
+the v38 saturating-divide fixture, and the current-vocabulary v38 identity,
+plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
@@ -1192,8 +1205,8 @@ exact-integer-add terms.
 Format v23 adds recursive exact-integer-subtract terms, v24 adds recursive
 exact-integer-multiply terms, v25 adds recursive exact-integer-divide terms,
 v26 adds recursive exact-integer-remainder terms, v27 adds recursive
-wrapping-integer-divide terms, and v28 adds recursive
-wrapping-integer-remainder terms.
+wrapping-integer-divide terms, v28 adds recursive wrapping-integer-remainder
+terms, and v29 adds recursive saturating-integer-divide terms.
 The encoder selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the
