@@ -504,7 +504,9 @@ impl<'module> TerminalExecution<'module> {
                         );
                     }
                     OperationKind::ExactIntegerAdd { left, right, .. }
-                    | OperationKind::WrappingIntegerAdd { left, right } => {
+                    | OperationKind::WrappingIntegerAdd { left, right }
+                    | OperationKind::ExactIntegerSubtract { left, right, .. }
+                    | OperationKind::WrappingIntegerSubtract { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
@@ -540,6 +542,12 @@ impl<'module> TerminalExecution<'module> {
                             }
                             OperationKind::WrappingIntegerAdd { .. } => {
                                 scalar_type.wrapping_add(left, right)
+                            }
+                            OperationKind::ExactIntegerSubtract { .. } => {
+                                scalar_type.exact_sub(left, right)
+                            }
+                            OperationKind::WrappingIntegerSubtract { .. } => {
+                                scalar_type.wrapping_sub(left, right)
                             }
                             _ => unreachable!(),
                         }
@@ -581,44 +589,6 @@ impl<'module> TerminalExecution<'module> {
                         }
                         let value = scalar_type
                             .saturating_add(left, right)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
-                    }
-                    OperationKind::WrappingIntegerSubtract { left, right } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let left = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-                        let right = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
-                        let (
-                            TerminalScalarValue::Integer {
-                                scalar_type: left_type,
-                                value: left,
-                            },
-                            TerminalScalarValue::Integer {
-                                scalar_type: right_type,
-                                value: right,
-                            },
-                        ) = (left, right)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != scalar_type || right_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = scalar_type
-                            .wrapping_sub(left, right)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
                             operation.result.id,

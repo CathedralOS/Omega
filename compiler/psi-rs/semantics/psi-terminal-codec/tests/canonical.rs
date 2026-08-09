@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "3ccf40dd68690ffa9cf7ce4535a687c36cada9564e2a9d205a5131e675633f98"
+        "127ca4edfff83f5b647e7fc329fcf3177acaa285070e5d3603241bf92153bb8b"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -846,6 +846,65 @@ fn v31_exact_add_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "6dc30e2c8917dc66edec2117f43dc0f31da12031783f7c12b047d1310546f4ba"
+    );
+}
+
+#[test]
+fn v32_exact_subtract_has_stable_canonical_bytes() {
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let left = value_id(36);
+    let right = value_id(37);
+    let computed = value_id(38);
+    let result = value_id(39);
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type: ScalarType::Integer(scalar_type),
+    };
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V32,
+        entry: machine_id(22),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(22),
+            parameters: vec![declaration(left), declaration(right)],
+            result: declaration(result),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(22),
+            blocks: vec![Block {
+                id: block_id(22),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(22),
+                    result: declaration(computed),
+                    kind: OperationKind::ExactIntegerSubtract {
+                        left,
+                        right,
+                        obligation: obligation_id(22),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(22),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(22),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let bytes = encode_module(&module).expect("v32 exact subtract should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "24381000184ad790e9d684cf487cbfe72777c7cfc9f48410d20315c8118d6fa3"
     );
 }
 

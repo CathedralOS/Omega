@@ -310,11 +310,14 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
-                OperationKind::SaturatingIntegerAdd { left, right } => {
+                OperationKind::ExactIntegerSubtract { left, right, .. }
+                | OperationKind::WrappingIntegerSubtract { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
-                        return Err(LoweringError::VerifiedSaturatingAddMalformed(operation.id));
+                        return Err(LoweringError::VerifiedWrappingSubtractMalformed(
+                            operation.id,
+                        ));
                     };
-                    operations.push(TerminalAbstractOperation::SaturatingIntegerAdd {
+                    operations.push(TerminalAbstractOperation::WrappingIntegerSubtract {
                         psi_operation: operation.id,
                         result: operation.result.id,
                         scalar_type,
@@ -322,13 +325,11 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
-                OperationKind::WrappingIntegerSubtract { left, right } => {
+                OperationKind::SaturatingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
-                        return Err(LoweringError::VerifiedWrappingSubtractMalformed(
-                            operation.id,
-                        ));
+                        return Err(LoweringError::VerifiedSaturatingAddMalformed(operation.id));
                     };
-                    operations.push(TerminalAbstractOperation::WrappingIntegerSubtract {
+                    operations.push(TerminalAbstractOperation::SaturatingIntegerAdd {
                         psi_operation: operation.id,
                         result: operation.result.id,
                         scalar_type,

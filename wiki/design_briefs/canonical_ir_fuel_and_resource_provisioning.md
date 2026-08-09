@@ -43,9 +43,12 @@ machine-local abandoned-frontier lower bound, v23 separates the body-derived
 damage minimum from the selected published containment demand, v24 adds
 canonical sparse per-cause context maxima to machine contracts, v25 adds total
 fixed-width integer bitwise complement, v26 adds universally total fixed-width
-`i*`/`u*` widening whose target contains the complete source range, and current
-v27 distinguishes the address carrier from an ordinary same-width unsigned
-integer while retaining its current 64-bit representation.
+`i*`/`u*` widening whose target contains the complete source range, v27
+distinguishes the address carrier from an ordinary same-width unsigned integer
+while retaining its current 64-bit representation, v28 adds proof-gated exact
+fixed-integer casts, v29 and v30 add proof-gated Exact right and left shifts,
+v31 adds proof-gated Exact fixed-integer addition, and current v32 adds
+proof-gated Exact fixed-integer subtraction.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -63,7 +66,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v27 row. Artifact-root native lowering
+validation, and fuel cover the complete v32 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -167,6 +170,14 @@ format v22 carries the recursive exact-add term, the operation costs one unit,
 and verified Omega lowering uses the ordinary fixed-width target add. Two
 unrelated runtime addends remain fail-closed until the terminal proposition
 surface can express and prove their joint relation.
+Terminal Psi v32 adds proof-gated Exact fixed-integer subtraction. The verifier
+uses terminal literals/equalities to identify a constant right operand and
+derives the exact carrier lower or upper bound required of the left operand. It
+does not trust the checked interval that admitted the source expression. Proof
+format v23 carries the recursive exact-subtract term, the operation costs one
+unit, and verified Omega lowering uses the ordinary fixed-width target
+subtract. An unknown right operand and other two-runtime relational shapes
+remain fail-closed until the terminal proposition surface can prove them.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

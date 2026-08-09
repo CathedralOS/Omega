@@ -97,6 +97,16 @@ under matching path-local bounds and rejects two unrelated runtime addends.
 Native wrapping-width addition is authorized only after that certificate has
 established representability.
 
+Terminal Psi v32 applies the split to Exact fixed-integer subtraction. The
+operation carries its two same-typed operands and obligation identity, while
+the verifier independently resolves a terminal-known right operand and
+reconstructs the carrier-tight lower or upper bound on the left operand. The
+producer's interval proof is not an axiom. The first surface accepts
+literal/terminal-equality right operands under matching path-local bounds and
+rejects an unknown right operand or other two-runtime relation. Native
+wrapping-width subtraction is authorized only after that certificate has
+established representability.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

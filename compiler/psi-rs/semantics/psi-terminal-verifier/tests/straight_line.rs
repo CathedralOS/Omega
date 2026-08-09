@@ -1482,6 +1482,74 @@ fn v31_exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
 }
 
 #[test]
+fn v32_exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
+    let scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
+    let left = ValueId::new(198).expect("left");
+    let right = ValueId::new(199).expect("right");
+    let computed = ValueId::new(200).expect("computed");
+    let result = ValueId::new(201).expect("result");
+    let declaration = |id| ValueDeclaration { id, scalar_type };
+    let mut module = TerminalModule {
+        semantic_version: SemanticVersion::V32,
+        entry: MachineId::new(198).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(198).expect("machine"),
+            parameters: vec![declaration(left), declaration(right)],
+            result: declaration(result),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(198).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(198).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(198).expect("operation"),
+                    result: declaration(computed),
+                    kind: OperationKind::ExactIntegerSubtract {
+                        left,
+                        right,
+                        obligation: ObligationId::new(198).expect("subtract obligation"),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(198).expect("edge"),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(198).expect("contract"),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    validate_module(&module).expect("v32 admits proof-gated exact subtraction");
+
+    let mut old = module.clone();
+    old.semantic_version = SemanticVersion::V31;
+    assert_eq!(
+        validate_module(&old).expect_err("v31 cannot contain exact subtraction"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(198).expect("operation"),
+            required: SemanticVersion::V32,
+            actual: SemanticVersion::V31,
+        }
+    );
+
+    module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::ExactIntegerSubtractOperandTypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn v21_wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");
