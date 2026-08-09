@@ -445,9 +445,10 @@ Remaining:
   canonical machine-local frontier lower bound. Unconditional crash-only
   functions now carry the complete verified `Trap`/`Abort` row through the
   artifact-root Omega boundary, target selection, assignment, and x86-64
-  `ud2`/AArch64 `brk #0` emission. Extend the recursive native control
-  vocabulary with crash leaves before enabling guarded mixed return/crash
-  graphs; those shapes still fail closed at target selection.
+  `ud2`/AArch64 `brk #0` emission. Recursive Boolean- and integer-result target
+  control now also carries crash leaves, so the current direct, computed, and
+  short-circuit acyclic guarded return/crash graphs reach both native targets
+  without turning a crash into a return.
 - Re-root the reference interpreter and abstract-operation construction fully
   on decoded, verified terminal Psi. The terminal interpreter and
   terminal-Psi-to-abstract-operation builder now have parallel artifact-root

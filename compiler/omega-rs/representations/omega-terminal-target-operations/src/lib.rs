@@ -182,6 +182,13 @@ pub struct TerminalTargetConditionalBooleanArm {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetBooleanControl {
+    Crash {
+        psi_crash_edge: EdgeId,
+        cause: CrashCause,
+        damage_minimum: String,
+        containment_demand: String,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
     ReturnImmediate {
         psi_return_edge: EdgeId,
         source_value: ValueId,
@@ -227,6 +234,13 @@ pub struct TerminalTargetConditionalIntegerArm {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetIntegerControl {
+    Crash {
+        psi_crash_edge: EdgeId,
+        cause: CrashCause,
+        damage_minimum: String,
+        containment_demand: String,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
     Return {
         psi_return_edge: EdgeId,
         source_value: ValueId,

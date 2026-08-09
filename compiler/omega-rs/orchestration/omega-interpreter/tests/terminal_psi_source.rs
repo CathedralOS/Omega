@@ -25,10 +25,10 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalValueBinding,
 };
-use omega_terminal_abstract_operations_to_target_operations::{
-    LoweringError as TerminalTargetLoweringError, lower_to_target_operations,
+use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_terminal_assigned_target_operations::{
+    TerminalAssignedBooleanControl, TerminalAssignedIntegerControl, TerminalAssignedOperation,
 };
-use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, build_terminal_installation_record, build_terminal_object_artifact,
     decode_terminal_installation_record, emit_terminal_executable_image,
@@ -38,8 +38,8 @@ use omega_terminal_image_emission::{
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::{lower_artifact_sections, lower_verified_module};
 use omega_terminal_target_operations::{
-    TerminalTargetBooleanExpression, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
-    TerminalTargetOperation,
+    TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::{
@@ -65,7 +65,7 @@ use psi_terminal_codec::{
 };
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
-use psi_terminal_verifier::verify_module;
+use psi_terminal_verifier::{VerifiedTerminalModule, verify_module};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -85,6 +85,29 @@ fn source_canary() -> PathBuf {
         .nth(4)
         .expect("omega-interpreter lives under compiler/omega-rs/orchestration")
         .join("canaries/pass/terminal_psi/integer_control_contract/main.omg")
+}
+
+fn assert_guarded_crash_emits(verified: &VerifiedTerminalModule<'_>) {
+    let abstract_operations = lower_verified_module(verified)
+        .expect("guarded crash should cross the source-independent Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("guarded crash should select as recursive terminal control");
+        let assigned =
+            assign_registers(&target_operations).expect("guarded crash control should assign");
+        let emitted = emit_machine_code(&assigned).expect("guarded crash control should emit");
+        let fault = match target.architecture {
+            omega_target::Architecture::X86_64 => &[0x0f, 0x0b][..],
+            omega_target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
+        };
+        assert!(
+            emitted.functions[0]
+                .bytes
+                .windows(fault.len())
+                .any(|window| window == fault),
+            "guarded crash machine code must retain its selected fault leaf"
+        );
+    }
 }
 
 #[test]
@@ -5061,10 +5084,63 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
             .any(|operation| matches!(operation, TerminalAbstractOperation::Crash { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("guarded Boolean crash should select as mixed terminal control");
+        let TerminalTargetOperation::ReturnBooleanConditionalControl {
+            when_true,
+            when_false,
+            ..
+        } = &target_operations.functions[0].operation
+        else {
+            panic!("direct Boolean guard should retain target conditional control");
+        };
         assert!(matches!(
-            lower_to_target_operations(&abstract_operations, target),
-            Err(TerminalTargetLoweringError::ConditionalControlFlowRequiresBlockLowering(_))
+            when_true.control.as_ref(),
+            TerminalTargetBooleanControl::Crash {
+                cause: CrashCause::Trap,
+                damage_minimum,
+                containment_demand,
+                frontier_lower_bound,
+                ..
+            } if damage_minimum == "Activation"
+                && containment_demand == "ExecutionDomain"
+                && frontier_lower_bound.is_empty()
         ));
+        assert!(matches!(
+            when_false.control.as_ref(),
+            TerminalTargetBooleanControl::ReturnImmediate { value: true, .. }
+        ));
+
+        let assigned = assign_registers(&target_operations)
+            .expect("guarded Boolean crash control should assign");
+        let TerminalAssignedOperation::ReturnBooleanConditionalControl { when_true, .. } =
+            &assigned.functions[0].operation
+        else {
+            panic!("assigned Boolean control should retain its shape");
+        };
+        assert!(matches!(
+            when_true.control.as_ref(),
+            TerminalAssignedBooleanControl::Crash {
+                cause: CrashCause::Trap,
+                ..
+            }
+        ));
+        let emitted = emit_machine_code(&assigned).expect("guarded Boolean crash should emit");
+        let branch_to_false_over_fault = match target.architecture {
+            omega_target::Architecture::X86_64 => {
+                &[0x0f, 0x84, 0x02, 0x00, 0x00, 0x00, 0x0f, 0x0b][..]
+            }
+            omega_target::Architecture::Aarch64 => {
+                &[0x40, 0x00, 0x00, 0x34, 0x00, 0x00, 0x20, 0xd4][..]
+            }
+        };
+        assert!(
+            emitted.functions[0]
+                .bytes
+                .windows(branch_to_false_over_fault.len())
+                .any(|window| window == branch_to_false_over_fault),
+            "the false return arm must branch over the true crash leaf"
+        );
     }
 }
 
@@ -5165,6 +5241,62 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         let mut guarded_meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut guarded_meter).unwrap(), expected);
     }
+    let guarded_abstract = lower_verified_module(&guarded_verified)
+        .expect("guarded integer crash should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&guarded_abstract, target)
+            .expect("guarded integer crash should select as mixed terminal control");
+        let TerminalTargetOperation::ReturnIntegerConditionalControl {
+            when_true,
+            when_false,
+            ..
+        } = &target_operations.functions[0].operation
+        else {
+            panic!("direct Boolean guard should retain integer target control");
+        };
+        assert!(matches!(
+            when_true.control.as_ref(),
+            TerminalTargetIntegerControl::Crash {
+                cause: CrashCause::Trap,
+                damage_minimum,
+                containment_demand,
+                frontier_lower_bound,
+                ..
+            } if damage_minimum == "Activation"
+                && containment_demand == "ExecutionDomain"
+                && frontier_lower_bound.is_empty()
+        ));
+        assert!(matches!(
+            when_false.control.as_ref(),
+            TerminalTargetIntegerControl::Return { .. }
+        ));
+
+        let assigned = assign_registers(&target_operations)
+            .expect("guarded integer crash control should assign");
+        let TerminalAssignedOperation::ReturnIntegerConditionalControl { when_true, .. } =
+            &assigned.functions[0].operation
+        else {
+            panic!("assigned integer control should retain its shape");
+        };
+        assert!(matches!(
+            when_true.control.as_ref(),
+            TerminalAssignedIntegerControl::Crash {
+                cause: CrashCause::Trap,
+                ..
+            }
+        ));
+        let emitted = emit_machine_code(&assigned).expect("guarded integer crash should emit");
+        let fault = match target.architecture {
+            omega_target::Architecture::X86_64 => &[0x0f, 0x0b][..],
+            omega_target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
+        };
+        assert!(
+            emitted.functions[0]
+                .bytes
+                .windows(fault.len())
+                .any(|window| window == fault)
+        );
+    }
     let integer_guarded_trap = lower_machine(&checked, "terminal_integer_guarded_trap")
         .expect("exact-type integer comparison should open a guarded crash branch");
     assert!(matches!(
@@ -5244,6 +5376,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         let mut meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut meter).unwrap(), expected);
     }
+    assert_guarded_crash_emits(&integer_guarded_verified);
     let transitive_trap = lower_machine(&checked, "terminal_transitive_guarded_trap")
         .expect("a transitive integer conjunction should lower as short-circuit control");
     assert_eq!(transitive_trap.semantic_module.machines[0].blocks.len(), 4);
@@ -5300,6 +5433,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         assert_eq!(execution.resume(&mut meter).unwrap(), expected);
         assert_eq!(meter.usage().total_units(), expected_units);
     }
+    assert_guarded_crash_emits(&transitive_verified);
     let implied_trap = lower_machine(&checked, "terminal_implied_guarded_trap")
         .expect("structurally implied guard coverage should reach terminal production");
     let implied_verified = verify_module(
@@ -5321,6 +5455,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             crashes
         );
     }
+    assert_guarded_crash_emits(&implied_verified);
     let lowered = lower_machine(&checked, "terminal_abort")
         .expect("an unconditional published crash should lower");
     let explicit_true = lower_machine(&checked, "terminal_explicit_true_abort")

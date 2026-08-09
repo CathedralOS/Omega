@@ -46,10 +46,7 @@ fn emit_function(
         // artifact identity. Both closed causes realize as the target's
         // unconditional synchronous fault until a platform crash dispatcher
         // supplies a cause-specific entry contract.
-        TerminalAssignedOperation::Crash { .. } => match architecture {
-            Architecture::Aarch64 => vec![0x00, 0x00, 0x20, 0xd4], // brk #0
-            Architecture::X86_64 => vec![0x0f, 0x0b],              // ud2
-        },
+        TerminalAssignedOperation::Crash { .. } => emit_native_crash(architecture),
         TerminalAssignedOperation::ReturnIntegerImmediate {
             source_value,
             scalar_type,
@@ -223,6 +220,13 @@ fn emit_function(
     })
 }
 
+fn emit_native_crash(architecture: Architecture) -> Vec<u8> {
+    match architecture {
+        Architecture::Aarch64 => vec![0x00, 0x00, 0x20, 0xd4], // brk #0
+        Architecture::X86_64 => vec![0x0f, 0x0b],              // ud2
+    }
+}
+
 fn emit_x86_64_conditional_integer_control(
     condition_source: ValueId,
     condition_location: TerminalAssignedScalarLocation,
@@ -251,6 +255,7 @@ fn emit_x86_64_integer_control(
     control: &TerminalAssignedIntegerControl,
 ) -> Result<Vec<u8>, EmissionError> {
     match control {
+        TerminalAssignedIntegerControl::Crash { .. } => Ok(emit_native_crash(Architecture::X86_64)),
         TerminalAssignedIntegerControl::Return {
             source_value,
             frame,
@@ -354,6 +359,7 @@ fn emit_x86_64_boolean_control(
     control: &TerminalAssignedBooleanControl,
 ) -> Result<Vec<u8>, EmissionError> {
     match control {
+        TerminalAssignedBooleanControl::Crash { .. } => Ok(emit_native_crash(Architecture::X86_64)),
         TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
             Ok(emit_x86_64_boolean_return(*value))
         }
@@ -428,6 +434,9 @@ fn emit_aarch64_integer_control(
     control: &TerminalAssignedIntegerControl,
 ) -> Result<Vec<u8>, EmissionError> {
     match control {
+        TerminalAssignedIntegerControl::Crash { .. } => {
+            Ok(emit_native_crash(Architecture::Aarch64))
+        }
         TerminalAssignedIntegerControl::Return {
             source_value,
             frame,
@@ -560,6 +569,9 @@ fn emit_aarch64_boolean_control(
     control: &TerminalAssignedBooleanControl,
 ) -> Result<Vec<u8>, EmissionError> {
     match control {
+        TerminalAssignedBooleanControl::Crash { .. } => {
+            Ok(emit_native_crash(Architecture::Aarch64))
+        }
         TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
             Ok(emit_aarch64_boolean_return(*value))
         }
