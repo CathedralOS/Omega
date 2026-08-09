@@ -212,10 +212,11 @@ machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11],
 // view: `CGBitmapContextCreate(&pixels)` → snapshot to a CGImage → `NSImage
 // initWithCGImage:size:` → `[imageView setImage:]`. `dest_*` and `device`/`info`
 // are ignored (the image view auto-scales; macOS is top-down like the source, so
-// NO row flip). `stride = source_width * 4` via `<< 2` (shift is obligation-free).
+// NO row flip). `stride = source_width * 4` via an Exact widening then `<< 2`;
+// the full u32 source range shifted by two is representable in i64.
 machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 {
-    let source_width_wide: i64 = widen_u32_to_i64(source_width);
-    let source_height_wide: i64 = widen_u32_to_i64(source_height);
+    let source_width_wide: i64 = source_width as i64;
+    let source_height_wide: i64 = source_height as i64;
     self.fbw = source_width_wide;
     self.fbh = source_height_wide;
     self.stride = source_width_wide << 2;

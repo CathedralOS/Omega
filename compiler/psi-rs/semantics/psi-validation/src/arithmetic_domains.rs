@@ -2270,15 +2270,31 @@ fn analyze(
             // complete carrier: foreign bitmask construction such as
             // `(flag as i32) << 10` is therefore ordinary provable Exact
             // arithmetic, not a reason to weaken the operation to Wrapping.
-            // Other casts bound the value to the target type's range (and
-            // re-tag its domain), so they remain a widening/narrowing escape
-            // from an overflow.
+            //
+            // Exact integer coercion likewise preserves the mathematical
+            // source value. Retain a sound source interval after the fit check
+            // above so a widening conversion remains useful proof evidence for
+            // enclosing arithmetic. Wrapped expressions can carry a computed
+            // interval outside their carrier; in that case use the carrier's
+            // full range rather than manufacturing an impossible intersection.
+            // Non-Exact casts still re-range to the target carrier.
             let interval = if source.primitive == Some(PrimitiveType::Bool)
                 && primitive.is_some_and(|target| integer_bit_width(target).is_some())
             {
                 Interval {
                     low: Some(0),
                     high: Some(1),
+                }
+            } else if cast.domain == ArithmeticDomain::Exact
+                && let Some(source_primitive) = source.primitive
+                && integer_bit_width(source_primitive).is_some()
+                && primitive.is_some_and(|target| integer_bit_width(target).is_some())
+                && let Some(source_range) = primitive_range(source_primitive)
+            {
+                if source_range.contains(source.interval) {
+                    source.interval
+                } else {
+                    source_range
                 }
             } else {
                 primitive
