@@ -222,6 +222,18 @@ fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
 }
 
 #[test]
+fn boolean_integer_cast_keeps_binary_range_for_exact_shift() {
+    let source = r#"
+        machine encode(flag: bool) -> i32 {
+            (flag as i32) << 30
+        }
+    "#;
+
+    lower_typed_trees(typed_trees(source))
+        .expect("a Boolean integer cast is confined to zero or one before the exact shift");
+}
+
+#[test]
 fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
     let source = r#"
         machine shift(value: u64, count: u64) -> u64 {
