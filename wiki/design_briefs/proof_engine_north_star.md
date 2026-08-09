@@ -26,6 +26,13 @@ occurrences and remains orthogonal to multiplicity, validity, conservation,
 and provenance. Relation heterogeneity belongs to each proposition's own
 left/right carrier telescope rather than to a global carrier-parameter role.
 
+Update 2026-08-09: source automation remains ergonomic elaboration, but every
+accepted step must converge on a total, sound certificate checker. Recursive
+proofs certify whole strongly connected components under one cited
+well-founded relation and per-edge descent proofs. Algebraic normalization
+cites the exact law evidence it consumes, and the human proof synopsis is a
+deterministic view of the checked certificate rather than a parallel account.
+
 ## The ambition
 
 Omega should make whole *classes* of existing tools redundant inside one
@@ -224,6 +231,46 @@ suspension, failure, work, and multiplicity rather than pretending machines
 are pure dependent functions. Neither migration blocks proposition families,
 terminal-Psi proof identity, or the present certificate kernel.
 
+## Certified elaboration and review
+
+Omega source presents a proof strategy, not every primitive inference. Local
+computation, constructor reasoning, branch facts, contract extraction, and
+licensed decision procedures may remain implicit at the source surface. That
+compression does not grant authority: the elaborator must materialize a
+certificate for every accepted conclusion, and the kernel checks the
+certificate under explicit premises.
+
+Two independent tests govern that split:
+
+- **source visibility:** theorem, conformance, boundary, and other provenance-
+  bearing dependencies remain explicit even when their resolution is total;
+- **certificate strategy:** a total deterministic procedure may be replayed by
+  the checker, while partial or heuristic proof search must emit evidence the
+  checker can validate without repeating the search.
+
+Totality alone never establishes soundness. A replayed normalizer is trusted
+checker logic unless it emits a lower-level certificate. In either form, each
+normalization node cites the exact selected conformance and law terms it used.
+The conclusion inherits their complete trust closure: normalizing under one
+admitted law makes the result admission-dependent rather than fully derived.
+
+Recursive contracts need a distinct certificate rule. For each strongly
+connected proof-call component, the certificate records the selected measure,
+ranking relation, and one proof that the relation is well-founded. Every
+intra-component application separately proves that its callee measure is
+strictly below its caller measure. Only then may the callee contract enter the
+local context as an inductive hypothesis. Calls outside the component use
+ordinary contract application. This covers self recursion and mutual induction
+without treating a circular contract citation as an ordinary call.
+
+The primary review synopsis is derived deterministically from that checked
+certificate. It reports the certificate fingerprint, recursive components,
+implicit closure rules, exact cited laws, and trust closure. Source spans are
+attribution metadata attached to certificate nodes; no second analysis may
+reconstruct what probably happened. The source remains readable as ordinary
+control flow, while the synopsis warns reviewers about logical work hidden by
+that presentation and the certificate remains the complete authority.
+
 ## Where Omega is today (grounded)
 
 The engine is real and past where systems languages stop
@@ -310,8 +357,10 @@ handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
    propositions, structural implication/conjunction proofs, and total closed
    judgments. Which additional term constructors and rules are necessary for
    quantified mathematics while keeping the trusted core small?
-3. **Certificate bridge:** can the existing engine emit kernel-checkable
-   certificates (so automation stays the front line under the kernel)?
+3. **Certificate bridge:** implement the settled bridge from source automation
+   to kernel-checkable certificates: SCC-level well-founded recursion,
+   per-edge descent, exact law/provenance dependencies for normalization, and a
+   certificate-derived review synopsis.
 4. **`Real` / analysis:** the proof-side Cauchy/evidence/quotient construction
    and dedicated `proposition` surface are settled; implementing the
    proposition-family/index-telescope fragment gates its

@@ -119,6 +119,16 @@ strongly connected component, and every cyclic edge must decrease it. The
 exact source spelling for differently shaped participants remains deferred;
 the normalized SCC rule is settled.
 
+The future proof-certificate form preserves that granularity. One recursive
+component cites the selected ranking relation and its well-foundedness evidence
+once; every intra-component edge carries its own strict-decrease proof. The
+well-foundedness citation is not repeated per call, and a local decrease never
+stands in for the global fact that the relation admits no infinite descent.
+Both kinds of evidence retain provenance, so an admitted custom ranking theory
+makes every recursive proof depending on it admission-dependent. Calls outside
+the component use ordinary contract application rather than the recursive
+rule.
+
 ## Calls, loops, and proof-stratum machines
 
 Ranking applies to every checked cycle, not recursion alone. Explicit

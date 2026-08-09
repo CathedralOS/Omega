@@ -939,6 +939,31 @@ is constructive, and its trust report says so.
 
 ## Automation And Boundary
 
+Omega source normally shows the proof strategy rather than every logical rule.
+That is especially important when reading recursive proof machines. An
+ordinary call contributes its checked `ensures` through contract application.
+A call within the same recursive proof component is different: using that
+contract would be circular unless the selected ranking proves the call strictly
+smaller. Once that edge is checked under a well-founded relation, the callee's
+instantiated `ensures` is the inductive hypothesis. `terminates by` therefore
+does more than promise that computation stops; in a recursive proof it licenses
+the logical assumption that makes induction sound.
+
+The readable body is not the complete derivation. Elaboration records the
+implicit computation, constructor rules, branch facts, inductive applications,
+and licensed normalization in a kernel-checkable certificate. A deterministic
+review synopsis is rendered from that certificate and names its fingerprint,
+implicit closure rules, exact cited laws, and trust closure. It is never rebuilt
+by a second analysis of the source: a plausible explanation of a different
+proof would be worse than no explanation.
+
+Automation does not erase authority or provenance. A normalization step names
+the selected conformance and exact laws it consumes. If any cited law or
+well-foundedness theorem is admitted, every dependent conclusion remains
+admission-dependent. Total procedures may be replayed during checking; partial
+search may not be trusted merely because it found an answer and must emit
+checkable evidence.
+
 The checker should automatically solve common cases:
 
 - arithmetic normalization,

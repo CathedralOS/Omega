@@ -497,6 +497,26 @@ Remaining:
   planning; no producer-owned module or checked tree crosses either entry.
   Continue replacing the legacy checked-tree vocabulary so the shared
   interpreter/native oracle covers the complete language.
+- **PROOF-CERTIFICATION-BRIDGE.** Make source proof automation emit
+  kernel-checkable certificates rather than remain trusted entailment. A
+  recursive proof certificate owns one strongly connected component: it cites
+  the selected ranking relation and that relation's well-foundedness evidence
+  once, then proves strict decrease separately for every intra-component
+  application edge. Ordinary nonrecursive calls remain ordinary contract
+  applications. A normalization step cites the exact selected conformance and
+  law evidence it used; the resulting proof retains the transitive trust
+  closure, so any admitted law or well-foundedness premise remains visible in
+  every dependent conclusion. Generate the human proof synopsis as a
+  deterministic rendering of the checked certificate, bound to the
+  certificate fingerprint and its source-attribution metadata; never rebuild a
+  parallel explanation from source.
+
+  Acceptance: perturbing any recursive edge decrease, component
+  well-foundedness reference, normalized-law identity, or cited premise
+  rejects or changes the recorded trust closure; measured mutual proof
+  recursion checks while an unmeasured cycle rejects; an admitted law makes
+  every dependent normalization admission-dependent; and every synopsis names
+  and renders the exact certificate the kernel accepted.
 - **PCC verifier closure.** The artifact determines its complete obligation
   set; proof bundles only discharge it. Connect `psi-terminal-verifier` to the
   low-rung proof-kernel calculus and choose one auditable closure recorded in

@@ -48,6 +48,16 @@ accept-by-default is preserved. The machine-level termination pass
 independently re-checks the declared clause and fails compilation when it
 cannot prove it.
 
+This is the current legacy automation frontier, not the final certificate
+rule. The normalized termination model already permits a jointly ranked
+strongly connected component, but source proof entailment recognizes only the
+self-recursive shape above. The certificate bridge must check the whole proof
+SCC under one cited well-founded relation, with a separate strict-decrease
+proof at every intra-component edge. An ordinary callee's postcondition is
+available by contract application; a recursive component member's
+postcondition is available only through that well-founded rule, because
+otherwise the proof would be circular.
+
 The discharge plumbing: induction hypotheses arrive as general polynomial
 equations (e.g. `2*result - P >= 0`) that fit neither the difference-bound
 matrix nor the interval evaluator, so `prove_at_least` gained direct
