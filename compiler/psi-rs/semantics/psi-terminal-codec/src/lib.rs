@@ -417,7 +417,8 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
         match term {
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. } => {
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => {
                 pending.push((operand, depth + 1));
             }
             ScalarTerm::BooleanEqual { left, right }
@@ -744,6 +745,14 @@ fn encode_block(
             OperationKind::IntegerWiden { operand } => {
                 writer.u8(20);
                 writer.id(operand);
+            }
+            OperationKind::IntegerExactCast {
+                operand,
+                obligation,
+            } => {
+                writer.u8(21);
+                writer.id(operand);
+                writer.id(obligation);
             }
             OperationKind::IntegerBitwiseAnd { left, right } => {
                 writer.u8(14);
@@ -1098,6 +1107,16 @@ fn encode_scalar_term(
             operand,
         } => {
             writer.u8(21);
+            encode_integer_type(writer, *source_type);
+            encode_integer_type(writer, *target_type);
+            encode_scalar_term(writer, operand, depth + 1)?;
+        }
+        ScalarTerm::IntegerExactCast {
+            source_type,
+            target_type,
+            operand,
+        } => {
+            writer.u8(22);
             encode_integer_type(writer, *source_type);
             encode_integer_type(writer, *target_type);
             encode_scalar_term(writer, operand, depth + 1)?;
@@ -1632,6 +1651,10 @@ fn decode_block(
             20 => OperationKind::IntegerWiden {
                 operand: reader.id("ValueId")?,
             },
+            21 => OperationKind::IntegerExactCast {
+                operand: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -2013,6 +2036,13 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let target_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::integer_widen(source_type, target_type, operand)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        22 => {
+            let source_type = decode_integer_type(reader)?;
+            let target_type = decode_integer_type(reader)?;
+            let operand = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::integer_exact_cast(source_type, target_type, operand)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

@@ -173,6 +173,26 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         operand,
                     });
                 }
+                OperationKind::IntegerExactCast { operand, .. } => {
+                    let Some(ScalarType::Integer(source_type)) = value_types.get(&operand).copied()
+                    else {
+                        return Err(LoweringError::VerifiedIntegerExactCastMalformed(
+                            operation.id,
+                        ));
+                    };
+                    let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedIntegerExactCastMalformed(
+                            operation.id,
+                        ));
+                    };
+                    operations.push(TerminalAbstractOperation::IntegerExactCast {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        source_type,
+                        target_type,
+                        operand,
+                    });
+                }
                 OperationKind::IntegerBitwiseAnd { left, right }
                 | OperationKind::IntegerBitwiseOr { left, right }
                 | OperationKind::IntegerBitwiseXor { left, right } => {
@@ -464,6 +484,7 @@ pub enum LoweringError {
     VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
     VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
     VerifiedIntegerWidenMalformed(psi_core::OperationId),
+    VerifiedIntegerExactCastMalformed(psi_core::OperationId),
     VerifiedWrappingShiftMalformed(psi_core::OperationId),
     CrashLoweringUnsupported {
         machine: MachineId,

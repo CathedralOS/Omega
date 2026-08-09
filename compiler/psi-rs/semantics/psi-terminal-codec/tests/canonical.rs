@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "aa60c1786ec34fe9bb2f9a771e5af85e4eaacdb1a57bd810dfdb3f6c91b9b753"
+        "359f1fb241c7add7b1786767a7805e99a7f1de9b9dddb7e47d30d11f169386ff"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -582,6 +582,69 @@ fn v27_address_carrier_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "3f02af6d6911ce66b210e82a6e770236b0b8b3236d9bf15ca319bf7a41b369aa"
+    );
+}
+
+#[test]
+fn v28_exact_integer_cast_has_stable_canonical_bytes() {
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let operand = value_id(21);
+    let computed = value_id(22);
+    let result = value_id(23);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V28,
+        entry: machine_id(18),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(18),
+            parameters: vec![ValueDeclaration {
+                id: operand,
+                scalar_type: ScalarType::Integer(source_type),
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Integer(target_type),
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(18),
+            blocks: vec![Block {
+                id: block_id(18),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(18),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: ScalarType::Integer(target_type),
+                    },
+                    kind: OperationKind::IntegerExactCast {
+                        operand,
+                        obligation: obligation_id(18),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(18),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(18),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let bytes = encode_module(&module).expect("v28 exact cast should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "48edb4e767c87665bb16dee763452bbc0fe164d2d6fcf3cab26d2eb62aa0c5f3"
     );
 }
 

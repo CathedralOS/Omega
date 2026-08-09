@@ -89,6 +89,7 @@ pub use properties::{
 };
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{
@@ -97,8 +98,22 @@ pub use traits::{
 };
 pub use type_references::normalize_open_index_expressions;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExactIntegerCastFact {
+    pub expression: ExpressionHandle,
+    pub source_type: psi_typed_trees::types::PrimitiveType,
+    pub target_type: psi_typed_trees::types::PrimitiveType,
+    pub minimum: psi_numerics::bignum::BigInt,
+    pub maximum: psi_numerics::bignum::BigInt,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProgramValidationFacts {
+    pub exact_integer_casts: Vec<ExactIntegerCastFact>,
+}
+
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    validate_program_internal(program, false)
+    validate_program_internal(program, false).map(|_| ())
 }
 
 /// Validate after machine-generic contracts were checked on the pristine
@@ -109,6 +124,12 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 pub fn validate_program_after_generic_contract_entailment(
     program: &TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
+    validate_program_internal(program, true).map(|_| ())
+}
+
+pub fn validate_program_after_generic_contract_entailment_with_facts(
+    program: &TypedTrees,
+) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
     validate_program_internal(program, true)
 }
 
@@ -138,8 +159,9 @@ pub fn validate_generic_machine_contract_entailment(
 fn validate_program_internal(
     program: &TypedTrees,
     generic_contract_entailment_prevalidated: bool,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut exact_integer_casts = Vec::new();
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = psi_facts::build_definition_fact_plan(program);
@@ -434,13 +456,27 @@ fn validate_program_internal(
                     &writable_roots,
                     statement,
                     &mut value_env,
+                    &mut exact_integer_casts,
                     &mut diagnostics,
                 );
             }
         }
     }
 
-    finish_diagnostics(diagnostics)
+    finish_diagnostics(diagnostics)?;
+    exact_integer_casts
+        .sort_by_key(|fact| (fact.expression.arena_index(), fact.expression.generation()));
+    exact_integer_casts.dedup_by(|right, left| {
+        if left.expression != right.expression {
+            return false;
+        }
+        left.minimum = left.minimum.clone().min(right.minimum.clone());
+        left.maximum = left.maximum.clone().max(right.maximum.clone());
+        true
+    });
+    Ok(ProgramValidationFacts {
+        exact_integer_casts,
+    })
 }
 
 /// Errors fail the build; a WARNING-only batch surfaces on stderr and
@@ -467,6 +503,7 @@ fn validate_state_statement_node(
     writable_roots: &WritableRoots<'_, '_>,
     statement: &StatementNode,
     value_env: &mut arithmetic_domains::ValueEnv,
+    exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(state) = machine_symbols.state(state_name) {
@@ -864,6 +901,14 @@ fn validate_state_statement_node(
                 &owner,
                 diagnostics,
             );
+            arithmetic_domains::collect_exact_integer_cast_facts(
+                program,
+                machine,
+                Some(state),
+                *expression,
+                value_env,
+                exact_integer_casts,
+            );
         }
         StatementNode::LocalData(local_data) => {
             let mut type_parameters = program.machine_type_parameters(machine).to_vec();
@@ -1074,6 +1119,16 @@ fn validate_state_statement_node(
             }
         }
         StatementNode::Transition(transition) => {
+            if let psi_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                arithmetic_domains::collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    guard,
+                    value_env,
+                    exact_integer_casts,
+                );
+            }
             validate_transition_target_node(
                 program,
                 machine,
@@ -1114,6 +1169,37 @@ fn validate_state_statement_node(
                 &transition.guard,
                 value_env,
             );
+
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        for argument in program.statement_table.expression_handles(*arguments) {
+                            arithmetic_domains::collect_exact_integer_cast_facts(
+                                program,
+                                machine,
+                                machine_symbols.state(state_name),
+                                *argument,
+                                &narrowed,
+                                exact_integer_casts,
+                            );
+                        }
+                    }
+                    TransitionTargetNode::Value(expression) => {
+                        arithmetic_domains::collect_exact_integer_cast_facts(
+                            program,
+                            machine,
+                            machine_symbols.state(state_name),
+                            *expression,
+                            &narrowed,
+                            exact_integer_casts,
+                        );
+                    }
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
 
             // Fall-through complement: an exit-if-true transition (valid
             // target, no `_` arm) leaves the guard REFUTED for every later

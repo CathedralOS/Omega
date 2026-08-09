@@ -63,6 +63,15 @@ need only understand the canonical proposition and derivation calculus. A
 component must still understand terminal Psi well enough to reconstruct the
 right propositions.
 
+Terminal Psi v28 exercises this split for exact fixed-integer casts. The
+producer carries an obligation identity but does not choose its proposition.
+The Psi-aware verifier derives the representability bound or conjunction from
+the source and target carriers at the operation site, reconstructs only
+path-local comparison facts that reach that site, and passes those facts as
+semantic axioms to the small kernel. Removing the certificate, moving the cast
+off the proved edge, changing either carrier, or involving `addr` rejects
+without treating producer range metadata as authority.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

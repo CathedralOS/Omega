@@ -55,6 +55,7 @@ use psi_core::{
 /// complete source range.
 /// Version 27 distinguishes the target-selected address carrier from ordinary
 /// fixed-width unsigned integers while retaining its current bit width.
+/// Version 28 adds proof-gated exact casts between fixed integer carriers.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -87,7 +88,8 @@ impl SemanticVersion {
     pub const V25: Self = Self(NonZeroU16::new(25).expect("twenty-five is nonzero"));
     pub const V26: Self = Self(NonZeroU16::new(26).expect("twenty-six is nonzero"));
     pub const V27: Self = Self(NonZeroU16::new(27).expect("twenty-seven is nonzero"));
-    pub const CURRENT: Self = Self::V27;
+    pub const V28: Self = Self(NonZeroU16::new(28).expect("twenty-eight is nonzero"));
+    pub const CURRENT: Self = Self::V28;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -360,26 +362,85 @@ pub struct Operation {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationKind {
-    IntegerConstant { value: IntegerValue },
-    BooleanConstant { value: bool },
-    BooleanNot { operand: ValueId },
-    BooleanEqual { left: ValueId, right: ValueId },
-    IntegerEqual { left: ValueId, right: ValueId },
-    IntegerLessThan { left: ValueId, right: ValueId },
-    IntegerLessOrEqual { left: ValueId, right: ValueId },
-    IntegerBitwiseNot { operand: ValueId },
-    IntegerWiden { operand: ValueId },
-    IntegerBitwiseAnd { left: ValueId, right: ValueId },
-    IntegerBitwiseOr { left: ValueId, right: ValueId },
-    IntegerBitwiseXor { left: ValueId, right: ValueId },
-    WrappingIntegerShiftLeft { value: ValueId, count: ValueId },
-    WrappingIntegerShiftRight { value: ValueId, count: ValueId },
-    WrappingIntegerAdd { left: ValueId, right: ValueId },
-    SaturatingIntegerAdd { left: ValueId, right: ValueId },
-    WrappingIntegerSubtract { left: ValueId, right: ValueId },
-    SaturatingIntegerSubtract { left: ValueId, right: ValueId },
-    WrappingIntegerMultiply { left: ValueId, right: ValueId },
-    SaturatingIntegerMultiply { left: ValueId, right: ValueId },
+    IntegerConstant {
+        value: IntegerValue,
+    },
+    BooleanConstant {
+        value: bool,
+    },
+    BooleanNot {
+        operand: ValueId,
+    },
+    BooleanEqual {
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerEqual {
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerLessThan {
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerLessOrEqual {
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseNot {
+        operand: ValueId,
+    },
+    IntegerWiden {
+        operand: ValueId,
+    },
+    IntegerExactCast {
+        operand: ValueId,
+        obligation: ObligationId,
+    },
+    IntegerBitwiseAnd {
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseOr {
+        left: ValueId,
+        right: ValueId,
+    },
+    IntegerBitwiseXor {
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerShiftLeft {
+        value: ValueId,
+        count: ValueId,
+    },
+    WrappingIntegerShiftRight {
+        value: ValueId,
+        count: ValueId,
+    },
+    WrappingIntegerAdd {
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerAdd {
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerSubtract {
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerSubtract {
+        left: ValueId,
+        right: ValueId,
+    },
+    WrappingIntegerMultiply {
+        left: ValueId,
+        right: ValueId,
+    },
+    SaturatingIntegerMultiply {
+        left: ValueId,
+        right: ValueId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

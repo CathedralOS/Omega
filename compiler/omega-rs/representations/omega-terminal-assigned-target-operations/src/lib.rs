@@ -254,6 +254,11 @@ pub enum TerminalAssignedIntegerExpression {
         source_type: IntegerType,
         operand: Box<TerminalAssignedIntegerExpression>,
     },
+    IntegerExactCast {
+        psi_operation: OperationId,
+        source_type: IntegerType,
+        operand: Box<TerminalAssignedIntegerExpression>,
+    },
     BitwiseAnd {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,

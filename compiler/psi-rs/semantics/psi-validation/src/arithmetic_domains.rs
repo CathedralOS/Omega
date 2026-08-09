@@ -918,6 +918,127 @@ pub(crate) fn validate_value_range(
     (analysis.interval, analysis.primitive)
 }
 
+/// Retain every accepted occurrence-dependent exact fixed-integer cast under
+/// the same flow environment used by validation. This is a query over the
+/// validator's judgment, not a second range engine: operand intervals are
+/// obtained by `validate_value_range`, and only fully bounded intervals that
+/// fit the target are published. Later checked lowering can therefore discard
+/// `ValueEnv` without turning validation success into ambient trust.
+pub(crate) fn collect_exact_integer_cast_facts(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    env: &ValueEnv,
+    facts: &mut Vec<crate::ExactIntegerCastFact>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Cast(cast) => {
+            if !cast.form.is_recast()
+                && cast.semantic_domain.is_empty()
+                && cast.domain == ArithmeticDomain::Exact
+                && let Some(target_type) = program.primitive_type_reference(cast.target_type)
+                && target_type != PrimitiveType::Addr
+            {
+                let mut diagnostics = Vec::new();
+                let (interval, source_type) = validate_value_range(
+                    program,
+                    machine,
+                    state,
+                    cast.value,
+                    env,
+                    None,
+                    ArithmeticDomain::Exact,
+                    "checked exact integer cast evidence",
+                    &mut diagnostics,
+                );
+                if diagnostics.is_empty()
+                    && let Some(source_type) = source_type
+                    && source_type != target_type
+                    && source_type != PrimitiveType::Addr
+                    && primitive_range(source_type).is_some()
+                    && primitive_range(target_type).is_some()
+                    && integer_interval_fits_primitive(interval, source_type, target_type)
+                {
+                    let source_range = primitive_range(source_type)
+                        .expect("fixed integer source has a primitive range");
+                    let effective = if source_range.contains(interval) {
+                        interval
+                    } else {
+                        source_range
+                    };
+                    if let (Some(minimum), Some(maximum)) = (effective.low, effective.high) {
+                        facts.push(crate::ExactIntegerCastFact {
+                            expression,
+                            source_type,
+                            target_type,
+                            minimum: psi_numerics::bignum::BigInt::from_i64(minimum),
+                            maximum: psi_numerics::bignum::BigInt::from_i64(maximum),
+                        });
+                    }
+                }
+            }
+            collect_exact_integer_cast_facts(program, machine, state, cast.value, env, facts);
+        }
+        ExpressionNode::Atomic(atomic) => {
+            collect_exact_integer_cast_facts(program, machine, state, atomic.value, env, facts);
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                collect_exact_integer_cast_facts(program, machine, state, *value, env, facts);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_exact_integer_cast_facts(program, machine, state, binary.left, env, facts);
+            collect_exact_integer_cast_facts(program, machine, state, binary.right, env, facts);
+        }
+        ExpressionNode::Call(call) => {
+            collect_exact_integer_cast_facts(program, machine, state, call.receiver, env, facts);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                collect_exact_integer_cast_facts(program, machine, state, *argument, env, facts);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                env,
+                facts,
+            );
+            collect_exact_integer_cast_facts(program, machine, state, indexed.index, env, facts);
+        }
+        ExpressionNode::Member(member) => {
+            collect_exact_integer_cast_facts(program, machine, state, member.receiver, env, facts);
+        }
+        ExpressionNode::Mutable(value) => {
+            collect_exact_integer_cast_facts(program, machine, state, *value, env, facts);
+        }
+        ExpressionNode::Range(range) => {
+            collect_exact_integer_cast_facts(program, machine, state, range.start, env, facts);
+            collect_exact_integer_cast_facts(program, machine, state, range.end, env, facts);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                collect_exact_integer_cast_facts(program, machine, state, field.value, env, facts);
+            }
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_exact_integer_cast_facts(program, machine, state, unary.operand, env, facts);
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
 /// The straight-line place path an expression denotes (`self.v`, `count`), for
 /// the value environment. `None` for non-place expressions.
 pub(crate) fn place_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {

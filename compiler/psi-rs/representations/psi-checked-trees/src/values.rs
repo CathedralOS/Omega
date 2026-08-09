@@ -155,6 +155,11 @@ pub enum CheckedScalarExpression {
         primitive_type: psi_typed_trees::types::PrimitiveType,
         operand: Box<CheckedScalarExpression>,
     },
+    IntegerExactCast {
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
+        range: CheckedIntegerRange,
+    },
     Boolean(Box<CheckedBooleanExpression>),
 }
 

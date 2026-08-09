@@ -1158,6 +1158,94 @@ fn v27_preserves_address_carrier_identity_and_v26_rejects_it() {
 }
 
 #[test]
+fn v28_exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligation() {
+    let source =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 source"));
+    let target =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 target"));
+    let operand = ValueId::new(170).expect("operand");
+    let computed = ValueId::new(171).expect("computed");
+    let result = ValueId::new(172).expect("result");
+    let cast_obligation = ObligationId::new(170).expect("cast obligation");
+    let mut module = TerminalModule {
+        semantic_version: SemanticVersion::V28,
+        entry: MachineId::new(170).expect("machine"),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(170).expect("machine"),
+            parameters: vec![ValueDeclaration {
+                id: operand,
+                scalar_type: source,
+            }],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: target,
+            },
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(170).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(170).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(170).expect("operation"),
+                    result: ValueDeclaration {
+                        id: computed,
+                        scalar_type: target,
+                    },
+                    kind: OperationKind::IntegerExactCast {
+                        operand,
+                        obligation: cast_obligation,
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(170).expect("edge"),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(170).expect("contract"),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    validate_module(&module).expect("v28 admits a proof-owned fixed partial conversion");
+
+    let mut old = module.clone();
+    old.semantic_version = SemanticVersion::V27;
+    assert_eq!(
+        validate_module(&old).expect_err("v27 cannot contain exact casts"),
+        ModuleError::OperationRequiresSemanticVersion {
+            operation: OperationId::new(170).expect("operation"),
+            required: SemanticVersion::V28,
+            actual: SemanticVersion::V27,
+        }
+    );
+
+    let mut redundant = module.clone();
+    redundant.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_type = source;
+    redundant.machines[0].result.scalar_type = source;
+    assert!(matches!(
+        validate_module(&redundant),
+        Err(ModuleError::IntegerExactCastOperandTypeMismatch { .. })
+    ));
+
+    let address = ScalarType::Integer(IntegerType::address(64).expect("addr"));
+    module.machines[0].parameters[0].scalar_type = address;
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::IntegerExactCastOperandTypeMismatch { .. })
+    ));
+}
+
+#[test]
 fn v21_wrapping_shift_axioms_preserve_the_count_type() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value type");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16 count type");

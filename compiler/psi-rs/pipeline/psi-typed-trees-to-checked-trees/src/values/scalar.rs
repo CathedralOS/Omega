@@ -1,7 +1,8 @@
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
-    CheckedScalarExpression, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
+    CheckedIntegerRange, CheckedLocatedScalarExpression, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedScalarExpression, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole,
 };
 use psi_numerics::{
     arithmetic::ArithmeticDomain,
@@ -18,6 +19,7 @@ use psi_typed_trees::{
 pub(crate) fn build_checked_scalar_expression_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> CheckedScalarExpressionPlans {
     let mut expressions = Vec::new();
     for machine in program.machines() {
@@ -52,6 +54,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             parameters,
                             &parameter_types,
                             result_type,
+                            exact_integer_casts,
                         ) {
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
@@ -69,6 +72,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 guard,
                                 parameters,
                                 &parameter_types,
+                                exact_integer_casts,
                             )
                         {
                             expressions.push(CheckedLocatedScalarExpression {
@@ -109,6 +113,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 parameters,
                                 &parameter_types,
                                 target_type,
+                                exact_integer_casts,
                             ) else {
                                 continue;
                             };
@@ -140,6 +145,7 @@ fn lower_return_expression(
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     result_type: PrimitiveType,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
     if result_type == PrimitiveType::Bool {
         return lower_boolean_expression(
@@ -148,11 +154,18 @@ fn lower_return_expression(
             expression,
             parameters,
             parameter_types,
+            exact_integer_casts,
         )
         .map(|expression| CheckedScalarExpression::Boolean(Box::new(expression)));
     }
-    let (expression, _) =
-        lower_scalar_expression(program, operators, expression, parameters, parameter_types)?;
+    let (expression, _) = lower_scalar_expression(
+        program,
+        operators,
+        expression,
+        parameters,
+        parameter_types,
+        exact_integer_casts,
+    )?;
     (scalar_expression_type(&expression)? == result_type).then_some(expression)
 }
 
@@ -162,6 +175,7 @@ fn lower_scalar_expression(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -194,6 +208,7 @@ fn lower_scalar_expression(
                 cast.value,
                 parameters,
                 parameter_types,
+                exact_integer_casts,
             )?;
             let source_type = scalar_expression_type(&operand)?;
             if source_type == target_type {
@@ -212,18 +227,41 @@ fn lower_scalar_expression(
             {
                 return Some((literal, cast.domain));
             }
-            // Only a full-carrier inclusion can cross the terminal boundary
-            // without retaining frontend range evidence. The first widening
-            // slice also admits unsigned-to-larger-signed casts because the
-            // complete source range fits. Narrowing, signed-to-unsigned, and
-            // occurrence-fact-dependent casts continue to fail closed.
-            integer_widen_is_total(source_type, target_type).then_some((
-                CheckedScalarExpression::IntegerWiden {
-                    primitive_type: target_type,
-                    operand: Box::new(operand),
-                },
-                cast.domain,
-            ))
+            // A full-carrier inclusion needs no occurrence proof. Preserve it
+            // as widening even when validation also retained a bounded range
+            // for this spelling; exact-cast obligations are only necessary for
+            // partial fixed-integer conversions.
+            if integer_widen_is_total(source_type, target_type) {
+                return Some((
+                    CheckedScalarExpression::IntegerWiden {
+                        primitive_type: target_type,
+                        operand: Box::new(operand),
+                    },
+                    cast.domain,
+                ));
+            }
+            if cast.domain == ArithmeticDomain::Exact
+                && let Some(fact) = exact_integer_casts
+                    .iter()
+                    .find(|fact| fact.expression == expression)
+                && fact.source_type == source_type
+                && fact.target_type == target_type
+            {
+                return Some((
+                    CheckedScalarExpression::IntegerExactCast {
+                        primitive_type: target_type,
+                        operand: Box::new(operand),
+                        range: CheckedIntegerRange {
+                            minimum: fact.minimum.clone(),
+                            maximum: fact.maximum.clone(),
+                        },
+                    },
+                    cast.domain,
+                ));
+            }
+            // All remaining cast shapes fail closed at this source-independent
+            // boundary: no total conversion and no retained occurrence proof.
+            None
         }
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::BitwiseNot
@@ -235,6 +273,7 @@ fn lower_scalar_expression(
                 unary.operand,
                 parameters,
                 parameter_types,
+                exact_integer_casts,
             )?;
             let primitive_type = scalar_expression_type(&operand)?;
             is_integer(primitive_type).then_some((
@@ -252,6 +291,7 @@ fn lower_scalar_expression(
                 binary.left,
                 parameters,
                 parameter_types,
+                exact_integer_casts,
             )?;
             let (right, right_domain) = lower_scalar_expression(
                 program,
@@ -259,6 +299,7 @@ fn lower_scalar_expression(
                 binary.right,
                 parameters,
                 parameter_types,
+                exact_integer_casts,
             )?;
             let shift = matches!(
                 binary.operator,
@@ -387,6 +428,7 @@ fn lower_boolean_expression(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
@@ -406,6 +448,7 @@ fn lower_boolean_expression(
                     unary.operand,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 )?,
             )))
         }
@@ -427,6 +470,7 @@ fn lower_boolean_expression(
                     binary.left,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 )?;
                 let (right, _) = lower_scalar_expression(
                     program,
@@ -434,6 +478,7 @@ fn lower_boolean_expression(
                     binary.right,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 )?;
                 let left_type = scalar_expression_type(&left)?;
                 (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
@@ -480,6 +525,7 @@ fn lower_boolean_expression(
                     binary.left,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 )?),
                 right: Box::new(lower_boolean_expression(
                     program,
@@ -487,6 +533,7 @@ fn lower_boolean_expression(
                     binary.right,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 )?),
             };
             Some(if binary.operator == BinaryOperator::NotEqual {
@@ -505,6 +552,7 @@ fn lower_boolean_expression(
                 binary.left,
                 parameters,
                 parameter_types,
+                exact_integer_casts,
             )?);
             let right = Box::new(lower_boolean_expression(
                 program,
@@ -512,6 +560,7 @@ fn lower_boolean_expression(
                 binary.right,
                 parameters,
                 parameter_types,
+                exact_integer_casts,
             )?);
             Some(if binary.operator == BinaryOperator::And {
                 CheckedBooleanExpression::And { left, right }
@@ -529,6 +578,7 @@ fn lower_positive_boolean_guard(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return lower_boolean_expression(
@@ -537,6 +587,7 @@ fn lower_positive_boolean_guard(
             expression,
             parameters,
             parameter_types,
+            exact_integer_casts,
         );
     };
     if binary.operator == BinaryOperator::Equal {
@@ -551,6 +602,7 @@ fn lower_positive_boolean_guard(
                     binary.right,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 );
             }
             (_, ExpressionNode::Boolean(true)) => {
@@ -560,13 +612,20 @@ fn lower_positive_boolean_guard(
                     binary.left,
                     parameters,
                     parameter_types,
+                    exact_integer_casts,
                 );
             }
             _ => {}
         }
     }
-    let guard =
-        lower_boolean_expression(program, operators, expression, parameters, parameter_types)?;
+    let guard = lower_boolean_expression(
+        program,
+        operators,
+        expression,
+        parameters,
+        parameter_types,
+        exact_integer_casts,
+    )?;
     (is_integer_comparison(&guard) || contains_short_circuit(&guard)).then_some(guard)
 }
 
@@ -593,7 +652,8 @@ fn scalar_expression_type(expression: &CheckedScalarExpression) -> Option<Primit
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
         | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
-        | CheckedScalarExpression::IntegerWiden { primitive_type, .. } => Some(*primitive_type),
+        | CheckedScalarExpression::IntegerWiden { primitive_type, .. }
+        | CheckedScalarExpression::IntegerExactCast { primitive_type, .. } => Some(*primitive_type),
         CheckedScalarExpression::IntegerLiteral { literal } => {
             primitive_for_landed(literal.landing()?.landed_type)
         }

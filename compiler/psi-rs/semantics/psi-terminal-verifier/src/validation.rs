@@ -74,6 +74,7 @@ pub fn validate_module(
             | SemanticVersion::V25
             | SemanticVersion::V26
             | SemanticVersion::V27
+            | SemanticVersion::V28
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -170,7 +171,8 @@ fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
         || match term {
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_address(operand),
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_address(operand),
             ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -549,6 +551,25 @@ fn validate_machine(
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::IntegerWidenRequiresIntegerResult(operation.id));
                     }
+                }
+                OperationKind::IntegerExactCast { obligation, .. } => {
+                    if semantic_version < SemanticVersion::V28 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V28,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::IntegerExactCastRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
                 }
                 OperationKind::WrappingIntegerShiftLeft { .. }
                 | OperationKind::WrappingIntegerShiftRight { .. } => {
@@ -1502,6 +1523,17 @@ fn validate_term_semantic_version(
             }
             validate_term_semantic_version(operand, semantic_version, contract, clause)
         }
+        ScalarTerm::IntegerExactCast { operand, .. } => {
+            if semantic_version < SemanticVersion::V28 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V28,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(operand, semantic_version, contract, clause)
+        }
         ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
         | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
             if semantic_version < SemanticVersion::V21 {
@@ -1723,7 +1755,8 @@ fn validate_term_scope(
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => {
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => {
             validate_term_scope(operand, allowed, contract, clause)?;
         }
         ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
@@ -1938,6 +1971,26 @@ fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::IntegerExactCast { operand, .. } = operation.kind {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        let expected = operation.result.scalar_type;
+        let (ScalarType::Integer(source), ScalarType::Integer(target)) = (actual, expected) else {
+            return Err(ModuleError::IntegerExactCastOperandTypeMismatch {
+                operation: operation.id,
+                source: actual,
+                target: expected,
+            });
+        };
+        if !source.can_exact_cast_to(target) || source.can_widen_to(target) || source == target {
+            return Err(ModuleError::IntegerExactCastOperandTypeMismatch {
+                operation: operation.id,
+                source: actual,
+                target: expected,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::IntegerWiden { operand } = operation.kind {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
@@ -2098,6 +2151,7 @@ fn validate_operation_operands(
         | OperationKind::IntegerLessOrEqual { .. }
         | OperationKind::IntegerBitwiseNot { .. }
         | OperationKind::IntegerWiden { .. }
+        | OperationKind::IntegerExactCast { .. }
         | OperationKind::IntegerBitwiseAnd { .. }
         | OperationKind::IntegerBitwiseOr { .. }
         | OperationKind::IntegerBitwiseXor { .. }
@@ -2479,6 +2533,12 @@ pub enum ModuleError {
     IntegerBitwiseRequiresIntegerResult(OperationId),
     IntegerWidenRequiresIntegerResult(OperationId),
     IntegerWidenOperandTypeMismatch {
+        operation: OperationId,
+        source: ScalarType,
+        target: ScalarType,
+    },
+    IntegerExactCastRequiresIntegerResult(OperationId),
+    IntegerExactCastOperandTypeMismatch {
         operation: OperationId,
         source: ScalarType,
         target: ScalarType,
