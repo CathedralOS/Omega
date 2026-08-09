@@ -418,6 +418,14 @@ Remaining:
   excluding their sole signed overflow pair. Earlier versions retain their
   prior reconstruction. Canonical artifacts, proof replay, selected-path fuel,
   interpretation, and both native targets carry the complete guarded range.
+  Terminal Psi v43 admits the first joint two-runtime Exact-add relation for
+  unsigned carriers. A checked true edge proving `left <= MAX - right` carries
+  that exact proposition to the addition site. The verifier independently
+  proves the guard's `MAX - right` subtraction total, then selects the carried
+  comparison as the add's representability obligation. v42 and earlier retain
+  their constant-addend reconstruction. Canonical artifacts, existing proof
+  terms, selected-path fuel, interpretation, and both native targets carry the
+  relational addition slice.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

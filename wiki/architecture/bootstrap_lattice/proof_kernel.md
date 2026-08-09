@@ -97,6 +97,13 @@ under matching path-local bounds and rejects two unrelated runtime addends.
 Native wrapping-width addition is authorized only after that certificate has
 established representability.
 
+Terminal Psi v43 adds one joint unsigned relation without trusting producer
+range metadata. The checked path computes the total Exact subtraction
+`MAX - right` and establishes `left <= MAX - right`; the verifier independently
+reconstructs truth for that subtraction and selects the exact carried
+comparison as the addition's operation-owned proposition. Earlier versions
+retain the v31 constant-addend surface.
+
 Terminal Psi v32 applies the split to Exact fixed-integer subtraction. The
 operation carries its two same-typed operands and obligation identity, while
 the verifier independently resolves a terminal-known right operand and

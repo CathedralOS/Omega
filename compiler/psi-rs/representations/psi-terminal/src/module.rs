@@ -69,6 +69,11 @@ use psi_core::{
 /// Version 34 adds proof-gated exact integer division.
 /// Version 35 adds proof-gated exact integer remainder.
 /// Version 36 adds proof-gated wrapping integer division.
+/// Versions 37 through 39 add wrapping remainder plus saturating division and
+/// remainder. Versions 40 through 42 extend fixed division/remainder
+/// reconstruction with guarded runtime-divisor ranges. Version 43 admits the
+/// unsigned joint exact-add bound `left <= MAX - right` and independently
+/// proves the bound expression's exact subtraction.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -116,7 +121,8 @@ impl SemanticVersion {
     pub const V40: Self = Self(NonZeroU16::new(40).expect("forty is nonzero"));
     pub const V41: Self = Self(NonZeroU16::new(41).expect("forty-one is nonzero"));
     pub const V42: Self = Self(NonZeroU16::new(42).expect("forty-two is nonzero"));
-    pub const CURRENT: Self = Self::V42;
+    pub const V43: Self = Self(NonZeroU16::new(43).expect("forty-three is nonzero"));
+    pub const CURRENT: Self = Self::V43;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)

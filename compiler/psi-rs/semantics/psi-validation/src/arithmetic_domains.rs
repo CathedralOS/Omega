@@ -247,6 +247,10 @@ fn narrow_env_by_condition(
     // do not yield the complementary bound because NaN makes both ordered
     // directions false.
     if positive {
+        if let Some((left, right)) = unsigned_joint_add_guard(program, machine, state, &comparison)
+        {
+            env.mark_unsigned_joint_add_bound(left, right);
+        }
         if comparison.operator == BinaryOperator::Equal
             && let (Some(left), Some(right)) = (
                 place_path(program, comparison.left),
@@ -365,6 +369,52 @@ fn narrow_env_by_condition(
     // `narrow` intersects with anything already established, so a prior
     // conjunct on the SAME place composes: `dir >= 0 && dir <= 1` lands [0, 1].
     env.narrow(name, interval);
+}
+
+/// Recognize the exact unsigned guard `left <= MAX - right` (including its
+/// `>=` spelling) without pretending either operand has an independent tighter
+/// interval. The subtraction is total because `right` is already in the same
+/// unsigned carrier, and the comparison is exactly the no-overflow condition
+/// for `left + right`.
+fn unsigned_joint_add_guard(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    comparison: &psi_typed_trees::expression::TableBinaryExpression,
+) -> Option<(String, String)> {
+    let (left, bound) = match comparison.operator {
+        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
+        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
+        _ => return None,
+    };
+    let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
+        return None;
+    };
+    if subtract.operator != BinaryOperator::Subtract {
+        return None;
+    }
+    let left_type = declared_place_type_raw(program, machine, state, left)?;
+    let right_type = declared_place_type_raw(program, machine, state, subtract.right)?;
+    let left_primitive = program.primitive_type_reference(left_type)?;
+    if program.primitive_type_reference(right_type) != Some(left_primitive)
+        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let maximum = match left_primitive {
+        PrimitiveType::U8 => u8::MAX as i64,
+        PrimitiveType::U16 => u16::MAX as i64,
+        PrimitiveType::U32 => u32::MAX as i64,
+        _ => return None,
+    };
+    if literal_i64(program, subtract.left) != Some(maximum) {
+        return None;
+    }
+    Some((
+        place_path(program, left)?,
+        place_path(program, subtract.right)?,
+    ))
 }
 
 /// R4 witness mint (out-params as witnesses): a BOUNDARY callee's
@@ -741,6 +791,7 @@ pub(crate) struct ValueEnv {
     intervals: BTreeMap<String, Interval>,
     float_intervals: BTreeMap<String, FloatInterval>,
     non_nan: BTreeSet<String>,
+    unsigned_joint_add_bounds: BTreeSet<(String, String)>,
 }
 
 impl ValueEnv {
@@ -754,6 +805,7 @@ impl ValueEnv {
         self.intervals.clear();
         self.float_intervals.clear();
         self.non_nan.clear();
+        self.unsigned_joint_add_bounds.clear();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.
@@ -768,6 +820,8 @@ impl ValueEnv {
         self.intervals.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));
         self.non_nan.retain(|path| !overlaps(path));
+        self.unsigned_joint_add_bounds
+            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
     }
 
     fn get(&self, path: &str) -> Option<Interval> {
@@ -799,6 +853,27 @@ impl ValueEnv {
 
     fn mark_non_nan(&mut self, path: String) {
         self.non_nan.insert(path);
+    }
+
+    fn mark_unsigned_joint_add_bound(&mut self, left: String, right: String) {
+        self.unsigned_joint_add_bounds
+            .insert(canonical_path_pair(left, right));
+    }
+
+    fn proves_unsigned_joint_add_bound(
+        &self,
+        program: &TypedTrees,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> bool {
+        let Some(left) = place_path(program, left) else {
+            return false;
+        };
+        let Some(right) = place_path(program, right) else {
+            return false;
+        };
+        self.unsigned_joint_add_bounds
+            .contains(&canonical_path_pair(left, right))
     }
 
     fn float_fact(&self, path: &str) -> (FloatInterval, bool) {
@@ -834,7 +909,20 @@ impl ValueEnv {
         joined
             .non_nan
             .extend(self.non_nan.intersection(&other.non_nan).cloned());
+        joined.unsigned_joint_add_bounds.extend(
+            self.unsigned_joint_add_bounds
+                .intersection(&other.unsigned_joint_add_bounds)
+                .cloned(),
+        );
         joined
+    }
+}
+
+fn canonical_path_pair(left: String, right: String) -> (String, String) {
+    if left <= right {
+        (left, right)
+    } else {
+        (right, left)
     }
 }
 
@@ -1079,6 +1167,9 @@ pub(crate) fn record_assignment(
     declared_range: Option<Interval>,
 ) {
     if let Some(path) = path {
+        env.unsigned_joint_add_bounds.retain(|(left, right)| {
+            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
+        });
         let interval = match declared_range {
             Some(declared) => interval.intersect(declared),
             None => interval,
@@ -1961,7 +2052,7 @@ fn analyze(
                     (None, None) => None,
                 }
             };
-            let interval = match operator {
+            let mut interval = match operator {
                 BinaryOperator::Add => refine_dependent_product(
                     program,
                     machine,
@@ -2017,6 +2108,13 @@ fn analyze(
             // range. Left shift separately retains F8's count obligation
             // below; proving a legal count never authorizes value overflow.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
+            if effective_domain == ArithmeticDomain::Exact
+                && operator == BinaryOperator::Add
+                && env.proves_unsigned_joint_add_bound(program, binary.left, binary.right)
+                && let Some(range) = primitive.and_then(primitive_range)
+            {
+                interval = range;
+            }
             // Abort-as-effect follow-up (owner 2026-07-18): a TRAPPING op
             // whose result interval is provably DISJOINT from its type's
             // range ALWAYS traps at runtime -- legal (the trap is the
