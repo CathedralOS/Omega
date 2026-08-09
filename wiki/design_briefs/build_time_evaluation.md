@@ -315,8 +315,8 @@ An expensive producer-side proof may publish carrierless selected-conformance
 evidence under the
 [law-bearing relation model](law_bearing_relations_and_quotients.md). The
 producer performs the witness search while building its artifact; a consumer
-opens the published proposition contract and never reruns that search. Cheap
-artifact/kernel verification may remain.
+projects the retained published proposition term and never reruns that search.
+Cheap artifact/kernel verification may remain.
 
 That is separate compilation of proof evidence, not an evaluator-cache escape
 hatch. A local cache substitutes for work still belonging to the current build

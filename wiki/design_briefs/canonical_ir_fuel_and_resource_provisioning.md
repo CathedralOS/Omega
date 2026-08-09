@@ -597,6 +597,10 @@ The fingerprinted semantic module contains:
 - erased bindings with their semantic type, multiplicity, validity,
   conservation, and provenance rows but no executable storage or cleanup;
   runtime layouts consume the erased-stripped form;
+- exact witness-evidence term identities distinct from nominal proposition
+  applications and derivation provenance, plus machine-derived nominal output
+  packages whose named proof fields erase and whose guarded fields occur only
+  in matching outcome variants;
 - target-neutral provider requirements and scoped ordering operations; and
 - stable identities shared by execution, propositions, proof evidence, fuel,
   diagnostics, and lowering provenance.

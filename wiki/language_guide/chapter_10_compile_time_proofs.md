@@ -49,35 +49,32 @@ ensures
 ```
 
 A primitive fact-only proposition ends with `;`. A witness-bearing proposition
-publishes one canonical carrierless evidence interface as part of its
-declaration. The interface is owner-authorized public proof content, not an
-executable body or an ordinary generic bound. Any selected conformance used to
-establish the proposition must supply that interface. Eliminating the
-proposition reopens the exact retained evidence term in proof-only computation,
-so a convergence proof can recover its opaque modulus and law. Different
-conformances may carry different witnesses without changing the proposition's
-nominal symbol.
+publishes one canonical carrierless interface through an `evidence` clause.
+The interface is owner-authorized public proof content, not an executable body,
+an ordinary generic bound, or the producer implementation. Any conformance
+selected while establishing the proposition must supply that complete
+interface. Different conformances may carry different witnesses without
+changing the proposition's nominal symbol.
 
-The concrete subjectless conformance exists, but the syntax that selects it at
-proposition introduction and opens the retained term at elimination remains
-an owner decision in `OWNER_QUESTIONS.md` Q1. A bare proposition fact therefore
-does not infer evidence from whichever conformance happens to be visible.
-
-The evidence interface is the proposition's sole brace entry:
+The clause is signature content:
 
 ```omega
 proposition converges_together<machine Left, machine Right>(
     left: CauchySeq<Left>,
     right: CauchySeq<Right>
-) {
-    ConvergenceEvidence<Left, Right>;
-}
+) evidence ConvergenceEvidence<Left, Right>;
 ```
 
-These braces are non-executable owner-controlled proof content, like the route
-list of a domain. A witness-bearing proposition has exactly one entry. The
-interface is not an ordinary `where` constraint, and `=` remains the distinct
-transparent-alias form.
+`evidence` answers one question: what may proof-only code project from a term
+of this proposition? A witness-bearing proposition names exactly one
+interface. The interface is not a result type or ordinary `where` constraint,
+and `=` remains the distinct transparent-alias form. A bare carrier such as a
+modulus machine would not state the laws tying that carrier to this proposition
+application; the interface publishes the carrierless members and their laws as
+one elimination contract.
+
+`evidence` is contextual after a proposition signature; it is not globally
+reserved as an identifier.
 
 The evidence interface is nevertheless normalized and fingerprinted. Revising
 it is a breaking proof-interface change even though the proposition retains its
@@ -124,6 +121,135 @@ erased proof may still be linear, borrow-scoped, entry-scoped, invalidated by a
 write, or tied to a live lease. Admission marks the evidence chain, not the
 proposition name, so two proofs of the same formula may carry different trust
 and a deployment profile may accept one and reject the other.
+
+## Named evidence terms
+
+Every checked `ensures P` establishes an erased proof term for `P`. A
+witness-bearing proposition additionally gives that term projectable members.
+Naming a `requires` clause binds the exact incoming term; naming an `ensures`
+clause declares an exact outgoing term:
+
+```omega
+machine transitive<machine First, machine Middle, machine Last>(
+    first: CauchySeq<First>,
+    middle: CauchySeq<Middle>,
+    last: CauchySeq<Last>
+)
+requires
+    left_evidence: converges_together(first, middle)
+    right_evidence: converges_together(middle, last)
+ensures
+    result_evidence: converges_together(first, last)
+{
+    result_evidence = ComposedEvidence<
+        left_evidence.modulus,
+        right_evidence.modulus
+    >;
+}
+```
+
+The incoming names are local aliases over positional erased parameters. A
+caller supplies them in clause order after the call's `;` lane separator; no
+visible-fact search, conformance search, or name matching occurs. The separator
+is omitted when either lane would be empty:
+
+```omega
+let {
+    result_evidence: combined_evidence
+} = transitive(
+    first,
+    middle,
+    last;
+    first_evidence,
+    second_evidence
+);
+```
+
+Projection is ordinary member syntax. Repeating `left_evidence.modulus`
+projects the same opaque symbol because both expressions use the same retained
+term. Forwarding the binding preserves that term. Separate introductions may
+carry different terms even when they inhabit the same nominal proposition.
+No `open` form or ambient producer inference exists.
+
+A named `ensures` binding is definitely assigned exactly once on every exit
+whose outcome guard makes that clause applicable. Assignment selects a named
+complete producer conformance privately in the proof body. The checker still
+checks the nominal proposition and the producer's complete normalized evidence
+rows. Forwarding instead uses ordinary assignment:
+
+```omega
+result_evidence = existing_evidence;
+```
+
+Name a `requires` clause only when its body projects or forwards the term.
+Changing `requires P` to `requires proof: P` adds an explicit erased input and
+is a breaking call-interface revision. Named `ensures` labels are public output
+fields; adding or renaming one is likewise breaking.
+
+## Evidence output packages
+
+A machine with one or more named `ensures` clauses returns a compiler-generated
+nominal output package whose concrete type is inferred and cannot be written in
+source. Its identity derives from the machine, runtime result, named evidence
+fields, propositions, and outcome guards. Coincidentally equal shapes from two
+machines are not the same type, and no generated `Machine::Output` name is
+inserted into an author-owned namespace.
+
+The complete package may be retained and projected:
+
+```omega
+let division = divide(numerator, denominator);
+use(division.value);
+consume(division.nonzero_evidence);
+```
+
+Or it may be destructured immediately:
+
+```omega
+let {
+    value: quotient,
+    nonzero_evidence: proof
+} = divide(numerator, denominator);
+```
+
+`value` is the reserved contextual field for an ordinary runtime result. Named
+evidence fields erase, so the package has the runtime representation of
+`value`; a proof-only package has zero runtime layout. There is no implicit
+coercion from the package to `value`. Every evidence field in a destructured
+shape must be bound or explicitly written `_`, and ordinary multiplicity rules
+reject discarding linear evidence. No rest pattern silently discards present or
+future proof fields.
+
+Outcome-specific evidence is a field only of the outcome where its `ensures`
+guard applies:
+
+```omega
+transition allocate(size) {
+    Success {
+        value: extent,
+        granted_evidence: grant
+    } -> use(extent; grant)
+
+    Error {
+        value: error
+    } -> report(error)
+}
+```
+
+Each outcome arm binds or explicitly discards every field carried by that
+outcome. The field does not exist on inapplicable paths, so per-outcome definite
+assignment is structural rather than an extra runtime convention.
+
+Machines without named `ensures` retain the ordinary return surface:
+
+```omega
+let value = ordinary_call();
+```
+
+The artifact keeps proposition identity, evidence-term identity, and
+derivation provenance separate. The first names the claim, the second preserves
+the exact hidden witness across projection and forwarding, and the third records
+how the claim was established and which admitted premises it trusts.
 
 ## Explicit relevance
 
@@ -339,12 +465,12 @@ substitution; a positivity fact about another generator does not alias it.
 
 The pointwise corpus supplies the mathematical kernel for the quotient below.
 The remaining language layer packages an existential modulus plus its universal
-law as carrierless proof evidence. A convergence proposition opens that
-evidence to one stable opaque modulus symbol characterized by its law; it does
-not run a convergence decider or expose the selected conformance in runtime
-layout. The same evidence term opens to the same symbol, while distinct
-evidence terms may carry distinct witnesses without changing proposition or
-quotient identity.
+law as carrierless proof evidence. A named convergence term projects one stable
+opaque modulus symbol characterized by its law; it does not run a convergence
+decider or expose the selected conformance in runtime layout. Repeating the
+projection on that term yields the same symbol, while distinct evidence terms
+may carry distinct witnesses without changing proposition or quotient
+identity.
 
 The ordered implementation dependency is explicit: proof-side proposition
 families and typed index telescopes land before evidence-bearing quotient
@@ -370,8 +496,8 @@ different generator indices while sharing the same family identity. Rat is the
 same model with an empty index telescope. Quotient carrier matching never
 admits an instance of a different family.
 
-The proposition's evidence is a selected conformance projected entirely into
-the proof stratum:
+The proposition's evidence is a retained term produced by a privately selected
+conformance and projected entirely in the proof stratum:
 
 ```text
 ConvergenceEvidence<A, B>
@@ -383,8 +509,8 @@ The mathematical name `ConvergesTogether(a, b)` is a witness-bearing
 proposition whose declaration names the carrierless evidence interface.
 Ordinary signatures do not expose the underlying selected conformance.
 Convenience names such as `Cauchy(s)` may be transparent proposition aliases.
-Because the entire evidence value has no runtime carrier, this exact by-value
-owned-`dyn` case needs no storage owner, table, allocation, or cleanup. Merely
+Because the entire evidence term has no runtime carrier, its named input and
+output bindings need no storage owner, table, allocation, or cleanup. Merely
 having no runtime table slots would not suffice for an ordinary runtime
 instance.
 

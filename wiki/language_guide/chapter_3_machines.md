@@ -365,6 +365,23 @@ body must keep every derived crash site within the published guards. Chapter 16
 defines the crash surface, its no-cleanup terminal semantics, and the separate
 requirements for fault-tolerant continuation.
 
+A contract fact may be named when the body must retain and project its exact
+erased proof term:
+
+```omega
+requires proof: witness_bearing_proposition(input)
+ensures result_proof: another_proposition(result)
+```
+
+Named requirements are positional erased inputs supplied after a call's `;`
+lane separator. Named guarantees are public fields in an inferred, unnameable,
+compiler-generated nominal output package. A package with a runtime result
+reserves the contextual field `value`; all evidence fields erase and follow
+ordinary multiplicity. Outcome-guarded guarantees exist only in the matching
+outcome shape. Chapter 10 defines evidence projection, assignment, call
+passing, destructuring, and the separate proposition, evidence-term, and
+derivation identities.
+
 ## Machine Graph Compatibility
 
 Internal states participate in the machine's graph, but they are not public

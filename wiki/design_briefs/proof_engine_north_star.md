@@ -194,11 +194,21 @@ parallel logical mechanism. The normalized interface is fingerprinted public
 proof content; changing it is a breaking proof-API revision while the nominal
 proposition symbol remains stable.
 
-Opening proposition evidence is allowed only within proof-relevant or erased
-computation. A witness that must influence runtime computation belongs in an
-ordinary `Type`-level dependent pair whose relevance is tracked explicitly;
-erasure alone does not authorize eliminating a `Prop` inhabitant into runtime
-`Type`.
+The `evidence Interface;` clause publishes the elimination contract. Named
+`requires` bindings retain exact incoming evidence terms and project their
+members in proof-only computation; named `ensures` bindings return exact terms
+through erased output fields. Producer conformances are selected privately at
+introduction and never enter mathematical signatures. A witness that must
+influence runtime computation belongs in an ordinary `Type`-level dependent
+pair whose relevance is tracked explicitly; erasure alone does not authorize
+eliminating a `Prop` inhabitant into runtime `Type`.
+
+The kernel and artifact keep three identities separate: the nominal
+proposition application, the retained evidence term that determines stable
+opaque projections, and the derivation provenance that records trust. Two
+derivations may reach the same term through different admitted premises; two
+terms may inhabit the same proof-irrelevant proposition while carrying
+different hidden witnesses.
 
 ## Migration boundary
 

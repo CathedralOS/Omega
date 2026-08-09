@@ -754,6 +754,14 @@ symbol. Transparent proposition definitions expand before terminal production,
 have no independent semantic identity, and retain their source names only in
 debug maps.
 
+Witness-bearing facts additionally retain an evidence-term identity and a
+separate derivation-provenance identity. Named `requires` inputs refer to exact
+positional erased terms; named `ensures` outputs contribute public fields to a
+machine-derived nominal package type that has no source name. Its runtime
+projection is the ordinary result and its other fields erase. Outcome guards
+control which package variant carries each field. Producer conformances remain
+inside proof construction and do not enter proposition or package identity.
+
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
 constructor lifts, dependency-ordered field relations, and every required

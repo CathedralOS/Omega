@@ -10,6 +10,9 @@ proposition terminal_relation<T, const Limit: u32, machine Generator>(value: T);
 proposition terminal_relation_alias<T, const Limit: u32, machine Generator>(value: T) =
     terminal_relation<T, Limit, Generator>(value);
 
+// Transitional parser spelling. The settled source form is
+// `proposition terminal_witness(value: i32) evidence TerminalEvidence;`;
+// SELECTED-WITNESS-EVIDENCE owns this live-canary migration.
 proposition terminal_witness(value: i32) {
     TerminalEvidence;
 }

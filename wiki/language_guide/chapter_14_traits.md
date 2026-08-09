@@ -675,12 +675,12 @@ machine contributes a stable opaque proof symbol plus its normalized contract.
 A law contributes only its contract. A trait may contain both strata; they are
 not independently authored surfaces.
 
-Opening the same carrierless evidence term twice yields the same opaque proof
+Projecting the same carrierless evidence term twice yields the same opaque proof
 symbols. Distinct evidence terms remain distinct to proof construction even
 when they establish the same proof-irrelevant proposition. Because the
-evidence has no runtime carrier, it may be passed and returned as owned `dyn`
-without allocation or cleanup. Transparent proposition aliases hide that
-mechanism in mathematical APIs.
+evidence has no runtime carrier, it may be passed and returned in erased proof
+inputs and output packages without allocation or cleanup. Transparent
+proposition aliases hide that mechanism in mathematical APIs.
 
 This is the existential evidence used by proposition-valued relations and
 law-bearing quotients. It never makes a carrierless machine runtime-callable,
@@ -689,12 +689,14 @@ See [chapter 10](chapter_10_compile_time_proofs.md) and
 [Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
 
 A witness-bearing proposition names exactly one such carrierless evidence
-interface in its declaration. The proposition owner authorizes that interface.
-Selected conformances supply concrete witnesses; they do not create
-proposition identities or nominate themselves as evidence routes. Eliminating
-an established proposition in proof-only computation opens the same retained
-evidence term that introduced it. The normalized interface is fingerprinted
-public proof content even though the selected witness has no runtime carrier.
+interface in its `evidence` clause. The proposition owner authorizes that
+interface. Selected conformances supply concrete witnesses; they do not create
+proposition identities or appear in mathematical contracts. A named
+`requires` binding projects the same retained evidence term that was introduced
+or forwarded, and a named `ensures` binding is assigned a producer privately
+in the proof body. The normalized interface and named output schema are
+fingerprinted public proof content even though the selected witness has no
+runtime carrier.
 
 ### Operational envelopes
 

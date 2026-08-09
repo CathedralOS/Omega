@@ -1,6 +1,6 @@
 # Design Brief: Mathematical Proofs
 
-Current as of 2026-08-07. Omega does not introduce a second proof language.
+Current as of 2026-08-08. Omega does not introduce a second proof language.
 Proofs use ordinary machines, data, contracts, domains, and ranked recursion;
 proof-only uses erase after checking.
 
@@ -9,8 +9,8 @@ names a fact; ordinary proof machines establish it through `ensures` and use it
 through `requires` or proof expressions. Primitive propositions end in `;`,
 witness-bearing propositions publish one carrierless evidence interface as
 fingerprinted proof content, and transparent proposition definitions use `=`.
-The witness-bearing interface is the proposition declaration's sole brace
-entry; the braces contain no executable proof body. See
+The witness-bearing interface follows the proposition signature in an
+`evidence Interface;` clause. See
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
 for the complete source and evidence model.
 
