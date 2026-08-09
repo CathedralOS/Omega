@@ -3686,6 +3686,12 @@ fn proof_from_semantic_axioms(
     goal: &Proposition,
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
+    if goal == &Proposition::Truth {
+        return Some(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+        });
+    }
     if let Some(index) = semantic_axioms.iter().position(|axiom| axiom == goal) {
         return Some(ProofNode {
             conclusion: goal.clone(),

@@ -1259,6 +1259,62 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
 }
 
 #[test]
+fn checked_source_exact_left_shift_uses_known_count_bounds() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("known-count exact left-shift source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_shift_left_known_count")
+        .expect("known-count exact left shift should use the precise value bound");
+    let shift_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::ExactIntegerShiftLeft { .. }))
+        .expect("known-count exact left shift remains explicit terminal work");
+    let OperationKind::ExactIntegerShiftLeft { obligation, .. } = shift_operation.kind else {
+        unreachable!()
+    };
+    assert!(
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == obligation)
+    );
+
+    let semantic =
+        encode_module(&lowered.semantic_module).expect("known-count exact left-shift semantics");
+    let proof =
+        encode_proof_bundle(&lowered.proof_bundle).expect("known-count exact left-shift proof");
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u32_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execute = |value| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(value)],
+        )
+        .expect("verified known-count exact left shift should interpret")
+    };
+    assert_eq!(execute(536_870_911).value(), argument(4_294_967_288));
+    assert_eq!(execute(536_870_912).value(), argument(0));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("known-count exact left shift should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("known-count exact left shift should select");
+        let assigned =
+            assign_registers(&target_operations).expect("known-count exact left-shift homes");
+        emit_machine_code(&assigned).expect("known-count exact left shift should emit");
+    }
+}
+
+#[test]
 fn checked_source_conditional_survives_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi conditional source canary should compile");

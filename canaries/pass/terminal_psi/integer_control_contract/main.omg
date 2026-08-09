@@ -894,6 +894,20 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_shift_left_known_count(value: u32) -> u32
+requires 0u32 == 0u32
+ensures 0u32 == 0u32
+{
+    transition value <= 536870911u32 {
+        true -> finish_exact_left_known_count(value << 3u32)
+        _ -> finish_exact_left_known_count(0u32)
+    }
+
+    state finish_exact_left_known_count(value: u32) -> u32 {
+        value
+    }
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true
