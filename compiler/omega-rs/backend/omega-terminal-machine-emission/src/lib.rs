@@ -1411,7 +1411,8 @@ fn emit_x86_64_expression_node(
                 }
             }
         }
-        TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. } => {
+        TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
             emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
             bytes.push(0x50);
             let nested_depth = stack_depth.checked_add(8).ok_or(
@@ -2160,7 +2161,8 @@ fn emit_aarch64_expression_node(
             });
             emit_aarch64_normalize(instructions, scalar_type);
         }
-        TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. } => {
+        TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
             emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
@@ -2426,6 +2428,9 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
             expression_source(left)
         }
         TerminalAssignedIntegerExpression::SaturatingDivide { left, .. } => expression_source(left),
+        TerminalAssignedIntegerExpression::SaturatingRemainder { left, .. } => {
+            expression_source(left)
+        }
     }
 }
 

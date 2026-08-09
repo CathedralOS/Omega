@@ -830,6 +830,21 @@ fn assign_expression(
                 right,
             },
         ),
+        TerminalTargetIntegerExpression::SaturatingRemainder {
+            psi_operation,
+            left,
+            right,
+        } => binary(
+            *psi_operation,
+            left,
+            right,
+            locations,
+            |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingRemainder {
+                psi_operation,
+                left,
+                right,
+            },
+        ),
     }
 }
 
@@ -994,6 +1009,10 @@ fn expression_parameter_locations(
                 collect(right, locations)?;
             }
             TerminalTargetIntegerExpression::SaturatingDivide { left, right, .. } => {
+                collect(left, locations)?;
+                collect(right, locations)?;
+            }
+            TerminalTargetIntegerExpression::SaturatingRemainder { left, right, .. } => {
                 collect(left, locations)?;
                 collect(right, locations)?;
             }

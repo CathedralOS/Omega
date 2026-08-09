@@ -20,8 +20,8 @@
 //! the address carrier, v28-v33 add proof-gated exact casts, shifts, addition,
 //! subtraction, and multiplication, v34 adds proof-gated exact division, and
 //! v35 adds proof-gated exact remainder, v36 adds proof-gated wrapping
-//! division, v37 adds proof-gated wrapping remainder, and current v38 adds
-//! proof-gated saturating division.
+//! division, v37 adds proof-gated wrapping remainder, v38 adds proof-gated
+//! saturating division, and current v39 adds proof-gated saturating remainder.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other
