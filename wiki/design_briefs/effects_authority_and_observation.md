@@ -125,44 +125,35 @@ Crash possibility is the flow-sensitive may-axis:
 
 ```omega
 machine divide(n: i32, d: i32) -> i32
-crashes Trap Activation
+crashes Trap
     d == 0
     n == i32::Minimum && d == -1
-crashes Abort ExecutionDomain
+crashes Abort
     configuration_invalid
 {
 }
 ```
 
-Each clause names one cause and one containment scope. Its indented entries are
-alternative routes, so the clause denotes their disjunction. An empty route
-list denotes `true`. `crashes Trap` is the conservative shorthand for an
-unconditional `Trap` route at `ExecutionDomain`, the permanent portable top.
-Omitting a cause from a published contract forbids that cause. Private omission
-infers a summary.
+Each clause names one cause. Its indented entries are alternative routes, so the
+clause denotes their disjunction. An empty route list denotes `true`. Omitting a
+cause from a published contract forbids that cause. Private omission infers a
+summary.
 
 The initial cause identities are `Trap` and `Abort`. Cause identity controls
-policy and lowering; both are no-successor, no-cleanup exits. Cause identities
-are append-only. Context crash policies are sparse maps keyed by cause, with an
-absent cause forbidden, so adding a cause does not change an existing context's
-identity.
+policy and lowering; both are no-successor, no-cleanup exits.
 
-For each derived crash site, let `D` be its path-conditioned guard and
-`minimum(D)` the smallest termination scope required to keep survivors sound.
-The authored contract supplies route guards `C_i` and published containment
-demands `scope_i`. Coverage is two-dimensional:
+For each derived crash site, let `D` be its path-conditioned guard. The authored
+contract supplies route guards `C_i`. Coverage is:
 
 ```text
-D implies OR_i(C_i && minimum(D) <= scope_i)
+D implies OR_i(C_i)
 ```
 
 The declaration is a public ceiling, not an exact body summary. A body may
-derive narrower guards or scopes without changing exported identity. A wider
-body result rejects. Across calls, substitute arguments into the published
-routes and discard every route disproved by current facts. Surviving routes
-propagate upward; disproving all routes removes that cause at that invocation.
-Scopes are retained as separate buckets and compared independently, so the
-model needs only a stable partial order rather than a join operation.
+derive narrower guards without changing exported identity; an uncovered site
+rejects. Across calls, substitute arguments into the published routes and
+discard every route disproved by current facts. Surviving routes propagate
+upward; disproving all routes removes that cause at that invocation.
 
 This refinement is deliberately unlike `suspends` and `blocks`. Whether a
 particular call parks or waits does not change those published booleans. Crash
@@ -180,7 +171,7 @@ The checked representation materializes invocation refinement before typed
 source is discarded. Each direct published-callee row records the stable
 state/statement/call coordinate, the target contract fingerprint, the caller's
 exact incoming path conjunction, a separate source-independent structural
-consequence set, and the independently surviving cause/containment buckets.
+consequence set, and the independently surviving cause/guard buckets.
 Concrete false routes disappear, concrete true
 routes normalize to unconditional alternatives, unknown routes are retained in
 the caller's positional parameter namespace, and a call with no survivors
@@ -190,43 +181,21 @@ parameters now use source-independent crash-contract capsules that pin their
 published buckets to the complete normalized callable-contract fingerprint.
 Same-unit private fixed points now retain a temporary canonical predicate tree
 through nonrecursive edges and widen recursive SCC edges to unconditional
-cause/scope buckets. Separately compiled import capsules remain blocked until
+cause buckets. Separately compiled import capsules remain blocked until
 the semantic import/export carrier and its certificate binding are specified.
 
-An enclosing execution context publishes a maximum tolerated scope per cause.
-The map belongs to the activation, task, supervisor, or root that expects state
-to survive; leaf machines do not repeat it. Provider or Build APIs may construct
-that context plan, but the normalized sparse map is fingerprinted semantic
-content rather than installation-supplied policy.
-For every surviving route:
+Checked ownership also records a canonical lower bound of claims and invariant
+windows known to be live at each crash site. That lower bound is audit and
+diagnostic evidence. It cannot establish that unlisted state, external storage,
+devices, or peers remain valid, and therefore cannot license survivor
+execution.
 
-```text
-derived_site_minimum
-    <= published_route_demand
-    <= context_maximum[cause]
-```
-
-Installation binds the nominal scopes to a selected target fault plan and must
-also establish:
-
-```text
-published_route_demand
-    <= realized_target_scope
-    <= context_maximum[cause]
-```
-
-The lower installation bound is not redundant: containing a fault to one
-activation is unsafe when that activation crashed with a domain-wide shared
-invariant open. The upper bound protects what the context expects to survive.
-Psi fingerprints and checks the portable demands; Omega installation retains
-the selected plan and evidence that realizes them.
-
-The first checked widening rule is deliberately conservative. An explicit
-crash with any default-domain invariant window open retains the
-invariant-bearing data identity and raises `derived_site_minimum` to
-`ExecutionDomain`. A normal return, call, read, borrow, or continuing transition
-still requires the window to close. Future custody evidence may justify finer
-nominal minima without weakening this rule in its absence.
+Fault-tolerant continuation is a separate architectural proof. It requires a
+closed-custody component boundary, an explicit per-resource owner-death
+protocol, or an external reset/transaction protocol, plus a target realization
+of the isolation and restart plan. In the absence of that independent proof an
+uncontained crash terminates the execution domain. Ordinary crash contracts do
+not carry containment scopes or recovery promises.
 
 ## V1 composition algebra
 
@@ -396,8 +365,8 @@ Body inference only checks inclusion on each axis.
 > published identity.
 
 Proof strength therefore cannot silently shrink an exported service row, erase
-an operational ceiling, rewrite a published crash guard or scope demand, or
-change a contract hash. Internal legality may improve when a stronger prover
+an operational ceiling, rewrite a published crash guard, or change a contract
+hash. Internal legality may improve when a stronger prover
 establishes that a path is unreachable, but exported identity remains authored.
 Stable syntactic/CFG reachability feeds normalization; heuristic entailment
 does not.
@@ -462,7 +431,7 @@ composition are deterministic.
 Recoverable failure remains a return sum with case-specific guarantees
 (decision 18). There is no `fails` clause. Cooperative cancellation remains a
 sum delivered to the task. `crashes` independently publishes non-returning
-`Trap` and `Abort` routes, their predicates, and their containment demands.
+`Trap` and `Abort` routes and their predicates.
 Calling a process-exit service may contribute both `ProcessExit` reach and an
 `Abort` route, but neither axis is reconstructed from the other.
 

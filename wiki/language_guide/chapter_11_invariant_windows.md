@@ -72,16 +72,13 @@ but later code cannot retroactively downgrade the fact. If an admitted provider
 lied or hardware violated the execution model, the earlier proof was unsound;
 marking metadata afterward cannot repair code that already relied on it.
 
-A crash route while a shared invariant window is open derives a containment
-demand wide enough to terminate everything that could observe the broken
-state. In a context that promises narrower survival, that route must be
-disproved before the site; merely publishing `crashes Trap` does not make the
-window safe. The current portable rule retains the invariant-bearing data
-identity at the checked crash site and widens its damage minimum to
-`ExecutionDomain`. A resource may lower this damage minimum only through an
-explicit owner-death recovery protocol whose acquisition outcome forces
-survivors to observe and repair the abandoned invariant. There is no ambient
-poisoning or asynchronous destruction hidden from the checked graph.
+A crash route while an invariant window is open records the invariant-bearing
+data identity in the site's abandonment evidence. That is a necessary audit
+fact, not proof that every unrecorded value remains valid. Ordinary execution
+may continue after such a crash only across an independently established
+closed-custody component boundary, or through a resource-specific owner-death
+protocol whose acquisition outcome forces recovery before reuse. There is no
+ambient poisoning or inferred survivor-safety rule.
 
 Unestablished storage is different from an established value whose invariant
 was later broken. If establishment fails, no `T` exists and the raw storage may

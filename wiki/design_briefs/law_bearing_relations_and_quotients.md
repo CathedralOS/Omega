@@ -134,7 +134,7 @@ establish their applications by ordinary entailment; they need no separate
 authorization route.
 
 The introduction/elimination spelling for that retained selected term is not
-yet settled. `OWNER_QUESTIONS.md` Q2 owns where the conformance selection is
+yet settled. `OWNER_QUESTIONS.md` Q1 owns where the conformance selection is
 authored, how forwarded facts retain the same term, and how proof-only code
 opens its opaque members. Until that ruling, the compiler must not infer
 evidence from a bare proposition fact.

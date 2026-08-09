@@ -77,13 +77,15 @@ verifier requires its frontier to equal every still-live entry claim (terminal
 Psi has no claim-consuming operation yet), direct interpretation reports a
 distinct terminal crash outcome and never replays it after resume, canonical
 bytes and semantic identity cover every field, and fuel charges its edge.
-Omega native lowering rejects the row until target crash plans are represented;
+Omega native lowering rejects the row until target crash lowering is represented;
 it never silently treats a crash as a return or ordinary terminal transition.
-The source frontend now retains fingerprinted `crashes Cause Scope` buckets and
-explicit `crash Cause;` exits. Source production accepts exactly one prechecked
-covering bucket, emits its selected containment demand and the site's derived
-damage minimum on the crash terminator, and fails closed for absent or
-ambiguous coverage. This covers crash-only unconditional machines and
+The source frontend currently retains fingerprinted legacy
+`crashes Cause Scope` buckets and explicit `crash Cause;` exits. Source
+production accepts exactly one prechecked covering bucket, emits its legacy
+scope fields and the site's frontier lower bound on the crash terminator, and
+fails closed for absent or ambiguous coverage. The scope fields do not prove
+survivor safety and are scheduled for retirement from current production. This
+covers crash-only unconditional machines and
 checker-proved incoming-path guards in the acyclic integer-control slice,
 including exact-type integer comparison guards, nested-negation implication,
 and portable comparison equivalences. Integer guard operands may use the same
@@ -92,9 +94,10 @@ retain terminal operations, inequality composes `BooleanNot`, and greater forms
 swap operands into the canonical less relation.
 Route facts are already
 restricted to Boolean expressions. Public contract and generic-template
-identities already merge exact `(cause, scope)` buckets, discard duplicate
-routes, and let a route-less or explicit-`true` route subsume guarded
-alternatives. Checked machine-contract plans retain that published set as
+identities currently merge exact legacy `(cause, scope)` buckets, discard
+duplicate routes, and let a route-less or explicit-`true` route subsume guarded
+alternatives. The settled form normalizes by cause alone. Checked
+machine-contract plans retain that published set as
 source-handle-free buckets; the public fingerprint and contract manifest
 consume the same carrier, and terminal lowering selects prechecked coverage
 from it rather than re-reading typed clauses. An independent checked body layer
@@ -138,7 +141,7 @@ present. A
 temporary canonical predicate tree carries positional parameters through every
 nonrecursive private edge, so guarded routes survive arbitrarily deep acyclic
 wrappers and concrete outer arguments can still disprove them. Recursive SCC
-edges widen to unconditional cause/scope buckets: this is the finite
+edges currently widen to unconditional legacy cause/scope buckets: this is the finite
 conservative top for cycles whose argument transformations could otherwise
 create an unbounded predicate family. Only final source-handle-free predicate
 identities enter the checked plans.
@@ -149,33 +152,16 @@ them through the dense source-claim table and rejects an unmapped identity
 rather than silently weakening the frontier. Conditional sum claims join that
 lower bound only when canonical symbol-rooted membership evidence proves every
 case segment on the nested claim path; rendered source labels, dynamic indexes,
-and partial outer-case proofs do not suffice. Checked sites now also retain the
-intrinsic cause minimum: `Trap` requires at least `Activation`, while `Abort`
-requires `ExecutionDomain`. Exact nominal identity and the permanent
-`ExecutionDomain` top provide the first conservative scope order. If a crash
-abandons an open default-domain invariant window, the checked site retains the
-invariant-bearing data identity and widens its damage minimum to
-`ExecutionDomain`. This is the conservative portable top until finer custody
-evidence can select an intermediate nominal scope. Reports
-separate guard-covering buckets from the subset whose containment demand also
-covers the minimum; terminal production consumes that two-dimensional subset,
-rejects narrower authored demand, and emits both the derived minimum and
-selected published demand into v23. Archived v22 bytes decode conservatively
-with both in-memory fields equal to their single encoded scope. Conditional
-frontier membership, finer custody-based minimum widening, broader guarded
-production beyond the scalar acyclic slice, narrower supervisor/task context
-production, and installation
-realization remain the rest of CRASH-CONTRACT. Terminal Psi v24 stores each
-effective sparse per-cause context maximum in the fingerprinted machine
-contract and the verifier enforces `containment demand <= context
-maximum[cause]`. Artifact-root crash production supplies `ExecutionDomain` for
-both closed causes. A sibling checked-to-terminal entry point accepts an
-already selected canonical sparse context for narrower activation, task, or
-supervisor composition and validates the completed semantic module before
-artifact production. Build/provider selection still needs to supply that input.
-Archived modules migrate only causes used by their crash terminators to the
-legacy root maximum. Declared intermediate nominal scope
-ordering is separately blocked on `OWNER_QUESTIONS.md` Q1.
+and partial outer-case proofs do not suffice. Checked sites also retain legacy
+intrinsic scope fields and open-window identities. Those fields describe the
+v22–v24 representation and remain validated for backward decoding; they are not
+sufficient evidence that any survivor is safe. The durable checked facts are
+the cause, exact incoming guard, covering same-cause routes, and canonical lower
+bound of definitely live claims and invariant windows. Conditional frontier
+membership and broader guarded production beyond the scalar acyclic slice
+remain CRASH-CONTRACT work. A future schema revision removes the legacy
+damage-minimum, containment-demand, and context-maximum fields from current
+production without changing older module meaning.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -794,39 +780,34 @@ conservation remains derived.
 Terminal Psi represents `Trap` and `Abort` as closed crash causes attached to
 distinct no-successor terminators. A crash terminator is not an ordinary
 terminal transition and does not encode abandonment by omitting a cleanup list.
-It carries the path-conditioned site guard, derived damage-minimum scope,
-covering published route buckets, and the statically known local frontier as an
-explicit lower bound. The exact dynamically abandoned frontier is not claimed
-to be edge-enumerable.
+It carries the path-conditioned site guard, covering published route buckets,
+and the statically known local frontier as an explicit lower bound. The exact
+dynamically abandoned frontier is not claimed to be edge-enumerable.
 
 Published crash buckets are fingerprinted semantic content. Each bucket has
-one cause, one nominal containment demand, and a canonical disjunction of route
-predicates over the same lowered values and structural places as executable
-Psi. Buckets normalize only when both cause and scope match. Omitted scope has
-already elaborated to the permanent portable top `ExecutionDomain`; an
+one cause and a canonical disjunction of route predicates over the same lowered
+values and structural places as executable Psi. Buckets normalize by cause. An
 unconditional clause contains the canonical `true` predicate.
 
 The verifier independently reconstructs every crash site and checks:
 
 ```text
 site_guard implies
-    OR(covering_guard
-       && site_damage_minimum <= covering_containment_demand)
+    OR(covering_guard for the same cause)
 ```
 
 Call composition substitutes arguments and caller path facts into published
 routes. Disproving every route removes the corresponding crash edge from the
-caller's semantic frontier; disproving only wide-scope routes narrows the
-remaining containment demands. Evidence derived from a callee body is usable
+caller's semantic frontier. Evidence derived from a callee body is usable
 only when that body is within the same fingerprinted verification unit.
 Otherwise the verifier consumes the imported published ceiling and its
 certificate.
 
-Psi also checks every surviving route demand against the enclosing
-fingerprinted per-cause context maximum. It does not interpret scopes as
-processes, matrices, partitions, or machines. Omega binds those nominal tokens
-to a selected fault plan and records evidence that the realized target scope is
-at least the route's damage demand and no wider than the context permits.
+The frontier lower bound is diagnostic and audit evidence only. It states which
+tracked obligations are definitely live at the site; it cannot prove that
+unlisted state or external effects remain valid, and no verifier may use it to
+license survivors. Fault-tolerant restart requires separate closed-custody,
+resource-recovery, external-reset, and target-isolation evidence.
 
 The reference interpreter does not return a crash as data. Reaching a crash
 terminator yields a distinct interpreter outcome carrying its cause and

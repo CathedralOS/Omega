@@ -873,13 +873,10 @@ BlockingPlan {
 CrashCauseId = stable identity                     // initially Trap | Abort;
                                                    // closed per semantic version,
                                                    // append-only across versions
-CrashScopeId = stable nominal identity in a partial order
 CrashPredicateId = canonical lowered proof-expression identity
-ExecutionDomain = permanent portable top scope
 
 CrashRouteBucket {
   cause: CrashCauseId,
-  containment_demand: CrashScopeId,
   alternative_guards: NonEmpty<CrashPredicateId>,
 }
 
@@ -893,10 +890,8 @@ CrashPlan {
 CheckedCrashSite {                              // checked-tree implementation evidence
   location: (StateId, state_local_statement_ordinal),
   cause: CrashCauseId,
-  damage_minimum: CrashScopeId,
   guard_covering_buckets: Set<CrashRouteBucketId>,
   known_local_frontier_lower_bound: Set<PermissionClaimIdentity>,
-  // full coverage also requires damage_minimum <= bucket.containment_demand
 }
 
 CrashContractCapsule {                         // abstract callable, no local body plan
@@ -914,26 +909,11 @@ CheckedCrashCallSite {
   surviving_buckets: CrashRouteSet,
 }
 
-CrashContextPlan {
-  maximum_by_cause: SparseMap<CrashCauseId, CrashScopeId>,
-  // absent cause = forbidden
-  // terminal Psi v24 retains the effective map in each machine contract;
-  // artifact-root production supplies ExecutionDomain for both closed causes
-}
-
 CrashTerminatorPlan {
   cause: CrashCauseId,
   derived_guard: CrashPredicateId,
-  derived_damage_minimum: CrashScopeId,
   covering_route_buckets: NonEmpty<CrashRouteBucketId>,
   known_local_frontier_lower_bound: FrontierId,
-}
-
-InstalledCrashContainment {
-  selected_fault_plan,
-  cause: CrashCauseId,
-  realized_scope: CrashScopeId,
-  evidence,
 }
 
 CallOperationalAcknowledgement {
@@ -949,22 +929,19 @@ composition substitutes each binding path with its selected conformance and
 retains the realized direct edges for cycle and stack-topology checks.
 `suspends;`, `blocks;`, and `crashes` publish independent may-ceilings;
 omission on a public requirement is the corresponding negative guarantee.
-Private omission infers each axis. Crash routes normalize by `(cause,
-containment_demand)` bucket, flattening alternative guards only within an exact
-bucket. A route-less source clause contributes the canonical `true` guard, and
-omitted scope elaborates to `ExecutionDomain`. The deterministic normalizer
+Private omission infers each axis. Crash routes normalize by cause, flattening
+alternative guards within that bucket. A route-less source clause contributes
+the canonical `true` guard. The deterministic normalizer
 owns service-row and operational contract identity;
 the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
 the positive `terminates` guarantee and private ranking witness.
 
 The crash checker covers every path-conditioned derived site with authored
-routes whose demands are no narrower than the derived damage minimum. At a
-call, it substitutes arguments and removes only guards disproved by available
-facts. It compares each surviving bucket with the enclosing per-cause context
-maximum independently; no scope join is required. Proofs may use a checked body
-only when that body belongs to the same fingerprinted verification unit.
-Imported evidence cites the published contract and certificate.
+same-cause routes. At a call, it substitutes arguments and removes only guards
+disproved by available facts. Proofs may use a checked body only when that body
+belongs to the same fingerprinted verification unit. Imported evidence cites
+the published contract and certificate.
 
 Same-unit private bodies use a conservative monotone summary over the viable
 invocation graph. While typed expressions remain available, a temporary
@@ -973,7 +950,7 @@ the exact argument substitution through every nonrecursive private edge. The
 tree is not durable checked data: final `CheckedCrashCallSite` rows contain only
 the resulting source-independent predicate identities. An edge inside a
 recursive strongly connected component widens each propagated route to its
-unconditional `(cause, containment_demand)` bucket. That widening prevents
+unconditional cause bucket. That widening prevents
 argument-changing recursion from generating an infinite predicate family and
 is conservative for callers; acyclic wrappers retain their guards and concrete
 outer arguments may still disprove them.
@@ -988,15 +965,11 @@ its nested claim path. Non-place or dynamic-index argument rebinding and a
 partial outer-case proof remain conservatively absent. Obligations outside the
 activation are not claimed to be edge-enumerable. Exhaustive crash paths
 abandon the retained claims; lowering does not synthesize a cleanup or consume
-event for them.
+event for them. Open invariant windows contribute their invariant-bearing data
+identities to the same lower bound.
 
-The row is still not a completed `CrashTerminatorPlan`. It seeds the intrinsic
-cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`); later
-invariant and custody analysis may widen that value but cannot narrow it. The
-first such analysis is live: an explicit crash with any open default-domain
-invariant window retains the invariant-bearing data identities on the checked
-site and widens the minimum to the conservative portable top,
-`ExecutionDomain`. Finer custody-derived nominal scopes remain future work.
+The row is still not a completed `CrashTerminatorPlan` until guard coverage and
+frontier reconstruction both succeed.
 Canonical route buckets receive dense plan-local identities, and an
 unconditional same-cause bucket enters `guard_covering_buckets` structurally
 because `true` covers every path guard. Exact retained incoming guards and
@@ -1014,38 +987,26 @@ non-strict bounds. Checked call
 rows retain the same source-independent consequence set for caller-ceiling
 coverage. The checked site and call rows separately retain the canonical
 conjunction of exact incoming predicates; consequences
-only establish bucket coverage and never replace that derived guard. The fully
-covering subset independently requires the bucket's containment demand to cover
-`damage_minimum`; exact identity plus the permanent
-`ExecutionDomain` top is the first conservative nominal order. Richer logical
-entailment remains. Declared intermediate
-scope ordering is blocked on `OWNER_QUESTIONS.md` Q1. Checked sites are
-implementation evidence and never enter the
+only establish bucket coverage and never replace that derived guard. Richer
+logical entailment remains. Checked sites are implementation evidence and never enter the
 published contract fingerprint.
 
-Psi owns these nominal demand checks. Omega installation supplies
-`InstalledCrashContainment` and verifies, for every surviving route:
-
-```text
-derived_damage_minimum
-    <= published_containment_demand
-    <= realized_scope
-    <= context_maximum[cause]
-```
-
-The lower realized-scope bound prevents a narrowly killed activation from
-leaving corrupted shared state visible. The upper bound protects the context's
-survivors. Physical meanings of scopes, fault handlers, and isolation units
-exist only in the installation record.
-
 `CrashTerminatorPlan` is a distinct no-successor terminal with no cleanup. Its
-frontier field is explicitly a lower bound: an activation crash includes caller
-frames, and an execution-domain abort can abandon unrelated live or suspended
-activations that the edge cannot enumerate. An explicit abandonment plan, not
-an absent cleanup list, distinguishes this outcome from incomplete lowering.
+frontier field is explicitly a lower bound: caller frames, external effects,
+and unrelated live or suspended activations need not be edge-enumerable. The
+frontier is audit evidence and cannot license survivor execution. An explicit
+abandonment plan, not an absent cleanup list, distinguishes this outcome from
+incomplete lowering.
 Terminal production maps retained stable claim identities to dense `ClaimId`s
 and rejects a checked identity without a terminal mapping; it never silently
 drops a known abandoned claim.
+
+Fault tolerance is a separate composition proof. Continuation after a crash
+requires an independently verified closed-custody component boundary, explicit
+owner-death handling for every shared resource, reset or transaction semantics
+for external effects, and a target realization of the isolation/restart plan.
+Without that evidence the crash ends the execution domain. None of those facts
+is inferred from `known_local_frontier_lower_bound`.
 
 `CallOperationalAcknowledgement` belongs to syntax/checked-call and diagnostic
 artifacts, not `MachineContractPlan` identity. Validation requires its two bits
@@ -1223,10 +1184,9 @@ independent semantic axis with the operational fixed point.
   `blocks`.
 - No semantic decision projects suspension or blocking from service reach, or
   service reach from an operational boolean.
-- Crash buckets normalize only within an exact cause and scope. Call-site
-  refinement may remove a bucket but cannot rewrite published contract identity.
+- Crash buckets normalize by exact cause. Call-site refinement may remove a
+  bucket but cannot rewrite published contract identity.
 - Every verified crash site has an explicit no-cleanup terminator and frontier
   lower bound; absence of cleanup is never used as abandonment evidence.
-- Psi checks nominal crash demands against per-cause context maxima, while
-  installation separately proves a selected target scope is neither narrower
-  than the damage demand nor wider than the context permits.
+- The crash frontier is a necessary lower bound for audit and diagnostics, not
+  sufficient evidence for survivor safety.

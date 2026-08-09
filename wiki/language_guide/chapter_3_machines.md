@@ -359,11 +359,11 @@ ensures
 
 The caller must satisfy `requires`. The machine body must establish `ensures`.
 Independent may-ceilings publish service reach, suspension, blocking, and
-guarded crashes. In particular, `crashes Cause Scope` lists alternative route
+guarded crashes. In particular, `crashes Cause` lists alternative route
 predicates; callers may disprove routes for a concrete invocation, while the
-body must keep every derived crash site within the published guards and
-containment demands. Chapter 16 defines the crash surface and its no-cleanup
-terminal semantics.
+body must keep every derived crash site within the published guards. Chapter 16
+defines the crash surface, its no-cleanup terminal semantics, and the separate
+requirements for fault-tolerant continuation.
 
 ## Machine Graph Compatibility
 

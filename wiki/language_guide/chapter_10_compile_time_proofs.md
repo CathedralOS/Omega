@@ -60,7 +60,7 @@ nominal symbol.
 
 The concrete subjectless conformance exists, but the syntax that selects it at
 proposition introduction and opens the retained term at elimination remains
-an owner decision in `OWNER_QUESTIONS.md` Q2. A bare proposition fact therefore
+an owner decision in `OWNER_QUESTIONS.md` Q1. A bare proposition fact therefore
 does not infer evidence from whichever conformance happens to be visible.
 
 The evidence interface is the proposition's sole brace entry:

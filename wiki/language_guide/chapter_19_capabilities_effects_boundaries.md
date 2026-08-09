@@ -232,8 +232,8 @@ machine backup(
 ```
 
 `suspends;` says the invocation may park its activation. `blocks;` says it may
-occupy its worker while waiting. `crashes Cause Scope` publishes guarded
-no-return routes and their containment demands. `terminates;` separately
+occupy its worker while waiting. `crashes Cause` publishes guarded no-return
+routes. `terminates;` separately
 guarantees eventual terminal progress under pinned premises. Service reach
 accumulates by row union; suspension and blocking accumulate independently by
 boolean may; crash routes compose by predicate substitution and disproof. If

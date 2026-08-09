@@ -170,19 +170,17 @@ Current ownership is:
   accessors. Both expose root constructors so invariant and domain production
   joins arena roots explicitly.
 - `psi-checked-trees/src/facts/contract_plans.rs` owns each machine's normalized
-  public contract. Its crash axis is a canonical set of `(cause, containment
-  demand)` buckets with source-handle-free predicate identities; route-less and
-  explicit-`true` clauses normalize to the same unconditional route. Public
+  public contract. Its settled crash axis is a canonical set of cause buckets
+  with source-handle-free predicate identities; route-less and explicit-`true`
+  clauses normalize to the same unconditional route. Public
   fingerprints, reports, and terminal production consume this checked carrier
   rather than re-reading typed crash clauses. The same plan keeps an
   independent, non-fingerprinted checked-site layer keyed by state and
-  state-local statement ordinal. Each site records the body-derived cause, its
-  derived damage minimum, selected published coverage, exact incoming guard
-  conjunction, open default-domain invariant data identities, and a canonical
-  definitely-live claim-frontier lower bound. The intrinsic cause supplies the
-  initial minimum; abandoning any open invariant window widens it to the
-  conservative portable `ExecutionDomain` top until finer custody evidence is
-  available.
+  state-local statement ordinal. Each site records the body-derived cause,
+  selected published coverage, exact incoming guard conjunction, open invariant
+  data identities, and a canonical definitely-live claim-frontier lower bound.
+  That frontier supports audit and diagnostics; it cannot prove unlisted state
+  valid or license survivor execution.
   Unconditional entry claims are included directly. A positive symbol-stamped
   case-pattern guard on a named edge is rebound through the target state's
   arguments and promotes only the selected conditional entry claim. A
@@ -203,17 +201,16 @@ Current ownership is:
   selected summary after invocation argument substitution. Published buckets
   are selected for authored interfaces. Same-unit private bodies instead use a
   conservative monotone summary fixed point over the viable invocation graph:
-  every explicit site becomes an unconditional `(cause, damage minimum)`
-  bucket, a site-free leaf produces positive empty evidence, and a resolved
+  every explicit site becomes an unconditional cause bucket, a site-free leaf
+  produces positive empty evidence, and a resolved
   nested summary carries a temporary canonical predicate tree and substitutes
   positional arguments through every nonrecursive edge. Recursive SCC edges
-  widen to unconditional cause/scope buckets, so argument-changing cycles close
+  widen to unconditional cause buckets, so argument-changing cycles close
   over a finite conservative bucket set while acyclic wrappers retain guards.
   An unknown dependency prunes its caller closure from the fixed point, so
   partial direct-site evidence cannot erase a nested crash. A published caller
   must cover every
-  surviving call route independently with a same-cause bucket whose
-  containment demand covers the selected demand. Guard coverage accepts an
+  surviving call route independently with a same-cause bucket. Guard coverage accepts an
   unconditional caller route, the exact surviving predicate, or a retained
   structural consequence of the invocation's incoming path. Exact conjuncts
   and consequences remain separate checked fields. Private inferred callers

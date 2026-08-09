@@ -704,8 +704,7 @@ operational envelope: the operational projection of its normalized machine
 contract. It includes service reach, direct synchronous invocation, the
 inferred or signature-derived mutation summary, capability requirements,
 suspension, blocking, failure, termination, and quantitative resource ceilings.
-Guarded crash routes retain their predicates and containment demands as a
-separate may-axis.
+Guarded crash routes retain their causes and predicates as a separate may-axis.
 Carry remains a property of the dynamic value rather than of an individual
 requirement.
 
@@ -780,8 +779,7 @@ fingerprinting.
 Within a machine contract, an omitted `suspends` or `blocks` clause means
 false, and an omitted crash cause is forbidden. Within a refinement, omission
 means inherit; `suspends false` and `blocks false` explicitly narrow, while
-crash refinement may disprove inherited route predicates or lower their scope
-demands. `reaches;` means an empty row, while
+crash refinement may disprove inherited route predicates. `reaches;` means an empty row, while
 `reaches _;` introduces an independent abstract reach row for that
 requirement. Correlating several requirements with one named row is a later
 extension.

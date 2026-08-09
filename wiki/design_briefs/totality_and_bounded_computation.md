@@ -72,12 +72,11 @@ Logic failures such as unchecked overflow, invalid indexing, and impossible
 case extraction are proof obligations and reject by default. Recoverable
 failure remains a return sum with case-specific guarantees.
 
-`crashes Cause Scope` publishes guarded non-return routes on an independent
-may-axis of the complete machine contract. `Trap` and `Abort` are distinct
-causes; both terminate without cleanup. Call-site facts may disprove individual
-routes, removing that crash edge or only its wider containment demand for the
-invocation. Cooperative cancellation remains a returned task outcome rather
-than a crash.
+`crashes Cause` publishes guarded non-return routes on an independent may-axis
+of the complete machine contract. `Trap` and `Abort` are distinct causes; both
+terminate without cleanup. Call-site facts may disprove individual routes and
+remove the crash edge for that invocation. Cooperative cancellation remains a
+returned task outcome rather than a crash.
 
 Reaching a process-exit boundary also contributes the `ProcessExit` service
 identity to the reach row. These facts are independent: graceful exit and abort
@@ -118,10 +117,9 @@ portable deadline or WCET.
 7. `terminates` does not imply fairness, no suspension, or a deadline.
 8. Effect-row absence cannot be used to launder an ambient progress or
    resource requirement.
-9. Every derived crash site is covered by a published route at a containment
-   demand no narrower than the site's damage minimum.
-10. An enclosing context may accept different maximum scopes for `Trap` and
-    `Abort`; absent causes remain forbidden.
+9. Every derived crash site is covered by a published route of the same cause.
+10. A crash site's live-claim frontier is an audit lower bound, not proof that
+    unlisted state remains valid or that another activation may survive.
 
 ## Still open
 

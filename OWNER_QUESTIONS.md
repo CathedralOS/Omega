@@ -8,21 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-08-08.
 
-## Q1 — Declared crash-scope partial order
-
-`ExecutionDomain` is settled as the permanent portable top, and exact nominal
-identity is ordered reflexively. CRASH-CONTRACT also permits stable intermediate
-containment scopes, but no source declaration, ownership boundary, or identity
-rule currently defines them.
-
-Choose how a package declares a crash scope and its order edges. The decision
-must settle whether a scope may have multiple immediate parents, how imported
-scope identities and order evidence compose across package boundaries, what
-enters public semantic identity, and where cycle/conflicting-order diagnostics
-are owned. Physical target realization remains an Omega installation concern;
-the declaration must express only Psi's target-neutral nominal partial order.
-
-## Q2 — Witness evidence introduction and elimination surface
+## Q1 — Witness evidence introduction and elimination surface
 
 A witness-bearing proposition already names its one carrierless trait
 interface, and a concrete subjectless conformance now provides a named closed
