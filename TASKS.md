@@ -309,20 +309,23 @@ Remaining:
 - Retire the legacy backend lane as terminal-Psi vocabulary and consumers grow;
   do not restore any `ExpressionHandle` or source-tree dependency in the live
   scalar terminal path.
-- **CRASH-CONTRACT.** Source now parses fingerprinted `crashes Cause Scope`
-  buckets, including multiple alternative route facts and the unconditional
-  `crashes Cause` shorthand, and preserves explicit `crash Cause;` exits through
+- **CRASH-CONTRACT.** Source currently parses fingerprinted legacy
+  `crashes Cause Scope` buckets, including multiple alternative route facts and
+  the unconditional `crashes Cause` shorthand, and preserves explicit
+  `crash Cause;` exits through
   checked trees. Source production lowers crash-only machines covered by one
   unconditional same-cause bucket and acyclic scalar control whose crash
   branch has one checker-proved incoming-path bucket, including the live
   structural implication rules; verification and direct
-  interpretation retain cause, derived damage minimum, selected nominal
-  containment demand, and the non-replayable outcome. Contextual statement
+  interpretation retain cause, the legacy scope fields, the canonical
+  abandonment-frontier lower bound, and the non-replayable outcome. The scope
+  fields do not prove survivor safety. Contextual statement
   `trap` is retired, and the legacy native
   state-graph path rejects explicit crash exits rather than treating them as
   ordinary termination. Route facts are checked as Boolean expressions and do
   not enter requires/ensures proof entailment. Public machine-contract and
-  generic-template fingerprints now canonicalize each `(cause, scope)` bucket:
+  generic-template fingerprints currently canonicalize each legacy
+  `(cause, scope)` bucket:
   clause grouping, ordering, and duplicate routes are irrelevant, while an
   unconditional route (including an explicit `true`) subsumes guarded
   alternatives. Checked machine-contract plans now retain that published set
@@ -353,14 +356,12 @@ Remaining:
   unrelated endpoints and unordered floats do not compose. Each site separately
   retains the canonical conjunction of exact incoming predicates so implication
   evidence does not replace its derived path guard; reports expose that carrier.
-  Richer guard entailment remains. Each site now retains the
-  intrinsic cause minimum (`Trap <= Activation`, `Abort <= ExecutionDomain`),
-  and the checked plan distinguishes guard-covering buckets from buckets whose
-  containment demand also covers that minimum. Reports expose both sets;
-  terminal production rejects a narrow demand. Terminal Psi v23 now carries
-  the derived minimum and selected published containment demand separately;
-  archived v22 bytes decode conservatively with both fields equal to their
-  single encoded scope.
+  Richer guard entailment remains. Terminal Psi v22–v24 retains legacy damage,
+  demand, and context fields. Keep their frozen decoders and validators, but do
+  not use those fields as survivor-safety evidence. Introduce the next crash
+  schema around cause, route guards, and the abandonment-frontier lower bound;
+  normalize current source contracts by cause alone and stop producing legacy
+  scope/context fields in new modules.
   Checked ownership also records a canonical stable-claim lower bound
   containing every definitely-live,
   unconditional linear obligation at each site. Exhaustive crash paths abandon
@@ -385,7 +386,7 @@ Remaining:
   stopping at checked evidence. Transitive conjunction coverage now crosses
   the same terminal short-circuit slice through verified direct interpretation.
   Native crash lowering remains closed pending
-  represented target crash plans. Direct calls to local machines with
+  represented target crash lowering. Direct calls to local machines with
   published crash ceilings now retain source-independent checked invocation
   rows keyed by state/statement/call ordinal and target contract fingerprint.
   The producer substitutes arguments into canonical route predicates, drops
@@ -396,18 +397,17 @@ Remaining:
   expose both and the surviving buckets. Same-unit private calls now select a
   conservative monotone checked-body summary over the viable invocation graph:
   each
-  explicit site contributes an unconditional `(cause, damage minimum)` bucket,
+  explicit site contributes an unconditional cause bucket,
   a site-free leaf contributes positive empty evidence, and resolved nested
   summaries retain a temporary source-independent predicate tree, substitute
   positional arguments at every nonrecursive call edge, and collapse to stable
   predicate identities only when checked call rows are emitted. Recursive SCC
-  edges widen to unconditional cause/scope buckets so transformed recursive
+  edges widen to unconditional cause buckets so transformed recursive
   arguments cannot generate an infinite predicate family; components still
   reach a finite conservative fixed point.
   unknown dependencies prune their caller closure rather than erasing a nested
-  crash. Published callers now check every surviving call
-  route independently against a same-cause caller bucket whose containment
-  demand covers the selected route and whose guard is unconditional, exactly
+  crash. Published callers now check every surviving call route independently
+  against a same-cause caller bucket whose guard is unconditional, exactly
   matches the surviving predicate, or is one of the invocation's retained
   path consequences. Positive conjunction, negated disjunction, nested
   negation, Boolean-literal equality/inequality normalization, comparison
@@ -422,32 +422,20 @@ Remaining:
   select and substitute those buckets exactly like local published ceilings. Extend
   path-conditioned guard entailment beyond the live structural rules above.
   Explicit crashes now retain the invariant-bearing data identities for every
-  open default-domain window and conservatively widen the site's damage minimum
-  to `ExecutionDomain`; add finer custody-derived nominal scopes when that
-  evidence exists. Separately compiled
+  open invariant window in the abandonment-frontier lower bound. Keep that row
+  audit-only: it is necessary evidence about known abandoned obligations, not a
+  complete damage set and never authority for survivor execution. Separately
+  compiled
   imported-artifact capsules are design blocked on the semantic import/export
   carrier, symbol identity, and certificate binding requested by
   `wiki/language_guide/appendix_open_questions.md`; diagnostic JSON is not an
-  admissible substitute. Terminal Psi v24 now
-  carries canonical sparse per-cause context maxima in each machine contract;
-  the codec fingerprints them, archived modules migrate only their used causes
-  to the legacy `ExecutionDomain` root, and the verifier requires every crash
-  demand to fit the matching maximum. Artifact-root crash production publishes
-  the portable top for both closed causes. Checked-to-terminal production also
-  exposes a selected-context seam for narrower activation/task/supervisor
-  plans and validates the completed module before producing an artifact. Wire
-  checked provider or Build selection to that seam when those context owners
-  land.
-  Retaining declared intermediate nominal scope ordering is design blocked on
-  `OWNER_QUESTIONS.md` Q1.
+  admissible substitute. Remove current-production dependence on v24 context
+  maxima while retaining backward validation for archived modules.
   Generalize guarded source production beyond the live structural implication
   rules and current acyclic integer-control shape.
-  Terminal Psi v24 already carries the explicit no-successor terminator, both
-  crash scopes, and its canonical machine-local frontier lower bound; native
-  lowering remains closed until target crash plans exist.
-  Omega installation must bind nominal scopes to a selected fault plan and
-  prove the realized scope lies between each surviving route demand and its
-  context maximum.
+  Terminal Psi already carries the explicit no-successor terminator and its
+  canonical machine-local frontier lower bound; native lowering remains closed
+  until target `Trap` and `Abort` lowering exists.
 - Re-root the reference interpreter and abstract-operation construction fully
   on decoded, verified terminal Psi. The terminal interpreter and
   terminal-Psi-to-abstract-operation builder now have parallel artifact-root
@@ -619,7 +607,7 @@ Remaining N6/N8 work:
 - **SELECTED-WITNESS-EVIDENCE:** bind a selected named
   conformance block to one carrierless proof term that introduction and
   elimination can reopen. Consume its complete normalized requirement map;
-  do not infer evidence from attached state names. Blocked on owner Q2 for the
+  do not infer evidence from attached state names. Blocked on owner Q1 for the
   proof-only introduction/elimination surface and retained term identity.
 - Replace the inherited-subject conformance header with the settled name-first
   satisfaction declaration and evidence-binder grammar:
@@ -634,7 +622,7 @@ Remaining N6/N8 work:
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
   from the complete conformance-block map. The representation can follow the
   settled two-stratum projection, but source selection/opening is blocked on
-  owner Q2.
+  owner Q1.
 - Add `Respects` over compiler-derived parallel callable argument telescopes.
   Positions are semantic and source names are debug aliases. Derive the
   representative-dependent domain by semantic dependency, the pointwise input
@@ -819,6 +807,10 @@ These entries are pointers, not duplicate specifications.
 
 ## Deferred until a real customer
 
+- fault-tolerant component restart: define closed-custody component closure,
+  explicit owner-death protocols for shared resources, external device reset or
+  transaction obligations, and target-supplied isolation evidence together;
+  abandonment-frontier reports alone must never license survivors;
 - concurrent whole-system composition proofs for deadlock, starvation, memory,
   and response bounds;
 - richer measured-recursion guards and multi-subject lexicographic cycles;

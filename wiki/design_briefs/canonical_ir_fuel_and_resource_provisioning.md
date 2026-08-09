@@ -64,13 +64,18 @@ verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
 validation, and fuel cover the complete v27 row. Native lowering currently
-rejects crash rows explicitly until target crash plans are represented.
-The source producer selects its uniquely matching unconditional route from the
-checked machine-contract crash plan. That plan canonically merges authored
-clauses by cause and containment demand, removes duplicate guards, treats
-explicit `true` as unconditional, and is also the input to public contract
-fingerprinting and reporting; terminal production does not reinterpret the
-typed contract syntax.
+rejects crash rows explicitly until target crash lowering is represented.
+Versions 22–24 record an earlier containment model; their scope and context
+fields remain part of those frozen encodings but do not prove survivor safety.
+The next crash-schema revision removes them from current production while
+preserving validated backward decoding.
+
+The source producer selects a same-cause route from the checked
+machine-contract crash plan. The current implementation still groups legacy
+rows by cause and containment demand; the settled form groups by cause alone,
+removes duplicate guards, treats explicit `true` as unconditional, and feeds
+public contract fingerprinting and reporting without reinterpreting typed
+syntax.
 The checked crash plan also retains a separate implementation-evidence row for
 each explicit body site, keyed by state plus state-local statement ordinal and
 carrying its derived cause. Terminal production joins the crash statement to
@@ -78,9 +83,10 @@ that checked row; the site rows never enter the published contract fingerprint.
 Canonical published buckets have dense plan-local identities. The checked row
 cites unconditional same-cause buckets as structurally proved guard coverage,
 and terminal production consumes this relation rather than searching the
-contract. The row's derived damage minimum, complete covering-bucket subset,
-and reconstructed frontier are independent checked fields; terminal v23
-retains both that minimum and the selected published demand. Checker-proved
+contract. The reconstructed frontier remains independent implementation
+evidence and is explicitly only a lower bound on abandoned obligations. Legacy
+v23 rows retain a damage minimum and published demand for backward decoding;
+neither field licenses survivors. Checker-proved
 incoming-path guarded crash branches now lower in the acyclic integer-control
 slice, including nested-negation implication, comparison operand reversal, and
 negated equality/inequality. Ordered-comparison negation is admitted only for

@@ -238,28 +238,18 @@ rows, evaluates the optional profile, and carries the sealed acceptance to the
 filesystem installation gate. Named profile selection in `build.omg` remains
 ordinary `Build` API design; no method spelling is frozen here.
 
-Crash containment uses the same demand/supply boundary. Terminal Psi carries
-fingerprinted crash routes, nominal containment demands, and sparse per-cause
-context maxima. `ExecutionDomain` is the permanent portable top—the root of
-execution owned by the artifact—not a promise that every target implements a
-host process. Build selects a target fault plan and installation records the
-target-relative realization (for example a process, Cathedral Matrix, or
-bare-metal image). For every surviving route it proves:
+Terminal Psi carries fingerprinted crash causes, guarded routes, and the
+statically known abandonment-frontier lower bound at each site. Build and
+installation may reject artifacts whose routes violate a deployment profile,
+but those facts do not establish safe continuation after a crash.
 
-```text
-published route demand <= realized target scope <= context maximum[cause]
-```
-
-The lower check prevents a narrowly terminated activation from leaving shared
-corruption visible; the upper check protects state the context expects to
-survive. Co-location, handler mechanics, and physical isolation remain selected
-installation facts and never enter portable Psi semantics.
-
-The artifact root has no enclosing Omega context, so its per-cause context
-maximum is `ExecutionDomain` by construction and needs no source declaration.
-Inner supervisors declare narrower survival expectations. The selected target
-fault plan is installation supply, not another portable maximum; it must realize
-each composed generated-bridge-plus-program demand within the portable bounds.
+A target fault plan may support restart only for an independently verified
+closed-custody component, or for explicitly crash-safe shared resources and
+external reset/transaction protocols. The installation record identifies the
+selected isolation and restart evidence. Without that evidence an uncontained
+crash terminates the artifact's execution domain. Co-location, handler
+mechanics, and physical isolation remain installation facts rather than
+portable meanings of `crashes`.
 
 A filesystem path or unresolved loader name is not executable identity.
 Ordinary package policy rejects an opaque provider whose content, signer, or

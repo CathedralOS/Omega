@@ -167,9 +167,9 @@ Working rules:
   coupling is re-proven from the flow facts at the next consumption point —
   read, borrow, call, transition, or return. Nothing can observe the value
   mid-window. An explicit `crash` is the one no-successor exception: it may
-  abandon the open window, but that evidence widens the crash's portable
-  damage minimum to `ExecutionDomain`; an authored narrower crash route cannot
-  cover it. Init-syntax (construct a valid whole) remains the idiomatic
+  abandon the open window. The checked site records the invariant-bearing
+  identity in its abandonment lower bound, but that record does not prove any
+  survivor safe. Init-syntax (construct a valid whole) remains the idiomatic
   form when rebuilding is cheap:
 
   ```omega

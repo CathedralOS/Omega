@@ -105,15 +105,14 @@ implementation work. Each one gets more expensive to retrofit every month.
   A `block` without a finite wait ceiling makes structured response unbounded
   through that named call.
 
-  Guarded `crashes Cause Scope` buckets are a separate may-axis. Psi proves
-  each path-conditioned crash site is covered and no surviving route demands
-  more containment than its enclosing per-cause context tolerates. Cathedral
-  installation maps the permanent portable `ExecutionDomain` top to the
-  selected Matrix or bare-metal execution root and proves the realized fault
-  scope is neither narrower than the damaged-state minimum nor wider than the
-  context permits. An activation-contained trap is legal across shared custody
-  only when the route is disproved or the resource exposes a checked owner-death
-  recovery outcome.
+  Guarded `crashes Cause` buckets are a separate may-axis. Psi proves each
+  path-conditioned crash site is covered, propagates surviving routes, and
+  removes a route only when caller facts disprove it. The checked abandonment
+  frontier is audit evidence rather than a containment theorem. Cathedral may
+  restart only an independently isolated closed-custody component, or a
+  component whose shared resources and external devices expose explicit
+  owner-death and reset protocols. Without that evidence the crash ends the
+  Matrix or bare-metal execution domain.
 
    Still compatible: a futex-shaped scheduler boundary, cancellation as an
    explicit outcome, ordinary machines started through an admitted

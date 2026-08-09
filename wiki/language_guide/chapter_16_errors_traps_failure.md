@@ -144,11 +144,11 @@ exhaustiveness with no handler), not by asserting it at runtime.
 `crashes` publishes the ways an invocation may leave without returning or
 running cleanup. The initial causes are `Trap` and `Abort`. `Trap` covers an
 operation- or platform-triggered fault; `Abort` is deliberate execution-domain
-termination. One clause names one cause and one abstract containment demand:
+termination. One clause names one cause:
 
 ```omega
 machine divide(numerator: i32, denominator: i32) -> i32
-crashes Trap Activation
+crashes Trap
     denominator == 0
     numerator == i32::Minimum && denominator == -1
 {
@@ -158,22 +158,15 @@ crashes Trap Activation
 
 The indented facts are alternative **routes**: any one permits the named crash.
 They are not the conjunctive list used by `requires`. Repeating a clause for the
-same cause and scope contributes more alternatives to the same canonical
-bucket. A route predicate is an ordinary Boolean proof expression and may use
+same cause contributes more alternatives to the same canonical bucket. A
+route predicate is an ordinary Boolean proof expression and may use
 `&&`, `||`, or other ordinary operators internally.
 
 One cause appears per clause. The formatter renders one route per line and
-starts routes below the cause and scope. A clause with no routes is
-unconditional. Omitting the scope uses the stable portable top:
-
-```omega
-crashes Trap
-```
-
-is equivalent to an unconditional `crashes Trap ExecutionDomain`. Omitting a
-cause entirely is the negative guarantee that the machine cannot crash for
-that cause. Private checked machines may infer crash ceilings; exports,
-requirements, and boundaries publish them.
+starts routes below the cause. A clause with no routes is unconditional.
+Omitting a cause entirely is the negative guarantee that the machine cannot
+crash for that cause. Private checked machines may infer crash ceilings;
+exports, requirements, and boundaries publish them.
 
 `crash Abort;` and `crash Trap;` are explicit no-return terminals. Operations
 with intrinsic crash behavior, such as `Trapping` arithmetic, contribute crash
@@ -182,7 +175,7 @@ site must be covered by the published routes:
 
 ```text
 derived_site_guard
-    implies OR(published_route_guards for the same cause that cover its scope)
+    implies OR(published_route_guards for the same cause)
 ```
 
 The derived guard includes the path condition. A trap-capable division inside
@@ -192,63 +185,45 @@ primitive's local guard.
 At a call, arguments and current facts refine the published routes. A cause is
 removed only after every surviving route for that cause is disproved. This is
 why `divide(10, 2)` is crash-free at that invocation even though `divide` is
-published as trap-capable. Refinement may also remove only the broadly damaging
-routes, allowing a call to fit a narrower containment context without proving
-all crashes impossible.
+published as trap-capable.
 
 The explicit terminal outcome and service reach remain separate axes. An abort
 lowering may also reach the `ProcessExit` boundary service; neither fact implies
 the other. Graceful shutdown remains ordinary cleanup followed by `exit(code)`.
 
-## Containment Is A Two-Sided Contract
+## A Crash Contract Does Not Prove Recovery
 
-Crash scopes are portable nominal tokens ordered by the breadth of execution
-they terminate. `ExecutionDomain` is the permanent portable top: the root of
-the execution owned by this artifact. Its physical realization is
-target-relative—a hosted process, a Cathedral Matrix, or a bare-metal image and
-its grants. New stable scopes may be inserted below that top without changing
-the meaning of existing artifacts. The declaration and cross-package ordering
-form for those intermediate scopes is not yet settled; see
-`OWNER_QUESTIONS.md` Q1.
+Crash checking proves route coverage, propagation, and absence after successful
+refinement. It does not infer a complete post-crash state. The ownership checker
+can record the claims, guards, invariant windows, and other obligations known to
+be live at a crash site. That record is a necessary lower bound on the damage
+and valuable audit material; it is not proof that everything outside the record
+remains valid.
 
-Each route publishes how much containment it may demand. Each enclosing
-execution context publishes, separately for each cause, the widest scope it
-tolerates. The map is owned by the activation, task, supervisor, or root that
-expects state to survive; ordinary leaf machines inherit it rather than
-repeating it. Absence from that sparse per-cause map means forbidden. After
-call-site refinement, Psi compares every surviving bucket independently; it
-does not require a join of incomparable scopes:
+The distinction matters for effects that escape the ownership model. A device
+may be left halfway through a programming sequence, foreign storage may be
+partially updated, and an external peer may have observed only part of a
+protocol. No enumeration of locally held claims establishes that none of those
+effects occurred.
 
-```text
-derived damage minimum
-    <= published route demand
-    <= context maximum[cause]
-```
+The default consequence of an uncontained crash is termination of the complete
+execution domain. Omega makes no ambient promise that another activation may
+continue, that a lock is merely poisoned, or that the faulting activation can
+resume.
 
-The lower bound matters. If a crash occurs while a shared invariant is open or
-while the activation owns custody needed by survivors, killing only that
-activation may expose broken state. Such a site derives a wider minimum. In a
-context that expects activation-level survival, the offending wide-scope route
-must be disproved. A resource-specific owner-death protocol can reduce that
-minimum only when reacquisition returns a checked outcome such as
-`OwnerDied(recovery_custody)` and successful recovery re-establishes the
-resource invariant; there is no ambient poisoning mechanism.
+Fault-tolerant continuation requires independent structure:
 
-Psi proves this internal demand-versus-tolerance relation using only nominal
-scopes. Omega installation chooses a fault-containment plan and checks the
-second side:
+- a closed-custody component owns all mutable state that its failure can
+  invalidate and shares none of it with survivors;
+- a specific shared resource exposes an explicit owner-death outcome and a
+  checked recovery protocol; or
+- an external device or protocol supplies its own reset, reconciliation, or
+  transactional guarantee.
 
-```text
-published route demand
-    <= realized target scope
-    <= context maximum[cause]
-```
-
-A realized scope that is too narrow leaves corrupted state visible to
-survivors. A realized scope that is too broad destroys state the context
-promised would survive. The portable fingerprint contains the authored routes,
-scope demands, and context maxima; the installation record contains the
-selected plan, realized scopes, and supporting evidence.
+The target must separately realize any component-isolation and restart plan.
+Restart creates a fresh activation from established state; it never resumes the
+abandoned computation. These are component, resource, and installation
+properties, not meanings attached to an ordinary `crashes` clause.
 
 ## Crash Terminals Do Not Unwind
 
@@ -260,19 +235,19 @@ abandonment, because the verifier must distinguish deliberate abandonment from
 compiler failure to compute an edge.
 
 The statically known local frontier recorded at a crash site is only a lower
-bound on what is abandoned. A trap abandons at least the faulting activation,
-including caller frames; an abort abandons the execution domain. Suspended
-continuations and other live activations need not be syntactically dominated by
-the crash site, so the exact dynamic set is not claimed to be edge-enumerable.
+bound on what is abandoned. Caller frames, suspended continuations, external
+effects, and other live activations need not be syntactically dominated by the
+site, so the exact dynamic set is not claimed to be edge-enumerable. The record
+supports auditing and diagnostics; it never licenses survivors.
 
 If unwinding is ever added, it must be modelled as explicit graph edges with
 cleanup and proof obligations, never as a second control-flow system.
 
-A fault handler may terminate the faulting activation or begin a fresh
-frontier. It cannot resume the abandoned activation; resumable faults require a
-different explicit protocol. Component replacement likewise uses cooperative
-drain, coexistence, or migration rather than asynchronous destruction hidden
-from the checked graph.
+An independently verified component supervisor may terminate the failed
+component and begin a fresh frontier. It cannot resume the abandoned
+activation; resumable faults require a different explicit protocol. Component
+replacement likewise uses cooperative drain, coexistence, or migration rather
+than asynchronous destruction hidden from the checked graph.
 
 ## Host Failure
 
