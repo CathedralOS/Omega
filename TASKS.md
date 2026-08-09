@@ -398,6 +398,13 @@ Remaining:
   one-unit fuel, artifact interpretation, Omega lowering, and x86-64/AArch64
   native emission are live. The native realization shares the defined
   remainder path with Wrapping while retaining distinct Saturating semantics.
+  Terminal Psi v40 now reconstructs a path-local positive-divisor obligation
+  for runtime fixed-integer divisors across Exact, Wrapping, and Saturating
+  division and remainder. A checked true edge proving `1 <= divisor` supplies
+  the independently verified fact; the false edge bypasses the arithmetic.
+  Older semantic versions and unbounded runtime divisors remain fail-closed.
+  The existing proof vocabulary, canonical artifacts, selected-path fuel,
+  interpretation, and both native targets carry the complete relational slice.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
