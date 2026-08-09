@@ -9,7 +9,7 @@ use psi_layout_plans::{
 
 use super::*;
 
-pub const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE2";
+pub const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
 pub const OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES: u64 = 64;
 pub const OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES: u64 = 32;
 
@@ -159,7 +159,11 @@ pub fn encode_executable_container(
                 64,
                 u64::from_le_bytes(OMEGA_EXECUTABLE_CONTAINER_MAGIC),
             ),
-            ("version", 16, u64::from(OMEGA_EXECUTABLE_CONTAINER_VERSION)),
+            (
+                "format_marker",
+                16,
+                u64::from(OMEGA_EXECUTABLE_CONTAINER_MARKER),
+            ),
             ("header_bytes", 16, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES),
             (
                 "architecture",
@@ -422,10 +426,10 @@ pub fn decode_executable_container(
     require_zero("container header reserved0", header["reserved0"])?;
     require_zero("container header reserved1", header["reserved1"])?;
     require_zero("container header reserved2", header["reserved2"])?;
-    if header["version"] != u64::from(OMEGA_EXECUTABLE_CONTAINER_VERSION) {
+    if header["format_marker"] != u64::from(OMEGA_EXECUTABLE_CONTAINER_MARKER) {
         return Err(InstallationDiagnostic(format!(
-            "unsupported Omega executable container version {}",
-            header["version"]
+            "unsupported Omega executable container marker 0x{:04x}",
+            header["format_marker"]
         )));
     }
     if header["header_bytes"] != OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES {
@@ -643,7 +647,7 @@ pub fn decode_executable_container(
 
     validate_decoded_container(
         DecodedArtifactContainer {
-            format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
+            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
             total_length,
             artifact,
             content,
@@ -1229,7 +1233,7 @@ fn scalar_schema(fields: &[(&str, u64, u16)]) -> Vec<ScalarFieldSchema> {
 
 const HEADER_FIELDS: &[(&str, u64, u16)] = &[
     ("magic", 0, 64),
-    ("version", 8, 16),
+    ("format_marker", 8, 16),
     ("header_bytes", 10, 16),
     ("architecture", 12, 8),
     ("reserved0", 13, 8),
@@ -1369,7 +1373,7 @@ mod tests {
         let entry = EntryStubId::from_normalized_identity(9).unwrap();
         let proof = vec![0xa5; 64];
         let mut decoded = DecodedArtifactContainer {
-            format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
+            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
             total_length,
             artifact: ArtifactId::from_normalized_identity(1).unwrap(),
             content: ArtifactContentId::from_normalized_identity(2).unwrap(),
@@ -1405,7 +1409,11 @@ mod tests {
                     64,
                     u64::from_le_bytes(OMEGA_EXECUTABLE_CONTAINER_MAGIC),
                 ),
-                ("version", 16, u64::from(OMEGA_EXECUTABLE_CONTAINER_VERSION)),
+                (
+                    "format_marker",
+                    16,
+                    u64::from(OMEGA_EXECUTABLE_CONTAINER_MARKER),
+                ),
                 ("header_bytes", 16, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES),
                 ("architecture", 8, 2),
                 ("reserved0", 8, 0),
@@ -1580,6 +1588,18 @@ mod tests {
         assert_eq!(decoded.artifact().entries()[0].code_offset(), 16);
         assert_eq!(decoded.relocations()[0].addend, -4);
         assert_eq!(decoded.proof(), vec![0xa5; 64]);
+    }
+
+    #[test]
+    fn stale_container_marker_bytes_reject() {
+        let mut stale = canonical_bytes();
+        stale[8..10].copy_from_slice(b"NO");
+        let error = decode_executable_container(&stale, limits()).expect_err("stale marker");
+        assert!(
+            error
+                .0
+                .contains("unsupported Omega executable container marker")
+        );
     }
 
     #[test]

@@ -2162,7 +2162,7 @@ mod tests {
             PlacementConstraints::new(None, 1, PlacementPhase::Load, None, None)
                 .expect("placement constraints");
         let decoded = DecodedArtifactContainer {
-            format_version: omega_executable_installation::OMEGA_EXECUTABLE_CONTAINER_VERSION,
+            format_marker: omega_executable_installation::OMEGA_EXECUTABLE_CONTAINER_MARKER,
             total_length: 1,
             artifact: artifact_id,
             content: install_id(907, ArtifactContentId::from_normalized_identity),

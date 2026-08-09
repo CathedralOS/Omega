@@ -1,6 +1,6 @@
 use super::*;
 
-pub const OMEGA_EXECUTABLE_CONTAINER_VERSION: u16 = 2;
+pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = u16::from_le_bytes(*b"OX");
 const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
 const CANONICAL_RELOCATION_COUNT_BYTES: u64 = 8;
 const CANONICAL_RELOCATION_RECORD_BYTES: u64 = 32;
@@ -97,7 +97,7 @@ pub struct DecodedArtifactRelocation {
 /// or recursive section form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodedArtifactContainer {
-    pub format_version: u16,
+    pub format_marker: u16,
     pub total_length: u64,
     pub artifact: ArtifactId,
     pub content: ArtifactContentId,
@@ -241,10 +241,10 @@ pub fn validate_decoded_container(
             "artifact-container limits must all be nonzero".into(),
         ));
     }
-    if decoded.format_version != OMEGA_EXECUTABLE_CONTAINER_VERSION {
+    if decoded.format_marker != OMEGA_EXECUTABLE_CONTAINER_MARKER {
         return Err(InstallationDiagnostic(format!(
-            "unsupported Omega executable container version {}",
-            decoded.format_version
+            "unsupported Omega executable container marker 0x{:04x}",
+            decoded.format_marker
         )));
     }
     if decoded.total_length == 0 || decoded.total_length > limits.max_total_bytes {
@@ -709,7 +709,7 @@ mod tests {
         let entry_set = id(8, EntrySetId::from_normalized_identity);
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
         let mut decoded = DecodedArtifactContainer {
-            format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
+            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
             total_length: 448,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
@@ -799,6 +799,18 @@ mod tests {
         assert_eq!(
             container.artifact().placement_constraints(),
             PlacementConstraints::unconstrained(psi_layout_plans::PlacementPhase::Load)
+        );
+    }
+
+    #[test]
+    fn stale_container_marker_rejects() {
+        let mut stale = decoded();
+        stale.format_marker = u16::from_le_bytes(*b"NO");
+        let error = validate_decoded_container(stale, limits()).expect_err("stale marker");
+        assert!(
+            error
+                .0
+                .contains("unsupported Omega executable container marker")
         );
     }
 
