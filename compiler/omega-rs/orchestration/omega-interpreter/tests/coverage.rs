@@ -586,7 +586,7 @@ trait Shape {
 
 data Circle {}
 
-Circle satisfies Shape as Primary {
+CircleShape: Circle satisfies Shape {
     machine code(&mut self) -> i32 {
         transition {
             _ -> 9
@@ -596,7 +596,7 @@ Circle satisfies Shape as Primary {
 
 data Square {}
 
-Square satisfies Shape as Primary {
+SquareShape: Square satisfies Shape {
     machine code(&mut self) -> i32 {
         transition {
             _ -> 4
@@ -658,7 +658,7 @@ trait Shape {
 
 data Circle {}
 
-Circle satisfies Shape as Primary {
+CircleShape: Circle satisfies Shape {
     machine code(&mut self) -> i32 {
         transition {
             _ -> 9
@@ -668,7 +668,7 @@ Circle satisfies Shape as Primary {
 
 data Square {}
 
-Square satisfies Shape as Primary {
+SquareShape: Square satisfies Shape {
     machine code(&mut self) -> i32 {
         transition {
             _ -> 4

@@ -1569,7 +1569,7 @@ mod tests {
             machine Item::code(&self) -> i32 {
                 transition { _ -> 1 }
             }
-            Item satisfies Shape as Primary {
+            Primary: Item satisfies Shape {
                 machine code(&self) -> i32 {
                     transition { _ -> 7 }
                 }
@@ -1657,13 +1657,13 @@ mod tests {
 
             data Circle {}
             machine Circle::code(&self) -> i32 { transition { _ -> 1 } }
-            Circle satisfies Shape as Primary {
+            CircleShape: Circle satisfies Shape {
                 machine code(&self) -> i32 { transition { _ -> 7 } }
             }
 
             data Square {}
             machine Square::code(&self) -> i32 { transition { _ -> 2 } }
-            Square satisfies Shape as Primary {
+            SquareShape: Square satisfies Shape {
                 machine code(&self) -> i32 { transition { _ -> 9 } }
             }
 
@@ -1678,7 +1678,7 @@ mod tests {
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         psi_validation::validate_program(&typed).expect("validate");
         let checked = lower_typed_trees(typed).expect("check");
-        let exact_targets = ["Circle::Primary::code", "Square::Primary::code"]
+        let exact_targets = ["Circle::CircleShape::code", "Square::SquareShape::code"]
             .into_iter()
             .map(|name| {
                 checked
@@ -1764,7 +1764,7 @@ mod tests {
         let source = r#"
             trait Shape { machine code(&self) -> i32; }
             data Item {}
-            Item satisfies Shape as Primary {
+            Primary: Item satisfies Shape {
                 machine code(&self) -> i32 { transition { _ -> 7 } }
             }
             machine code() -> i32 { transition { _ -> 4 } }

@@ -284,38 +284,44 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Machine(machine), rest));
     }
 
-    // A concrete subjectless evidence conformance. Its required alias is the
-    // stable package-scoped identity; a subject and generic telescope are not
-    // inferred from the trait arguments.
-    if input.at_contextual("satisfies") {
-        let rest = input.take_contextual("satisfies")?;
-        let (trait_name, mut rest) = rest.take_identifier()?;
-        let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {
-            rest = rest.take_punctuation(PunctuationKind::Less, "<")?;
-            let mut arguments = Vec::new();
-            loop {
-                let (argument, next) = parse_type_reference_handle(syntax_trees, rest)?;
-                arguments.push(argument);
-                rest = next;
-                if rest.at_punctuation(PunctuationKind::Comma) {
-                    rest = rest.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
-                rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
-                break;
-            }
-            syntax_trees
-                .type_references
-                .insert_type_reference_handles(arguments)
+    // The settled whole-conformance declaration names its evidence identity
+    // first: `Primary: Circle satisfies Shape { ... }`, or
+    // `ConcreteEvidence: satisfies Evidence { ... }` for carrierless proof
+    // evidence. This concrete slice deliberately does not infer a generic
+    // telescope from the subject or trait arguments; name-owned telescopes are
+    // parsed only once their representation is retained end to end.
+    if let Ok((alias, rest)) = input.take_identifier()
+        && rest.at_punctuation(PunctuationKind::Colon)
+    {
+        let mut rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
+        let subject = if rest.at_contextual("satisfies") {
+            psi_syntax_trees::item::ConformanceSubject::Subjectless
         } else {
-            psi_arena::HandleSpan::empty()
+            let (subject, next) = rest.take_identifier()?;
+            rest = next;
+            psi_syntax_trees::item::ConformanceSubject::Carrier(subject)
         };
-        rest = rest.take_contextual("as")?;
-        let (alias, rest) = rest.take_identifier()?;
-        let (body, rest) = parse_conformance_body(syntax_trees, rest)?;
+        rest = rest.take_contextual("satisfies")?;
+        let ((trait_name, trait_arguments), rest) =
+            parse_conformance_trait_application(syntax_trees, rest)?;
+        let (body, rest) = if rest.at_punctuation(PunctuationKind::LeftBrace) {
+            parse_conformance_body(syntax_trees, rest)?
+        } else if matches!(
+            subject,
+            psi_syntax_trees::item::ConformanceSubject::Carrier(_)
+        ) {
+            (
+                ConformanceBody::LegacyAttachedMachines,
+                take_optional_semicolon(rest)?,
+            )
+        } else {
+            return Err(rest.error_here(
+                "a carrierless name-first conformance owns one complete closed implementation; add `{ ... }` after the selected trait application",
+            ));
+        };
         return Ok((
             Item::Conformance(psi_syntax_trees::item::ConformanceItem {
-                subject: psi_syntax_trees::item::ConformanceSubject::Subjectless,
+                subject,
                 trait_name,
                 trait_arguments,
                 alias: Some(alias),
@@ -325,34 +331,24 @@ pub(super) fn parse_item<'tokens, 'source>(
         ));
     }
 
-    // A standalone carrier-owned conformance item (frozen decision 8): `Point satisfies
-    // Equatable;`. No leading keyword, so it is recognized by the
-    // `satisfies` contextual after a type name.
+    // Retired subjectless order. Keeping this branch gives a directed
+    // migration instead of letting the generic item diagnostic obscure the
+    // evidence identity that must move to the front.
+    if input.at_contextual("satisfies") {
+        return Err(input.error_here(
+            "the subjectless `satisfies Trait as Name { ... }` conformance header is retired; write `Name: satisfies Trait { ... }`",
+        ));
+    }
+
+    // Compatibility-only unnamed carrier declaration: `Point satisfies
+    // Equatable;`. It remains the static attached-machine surface, while every
+    // closed implementation above has an explicit name-first identity.
     if let Ok((type_name, rest)) = input.take_identifier()
         && rest.at_contextual("satisfies")
     {
         let rest = rest.take_contextual("satisfies")?;
-        let (trait_name, mut rest) = rest.take_identifier()?;
-        let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {
-            rest = rest.take_punctuation(PunctuationKind::Less, "<")?;
-            let mut arguments = Vec::new();
-            loop {
-                let (argument, next) = parse_type_reference_handle(syntax_trees, rest)?;
-                arguments.push(argument);
-                rest = next;
-                if rest.at_punctuation(PunctuationKind::Comma) {
-                    rest = rest.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
-                rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
-                break;
-            }
-            syntax_trees
-                .type_references
-                .insert_type_reference_handles(arguments)
-        } else {
-            psi_arena::HandleSpan::empty()
-        };
+        let ((trait_name, trait_arguments), mut rest) =
+            parse_conformance_trait_application(syntax_trees, rest)?;
         let alias = if rest.at_contextual("as") {
             rest = rest.take_contextual("as")?;
             let (alias, next) = rest.take_identifier()?;
@@ -361,14 +357,18 @@ pub(super) fn parse_item<'tokens, 'source>(
         } else {
             None
         };
-        let (body, rest) = if rest.at_punctuation(PunctuationKind::LeftBrace) {
-            parse_conformance_body(syntax_trees, rest)?
-        } else {
-            (
-                ConformanceBody::LegacyAttachedMachines,
-                take_optional_semicolon(rest)?,
-            )
-        };
+        if alias.is_some() {
+            return Err(input.error_here(
+                "the named `Subject satisfies Trait as Name { ... }` conformance header is retired; write `Name: Subject satisfies Trait { ... }`",
+            ));
+        }
+        if rest.at_punctuation(PunctuationKind::LeftBrace) {
+            return Err(input.error_here(
+                "an unnamed `Subject satisfies Trait { ... }` conformance implementation is retired; write `Name: Subject satisfies Trait { ... }`",
+            ));
+        }
+        let body = ConformanceBody::LegacyAttachedMachines;
+        let rest = take_optional_semicolon(rest)?;
         return Ok((
             Item::Conformance(psi_syntax_trees::item::ConformanceItem {
                 subject: psi_syntax_trees::item::ConformanceSubject::Carrier(type_name),
@@ -405,6 +405,41 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`boundary data`",
         "`boundary trait`",
     ]))
+}
+
+fn parse_conformance_trait_application<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        psi_syntax_trees::identifier::Identifier,
+        HandleSpan<psi_syntax_trees::types::TypeReferenceHandle>,
+    ),
+> {
+    let (trait_name, mut rest) = input.take_identifier()?;
+    let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {
+        rest = rest.take_punctuation(PunctuationKind::Less, "<")?;
+        let mut arguments = Vec::new();
+        loop {
+            let (argument, next) = parse_type_reference_handle(syntax_trees, rest)?;
+            arguments.push(argument);
+            rest = next;
+            if rest.at_punctuation(PunctuationKind::Comma) {
+                rest = rest.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
+            break;
+        }
+        syntax_trees
+            .type_references
+            .insert_type_reference_handles(arguments)
+    } else {
+        HandleSpan::empty()
+    };
+    Ok(((trait_name, trait_arguments), rest))
 }
 
 fn parse_conformance_body<'tokens, 'source>(

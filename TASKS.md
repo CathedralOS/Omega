@@ -660,7 +660,13 @@ Remaining N6/N8 work:
 - **SELECTED-WITNESS-EVIDENCE:** the settled
   `proposition P(...) evidence Interface;` clause is live through parsing and
   terminal-Psi production. The terminal-Psi canary uses that spelling, and the
-  retired `{ Interface; }` form reports a targeted migration diagnostic. Bind
+  retired `{ Interface; }` form reports a targeted migration diagnostic.
+  Concrete closed conformance implementations now use the settled name-first
+  surface, `Name: Subject satisfies Trait { ... }` or
+  `Name: satisfies Trait { ... }` for carrierless evidence. Retired named
+  subject-first blocks and unnamed closed blocks report targeted migrations;
+  name-first bodyless carrier declarations remain static-only compatibility
+  rows and do not license dynamic dispatch. Bind
   a privately selected named conformance block to one carrierless proof term
   at a named `ensures` assignment; consume its complete normalized requirement
   map.
@@ -676,16 +682,15 @@ Remaining N6/N8 work:
   ordinary machine return syntax unchanged when no `ensures` clause is named.
   Preserve separate normalized identities for the proposition application,
   retained evidence term, and derivation provenance.
-- Replace the inherited-subject conformance header with the settled name-first
-  satisfaction declaration and evidence-binder grammar:
+- Finish name-owned generic telescopes and the explicit evidence-binder grammar:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares one named
   closed implementation, while `Evidence: Subject satisfies Trait` binds one
   explicitly passed implementation. The subject may be omitted for
-  carrierless evidence. Every whole-trait implementation is named; no unique-
-  visible, priority, or specificity selection is permitted. Retain the name,
-  telescope, optional subject, instantiated trait, and normalized rows in
-  semantic identity, and migrate existing `Type satisfies Trait as Name`
-  source with a targeted diagnostic.
+  carrierless evidence. Move carrier-owned conformance symbols from the
+  transitional carrier-child identity to the package-scoped declared name;
+  retain the name, telescope, optional subject, instantiated trait, and
+  normalized rows in semantic identity. No unique-visible, priority, or
+  specificity selection is permitted.
 - Add carrierless evidence projection from the complete conformance-block map.
   Repeated projection of one retained term yields the same opaque symbols;
   forwarding preserves the term; separate introductions may retain different

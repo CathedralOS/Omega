@@ -30,7 +30,7 @@ fn closed_conformance_validates_its_exact_inline_and_reference_rows() {
             transition { _ -> (0) }
         }
 
-        Card satisfies Ranked as PowerOrder {
+        PowerOrder: Card satisfies Ranked {
             machine before(&self, other: &Card) -> bool {
                 transition { _ -> (false) }
             }
@@ -51,7 +51,7 @@ fn closed_conformance_rejects_an_incompatible_inline_row() {
         }
 
         data Card {}
-        Card satisfies Ranked {
+        PowerOrder: Card satisfies Ranked {
             machine before(&self, other: i32) -> bool {
                 transition { _ -> (false) }
             }
@@ -82,7 +82,7 @@ fn closed_conformance_validates_same_named_result_overloads() {
         }
 
         data Item {}
-        Item satisfies Converter as Primary {
+        Primary: Item satisfies Converter {
             machine convert(&self, value: i32) -> i32 in Saturating {
                 transition { _ -> (value) }
             }
@@ -102,9 +102,7 @@ fn witness_proposition_requires_a_direct_carrierless_trait_interface() {
             machine cite(value: i32) ensures value == value;
         }
 
-        proposition witnessed(value: i32) {
-            Evidence;
-        }
+        proposition witnessed(value: i32) evidence Evidence;
         "#,
     );
 
@@ -116,9 +114,7 @@ fn witness_proposition_rejects_data_as_its_evidence_interface() {
     let typed = typed_program_from_source(
         r#"
         data Evidence {}
-        proposition witnessed(value: i32) {
-            Evidence;
-        }
+        proposition witnessed(value: i32) evidence Evidence;
         "#,
     );
 
@@ -139,9 +135,7 @@ fn witness_proposition_rejects_carrier_bearing_trait_interface() {
             machine cite(&self);
         }
 
-        proposition witnessed(value: i32) {
-            Evidence;
-        }
+        proposition witnessed(value: i32) evidence Evidence;
         "#,
     );
 
@@ -161,9 +155,7 @@ fn witness_proposition_declaration_rejects_selected_dynamic_evidence() {
             machine cite(value: i32) ensures value == value;
         }
 
-        proposition witnessed(value: i32) {
-            dyn Evidence;
-        }
+        proposition witnessed(value: i32) evidence dyn Evidence;
         "#,
     );
 
@@ -184,9 +176,7 @@ fn witness_proposition_rejects_boundary_evidence_interface() {
             machine cite(value: i32) ensures value == value;
         }
 
-        proposition witnessed(value: i32) {
-            Evidence;
-        }
+        proposition witnessed(value: i32) evidence Evidence;
         "#,
     );
 
@@ -208,9 +198,7 @@ fn witness_proposition_checks_evidence_trait_generic_arity() {
             machine cite(value: Carrier) ensures value == value;
         }
 
-        proposition witnessed(value: i32) {
-            Evidence;
-        }
+        proposition witnessed(value: i32) evidence Evidence;
         "#,
     );
 
@@ -231,9 +219,7 @@ fn witness_proposition_accepts_bound_generic_evidence_interface() {
             machine cite(value: Carrier) ensures value == value;
         }
 
-        proposition witnessed<Carrier>(value: Carrier) {
-            Evidence<Carrier>;
-        }
+        proposition witnessed<Carrier>(value: Carrier) evidence Evidence<Carrier>;
         "#,
     );
 
@@ -969,7 +955,7 @@ fn local_dynamic_coercion_retains_one_complete_nominal_conformance() {
         r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as Primary {}
+        Primary: Item satisfies Marker {}
 
         machine erase(item: Item) {
             let erased: &dyn Marker = &item as &dyn Marker;
@@ -1002,7 +988,7 @@ fn local_dynamic_coercion_retains_closed_conformance_rows() {
             machine code(&self) -> i32;
         }
         data Item {}
-        Item satisfies Shape as Primary {
+        Primary: Item satisfies Shape {
             machine code(&self) -> i32 {
                 transition { _ -> (7) }
             }
@@ -1040,7 +1026,7 @@ fn local_dynamic_coercion_retains_an_instantiated_trait_default_row() {
             machine touch(&self) {}
         }
         data Item {}
-        Item satisfies Shape as Primary {}
+        Primary: Item satisfies Shape {}
 
         machine erase(item: Item) {
             let erased: &dyn Shape = &item as &dyn Item::Primary;
@@ -1074,7 +1060,7 @@ fn local_dynamic_coercion_retains_each_result_overload_row() {
             machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
         }
         data Item {}
-        Item satisfies Converter as Primary {}
+        Primary: Item satisfies Converter {}
 
         machine erase(item: Item) {
             let erased: &dyn Converter = &item as &dyn Item::Primary;
@@ -1105,7 +1091,7 @@ fn closed_conformance_instantiates_an_inherited_generic_trait_default() {
         }
         trait Child: Parent<i32> {}
         data Item {}
-        Item satisfies Child as Primary {}
+        Primary: Item satisfies Child {}
         "#,
     );
 
@@ -1132,10 +1118,10 @@ fn bare_local_dynamic_coercion_rejects_ambiguous_conformances() {
             machine code(&self) -> i32;
         }
         data Item {}
-        Item satisfies Marker as First {
+        First: Item satisfies Marker {
             machine code(&self) -> i32 { 1 }
         }
-        Item satisfies Marker as Second {
+        Second: Item satisfies Marker {
             machine code(&self) -> i32 { 2 }
         }
 
@@ -1161,10 +1147,10 @@ fn bare_dynamic_parameter_argument_rejects_ambiguous_conformances() {
         r#"
         trait Shape { machine code(&self) -> i32; }
         data Item {}
-        Item satisfies Shape as First {
+        First: Item satisfies Shape {
             machine code(&self) -> i32 { 1 }
         }
-        Item satisfies Shape as Second {
+        Second: Item satisfies Shape {
             machine code(&self) -> i32 { 2 }
         }
 
@@ -1189,10 +1175,10 @@ fn exact_named_dynamic_parameter_resolves_argument_conformance() {
         r#"
         trait Shape { machine code(&self) -> i32; }
         data Item {}
-        Item satisfies Shape as First {
+        First: Item satisfies Shape {
             machine code(&self) -> i32 { 1 }
         }
-        Item satisfies Shape as Second {
+        Second: Item satisfies Shape {
             machine code(&self) -> i32 { 2 }
         }
 
@@ -1211,8 +1197,8 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
         r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as First {}
-        Item satisfies Marker as Second {}
+        First: Item satisfies Marker {}
+        Second: Item satisfies Marker {}
 
         machine erase(item: Item) {
             let erased: &dyn Marker = &item as &dyn Item::First;
@@ -1267,7 +1253,7 @@ fn dynamic_statement_call_retains_exact_inherited_requirement_symbol() {
         }
         trait Child: Parent {}
         data Item {}
-        Item satisfies Child as Primary {}
+        Primary: Item satisfies Child {}
 
         machine run(item: Item) {
             let erased: &dyn Child = &item as &dyn Item::Primary;
@@ -1322,7 +1308,7 @@ fn dynamic_call_rejects_ambiguous_inherited_requirement_spelling() {
         machine Item::left_ping(&self) {}
         machine Item::right_ping(&self) {}
 
-        Item satisfies Both as Primary {
+        Primary: Item satisfies Both {
             Left::ping = Item::left_ping;
             Right::ping = Item::right_ping;
         }
@@ -1375,7 +1361,7 @@ fn named_local_dynamic_coercion_rejects_unknown_selection() {
     let source = r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as Primary {}
+        Primary: Item satisfies Marker {}
 
         machine erase(item: Item) {
             let erased: &dyn Marker = &item as &dyn Item::Missing;
@@ -1401,7 +1387,7 @@ fn named_local_dynamic_coercion_rejects_wrong_source_carrier() {
         trait Marker {}
         data Item {}
         data Other {}
-        Item satisfies Marker as Primary {}
+        Primary: Item satisfies Marker {}
 
         machine erase(other: Other) {
             let erased: &dyn Item::Primary = &other as &dyn Item::Primary;
@@ -1452,7 +1438,7 @@ fn local_dynamic_coercion_rejects_bodyless_static_conformance() {
         }
         data Item {}
         machine Item::code(&self) -> i32 { 1 }
-        Item satisfies Marker as Primary;
+        Primary: Item satisfies Marker;
 
         machine erase(item: Item) -> i32 {
             let erased: &dyn Marker = &item as &dyn Item::Primary;
@@ -1478,7 +1464,7 @@ fn reassigned_local_dynamic_binding_requires_physical_descriptor_lowering() {
             machine code(&self) -> i32;
         }
         data Item {}
-        Item satisfies Shape as Primary {
+        Primary: Item satisfies Shape {
             machine code(&self) -> i32 { 1 }
         }
 
@@ -1505,7 +1491,7 @@ fn named_whole_trait_conformance_survives_typing() {
         r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as Primary;
+        Primary: Item satisfies Marker;
         "#,
     );
 
@@ -1543,8 +1529,8 @@ fn duplicate_named_whole_trait_conformance_rejects() {
         trait Left {}
         trait Right {}
         data Item {}
-        Item satisfies Left as Primary;
-        Item satisfies Right as Primary;
+        Primary: Item satisfies Left;
+        Primary: Item satisfies Right;
         "#,
     );
 
@@ -1564,7 +1550,7 @@ fn generic_conformance_bounds_survive_typing_and_resolve_exact_selection() {
         trait Marker {}
         trait Projection<Message> {}
         data Item {}
-        Item satisfies Marker as Primary;
+        Primary: Item satisfies Marker;
 
         machine inspect<T, Message>(value: &T)
         where
@@ -1775,7 +1761,7 @@ fn generic_trait_header_exact_obligation_uses_enclosing_named_bound() {
         r#"
         trait Marker {}
         data Item {}
-        Item satisfies Marker as Primary;
+        Primary: Item satisfies Marker;
 
         trait Selected<C>
         where C satisfies Item::Primary
@@ -2022,7 +2008,7 @@ fn named_generic_bound_authorizes_its_selected_trait_surface() {
         }
         data Card {}
         machine Card::rank(&self) -> i32 satisfies Ranked { 1 }
-        Card satisfies Ranked as PowerOrder;
+        PowerOrder: Card satisfies Ranked;
 
         machine rank_selected<C>(card: &C) -> i32
         where C satisfies Card::PowerOrder

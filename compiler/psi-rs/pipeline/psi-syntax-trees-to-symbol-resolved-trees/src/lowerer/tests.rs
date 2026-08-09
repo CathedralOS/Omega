@@ -16,7 +16,7 @@ fn lowers_closed_conformance_rows_to_exact_machine_states() {
         data Card { }
         machine Card::stable_rank_value(&self) -> u32 { }
 
-        Card satisfies Ranked as PowerOrder {
+        PowerOrder: Card satisfies Ranked {
             machine before(&self, other: &Card) -> bool { }
             Ranked::rank_value = Card::stable_rank_value;
         }
@@ -61,7 +61,7 @@ fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
             machine witness(value: i32);
         }
 
-        satisfies Evidence as ConcreteEvidence {
+        ConcreteEvidence: satisfies Evidence {
             machine witness(value: i32) { }
         }
     "#;
@@ -109,7 +109,7 @@ fn subjectless_inline_calls_route_through_the_same_closed_map() {
             machine second(value: i32);
         }
 
-        satisfies Evidence as ConcreteEvidence {
+        ConcreteEvidence: satisfies Evidence {
             machine first(value: i32) { second(value); }
             machine second(value: i32) { }
         }
@@ -164,7 +164,7 @@ fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
         trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
         data Card { }
         machine Card::before(&self, other: &Card) -> bool { }
-        Card satisfies Ranked { }
+        PowerOrder: Card satisfies Ranked { }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -184,7 +184,7 @@ fn closed_conformance_retains_trait_default_selection_rows() {
     let source = r#"
         trait Ranked { machine Self::fallback(&self) { } }
         data Card { }
-        Card satisfies Ranked { }
+        PowerOrder: Card satisfies Ranked { }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -207,7 +207,7 @@ fn closed_conformance_retains_trait_default_selection_rows() {
     assert!(rows[0].realization_state.is_valid());
     assert_eq!(
         rows[0].realization_name.as_str(),
-        "Card::Ranked::Ranked::fallback"
+        "Card::PowerOrder::Ranked::fallback"
     );
 }
 
@@ -219,7 +219,7 @@ fn closed_conformance_retains_every_same_named_default_overload() {
             machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
         }
         data Item { }
-        Item satisfies Converter as Primary { }
+        Primary: Item satisfies Converter { }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -252,7 +252,7 @@ fn closed_conformance_matches_inline_members_to_result_overloads() {
             machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
         }
         data Item { }
-        Item satisfies Converter as Primary {
+        Primary: Item satisfies Converter {
             machine convert(&self, value: i32) -> i32 in Saturating { value }
         }
     "#;
@@ -312,7 +312,7 @@ fn trait_default_calls_route_through_the_same_closed_map() {
         }
         data Card { }
         machine Card::second(&self) { }
-        Card satisfies Pair as Selected {
+        Selected: Card satisfies Pair {
             machine second(&self) { }
         }
     "#;
@@ -365,7 +365,7 @@ fn trait_default_synthesis_is_idempotent_across_orchestration_and_lowering() {
     let source = r#"
         trait Ranked { machine Self::fallback(&self) { } }
         data Card { }
-        Card satisfies Ranked as Selected { }
+        Selected: Card satisfies Ranked { }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -399,7 +399,7 @@ fn inherited_same_name_defaults_keep_distinct_exact_rows() {
         trait Right { machine Self::fallback(&self) { } }
         trait Both: Left + Right { }
         data Card { }
-        Card satisfies Both as Selected { }
+        Selected: Card satisfies Both { }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -430,7 +430,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
         trait RightOrder { machine Self::before(&self, other: &Self); }
         trait BothOrders: LeftOrder + RightOrder { }
         data Card { }
-        Card satisfies BothOrders {
+        Selected: Card satisfies BothOrders {
             machine before(&self, other: &Card) { }
         }
     "#;
@@ -453,7 +453,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
         data Card { }
         machine Card::left_before(&self, other: &Card) { }
         machine Card::right_before(&self, other: &Card) { }
-        Card satisfies BothOrders {
+        Selected: Card satisfies BothOrders {
             LeftOrder::before = Card::left_before;
             RightOrder::before = Card::right_before;
         }
@@ -482,7 +482,7 @@ fn inline_conformance_member_calls_route_through_the_same_closed_map() {
         }
         data Card { }
         machine Card::second(&self) { }
-        Card satisfies Pair as Selected {
+        Selected: Card satisfies Pair {
             machine first(&self, other: &Card) { other.second(); }
             machine second(&self) { }
         }
@@ -547,7 +547,7 @@ fn inline_conformance_value_calls_route_through_the_same_closed_map() {
         }
         data Card { }
         machine Card::second(&self) -> i32 { transition { _ -> (1) } }
-        Card satisfies Pair as Selected {
+        Selected: Card satisfies Pair {
             machine first(&self) -> i32 {
                 transition { _ -> (self.second()) }
             }
@@ -613,7 +613,7 @@ fn inline_conformance_calls_preserve_a_foreign_receiver_method() {
             machine Self::second(&self);
         }
         data Card { }
-        Card satisfies Pair as Selected {
+        Selected: Card satisfies Pair {
             machine first(&self, other: &Other) { other.second(); }
             machine second(&self) { }
         }
@@ -724,7 +724,7 @@ fn proposition_parameter_signatures_receive_distinct_symbols() {
 fn proposition_declarations_resolve_as_a_distinct_proof_category() {
     let source = r#"
         proposition related(left: i32, right: i32);
-        proposition witnessed<machine Generator>(value: i32) { i32; }
+        proposition witnessed<machine Generator>(value: i32) evidence i32;
         proposition reflexive(value: i32) = related(value, value);
     "#;
     let tokens = Lexer::new(source)

@@ -25,10 +25,10 @@ machine Square::code(&mut self) -> i32 {
     }
 }
 
-Circle satisfies Shape as Primary {
+CircleShape: Circle satisfies Shape {
     Shape::code = Circle::code;
 }
-Square satisfies Shape as Primary {
+SquareShape: Square satisfies Shape {
     Shape::code = Square::code;
 }
 
