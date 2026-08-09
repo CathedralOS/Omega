@@ -153,6 +153,13 @@ proof remains unavailable as an axiom. Two unrelated runtime factors reject;
 native wrapping-width multiplication is authorized only after the independent
 certificate establishes representability.
 
+Terminal Psi v49 adds one joint unsigned relation without trusting producer
+range metadata. A checked path carrying `1 <= right` makes `MAX / right`
+Exact-defined; a nested true edge establishes `left <= MAX / right`. The bound
+division selects the positive-factor fact, and the multiplication selects the
+canonical conjunction of the positive and bound facts. Earlier versions retain
+the v33 constant-factor surface.
+
 Terminal Psi v34 applies the same split to Exact fixed-integer division. Source
 validation rejects a provably zero divisor without treating a possibly-zero
 runtime value as statically safe; the terminal verifier reconstructs the

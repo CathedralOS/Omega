@@ -29,8 +29,9 @@
 //! extends that upper-bound form to signed nonnegative addends, v45 adds the
 //! symmetric lower-bound form for signed nonpositive addends, v46 admits a
 //! direct unsigned two-runtime Exact-subtract bound, v47 adds the signed
-//! lower-bound form for nonnegative runtime subtrahends, and current v48 adds
-//! the symmetric upper-bound form for nonpositive runtime subtrahends.
+//! lower-bound form for nonnegative runtime subtrahends, v48 adds the symmetric
+//! upper-bound form for nonpositive runtime subtrahends, and current v49 admits
+//! unsigned Exact multiplication bounded by a positive factor.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other

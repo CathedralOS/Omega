@@ -440,6 +440,14 @@ Remaining:
   Earlier versions retain their prior surface. Existing proof terms, canonical
   artifacts, selected-path fuel, interpretation, and both native targets carry
   the upper-bound slice.
+  Terminal Psi v49 admits the first joint two-runtime Exact-multiply relation
+  for unsigned carriers. A preceding path proves `1 <= right`, making
+  `MAX / right` Exact-defined; the nested true edge proves
+  `left <= MAX / right`. The verifier independently requires both facts and
+  reconstructs their conjunction for the multiplication. Earlier versions and
+  unbounded factors remain fail-closed. Existing proof terms, canonical
+  artifacts, selected-path fuel, interpretation, and both native targets carry
+  the relational multiplication slice.
   Terminal Psi v45 adds the symmetric signed nonpositive Exact-add form. A
   preceding path proves `right <= 0`, making `MIN - right` Exact-safe; the
   nested true edge proves `MIN - right <= left`. The verifier independently

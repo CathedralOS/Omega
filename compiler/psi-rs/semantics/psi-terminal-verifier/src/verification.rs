@@ -578,6 +578,7 @@ fn reconstruct_machine_semantics(
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1539,6 +1540,7 @@ fn exact_integer_multiply_obligation(
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1552,7 +1554,35 @@ fn exact_integer_multiply_obligation(
     let (variable, constant) = match (known_left, known_right) {
         (Some(constant), None) => (right, constant),
         (None, Some(constant)) => (left, constant),
-        (None, None) => return Proposition::Falsehood,
+        (None, None) => {
+            if semantic_version >= SemanticVersion::V49
+                && integer_type.sign() == IntegerSign::Unsigned
+            {
+                let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1))
+                    .expect("one belongs to every unsigned carrier");
+                for (variable, factor) in [(&left, &right), (&right, &left)] {
+                    let positive = Proposition::LessOrEqual(one.clone(), factor.clone());
+                    if !semantic_axioms.contains(&positive) {
+                        continue;
+                    }
+                    if let Some(bound) = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                        Proposition::LessOrEqual(bound_left, bound_right) => {
+                            bound_left == variable
+                                && is_maximum_divide(
+                                    integer_type,
+                                    bound_right,
+                                    factor,
+                                    semantic_axioms,
+                                )
+                        }
+                        _ => false,
+                    }) {
+                        return canonical_conjunction(vec![positive, bound.clone()]);
+                    }
+                }
+            }
+            return Proposition::Falsehood;
+        }
         (Some(_), Some(_)) => unreachable!("known exact-multiply operands returned above"),
     };
     match (integer_type.sign(), constant) {
@@ -1615,6 +1645,35 @@ fn exact_integer_multiply_obligation(
         }
         _ => Proposition::Falsehood,
     }
+}
+
+fn is_maximum_divide(
+    integer_type: psi_core::IntegerType,
+    term: &ScalarTerm,
+    divisor: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let definition = semantic_axioms
+        .iter()
+        .rev()
+        .find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == term => Some(right),
+            Proposition::Equal(left, right) if right == term => Some(left),
+            _ => None,
+        })
+        .unwrap_or(term);
+    let ScalarTerm::ExactIntegerDivide {
+        scalar_type,
+        left,
+        right,
+    } = definition
+    else {
+        return false;
+    };
+    *scalar_type == integer_type
+        && right.as_ref() == divisor
+        && known_integer_term_value(integer_type, left, semantic_axioms)
+            == Some(integer_type.maximum_value())
 }
 
 fn exact_integer_divide_obligation_at_version(
@@ -2850,11 +2909,18 @@ mod tests {
                 unsigned_value.clone(),
                 unsigned_five.clone(),
                 &[],
+                SemanticVersion::V48,
             ),
             Proposition::LessOrEqual(unsigned_value.clone(), unsigned_maximum.clone())
         );
         assert_eq!(
-            exact_integer_multiply_obligation(u8_type, unsigned_five, unsigned_value.clone(), &[]),
+            exact_integer_multiply_obligation(
+                u8_type,
+                unsigned_five,
+                unsigned_value.clone(),
+                &[],
+                SemanticVersion::V48,
+            ),
             Proposition::LessOrEqual(unsigned_value, unsigned_maximum)
         );
 
@@ -2872,11 +2938,23 @@ mod tests {
             Proposition::LessOrEqual(signed_value.clone(), positive_42.clone()),
         ]);
         assert_eq!(
-            exact_integer_multiply_obligation(i8_type, signed_value.clone(), signed_three, &[],),
+            exact_integer_multiply_obligation(
+                i8_type,
+                signed_value.clone(),
+                signed_three,
+                &[],
+                SemanticVersion::V48,
+            ),
             expected.clone()
         );
         assert_eq!(
-            exact_integer_multiply_obligation(i8_type, signed_value, negative_three, &[],),
+            exact_integer_multiply_obligation(
+                i8_type,
+                signed_value,
+                negative_three,
+                &[],
+                SemanticVersion::V48,
+            ),
             expected
         );
 
@@ -2888,7 +2966,13 @@ mod tests {
             ScalarType::Integer(i8_type),
         );
         assert_eq!(
-            exact_integer_multiply_obligation(i8_type, signed_value.clone(), negative_one, &[],),
+            exact_integer_multiply_obligation(
+                i8_type,
+                signed_value.clone(),
+                negative_one,
+                &[],
+                SemanticVersion::V48,
+            ),
             Proposition::LessOrEqual(minimum_plus_one, signed_value)
         );
     }
@@ -2903,15 +2987,78 @@ mod tests {
             )
         };
         assert_eq!(
-            exact_integer_multiply_obligation(integer_type, value(1), value(2), &[]),
+            exact_integer_multiply_obligation(
+                integer_type,
+                value(1),
+                value(2),
+                &[],
+                SemanticVersion::V48,
+            ),
             Proposition::Falsehood
         );
         let fifty_one =
             ScalarTerm::integer(integer_type, IntegerValue::Unsigned(51)).expect("51u8");
         let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
         assert_eq!(
-            exact_integer_multiply_obligation(integer_type, fifty_one, five, &[]),
+            exact_integer_multiply_obligation(
+                integer_type,
+                fifty_one,
+                five,
+                &[],
+                SemanticVersion::V48,
+            ),
             Proposition::Truth
+        );
+    }
+
+    #[test]
+    fn v49_reconstructs_unsigned_joint_exact_multiply_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let left = ScalarTerm::value(
+            ValueId::new(14).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(15).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("1u8");
+        let maximum =
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(255)).expect("255u8");
+        let upper = ScalarTerm::exact_integer_divide(integer_type, maximum, right.clone())
+            .expect("255 / right");
+        let positive = Proposition::LessOrEqual(one, right.clone());
+        let bound = Proposition::LessOrEqual(left.clone(), upper);
+        let axioms = vec![positive.clone(), bound.clone()];
+        assert_eq!(
+            exact_integer_multiply_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                SemanticVersion::V49,
+            ),
+            canonical_conjunction(vec![positive.clone(), bound.clone()])
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                SemanticVersion::V48,
+            ),
+            Proposition::Falsehood
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(
+                integer_type,
+                left,
+                right,
+                &axioms[1..],
+                SemanticVersion::V49,
+            ),
+            Proposition::Falsehood
         );
     }
 

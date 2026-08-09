@@ -1081,6 +1081,27 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_multiply_joint_bound(left: u32, right: u32) -> u32
+requires 0u32 == 0u32
+ensures 0u32 == 0u32
+{
+    transition 1u32 <= right {
+        true -> prove_exact_multiply_joint(left, right)
+        _ -> finish_exact_multiply_joint(0u32)
+    }
+
+    state prove_exact_multiply_joint(left: u32, right: u32) -> u32 {
+        transition left <= 4294967295u32 / right {
+            true -> finish_exact_multiply_joint(left * right)
+            _ -> finish_exact_multiply_joint(0u32)
+        }
+    }
+
+    state finish_exact_multiply_joint(value: u32) -> u32 {
+        value
+    }
+}
+
 machine terminal_exact_divide_known_right(value: u32, ignored: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
