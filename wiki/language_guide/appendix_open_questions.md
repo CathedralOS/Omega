@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-03.
+Last pruned: 2026-08-08.
 
 ## Reach, resources, and progress
 
@@ -96,8 +96,9 @@ Last pruned: 2026-08-03.
 - Implement generic bounds for `copy`, `linear`, `sized`, and the
   parameterized carry policy, then decide whether any further core properties
   earn inclusion.
-- Finish conformance-item parsing, both-foreign orphan rules, and
-  partially-satisfied diagnostics.
+- Finish name-first conformance declarations, conformance-evidence binders,
+  explicit selection diagnostics, and partially-satisfied diagnostics. Named
+  explicit conformances need no both-foreign orphan rule.
 
 ## Boundaries, assembly, and components
 

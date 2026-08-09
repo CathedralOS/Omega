@@ -30,7 +30,9 @@ data Counter {
     value: i32;
 }
 
-Counter satisfies Incrementable {
+StandardIncrement:
+    Counter satisfies Incrementable
+{
     machine increment(&mut self) {
         self.value = self.value + 1;
     }
@@ -51,7 +53,9 @@ is one implementation block binding the complete trait surface; Omega never
 assembles one conformance by searching ambient machines.
 
 ```omega
-Card satisfies Ranked as PowerOrder {
+PowerOrder:
+    Card satisfies Ranked
+{
     machine before(&self, other: &Card) -> bool {
         self.power < other.power
     }
@@ -61,7 +65,9 @@ Card satisfies Ranked as PowerOrder {
     }
 }
 
-Card satisfies Ranked as CostOrder {
+CostOrder:
+    Card satisfies Ranked
+{
     machine before(&self, other: &Card) -> bool {
         self.cost < other.cost
     }
@@ -82,10 +88,32 @@ a row from a uniquely visible or similarly named machine. A default is
 instantiated separately for each overload in this conformance, so calls it
 makes to other requirements resolve through this same block.
 
-A carrierless evidence implementation uses the concrete subjectless form:
+A conformance owns its static telescope. Generic carrier conformances bind
+their parameters on the declared conformance name rather than inheriting them
+from the carrier:
 
 ```omega
-satisfies Evidence as ConcreteEvidence {
+Structural<Element>:
+    Vec<Element> satisfies Relator
+{
+    ...
+}
+```
+
+The declaration name is a package-scoped static evidence identity. Its binder
+telescope, optional subject, instantiated trait application, and complete
+normalized row map are fingerprinted. The colon has its ordinary binding
+meaning: `PowerOrder` is evidence that `Card satisfies Ranked`.
+
+This admits repeated parameters such as `Pair<Element, Element>`, concrete
+specializations such as `Vec<u8>`, and parameters used only by the trait
+application. A carrierless evidence implementation uses the same form with the
+subject omitted:
+
+```omega
+ConcreteEvidence:
+    satisfies Evidence
+{
     machine witness(value: i32) {
         // proof-only implementation
     }
@@ -96,8 +124,18 @@ satisfies Evidence as ConcreteEvidence {
 the same complete normalized row map as a carrier-owned block, but it has no
 data subject, no attached realization machines, and no eligibility for nominal
 data or runtime dynamic-conformance selection. Its trait arguments do not
-implicitly nominate a carrier. A generic subjectless block still awaits the
-binder-telescope spelling recorded in `OWNER_QUESTIONS.md` Q1.
+implicitly nominate a carrier. Generic carrierless evidence binds its complete
+telescope on the name:
+
+```omega
+TogetherEvidence<machine Left, machine Right>:
+    satisfies ConvergenceEvidence<Left, Right>
+where machine Left(index: Nat) -> Rat;
+where machine Right(index: Nat) -> Rat;
+{
+    ...
+}
+```
 
 One existing machine may be shared deliberately by referencing it from
 several blocks. A reference row uses `=` to bind the conformance slot to that
@@ -108,7 +146,9 @@ machine Card::stable_rank_value(&self) -> u32 {
     self.power + self.cost
 }
 
-Card satisfies Ranked as PowerOrder {
+PowerOrder:
+    Card satisfies Ranked
+{
     machine before(&self, other: &Card) -> bool {
         self.power < other.power
     }
@@ -124,36 +164,43 @@ satisfier machines may back a public conformance: callers name the authorized
 conformance surface, not its private realization. Two semantic rows remain
 distinct even when a later lowering safely shares their physical code.
 
-Selection happens where concrete code meets an abstract requirement. A unique
-visible home conformance is inferred. If several conformances are eligible,
-the use names one:
+Selection happens where concrete code meets an abstract requirement. Every
+whole-trait implementation has a package-scoped name, and every use passes that
+evidence explicitly. A generic evidence binder uses the same right-hand
+grammar as a concrete declaration, without a body:
 
 ```omega
 let ranked: &dyn Ranked =
-    &card as &dyn Card::PowerOrder;
+    &card as &dyn PowerOrder;
 
-machine sort<C>(cards: &mut [C])
-where
-    C satisfies Card::PowerOrder
+machine sort<Element, Order: Element satisfies Ranked>(
+    cards: &mut [Element]
+)
 {
+    // Calls dispatch through Order's closed requirement map.
 }
+
+sort<Card, PowerOrder>(&mut cards);
 ```
 
-The same rule governs static bounds and dynamic coercions: uniqueness permits
-elision; ambiguity requires a conformance path. Naming a conformance selects
-one coherent set of requirements, including every law relating those
-requirements.
-
-Implicit selection consults only home conformances declared by the type's
-package or the trait's package. A third-party conformance is legal but
-named-only. Imports can therefore make a conformance name resolvable; they
-cannot silently change an unnamed selection.
+The same rule governs static bounds and dynamic coercions. There is no
+unique-visible selection, specificity priority, or default conformance.
+Overlapping blanket and specialized conformances may coexist because neither
+competes to be chosen. Naming and passing one conformance selects its coherent
+set of requirements and every law relating those requirements.
 
 The package declaring a conformance owns its closed membership. Another package
 may declare a separately named conformance over the same type and trait, but it
 cannot add, replace, or duplicate rows in an existing one. Named third-party
-conformances therefore do not compete for one global unnamed implementation;
-ordinary visibility, name-collision, and home-inference coherence still apply.
+conformances therefore need no orphan or global overlap rule: additions cannot
+change existing program meaning because uses already name their evidence.
+Ordinary package visibility and name-collision rules still apply.
+
+Dedicated syntax has no position in which to select conformance evidence.
+Operators, indexing, cleanup, and similar forms therefore never initiate
+ambient conformance lookup. They resolve from their operand types and declared
+domains, from evidence already encoded in those types, or from a sealed
+language route.
 
 A trait may declare free-machine requirements:
 
@@ -250,8 +297,6 @@ machine Player::draw(
     canvas: &mut Canvas
 )
 satisfies Drawable::draw
-where
-    Canvas satisfies RasterTarget
 requires
     self.health > 0
 reaches
@@ -326,14 +371,12 @@ trait CounterLike {
 Bundles are useful for APIs that need a coherent family of operations.
 
 ```omega
-machine Metrics::sample<T>(
+machine Metrics::sample<T, Counters: T satisfies CounterLike>(
     source: &T,
     out: &mut CounterSnapshot
 )
-where
-    T satisfies CounterLike
 {
-    source.snapshot(out);
+    Counters::snapshot(source, out);
 }
 ```
 
@@ -372,14 +415,22 @@ trait CallingPolicy {
     ) -> BoundaryPlanResult;
 }
 
-trait Calling<C>
-where
-    C satisfies CallingPolicy
+trait Calling<C, Policy: C satisfies CallingPolicy>
 {
 }
 
+data X86InterruptConvention;
+
+X86InterruptPolicy:
+    X86InterruptConvention satisfies CallingPolicy
+{
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        ...
+    }
+}
+
 boundary trait TimerInterrupt:
-    InterruptService + Calling<X86InterruptConvention>
+    InterruptService + Calling<X86InterruptConvention, X86InterruptPolicy>
 {
 }
 ```
@@ -464,19 +515,18 @@ expected transform surface when a framework or checker needs one.
 
 ## Dispatch
 
-Trait satisfaction is static by default. If a call site says
-`T satisfies CounterLike`, the compiler resolves the concrete machine targets
-during compilation.
+Trait satisfaction is static by default. Generic code binds the exact
+conformance evidence it uses, and the caller supplies that evidence as an
+ordinary static argument. The compiler therefore resolves concrete machine
+targets without searching visible declarations.
 
 ```omega
-machine Metrics::sample<T>(
+machine Metrics::sample<T, Counters: T satisfies CounterLike>(
     source: &T,
     out: &mut CounterSnapshot
 )
-where
-    T satisfies CounterLike
 {
-    source.snapshot(out);
+    Counters::snapshot(source, out);
 }
 ```
 
@@ -515,7 +565,7 @@ conformances to the trait, a coercion names the conformance:
 
 ```omega
 let ranked: &dyn Ranked =
-    &card as &dyn Card::PowerOrder;
+    &card as &dyn PowerOrder;
 ```
 
 The coercion is an `as` operation: the compiler proves that the named
@@ -536,14 +586,13 @@ row map from which a descriptor table could be built. A bare exact-requirement
 satisfier likewise supplies no whole-trait dynamic surface.
 
 The checked implementation retains the first selection rung for a direct place
-coercion bound to a borrowed local. A bare `&T as &dyn Trait` selects only when
-one complete closed conformance is unique and records the exact data, trait,
-optional named-conformance symbol, and normalized rows for later descriptor
-lowering; missing or ambiguous selection rejects. Exact `&dyn Type::Conformance`
-coercion targets now retain that path through parsing, resolved and typed
-identity, derive the dynamic trait from the named declaration, and consume its
-stable child symbol during checked selection. Unknown paths and paths belonging
-to a different source carrier reject. Omega now owns a distinct target ABI view
+coercion bound to a borrowed local. A concrete-to-dynamic coercion names the
+complete conformance, such as `&card as &dyn PowerOrder`; bare
+`&T as &dyn Trait` never searches visible conformances. The exact conformance
+target retains its package-scoped symbol through parsing, resolved and typed
+identity, derives the dynamic trait from the declaration, and selects its
+closed normalized rows. Unknown names and conformances belonging to a
+different source carrier reject. Omega owns a distinct target ABI view
 for the two-word `{ instance, selected-conformance table }` carrier and retains
 the trait plus authored named selection in physical layout descriptors; it no
 longer models the second word as a slice length. Direct nonescaping local calls
@@ -551,14 +600,10 @@ now consume the retained row and original source place for whole-artifact
 devirtualization. Every dynamic call occurrence in a machine body retains the
 exact declaring-trait requirement symbol, including calls to inherited slots;
 same-spelled inherited requirements reject as ambiguous. Checked rows and
-backend dispatch match that symbol only. A bare dynamic parameter retains every
-eligible complete closed conformance as an exact candidate row map through
-state graph and control flow; current call-site specialization consumes those
-rows without searching attached machines by carrier or method name. Passing a
-concrete carrier to a bare dynamic parameter requires exactly one eligible
-closed conformance for that carrier. When the carrier has several, the
-parameter type names the intended conformance, such as
-`&dyn Card::PowerOrder`. Physical
+backend dispatch match that symbol only. A bare dynamic parameter such as
+`&dyn Ranked` accepts an already-selected dynamic value; the concrete call site
+must first coerce through an exact target such as `&dyn PowerOrder`. No
+candidate set or unique-visible search survives into checking. Physical
 descriptor materialization, private table emission, and the remaining
 pass-through/rebinding/escaping adapters remain subsequent implementation
 rungs. Those consumers use the same complete normalized maps. Each row retains
@@ -709,23 +754,20 @@ pub trait BufferedLogger = Logger {
 A refinement is a bound, not a new nominal conformance target. A type must
 still explicitly satisfy `Logger`; fitting the refinement is then a structural
 contract check over that existing conformance. A machine declaration cannot
-`satisfies LocalLogger`, while a generic bound may say:
+`satisfies LocalLogger`, while a generic evidence binder may require it:
 
 ```omega
-machine record<L>(logger: &L)
-where
-    L satisfies LocalLogger
+machine record<L, Logging: L satisfies LocalLogger>(logger: &L)
 {
-    logger.write("record");
+    Logging::write(logger, "record");
 }
 ```
 
-If several conformances are eligible, the bound names one exactly as a dynamic
-coercion does:
+The caller passes the exact base conformance whose contract fits the
+refinement. No refinement or base conformance is selected by visibility:
 
 ```omega
-where
-    C satisfies Card::PowerOrder
+record<LoggingProxy, ComponentLogger>(&proxy);
 ```
 
 `machine *` applies to every present and future requirement in the base trait;
@@ -744,10 +786,12 @@ demands. `reaches;` means an empty row, while
 requirement. Correlating several requirements with one named row is a later
 extension.
 
-The `satisfies` token consequently has three related grammatical uses. A
-conformance block declares one complete nominal edge; a machine clause realizes
-one exact requirement without creating that edge; and a generic `where` clause
-tests an already-declared whole conformance, optionally selecting its name.
+The `satisfies` token consequently has three related grammatical uses. The
+right side of a name-first block declares one complete nominal edge; a machine
+clause realizes one exact requirement without creating that edge; and a static
+evidence binder states the complete conformance shape its argument must have.
+An `as Name` occurrence only references an already-declared conformance; it
+never introduces one.
 
 ### Components are a different crossing
 
@@ -764,7 +808,9 @@ data LoggingProxy {
     service: LoggingService;
 }
 
-LoggingProxy satisfies Logger as ComponentLogger {
+ComponentLogger:
+    LoggingProxy satisfies Logger
+{
     machine write(&self, text: &[u8])
         reaches LoggingService
         suspends
@@ -774,7 +820,7 @@ LoggingProxy satisfies Logger as ComponentLogger {
 }
 
 let logger: &dyn Logger =
-    &proxy as &dyn LoggingProxy::ComponentLogger;
+    &proxy as &dyn ComponentLogger;
 ```
 
 The descriptor points to the proxy in the current artifact. The proxy crosses
@@ -796,19 +842,19 @@ data Counter {
     value: i32;
 }
 
-Counter satisfies Incrementable {
+StandardIncrement:
+    Counter satisfies Incrementable
+{
     machine increment(&mut self) {
         self.value = self.value + 1;
     }
 }
 
-machine Scheduler::step<T>(
+machine Scheduler::step<T, Increment: T satisfies Incrementable>(
     subject: &mut T
 )
-where
-    T satisfies Incrementable
 {
-    subject.increment();
+    Increment::increment(subject);
 }
 ```
 
@@ -885,7 +931,9 @@ trait WireEncodable<Message> {
     machine Self::to_wire(&self, out: &mut Message);
 }
 
-Player satisfies WireEncodable<PlayerMessage> {
+PlayerWireEncoding:
+    Player satisfies WireEncodable<PlayerMessage>
+{
     machine to_wire(&self, out: &mut PlayerMessage) {
         out.name = self.name;
         out.health = self.health;
@@ -896,16 +944,18 @@ Player satisfies WireEncodable<PlayerMessage> {
 Generic code can require the relationship directly.
 
 ```omega
-machine Network::send<T, Message>(
+machine Network::send<
+    T,
+    Message,
+    Encoding: T satisfies WireEncodable<Message>,
+    MessageShape: Message satisfies WireMessage
+>(
     &mut self,
     value: &T
 )
-where
-    T satisfies WireEncodable<Message>,
-    Message satisfies WireMessage
 {
     let message: Message;
-    value.to_wire(&mut message);
+    Encoding::to_wire(value, &mut message);
     self.write_message(message);
 }
 ```
@@ -931,8 +981,9 @@ first trait pass.
 Working guideline:
 
 - Use trait parameters first.
-- Bind concrete trait parameters on the complete conformance block, for example
-  `Player satisfies WireEncodable<PlayerMessage> { ... }`.
+- Bind concrete trait parameters on the complete named conformance block, for
+  example `PlayerWireEncoding: Player satisfies
+  WireEncodable<PlayerMessage> { ... }`.
 - Do not add associated constants, higher-kinded types, or type families until
   the language has a real need.
 
@@ -962,13 +1013,11 @@ trait SettableCounter {
 
 data CounterDefaults { }
 
-machine CounterDefaults::reset<T>(
+machine CounterDefaults::reset<T, Setter: T satisfies SettableCounter>(
     value: &mut T
 )
-where
-    T satisfies SettableCounter
 {
-    value.set(0);
+    Setter::set(value, 0);
 }
 ```
 
@@ -979,21 +1028,25 @@ the conformance story below.
 ## Conformance Blocks
 
 Nothing trait-shaped appears on a `data` declaration. A conformance block
-declares and implements the nominal relationship for a whole `(type, trait)`
-pair:
+declares and implements one named nominal satisfaction relationship. Most have
+a data subject; proof evidence may omit it:
 
 ```omega
-Point satisfies Equatable {
+StructuralEquality:
+    Point satisfies Equatable
+{
     machine equals(&self, other: &Point) -> bool {
         self.x == other.x && self.y == other.y
     }
 }
 ```
 
-A generic conformance carries its concrete arguments at the same site:
+A generic conformance owns its binder telescope on its declared name:
 
 ```omega
-Player satisfies WireEncodable<PlayerMessage> {
+SequenceEncoding<Element, Message>:
+    Vec<Element> satisfies WireEncodable<Message>
+{
     machine encode(&self, out: &mut WireBuffer) {
         // ...
     }
@@ -1018,12 +1071,12 @@ Writing a member in the block flips that row from synthesize/default to check;
 partial override needs no extra syntax. Default bodies call other requirements
 through the same block's normalized map.
 
-Foreign-type conformance (`ForeignType satisfies MyTrait as LocalName { ... }`
-declared in your package) follows the same visibility discipline as
-foreign-type domains. It is named-only outside a home package, owns a closed
-member set, and cannot extend another package's conformance. Two third parties
-may publish differently named conformances without competing for one global
-unnamed slot; identical visible names remain hard errors.
+Foreign-type conformance (`LocalName: ForeignType satisfies MyTrait { ... }`
+declared in your package) owns a closed member set and cannot extend another
+package's conformance. Two third parties may publish differently named
+conformances over the same foreign type and trait without an orphan exception
+or global overlap conflict because every use passes one exact name. Ordinary
+visibility and package-name collisions still reject normally.
 
 The item remains identifier-led and `satisfies` stays a contextual keyword.
 
@@ -1041,7 +1094,8 @@ trait Equatable {
 }
 
 data Point { x: i32; y: i32; }
-Point satisfies Equatable { }       // compiler emits this block's equals row
+StructuralEquality:
+    Point satisfies Equatable { }   // compiler emits this block's equals row
 ```
 
 This follows the established core pattern (operator declarations backed by
@@ -1073,7 +1127,8 @@ trait Hashable {
     }
 }
 
-Point satisfies Hashable { } // expands this block's hash row for Point's fields
+StructuralHash:
+    Point satisfies Hashable { } // expands this block's hash row for Point's fields
 ```
 
   Generated build-time code runs only where the trait declarer wrote the
@@ -1089,7 +1144,8 @@ compiler privilege dissolves into the same mechanism.[^build-time-open]
 Equatable acquisition (frozen decision 11): IMPLICIT for primitives and
 payload-less sums -- tag identity is the only thing equality could mean
 there, and match desugaring depends on it -- and DECLARED
-(`Type satisfies Equatable { }`) for records and payload-bearing sums. This is
+through an explicitly named synthesis block for records and payload-bearing
+sums. This is
 deliberately looser than Rust's universal derive: whole-program compilation
 removes the accidental-public-API pressure that motivates Rust's opt-in.
 The boundary is load-bearing: adding a payload case to a payload-less sum
@@ -1099,7 +1155,7 @@ Equatable -- the tag test is domain algebra, not equality
 ([chapter 1](chapter_1_data_values_literals.md)).
 
 Equatable synthesis is implemented for records and payload-bearing sums. A
-declared `Type satisfies Equatable { }` makes `==`/`!=` legal; the compiler
+declared named Equatable synthesis block makes `==`/`!=` legal; the compiler
 expands the compare INLINE at lowering into field-by-field compares (for
 sums: a disjunction over cases, each arm tag compares first, then that
 case's payload fields), riding the existing comparison machinery. A callable
@@ -1113,9 +1169,16 @@ a scalar primitive, a payload-less sum, text (a byte-slice view or bounded byte 
 compared by content), or itself Equatable-conforming; recursive types are
 rejected (inline expansion would not terminate).
 
-The implementation migration from the legacy standalone declaration parser to
-the conformance-block surface above is tracked in `TASKS.md`; synthesis and its
-eligibility rules remain unchanged by that parser migration.
+`Equatable` is a sealed, type-owned core operator route: each structural type
+may publish at most one operator-facing Equatable conformance, and `==` resolves
+that route from the operand type rather than searching visible conformances.
+Other mathematical equivalence relations remain ordinary named propositions
+and conformances and do not compete for operator syntax.
+
+The implementation currently accepts the older subject-first conformance
+header. Migration to the name-first declaration and explicit evidence-binder
+surface above is tracked in `TASKS.md`; synthesis and its eligibility rules
+remain unchanged by that parser migration.
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).
@@ -1156,14 +1219,12 @@ trait Pollable {
     machine Self::poll(&mut self, out: &mut PollResult);
 }
 
-machine DriverLoop::poll_once<T>(
+machine DriverLoop::poll_once<T, Polling: T satisfies Pollable>(
     device: &mut T
 )
-where
-    T satisfies Pollable
 {
     let result: PollResult;
-    device.poll(&mut result);
+    Polling::poll(device, &mut result);
 }
 ```
 

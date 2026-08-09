@@ -5,9 +5,10 @@ Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
 policy evaluators, recursive public fixed-array/record signature graphs, direct
-source-policy evaluation, concrete and generic `Calling<C>` discovery,
-publication of the evaluated identity, and relationship-span diagnostics are
-implemented. Authoritative lowering remains.
+source-policy evaluation, publication of the evaluated identity, and
+relationship-span diagnostics are implemented through the current
+`Calling<C>` surface. Migration to the explicit named-evidence
+`Calling<C, Policy>` surface and authoritative lowering remain.
 
 The live source policy ABI uses `u64` for every nonnegative size, alignment,
 count, graph index, register ordinal, immediate, stack offset, stack class, and
@@ -69,32 +70,33 @@ trait CallingPolicy {
     ) -> BoundaryPlanResult;
 }
 
-trait Calling<C>
-where
-    C satisfies CallingPolicy
+trait Calling<C, Policy: C satisfies CallingPolicy>
 {
 }
 
 data X86InterruptConvention;
 
-X86InterruptConvention satisfies CallingPolicy {
+X86InterruptPolicy:
+    X86InterruptConvention satisfies CallingPolicy
+{
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         ...
     }
 }
 
 boundary trait TimerInterrupt:
-    Calling<X86InterruptConvention>
+    Calling<X86InterruptConvention, X86InterruptPolicy>
 {
     machine handle(frame: &mut X86InterruptFrame, ack: LapicAck);
 }
 ```
 
-`C` is a calling-policy type, not the frame data type or a friendly target name.
-Its `plan` machine is compile-time-only, deterministic, terminating, and
-build-time-admissible. It receives the normalized requirement signature and
+`C` is the calling-convention subject, and `Policy` is the exact named
+conformance supplying `CallingPolicy`. `Policy::plan` is compile-time-only,
+deterministic, terminating, and build-time-admissible. It receives the
+normalized requirement signature and
 either returns an accepted plan or a structured rejection. Rejection produces a
-diagnostic at the `Calling<C>` relationship and contributes no contract identity:
+diagnostic at the `Calling<C, Policy>` relationship and contributes no contract identity:
 there is no boundary requirement to fingerprint until policy evaluation accepts
 the signature. The rejection value identifies the incompatible signature feature
 (for example, a forbidden result, frame parameter, or return control) so the
@@ -131,9 +133,9 @@ vocabularies; adding a new primitive placement or state concept still requires a
 compiler release. Omega's internal calling convention is never selected through
 this surface.
 
-Using a policy type is a semantic choice, not a workaround for missing static
-machine parameters. Compile-time machine parameters can select and directly
-invoke an authored machine symbol, but `Calling<C>` names the policy
+Using a policy conformance is a semantic choice, not a workaround for missing
+static machine parameters. Compile-time machine parameters can select and
+directly invoke an authored machine symbol, but `Calling<C, Policy>` names the policy
 relationship whose normalized result is part of the requirement. It also leaves
 the policy free to contain several ordinary machines without turning one helper
 symbol into the public ABI name. Neither mechanism reifies a machine as a
@@ -142,7 +144,7 @@ runtime value or exposes its code address.
 The capability audit is therefore graded rather than binary:
 
 - compile-time machine selection and direct specialized invocation are live;
-- policy evaluation such as `Calling<C>` is live and does not require machine
+- policy evaluation such as `Calling<C, Policy>` is live and does not require machine
   identity as a value;
 - a foreign binding whose declared parameter is a callback requirement may
   accept one named static machine satisfying that requirement and privately
@@ -166,9 +168,8 @@ When the boundary declaration itself is reusable across conventions, make the
 policy an ordinary type parameter:
 
 ```omega
-boundary trait Console<C>: Calling<C>
-where
-    C satisfies CallingPolicy
+boundary trait Console<C, Policy: C satisfies CallingPolicy>:
+    Calling<C, Policy>
 {
     machine write(bytes: &[u8]);
 }
@@ -401,8 +402,9 @@ artifact-private requirement table. The requirement owns one erased caller
 call shape; each selected satisfier supplies a checked adapter into its
 physical machine shape.
 
-The selected conformance is one closed `Type satisfies Trait as Name { ... }`
-implementation block. Its normalized map has exactly one row per inherited
+The selected conformance is one closed
+`Name<Telescope>: Type satisfies Trait { ... }` implementation block. Its
+normalized map has exactly one row per inherited
 `(declaring trait, complete requirement overload)` slot, selecting the block
 member, an explicit existing-machine reference, or that conformance's own
 per-overload default instantiation. Complete overload identity includes the
@@ -416,13 +418,11 @@ machine. An independent `machine ... satisfies Trait::requirement` remains a
 per-requirement provider/adapter realization and never supplies `dyn` by
 itself.
 
-Checked Psi now retains the first descriptor-selection input: a direct bare
-place coercion succeeds only for one unique complete nominal conformance and
-records its exact source-data, target-trait, and optional stable conformance
-symbol. Missing or ambiguous selections fail before Omega lowering. An exact
-`dyn Type::Conformance` target is now retained through typed identity, derives
-its dispatch trait from the declared edge, and selects that stable child symbol
-even when sibling conformances exist; unknown and wrong-carrier paths reject.
+Checked Psi retains the descriptor-selection input from an exact named
+conformance coercion and records its source data, target trait, stable
+conformance symbol, and normalized rows. A bare place coercion never searches
+visible conformances. Unknown names and wrong-carrier selections reject before
+Omega lowering.
 The selection also retains the original source place. When that coercion and
 call remain nonescaping inside the closed artifact, the backend selects the
 exact normalized row and calls its realization with the original source place
@@ -477,7 +477,7 @@ carrying its target calling policy:
 
 ```omega
 boundary trait WindowProcedure:
-    Calling<MicrosoftX64>
+    Calling<MicrosoftX64, MicrosoftX64Policy>
 {
     machine call(
         hwnd: HWnd,
@@ -648,7 +648,7 @@ not a general symbolic cost model. Migration of the remaining
 provider-authored hard-root rows remains.
 
 The source-to-checked acceptance path pins the control-state half directly. An
-authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,
+authored `Calling<C, Policy>` policy may publish `InterruptReturn`, a stack class,
 preemption behavior, and the exact saved/restored state set; its canonical
 fingerprint is retained unchanged by the boundary service schema, selected
 provider plan, and external-root bridge. Which interrupt classes, stacks,
@@ -681,9 +681,11 @@ mechanism validator and generic emitter.
 
 ## Engineering order
 
-Generic trait-parent composition used by `Calling<C>` is implemented. Header
-parents and body-level `requires` share one validated graph; boundary parents
-contribute service reach and ordinary policy parents do not.
+Generic trait-parent composition used by the current `Calling<C>` surface is
+implemented. Header parents and body-level `requires` share one validated
+graph; boundary parents contribute service reach and ordinary policy parents
+do not. The source migration adds the explicit `Policy` evidence parameter
+without changing that normalized parent graph.
 
 The `omega-calling-conventions` foundation now owns normalized
 `CallPlan`, `StatePlan`, and `BoundaryEntryPlan` compiler records. It evaluates
@@ -908,9 +910,9 @@ volatile register set. The current ordinary AArch64 hosted projection records
 EL0; that reversible target default can be refined when higher-EL roots land.
 
 The bundled `std::calling` module now supplies the closed source vocabulary.
-For a concrete boundary `Calling<C>` relationship, both compiler entry paths
+For a concrete boundary `Calling<C, Policy>` relationship, both compiler entry paths
 materialize every inherited and declared method signature, purity-gate and run
-`C::plan`, validate/canonicalize acceptance, report authored rejection, and
+`Policy::plan`, validate/canonicalize acceptance, report authored rejection, and
 publish only the evaluated plan fingerprint through provider requirement
 identity. Policy type names and source bodies do not enter that fingerprint;
 boundaries without a calling policy retain their prior identities. The authored
@@ -943,7 +945,7 @@ syscall plan rather than re-evaluating one from the CPU architecture. The
 encoder rechecks the word signature and syscall contract, then uses the exact
 parameter registers, number register, and supervisor-call immediate on x86-64
 or AArch64; layout measures those same emitted bytes.
-When a compatibility external leaf has no explicit `Calling<C>` relationship,
+When a compatibility external leaf has no explicit `Calling<C, Policy>` relationship,
 binding construction evaluates the selected target's native policy once from
 the declared recursive boundary signature and retains that complete plan.
 Explicit source-authored policy evidence always wins. Compatibility syscall

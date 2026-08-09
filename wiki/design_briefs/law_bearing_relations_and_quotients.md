@@ -134,10 +134,10 @@ establish their applications by ordinary entailment; they need no separate
 authorization route.
 
 The introduction/elimination spelling for that retained selected term is not
-yet settled. `OWNER_QUESTIONS.md` Q3 owns where the conformance selection is
+yet settled. `OWNER_QUESTIONS.md` Q2 owns where the conformance selection is
 authored, how forwarded facts retain the same term, and how proof-only code
-opens its opaque members. Until that ruling, the compiler must not infer a
-unique visible conformance from a bare proposition fact.
+opens its opaque members. Until that ruling, the compiler must not infer
+evidence from a bare proposition fact.
 
 A transparent logical definition uses `=`:
 
@@ -245,9 +245,9 @@ Transitive:
 ```
 
 `Equivalence` composes the three parent requirements and redeclares no law.
-Several conformances may prove the same property. Ordinary selection may use
-one unique visible home conformance; ambiguity requires an explicit named
-conformance.
+Several conformances may prove the same property. Selection always passes one
+package-scoped conformance name explicitly; visibility, specificity, and
+declaration order never choose it.
 Changing the proof conformance does not change the nominal relation or quotient
 identity.
 
@@ -257,10 +257,15 @@ evidence interface uses the subjectless conformance form and receives a stable
 package-scoped name; it is not forced onto an arbitrary parameter merely to
 reuse a type-owned namespace.
 
-The concrete source form is live:
+The settled source form names the implementation first and owns its complete
+telescope. A carrierless implementation simply omits the subject:
 
 ```omega
-satisfies ConvergenceEvidence as TogetherEvidence {
+TogetherEvidence<machine Left, machine Right>:
+    satisfies ConvergenceEvidence<Left, Right>
+where machine Left(index: Nat) -> Rat;
+where machine Right(index: Nat) -> Rat;
+{
     // one closed row for every inherited requirement
 }
 ```
@@ -268,9 +273,8 @@ satisfies ConvergenceEvidence as TogetherEvidence {
 It lowers to the shared resolved/typed conformance representation with an
 explicit subjectless marker, a package-root `TogetherEvidence` symbol, and the
 same exact normalized row keys used by carrier-owned blocks. Its inline
-realizations have no attached data carrier. Generic evidence interfaces still
-need the binder-telescope spelling in `OWNER_QUESTIONS.md` Q1; trait arguments
-alone never infer that telescope or a carrier.
+realizations have no attached data carrier. Trait arguments never infer the
+telescope or nominate a carrier.
 
 Fact-only versus witness-bearing classification does change proposition
 identity, because it changes what a consumer may eliminate. Primitive
@@ -289,7 +293,11 @@ The quotient former consumes:
 Conceptually:
 
 ```omega
-data Real = CauchySeq % ConvergesTogether;
+data Real = CauchySeq % ConvergesTogether
+where
+    ConvergesTogether satisfies
+        Equivalence<CauchySeq, ConvergesTogether>
+        as CauchyEquivalence;
 ```
 
 The relation, not the selected proof implementation, enters quotient identity.

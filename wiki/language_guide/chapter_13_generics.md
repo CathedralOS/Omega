@@ -47,13 +47,11 @@ authored obligation from the normalized home layout.
 Machines may be generic over types.
 
 ```omega
-machine Inventory::find<T>(
+machine Inventory::find<T, Equality: T satisfies Equatable>(
     items: &[T],
     target: &T,
     out: &mut Optional<u64>
 )
-where
-    T: Equatable
 {
     transition items.len > 0 {
         true -> find_at(items, target, 0, out)
@@ -66,7 +64,7 @@ where
         index: u64,
         out: &mut Optional<u64>
     ) {
-        let found: bool = items[index].equals(target);
+        let found: bool = Equality::equals(&items[index], target);
         let next_index: u64 = index + 1;
         let has_next: bool = next_index < items.len;
 
@@ -367,20 +365,18 @@ It requires an executable procedure and does not introduce a proof formula.
 `where` clauses describe requirements on generic parameters.
 
 ```omega
-machine Metrics::sample<T>(
+machine Metrics::sample<T, Counters: T satisfies CounterLike>(
     source: &T,
     out: &mut CounterSnapshot
 )
-where
-    T satisfies CounterLike
 {
-    source.snapshot(out);
+    Counters::snapshot(source, out);
 }
 ```
 
 Common requirements:
 
-- Trait requirements: `T satisfies CounterLike`.
+- Whole-trait evidence parameters: `Counters: T satisfies CounterLike`.
 - One-off machine requirements: `machine T::poll(&mut self) -> PollResult`.
 - Value/proof requirements: `N > 0`.
 - Reach requirements: a generic operation may be callable only when its
@@ -396,18 +392,21 @@ domain, maintained through invariant windows — see
 Traits are covered in the next chapter. Generics only need to provide a place
 for constraints to live.
 
-A trait bound tests an existing nominal conformance; it does not declare one.
-When one conformance is selectable, its name is omitted. When a type has
-several conformances to the same trait, the bound names the complete
-conformance:
+A whole-trait evidence binder describes an existing nominal conformance; it
+does not declare one. The caller always passes its exact package-scoped name:
 
 ```omega
-where
-    C satisfies Card::PowerOrder
+machine sort<Element, Order: Element satisfies Ranked>(
+    values: &mut [Element]
+);
+
+sort<Card, PowerOrder>(&mut cards);
 ```
 
-The body then uses requirements from that one conformance. It never mixes
-machines from several conformances.
+The body uses requirements from that one passed conformance. It never searches
+visible declarations or mixes machines from several conformances. A generic
+and a concrete specialization may overlap freely because neither is selected
+without being named.
 
 ## Static Dispatch
 

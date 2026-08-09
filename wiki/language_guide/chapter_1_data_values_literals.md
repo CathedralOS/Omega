@@ -244,9 +244,9 @@ let v: bool = cmd == Command::Move { dx: 1, dy: 2 }; // ok: constructed value, S
 let x: bool = cmd == Command::Move;                  // ERROR: `Move` is not a value; use `in`
 ```
 
-Equatable is implicit for primitives and payload-less sums (tag identity is
-the only thing it could mean); records and payload-bearing sums declare it
-(`Command satisfies Equatable { }`), which synthesizes structural `equals` from
+Equatable is intrinsic for primitives and payload-less sums (tag identity is
+the only thing it could mean); records and payload-bearing sums declare one
+named synthesis block, which synthesizes structural `equals` from
 the members. Adding a payload case to a payload-less sum flips the type from
 implicit to declared, erroring every `==` site until the one-line conformance
 is written -- a deliberate re-affirmation after equality's meaning changed.
@@ -259,11 +259,13 @@ binding in transition arms), and the implicit case-domains at use sites now
 lower for `in` (`cmd in Command::Move`, unions included, value position and
 guard subjects; transition case arms desugar to membership, and the bare
 payload-bearing case name in `==` errors everywhere with a suggestion to use
-`in`). Equatable synthesis is implemented: `Type satisfies Equatable { }` on a record
-or payload-bearing sum makes `==`/`!=` legal, expanded inline into
+`in`). Equatable synthesis is implemented: a named Equatable synthesis block on
+a record or payload-bearing sum makes `==`/`!=` legal, expanded inline into
 field-by-field compares (tag-guarded per case for sums; constructed case
 literals compare structurally). Without the conformance, `==` on a
 structural type is a compile error suggesting the one-line conformance.
+The operator-facing Equatable route is sealed and owner-unique per structural
+type; `==` never selects among visible named conformances.
 Exhaustiveness counting over case domains is LIVE: a dispatch over a
 case-bearing subject must cover every case through decidable arms (case arms
 and pure case-union domain arms) or close with `_`; counted gaps name the

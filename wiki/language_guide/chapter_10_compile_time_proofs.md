@@ -60,7 +60,7 @@ nominal symbol.
 
 The concrete subjectless conformance exists, but the syntax that selects it at
 proposition introduction and opens the retained term at elimination remains
-an owner decision in `OWNER_QUESTIONS.md` Q3. A bare proposition fact therefore
+an owner decision in `OWNER_QUESTIONS.md` Q2. A bare proposition fact therefore
 does not infer evidence from whichever conformance happens to be visible.
 
 The evidence interface is the proposition's sole brace entry:
@@ -394,14 +394,26 @@ Relation properties are ordinary explicit conformances. `Reflexive`,
 partial orders reuse the same component properties. Law evidence is selected
 through those conformances rather than discovered from proof-machine names.
 
-`%` consumes the carrier family, proposition relation, and a selected
-`Equivalence` conformance. Ordinary selection may use one unique visible home
-conformance; otherwise the use names the complete conformance explicitly. It
-never selects an individual law satisfier. Quotient formation remains
+`%` consumes the carrier family, proposition relation, and one explicitly
+passed `Equivalence` conformance. It never searches visible conformances or
+selects an individual law satisfier. Quotient formation remains
 carrier-only (`seq as Real`; `42 as Real` does not compile — that road runs
 through `Rat` and a constant stream). Proven `ConvergesTogether(a, b)` makes
 `(a as Real) == (b as Real)` a fact. Equality on the quotient means "same
 bucket," never "same representative".
+
+The quotient declaration names that evidence in its static `where` surface:
+
+```omega
+data Real = CauchySeq % ConvergesTogether
+where
+    ConvergesTogether satisfies
+        Equivalence<CauchySeq, ConvergesTogether>
+        as CauchyEquivalence;
+```
+
+Here `as CauchyEquivalence` references an existing named conformance; it does
+not declare one and does not enter quotient identity.
 
 Equivalence licenses the quotient type, not operations on it. A machine lifts
 only through a selected `Respects` conformance. Parameters, including an

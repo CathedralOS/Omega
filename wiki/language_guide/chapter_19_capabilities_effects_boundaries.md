@@ -197,7 +197,9 @@ data LoggingProxy {
     service: LoggingService;
 }
 
-LoggingProxy satisfies Logger as ComponentLogger {
+ComponentLogger:
+    LoggingProxy satisfies Logger
+{
     machine write(&self, text: &[u8])
         reaches LoggingService
         suspends
