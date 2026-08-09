@@ -368,7 +368,7 @@ The decoder uses the ordinary validated scalar-layout consumer rather than a
 bespoke pointer parser. Its canonical little-endian form is deliberately
 small:
 
-- a 64-byte `OMEGAXE2` header fixes version, architecture, total length,
+- a 64-byte `OMEGAXE!` header fixes the current format marker, architecture, total length,
   artifact/content identities, and a section count;
 - the section directory starts immediately after the header and uses bounded
   32-byte records (`kind`, required flag, normalized identity, offset, length);

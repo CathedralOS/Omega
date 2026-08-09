@@ -125,7 +125,7 @@ mod tests {
     use omega_executable_installation::{
         ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits, ContainerSection,
         ContainerSectionKind, DecodedArtifactContainer, EntrySetId, MachineContractSetId,
-        MachineFootprintId, OMEGA_EXECUTABLE_CONTAINER_VERSION, PlacementPlanId, RelocationSetId,
+        MachineFootprintId, OMEGA_EXECUTABLE_CONTAINER_MARKER, PlacementPlanId, RelocationSetId,
         normalized_decoded_content_identity, normalized_proof_payload_identity,
         validate_decoded_container,
     };
@@ -150,7 +150,7 @@ mod tests {
         let proof = vec![0xa5; 64];
         let proof_payload = normalized_proof_payload_identity(&proof);
         let mut decoded = DecodedArtifactContainer {
-            format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
+            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
             total_length: 400,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
