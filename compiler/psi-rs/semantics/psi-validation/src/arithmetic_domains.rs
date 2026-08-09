@@ -257,6 +257,9 @@ fn narrow_env_by_condition(
         {
             env.mark_joint_add_lower_bound(left, right);
         }
+        if let Some((left, right)) = joint_subtract_guard(program, machine, state, &comparison) {
+            env.mark_joint_subtract_bound(left, right);
+        }
         if comparison.operator == BinaryOperator::Equal
             && let (Some(left), Some(right)) = (
                 place_path(program, comparison.left),
@@ -467,6 +470,36 @@ fn joint_add_lower_guard(
         return None;
     }
     Some((place_path(program, left)?, right_path))
+}
+
+/// Recognize the unsigned guard `right <= left` (including its `>=` spelling).
+/// This ordered relation is exactly the no-underflow condition for
+/// `left - right`; unlike addition bounds, its operand order is significant.
+fn joint_subtract_guard(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    comparison: &psi_typed_trees::expression::TableBinaryExpression,
+) -> Option<(String, String)> {
+    let (right, left) = match comparison.operator {
+        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
+        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
+        _ => return None,
+    };
+    let left_type = declared_place_type_raw(program, machine, state, left)?;
+    let right_type = declared_place_type_raw(program, machine, state, right)?;
+    let left_primitive = program.primitive_type_reference(left_type)?;
+    if program.primitive_type_reference(right_type) != Some(left_primitive)
+        || !matches!(
+            left_primitive,
+            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32
+        )
+        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some((place_path(program, left)?, place_path(program, right)?))
 }
 
 /// R4 witness mint (out-params as witnesses): a BOUNDARY callee's
@@ -845,6 +878,7 @@ pub(crate) struct ValueEnv {
     non_nan: BTreeSet<String>,
     joint_add_upper_bounds: BTreeSet<(String, String)>,
     joint_add_lower_bounds: BTreeSet<(String, String)>,
+    joint_subtract_bounds: BTreeSet<(String, String)>,
 }
 
 impl ValueEnv {
@@ -860,6 +894,7 @@ impl ValueEnv {
         self.non_nan.clear();
         self.joint_add_upper_bounds.clear();
         self.joint_add_lower_bounds.clear();
+        self.joint_subtract_bounds.clear();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.
@@ -877,6 +912,8 @@ impl ValueEnv {
         self.joint_add_upper_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
         self.joint_add_lower_bounds
+            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
+        self.joint_subtract_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
     }
 
@@ -921,6 +958,10 @@ impl ValueEnv {
             .insert(canonical_path_pair(left, right));
     }
 
+    fn mark_joint_subtract_bound(&mut self, left: String, right: String) {
+        self.joint_subtract_bounds.insert((left, right));
+    }
+
     fn proves_joint_add_upper_bound(
         &self,
         program: &TypedTrees,
@@ -951,6 +992,21 @@ impl ValueEnv {
         };
         self.joint_add_lower_bounds
             .contains(&canonical_path_pair(left, right))
+    }
+
+    fn proves_joint_subtract_bound(
+        &self,
+        program: &TypedTrees,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> bool {
+        let Some(left) = place_path(program, left) else {
+            return false;
+        };
+        let Some(right) = place_path(program, right) else {
+            return false;
+        };
+        self.joint_subtract_bounds.contains(&(left, right))
     }
 
     fn float_fact(&self, path: &str) -> (FloatInterval, bool) {
@@ -994,6 +1050,11 @@ impl ValueEnv {
         joined.joint_add_lower_bounds.extend(
             self.joint_add_lower_bounds
                 .intersection(&other.joint_add_lower_bounds)
+                .cloned(),
+        );
+        joined.joint_subtract_bounds.extend(
+            self.joint_subtract_bounds
+                .intersection(&other.joint_subtract_bounds)
                 .cloned(),
         );
         joined
@@ -1253,6 +1314,9 @@ pub(crate) fn record_assignment(
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
         env.joint_add_lower_bounds.retain(|(left, right)| {
+            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
+        });
+        env.joint_subtract_bounds.retain(|(left, right)| {
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
         let interval = match declared_range {
@@ -2197,6 +2261,13 @@ fn analyze(
                 && operator == BinaryOperator::Add
                 && (env.proves_joint_add_upper_bound(program, binary.left, binary.right)
                     || env.proves_joint_add_lower_bound(program, binary.left, binary.right))
+                && let Some(range) = primitive.and_then(primitive_range)
+            {
+                interval = range;
+            }
+            if effective_domain == ArithmeticDomain::Exact
+                && operator == BinaryOperator::Subtract
+                && env.proves_joint_subtract_bound(program, binary.left, binary.right)
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = range;

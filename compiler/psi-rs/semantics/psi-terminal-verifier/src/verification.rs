@@ -1365,6 +1365,13 @@ fn exact_integer_subtract_obligation(
         };
     }
     let Some(constant) = known_right else {
+        if semantic_version >= SemanticVersion::V46 && integer_type.sign() == IntegerSign::Unsigned
+        {
+            let bound = Proposition::LessOrEqual(right.clone(), left.clone());
+            if semantic_axioms.contains(&bound) {
+                return bound;
+            }
+        }
         if semantic_version >= SemanticVersion::V43 {
             if let (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(constant))) =
                 (integer_type.sign(), known_left)
@@ -2478,6 +2485,44 @@ mod tests {
                 &[axioms[1].clone()],
                 SemanticVersion::V45,
             ),
+            Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn v46_reconstructs_unsigned_joint_exact_subtract_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let left = ScalarTerm::value(
+            ValueId::new(8).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(9).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let bound = Proposition::LessOrEqual(right.clone(), left.clone());
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                std::slice::from_ref(&bound),
+                SemanticVersion::V46,
+            ),
+            bound.clone()
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                std::slice::from_ref(&bound),
+                SemanticVersion::V45,
+            ),
+            Proposition::Falsehood
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(integer_type, left, right, &[], SemanticVersion::V46,),
             Proposition::Falsehood
         );
     }
