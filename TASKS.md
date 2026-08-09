@@ -284,6 +284,17 @@ Remaining:
   one-unit fuel, artifact interpretation, Omega lowering, and x86-64/AArch64
   emission are live. More complex nonliteral range proofs continue to fail
   closed when the independent terminal verifier cannot reconstruct them.
+  Terminal Psi v29 now carries proof-gated Exact fixed-integer right shift.
+  Checked retention preserves a nonliteral `value >> count` only where the
+  existing range checker proves `0 <= count < value_width`; the operation owns
+  a dedicated obligation, and the verifier reconstructs the necessary lower
+  and upper bounds from exact value/count carriers and path-local terminal
+  facts. Proof format v20 carries the exact-shift term. Canonical artifacts,
+  one-unit operation fuel, artifact interpretation, Omega lowering, and
+  logical/arithmetic x86-64/AArch64 emission are live. Missing evidence and an
+  out-of-range path reject. Exact left shift remains a later implementation
+  slice because it additionally needs a value-dependent no-overflow
+  obligation; it must not reuse the count proof as overflow authority.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

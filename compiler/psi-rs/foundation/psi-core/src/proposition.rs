@@ -388,6 +388,40 @@ impl IntegerType {
         }
     }
 
+    /// Shift an admitted value right by an independently typed count whose
+    /// mathematical value is inside `[0, width)`. Unlike the wrapping form,
+    /// an out-of-range or negative count has no exact value.
+    pub fn exact_shift_right(
+        self,
+        value: IntegerValue,
+        count_type: IntegerType,
+        count: IntegerValue,
+    ) -> Option<IntegerValue> {
+        if !self.admits(value) || !count_type.admits(count) {
+            return None;
+        }
+        let count = match count {
+            IntegerValue::Unsigned(count) if count < u128::from(self.bits) => {
+                u32::try_from(count).ok()?
+            }
+            IntegerValue::Signed(count)
+                if count >= 0 && (count as u128) < u128::from(self.bits) =>
+            {
+                u32::try_from(count).ok()?
+            }
+            _ => return None,
+        };
+        match (self.sign, value) {
+            (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
+                Some(IntegerValue::Unsigned(value >> count))
+            }
+            (IntegerSign::Signed, IntegerValue::Signed(value)) => {
+                Some(IntegerValue::Signed(value >> count))
+            }
+            _ => None,
+        }
+    }
+
     fn bit_mask(self) -> u128 {
         if self.bits == 128 {
             u128::MAX
@@ -596,6 +630,12 @@ pub enum ScalarTerm {
         count: Box<ScalarTerm>,
     },
     WrappingIntegerShiftRight {
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: Box<ScalarTerm>,
+        count: Box<ScalarTerm>,
+    },
+    ExactIntegerShiftRight {
         value_type: IntegerType,
         count_type: IntegerType,
         value: Box<ScalarTerm>,
@@ -844,6 +884,21 @@ impl ScalarTerm {
         })
     }
 
+    pub fn exact_integer_shift_right(
+        value_type: IntegerType,
+        count_type: IntegerType,
+        value: ScalarTerm,
+        count: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
+        Ok(Self::ExactIntegerShiftRight {
+            value_type,
+            count_type,
+            value: Box::new(value),
+            count: Box::new(count),
+        })
+    }
+
     pub fn integer(
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1000,9 +1055,8 @@ impl ScalarTerm {
                 ScalarType::Integer(*target_type)
             }
             Self::WrappingIntegerShiftLeft { value_type, .. }
-            | Self::WrappingIntegerShiftRight { value_type, .. } => {
-                ScalarType::Integer(*value_type)
-            }
+            | Self::WrappingIntegerShiftRight { value_type, .. }
+            | Self::ExactIntegerShiftRight { value_type, .. } => ScalarType::Integer(*value_type),
         }
     }
 
@@ -1158,6 +1212,12 @@ impl ScalarTerm {
                 count_type,
                 value,
                 count,
+            }
+            | Self::ExactIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
             } => {
                 let (actual_value_type, value) = value.integer_value()?;
                 let (actual_count_type, count) = count.integer_value()?;
@@ -1170,6 +1230,9 @@ impl ScalarTerm {
                     }
                     Self::WrappingIntegerShiftRight { .. } => {
                         value_type.wrapping_shift_right(value, *count_type, count)?
+                    }
+                    Self::ExactIntegerShiftRight { .. } => {
+                        value_type.exact_shift_right(value, *count_type, count)?
                     }
                     _ => unreachable!(),
                 };
@@ -1352,6 +1415,12 @@ impl ScalarTerm {
                 count,
             }
             | Self::WrappingIntegerShiftRight {
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            | Self::ExactIntegerShiftRight {
                 value_type,
                 count_type,
                 value,
@@ -1670,7 +1739,8 @@ impl PropositionContext {
                 self.validate_term(right)?;
             }
             ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
                 self.validate_term(value)?;
                 self.validate_term(count)?;
             }
@@ -2148,6 +2218,51 @@ mod tests {
         assert_eq!(
             term.integer_value(),
             Some((u8_type, IntegerValue::Unsigned(2)))
+        );
+    }
+
+    #[test]
+    fn exact_right_shifts_require_an_in_range_nonnegative_count() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+
+        assert_eq!(
+            u8_type.exact_shift_right(
+                IntegerValue::Unsigned(0b1000_0000),
+                i16_type,
+                IntegerValue::Signed(7),
+            ),
+            Some(IntegerValue::Unsigned(1))
+        );
+        assert_eq!(
+            i8_type.exact_shift_right(IntegerValue::Signed(-8), i16_type, IntegerValue::Signed(2),),
+            Some(IntegerValue::Signed(-2))
+        );
+        assert_eq!(
+            u8_type.exact_shift_right(
+                IntegerValue::Unsigned(1),
+                i16_type,
+                IntegerValue::Signed(-1),
+            ),
+            None
+        );
+        assert_eq!(
+            u8_type
+                .exact_shift_right(IntegerValue::Unsigned(1), i16_type, IntegerValue::Signed(8),),
+            None
+        );
+
+        let term = ScalarTerm::exact_integer_shift_right(
+            u8_type,
+            i16_type,
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(128)).unwrap(),
+            ScalarTerm::integer(i16_type, IntegerValue::Signed(7)).unwrap(),
+        )
+        .expect("exact right shift with an independently typed count");
+        assert_eq!(
+            term.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(1)))
         );
     }
 

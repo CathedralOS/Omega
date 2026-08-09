@@ -448,7 +448,8 @@ impl<'module> TerminalExecution<'module> {
                         );
                     }
                     OperationKind::WrappingIntegerShiftLeft { value, count }
-                    | OperationKind::WrappingIntegerShiftRight { value, count } => {
+                    | OperationKind::WrappingIntegerShiftRight { value, count }
+                    | OperationKind::ExactIntegerShiftRight { value, count, .. } => {
                         let ScalarType::Integer(value_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
@@ -483,6 +484,9 @@ impl<'module> TerminalExecution<'module> {
                             }
                             OperationKind::WrappingIntegerShiftRight { .. } => {
                                 value_type.wrapping_shift_right(value, count_type, count)
+                            }
+                            OperationKind::ExactIntegerShiftRight { .. } => {
+                                value_type.exact_shift_right(value, count_type, count)
                             }
                             _ => unreachable!(),
                         }

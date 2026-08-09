@@ -221,6 +221,38 @@ fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
     assert_eq!(cast.maximum, psi_numerics::bignum::BigInt::from_i64(255));
 }
 
+#[test]
+fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
+    let source = r#"
+        machine shift(value: u64, count: u64) -> u64 {
+            transition count <= 63u64 {
+                true -> finish(value >> count)
+                _ -> finish(0u64)
+            }
+
+            state finish(value: u64) -> u64 { value }
+        }
+    "#;
+
+    let checked = lower_typed_trees(typed_trees(source))
+        .expect("the dominating guard proves the exact right-shift count");
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .iter()
+            .any(|located| matches!(
+                located.expression,
+                psi_checked_trees::CheckedScalarExpression::IntegerBinary {
+                    kind: psi_checked_trees::CheckedIntegerBinaryKind::ExactShiftRight,
+                    ..
+                }
+            ))
+    );
+}
+
 fn typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

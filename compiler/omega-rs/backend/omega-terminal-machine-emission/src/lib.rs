@@ -1185,6 +1185,12 @@ fn emit_x86_64_expression_node(
             value,
             count,
             ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftRight {
+            count_type,
+            value,
+            count,
+            ..
         } => {
             emit_x86_64_expression_node(bytes, scalar_type, value, frame_byte_size, stack_depth)?;
             bytes.push(0x50); // push rax
@@ -1211,7 +1217,17 @@ fn emit_x86_64_expression_node(
                         }
                     }
                 }
-                _ => unreachable!("outer match admits only wrapping shifts"),
+                TerminalAssignedIntegerExpression::ExactShiftRight { .. } => {
+                    match scalar_type.sign() {
+                        IntegerSign::Signed => {
+                            bytes.extend_from_slice(&[0x49, 0xd3, 0xfa]); // sar r10, cl
+                        }
+                        IntegerSign::Unsigned => {
+                            bytes.extend_from_slice(&[0x49, 0xd3, 0xea]); // shr r10, cl
+                        }
+                    }
+                }
+                _ => unreachable!("outer match admits only integer shifts"),
             }
             bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
             emit_x86_64_normalize(bytes, scalar_type);
@@ -1714,6 +1730,12 @@ fn emit_aarch64_expression_node(
             value,
             count,
             ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftRight {
+            count_type,
+            value,
+            count,
+            ..
         } => {
             emit_aarch64_expression_node(instructions, scalar_type, value, frame, stack_depth)?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
@@ -1748,7 +1770,13 @@ fn emit_aarch64_expression_node(
                         IntegerSign::Unsigned => 0x9ac0_2520, // lsrv x0, x9, x0
                     });
                 }
-                _ => unreachable!("outer match admits only wrapping shifts"),
+                TerminalAssignedIntegerExpression::ExactShiftRight { .. } => {
+                    instructions.push(match scalar_type.sign() {
+                        IntegerSign::Signed => 0x9ac0_2920,   // asrv x0, x9, x0
+                        IntegerSign::Unsigned => 0x9ac0_2520, // lsrv x0, x9, x0
+                    });
+                }
+                _ => unreachable!("outer match admits only integer shifts"),
             }
             emit_aarch64_normalize(instructions, scalar_type);
         }
@@ -1996,6 +2024,7 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         | TerminalAssignedIntegerExpression::BitwiseXor { left, .. }
         | TerminalAssignedIntegerExpression::WrappingShiftLeft { value: left, .. }
         | TerminalAssignedIntegerExpression::WrappingShiftRight { value: left, .. }
+        | TerminalAssignedIntegerExpression::ExactShiftRight { value: left, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, .. }

@@ -72,6 +72,15 @@ semantic axioms to the small kernel. Removing the certificate, moving the cast
 off the proved edge, changing either carrier, or involving `addr` rejects
 without treating producer range metadata as authority.
 
+Terminal Psi v29 applies the same separation to Exact integer right shift. The
+operation carries only its value, independently typed count, result, and
+obligation identity. The verifier derives the nonnegative and/or
+`value_width - 1` bounds that the count carrier does not guarantee, reconstructs
+path-local comparison facts, and asks the kernel to check the dedicated
+certificate. Count masking in a native instruction cannot discharge this
+obligation. Exact left shift remains separate because count validity alone says
+nothing about value overflow.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

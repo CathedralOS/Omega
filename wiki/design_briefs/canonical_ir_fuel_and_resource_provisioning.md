@@ -141,6 +141,12 @@ therefore adds neither an operation nor fuel. Terminal Psi v27 retains `addr`
 distinctly from `u64` through declarations, scalar terms,
 comparisons, artifacts, and realization; cross-carrier conversions to or from
 `addr` remain rejected.
+Terminal Psi v29 admits proof-gated Exact integer right shift when the checked
+count range lies within `[0, value_width)`. The artifact operation carries a
+dedicated obligation, and the verifier independently rebuilds the required
+lower/upper count proposition from the exact carriers and path facts. The
+operation costs one unit. Exact left shift remains outside this slice until its
+separate value-dependent no-overflow obligation is represented and discharged.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The
@@ -388,7 +394,12 @@ reconstructed operation obligation is mandatory, proof format v19 carries
 exact-cast terms, both selected paths cost six schedule-v1 units, and the cast
 site itself costs one operation unit. Artifact interpretation and emitted
 x86-64/AArch64 code return 255 on the proved boundary and zero on the fallback
-path. The v3
+path. The guarded Exact-right-shift canary admits `value >> count` only on the
+`count <= 63u64` arm. Semantic v29 and proof format v20 carry the operation and
+its mandatory independently reconstructed obligation; both paths cost six
+schedule-v1 units, and the shift costs one operation unit. Artifact
+interpretation and emitted x86-64/AArch64 code return one for
+`(1u64 << 63) >> 63` and zero on the count-64 fallback. The v3
 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,

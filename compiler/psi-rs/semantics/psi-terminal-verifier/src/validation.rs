@@ -75,6 +75,7 @@ pub fn validate_module(
             | SemanticVersion::V26
             | SemanticVersion::V27
             | SemanticVersion::V28
+            | SemanticVersion::V29
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -173,6 +174,9 @@ fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }
             | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_address(operand),
+            ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                scalar_term_uses_address(value) || scalar_term_uses_address(count)
+            }
             ScalarTerm::BooleanEqual { left, right }
             | ScalarTerm::IntegerEqual { left, right, .. }
             | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -585,6 +589,25 @@ fn validate_machine(
                             operation.id,
                         ));
                     }
+                }
+                OperationKind::ExactIntegerShiftRight { obligation, .. } => {
+                    if semantic_version < SemanticVersion::V29 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V29,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
                 }
                 OperationKind::WrappingIntegerAdd { .. } => {
                     if semantic_version < SemanticVersion::V3 {
@@ -1547,6 +1570,18 @@ fn validate_term_semantic_version(
             validate_term_semantic_version(value, semantic_version, contract, clause)?;
             validate_term_semantic_version(count, semantic_version, contract, clause)
         }
+        ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+            if semantic_version < SemanticVersion::V29 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V29,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(value, semantic_version, contract, clause)?;
+            validate_term_semantic_version(count, semantic_version, contract, clause)
+        }
         ScalarTerm::IntegerBitwiseAnd { left, right, .. }
         | ScalarTerm::IntegerBitwiseOr { left, right, .. }
         | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
@@ -1749,7 +1784,8 @@ fn validate_term_scope(
             validate_term_scope(right, allowed, contract, clause)?;
         }
         ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             validate_term_scope(value, allowed, contract, clause)?;
             validate_term_scope(count, allowed, contract, clause)?;
         }
@@ -2123,6 +2159,25 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::ExactIntegerShiftRight { value, count, .. } = operation.kind {
+        require_defined(value, value_types, defined)?;
+        require_defined(count, value_types, defined)?;
+        let expected_value = operation.result.scalar_type;
+        let actual_value = value_types[&value];
+        let actual_count = value_types[&count];
+        if !matches!(expected_value, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
+            || actual_value != expected_value
+            || !matches!(actual_count, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
+        {
+            return Err(ModuleError::ExactIntegerShiftOperandTypeMismatch {
+                operation: operation.id,
+                expected_value,
+                actual_value,
+                actual_count,
+            });
+        }
+        return Ok(());
+    }
     let Some((left, right, arithmetic)) = (match operation.kind {
         OperationKind::WrappingIntegerAdd { left, right } => {
             Some((left, right, ArithmeticOperandKind::WrappingAdd))
@@ -2156,7 +2211,8 @@ fn validate_operation_operands(
         | OperationKind::IntegerBitwiseOr { .. }
         | OperationKind::IntegerBitwiseXor { .. }
         | OperationKind::WrappingIntegerShiftLeft { .. }
-        | OperationKind::WrappingIntegerShiftRight { .. } => None,
+        | OperationKind::WrappingIntegerShiftRight { .. }
+        | OperationKind::ExactIntegerShiftRight { .. } => None,
     }) else {
         return Ok(());
     };
@@ -2556,6 +2612,13 @@ pub enum ModuleError {
     },
     WrappingIntegerShiftRequiresIntegerResult(OperationId),
     WrappingIntegerShiftOperandTypeMismatch {
+        operation: OperationId,
+        expected_value: ScalarType,
+        actual_value: ScalarType,
+        actual_count: ScalarType,
+    },
+    ExactIntegerShiftRequiresIntegerResult(OperationId),
+    ExactIntegerShiftOperandTypeMismatch {
         operation: OperationId,
         expected_value: ScalarType,
         actual_value: ScalarType,

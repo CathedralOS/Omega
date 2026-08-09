@@ -438,7 +438,8 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
                 pending.push((right, depth + 1));
             }
             ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
                 pending.push((value, depth + 1));
                 pending.push((count, depth + 1));
             }
@@ -778,6 +779,16 @@ fn encode_block(
                 writer.u8(18);
                 writer.id(value);
                 writer.id(count);
+            }
+            OperationKind::ExactIntegerShiftRight {
+                value,
+                count,
+                obligation,
+            } => {
+                writer.u8(22);
+                writer.id(value);
+                writer.id(count);
+                writer.id(obligation);
             }
             OperationKind::WrappingIntegerAdd { left, right } => {
                 writer.u8(3);
@@ -1170,6 +1181,18 @@ fn encode_scalar_term(
             count,
         } => {
             writer.u8(19);
+            encode_integer_type(writer, *value_type);
+            encode_integer_type(writer, *count_type);
+            encode_scalar_term(writer, value, depth + 1)?;
+            encode_scalar_term(writer, count, depth + 1)?;
+        }
+        ScalarTerm::ExactIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+        } => {
+            writer.u8(23);
             encode_integer_type(writer, *value_type);
             encode_integer_type(writer, *count_type);
             encode_scalar_term(writer, value, depth + 1)?;
@@ -1655,6 +1678,11 @@ fn decode_block(
                 operand: reader.id("ValueId")?,
                 obligation: reader.id("ObligationId")?,
             },
+            22 => OperationKind::ExactIntegerShiftRight {
+                value: reader.id("ValueId")?,
+                count: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -2043,6 +2071,14 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let target_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::integer_exact_cast(source_type, target_type, operand)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        23 => {
+            let value_type = decode_integer_type(reader)?;
+            let count_type = decode_integer_type(reader)?;
+            let value = decode_scalar_term(reader, depth + 1)?;
+            let count = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::exact_integer_shift_right(value_type, count_type, value, count)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

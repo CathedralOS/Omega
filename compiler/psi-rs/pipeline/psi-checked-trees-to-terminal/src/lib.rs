@@ -182,6 +182,7 @@ enum LoweredIntegerBinaryKind {
     BitwiseXor,
     WrappingShiftLeft,
     WrappingShiftRight,
+    ExactShiftRight,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -256,7 +257,7 @@ impl PendingNestedBlockGroup {
 }
 
 impl LoweredIntegerBinaryKind {
-    fn operation(self, left: ValueId, right: ValueId) -> OperationKind {
+    fn operation(self, operation: OperationId, left: ValueId, right: ValueId) -> OperationKind {
         match self {
             Self::BitwiseAnd => OperationKind::IntegerBitwiseAnd { left, right },
             Self::BitwiseOr => OperationKind::IntegerBitwiseOr { left, right },
@@ -268,6 +269,16 @@ impl LoweredIntegerBinaryKind {
             Self::WrappingShiftRight => OperationKind::WrappingIntegerShiftRight {
                 value: left,
                 count: right,
+            },
+            Self::ExactShiftRight => OperationKind::ExactIntegerShiftRight {
+                value: left,
+                count: right,
+                obligation: obligation_id(
+                    operation
+                        .get()
+                        .checked_add(1)
+                        .expect("exact-shift obligation follows its operation identity"),
+                ),
             },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
             Self::SaturatingAdd => OperationKind::SaturatingIntegerAdd { left, right },
@@ -1774,6 +1785,9 @@ fn lower_checked_scalar_expression(
                 CheckedIntegerBinaryKind::WrappingShiftRight => {
                     LoweredIntegerBinaryKind::WrappingShiftRight
                 }
+                CheckedIntegerBinaryKind::ExactShiftRight => {
+                    LoweredIntegerBinaryKind::ExactShiftRight
+                }
             },
             scalar_type: terminal_scalar_type(*primitive_type)?,
             left: Box::new(lower_checked_scalar_expression(left)?),
@@ -2114,6 +2128,12 @@ fn evaluate_lowered_integer_binary(
                 return None;
             };
             integer_type.wrapping_shift_right(left, count_type, right)
+        }
+        LoweredIntegerBinaryKind::ExactShiftRight => {
+            let ScalarType::Integer(count_type) = count_type else {
+                return None;
+            };
+            integer_type.exact_shift_right(left, count_type, right)
         }
         LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
         LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
@@ -3805,18 +3825,19 @@ fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after a binary operation");
+            let operation = operation_id(
+                u64::try_from(operations.len())
+                    .expect("operation count fits a semantic identity")
+                    .checked_add(1)
+                    .expect("operation identity is nonzero"),
+            );
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
                 },
-                kind: kind.operation(left, right),
+                kind: kind.operation(operation, left, right),
             });
             id
         }

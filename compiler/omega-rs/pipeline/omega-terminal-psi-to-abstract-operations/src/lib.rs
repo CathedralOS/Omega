@@ -263,6 +263,23 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         _ => unreachable!(),
                     });
                 }
+                OperationKind::ExactIntegerShiftRight { value, count, .. } => {
+                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedExactShiftMalformed(operation.id));
+                    };
+                    let Some(ScalarType::Integer(count_type)) = value_types.get(&count).copied()
+                    else {
+                        return Err(LoweringError::VerifiedExactShiftMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::ExactIntegerShiftRight {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        value_type,
+                        count_type,
+                        value,
+                        count,
+                    });
+                }
                 OperationKind::WrappingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));
@@ -486,6 +503,7 @@ pub enum LoweringError {
     VerifiedIntegerWidenMalformed(psi_core::OperationId),
     VerifiedIntegerExactCastMalformed(psi_core::OperationId),
     VerifiedWrappingShiftMalformed(psi_core::OperationId),
+    VerifiedExactShiftMalformed(psi_core::OperationId),
     CrashLoweringUnsupported {
         machine: MachineId,
         edge: psi_core::EdgeId,
