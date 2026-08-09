@@ -791,43 +791,13 @@ former `operations` field was an ambiguous internal umbrella name; this rename
 does not combine service reach, trust, mutation, termination, or any other
 independent semantic axis with the operational fixed point.
 
-## Staged migration
+## Migration discipline
 
-1. **Inventory and invariants.** Add compile-time tests/snapshots showing where
-   domain theory, supply mode, multiplicity, carry policy, and contract identity
-   must survive.
-2. **Core semantic enums/IDs.** Land domain-theory records, establishment-route
-   identity, semantic-role vocabulary,
-   multiplicity, carry policy, supply mode, termination guarantee/witness,
-  progress-profile ID, service-reach ID/row, suspension plan, blocking plan,
-  and other identity handles in the lowest dependency-safe crates. No
-   behavior change.
-3. **Tree propagation.** Carry the representations through symbol-resolved and
-   typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
-   re-derivation from body shape/keyword presence.
-   Structured canonical const values and the closed indexed-domain family
-   representation, explicit indexed qualification, and constrained-position
-   const-machine specialization are landed. The first units package and its
-   imported conversion/operator canaries are also landed. Open computed index
-   expressions, exact algebra authority, and retained closed/normalization/
-   local-fact equality evidence complete PDI3.
-4. **Checked plans.** Split predicate facts, static semantic roles, and
-  establishment evidence; add
-  the place-keyed permission plan, service-reach plan, suspension plan,
-  blocking plan, termination plan, and
-   normalized machine contracts.
-5. **Validation and resolution.** Enforce predicate proof, owner-authorized
-   establishment, core qualification conformance, role-keyed operator
-   selection, multiplicity conservation, carry derivation/local
-  transition legality/runtime refinement, service-row inclusion/propagation,
-  suspension/blocking propagation, and
-   supply/admission rules.
-6. **Lowering boundary.** Lower only from checked selections/plans. Preserve
-   semantic contract IDs in proof/component/debug artifacts while erasing
-   proof-only material from executable operations.
-7. **Retire compatibility paths.** Remove compiler-special arithmetic-policy
-   routing and boolean/context re-derivation only after their general
-   equivalents have differential coverage.
+`TASKS.md` owns the remaining sequence. Each slice introduces semantic records
+in the lowest neutral owner, propagates them without re-derivation, validates
+them into checked plans, lowers only from those plans, and deletes the displaced
+special case after differential coverage exists. Implementation checkpoints
+belong in Git history, not in this taxonomy.
 
 ## Ordering constraints
 

@@ -468,34 +468,12 @@ snapshot fingerprint and complete normalized entry plans while omitting numeric
 code addresses. Static builds may emit it at handoff; dynamic providers may
 emit or attest fresh snapshots after later installations.
 
-## Status and remaining work
+## Implementation boundary
 
-The first two Cathedral milestones already validate the typed UEFI entry,
-runtime firmware-table calls, memory-map walk, `ExitBootServices`, first
-physical-Extent mint, port I/O,
-and `hlt` path. The timer/IDT slice is not yet specified or
-implemented end to end.
-
-Generic trait-parent composition for `Calling<C>` and source-policy evaluation
-are implemented. The compiler discovers concrete policy relationships,
-evaluates `CallingPolicy::plan` through the build-time interpreter, validates
-and canonicalizes accepted `CallPlan + StatePlan` results, publishes only the
-evaluated-plan fingerprint, and retains the complete plan for lowering. The
-remaining implementation order is:
-
-1. complete the checked-assembly catalog required by the entry provider;
-2. finish IDT1 after the implemented symbolic, phase-aware direct-destination
-   materializer and checked `lidt` carrier: insert and execute the generated
-   checked Omega writer/load helpers through their plan-selected opaque
-   pointers in the provider (R10 materialization and the private packed IDTR
-   descriptor are already emitted/sealed);
-3. `CallPlan + StatePlan` entry-stub derivation, state-ceiling-aware codegen,
-   footprint evidence, and final-artifact validation;
-4. external-root ledger and IDT/timer slice; and
-5. placed views, external loans, and the wider driver gauntlet.
-
-The remaining hardware-foundation engineering contract lives in
-[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md).
-Unrelated unresolved source-language decisions remain in
-`OWNER_QUESTIONS.md`; this boot sequence must not invent local grammar to bypass
-either document.
+Cathedral is the acceptance customer for this brief; it owns the UEFI, memory,
+IDT, timer, and device lifecycles. Omega owns only the general checked assembly,
+evaluated calling/state plans, materialization, entry lowering, final-footprint
+validation, and installed-root machinery. `TASKS.md` owns their current order;
+[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
+owns the general engineering contract. Boot work must not invent local grammar
+to bypass either document or `OWNER_QUESTIONS.md`.
