@@ -268,6 +268,25 @@ impl IntegerType {
         }
     }
 
+    /// Add two admitted values when their mathematical sum remains admitted.
+    pub fn exact_add(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        let result = match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => IntegerValue::Unsigned(left.checked_add(right)?),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                IntegerValue::Signed(left.checked_add(right)?)
+            }
+            _ => return None,
+        };
+        self.admits(result).then_some(result)
+    }
+
     /// Subtract two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -696,6 +715,11 @@ pub enum ScalarTerm {
         value: Box<ScalarTerm>,
         count: Box<ScalarTerm>,
     },
+    ExactIntegerAdd {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -969,6 +993,19 @@ impl ScalarTerm {
         })
     }
 
+    pub fn exact_integer_add(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::ExactIntegerAdd {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn integer(
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1113,6 +1150,7 @@ impl ScalarTerm {
             | Self::IntegerBitwiseAnd { scalar_type, .. }
             | Self::IntegerBitwiseOr { scalar_type, .. }
             | Self::IntegerBitwiseXor { scalar_type, .. }
+            | Self::ExactIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerSubtract { scalar_type, .. }
@@ -1317,6 +1355,18 @@ impl ScalarTerm {
                     _ => unreachable!(),
                 };
                 Some((*value_type, result))
+            }
+            Self::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.exact_add(left, right)?))
             }
             _ => None,
         }
@@ -1542,6 +1592,15 @@ impl ScalarTerm {
                     });
                 }
                 Ok(())
+            }
+            Self::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                validate_integer_operands(*scalar_type, left, right)
             }
             Self::SaturatingIntegerAdd {
                 scalar_type,
@@ -1808,7 +1867,8 @@ impl PropositionContext {
                     });
                 }
             }
-            ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
@@ -2426,6 +2486,38 @@ mod tests {
         assert_eq!(
             i128_type.wrapping_add(IntegerValue::Signed(i128::MAX), IntegerValue::Signed(1)),
             Some(IntegerValue::Signed(i128::MIN))
+        );
+    }
+
+    #[test]
+    fn exact_add_rejects_sums_outside_the_declared_carrier() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert_eq!(
+            u8_type.exact_add(IntegerValue::Unsigned(200), IntegerValue::Unsigned(55)),
+            Some(IntegerValue::Unsigned(255))
+        );
+        assert_eq!(
+            u8_type.exact_add(IntegerValue::Unsigned(200), IntegerValue::Unsigned(56)),
+            None
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        assert_eq!(
+            i8_type.exact_add(IntegerValue::Signed(120), IntegerValue::Signed(7)),
+            Some(IntegerValue::Signed(127))
+        );
+        assert_eq!(
+            i8_type.exact_add(IntegerValue::Signed(-120), IntegerValue::Signed(-9)),
+            None
+        );
+        let u128_type = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+        assert_eq!(
+            u128_type.exact_add(IntegerValue::Unsigned(u128::MAX), IntegerValue::Unsigned(1)),
+            None
+        );
+        let i128_type = IntegerType::new(IntegerSign::Signed, 128).unwrap();
+        assert_eq!(
+            i128_type.exact_add(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1)),
+            None
         );
     }
 

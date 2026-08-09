@@ -33,6 +33,7 @@ const FORMAT_VERSION_V18: u16 = 18;
 const FORMAT_VERSION_V19: u16 = 19;
 const FORMAT_VERSION_V20: u16 = 20;
 const FORMAT_VERSION_V21: u16 = 21;
+const FORMAT_VERSION_V22: u16 = 22;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -98,6 +99,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             | FORMAT_VERSION_V19
             | FORMAT_VERSION_V20
             | FORMAT_VERSION_V21
+            | FORMAT_VERSION_V22
     ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
@@ -245,6 +247,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
         | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
         | ScalarTerm::IntegerBitwiseOr { left, right, .. }
         | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+        | ScalarTerm::ExactIntegerAdd { left, right, .. }
         | ScalarTerm::WrappingIntegerAdd { left, right, .. }
         | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
         | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -268,6 +271,14 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
 
 fn required_format_version(bundle: &ProofBundle) -> u16 {
     if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v22_term(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V22
+    } else if bundle.evidence.iter().any(|evidence| {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
@@ -432,6 +443,81 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
     }
 }
 
+fn proof_uses_v22_term(node: &ProofNode) -> bool {
+    proposition_uses_v22_term(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v22_term),
+            ProofRule::ConjunctionElimination { conjunction, .. }
+            | ProofRule::ImplicationIntroduction { body: conjunction } => {
+                proof_uses_v22_term(conjunction)
+            }
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v22_term(implication) || proof_uses_v22_term(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                proof_uses_v22_term(left_equals_middle) || proof_uses_v22_term(middle_equals_right)
+            }
+        }
+}
+
+fn proposition_uses_v22_term(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_v22(left) || scalar_term_uses_v22(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v22_term),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_v22_term(premise) || proposition_uses_v22_term(conclusion),
+    }
+}
+
+fn scalar_term_uses_v22(term: &ScalarTerm) -> bool {
+    match term {
+        ScalarTerm::ExactIntegerAdd { .. } => true,
+        ScalarTerm::BooleanNot { operand }
+        | ScalarTerm::IntegerBitwiseNot { operand, .. }
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v22(operand),
+        ScalarTerm::BooleanEqual { left, right }
+        | ScalarTerm::IntegerEqual { left, right, .. }
+        | ScalarTerm::IntegerLessThan { left, right, .. }
+        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            scalar_term_uses_v22(left) || scalar_term_uses_v22(right)
+        }
+        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+            scalar_term_uses_v22(value) || scalar_term_uses_v22(count)
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
+    }
+}
+
 fn proof_uses_v21_term(node: &ProofNode) -> bool {
     proposition_uses_v21_term(&node.conclusion)
         || match &node.rule {
@@ -477,6 +563,7 @@ fn proposition_uses_v21_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v21(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
@@ -551,6 +638,7 @@ fn proposition_uses_v20_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v20(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftRight { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
@@ -650,6 +738,7 @@ fn proposition_uses_v19_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v19(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::IntegerExactCast { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
@@ -795,6 +884,11 @@ fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
             left,
             right,
         }
+        | ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
         | ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
@@ -877,6 +971,7 @@ fn proposition_uses_v17_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v17(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::IntegerWiden { .. } => true,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
@@ -954,6 +1049,7 @@ fn proposition_uses_v16_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v16(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::IntegerBitwiseNot { .. } => true,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
@@ -1030,6 +1126,7 @@ fn proposition_uses_v15_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v15(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::WrappingIntegerShiftLeft { .. }
         | ScalarTerm::WrappingIntegerShiftRight { .. } => true,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
@@ -1104,6 +1201,7 @@ fn proposition_uses_v14_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v14(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v14(value) || scalar_term_uses_v14(count)
@@ -1180,6 +1278,7 @@ fn proposition_uses_v13_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v13(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v13(value) || scalar_term_uses_v13(count)
@@ -1255,6 +1354,7 @@ fn proposition_uses_v12_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v12(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v12(value) || scalar_term_uses_v12(count)
@@ -1331,6 +1431,7 @@ fn proposition_uses_v11_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v11(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v11(value) || scalar_term_uses_v11(count)
@@ -1409,6 +1510,7 @@ fn proposition_uses_v10_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v10(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v10(value) || scalar_term_uses_v10(count)
@@ -1589,6 +1691,7 @@ fn proposition_uses_v7_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v7(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v7(value) || scalar_term_uses_v7(count)
@@ -1665,6 +1768,7 @@ fn proposition_uses_v6_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v6(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v6(value) || scalar_term_uses_v6(count)
@@ -1741,6 +1845,7 @@ fn proposition_uses_v5_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v5(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v5(value) || scalar_term_uses_v5(count)
@@ -1817,6 +1922,7 @@ fn proposition_uses_v4_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v4(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v4(value) || scalar_term_uses_v4(count)
@@ -1899,6 +2005,7 @@ fn proposition_uses_v3_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v3(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v3(value) || scalar_term_uses_v3(count)
@@ -1983,6 +2090,7 @@ fn proposition_uses_v2_term(proposition: &Proposition) -> bool {
 
 fn scalar_term_uses_v2(term: &ScalarTerm) -> bool {
     match term {
+        ScalarTerm::ExactIntegerAdd { .. } => false,
         ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar_term_uses_v2(value) || scalar_term_uses_v2(count)
@@ -2275,6 +2383,19 @@ fn encode_scalar_term(
             }
             writer.u8(10);
             encode_scalar_term(writer, operand, depth + 1, format_version)?;
+        }
+        ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } => {
+            if format_version < FORMAT_VERSION_V22 {
+                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
+            }
+            writer.u8(25);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1, format_version)?;
+            encode_scalar_term(writer, right, depth + 1, format_version)?;
         }
         ScalarTerm::ExactIntegerShiftLeft {
             value_type,
@@ -2922,6 +3043,13 @@ fn decode_scalar_term(
             let value = decode_scalar_term(reader, depth + 1, format_version)?;
             let count = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::exact_integer_shift_left(value_type, count_type, value, count)
+                .map_err(ProofCodecError::MalformedProposition)?
+        }
+        25 if format_version >= FORMAT_VERSION_V22 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1, format_version)?;
+            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            ScalarTerm::exact_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),

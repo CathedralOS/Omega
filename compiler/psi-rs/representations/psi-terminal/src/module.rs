@@ -61,6 +61,9 @@ use psi_core::{
 /// Version 30 adds proof-gated exact integer left shift. Its reconstructed
 /// obligation proves both count validity and mathematical result
 /// representability.
+/// Version 31 adds proof-gated exact integer addition. The reconstructed
+/// obligation proves that the mathematical sum is representable by the
+/// operation's fixed integer type.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -96,7 +99,8 @@ impl SemanticVersion {
     pub const V28: Self = Self(NonZeroU16::new(28).expect("twenty-eight is nonzero"));
     pub const V29: Self = Self(NonZeroU16::new(29).expect("twenty-nine is nonzero"));
     pub const V30: Self = Self(NonZeroU16::new(30).expect("thirty is nonzero"));
-    pub const CURRENT: Self = Self::V30;
+    pub const V31: Self = Self(NonZeroU16::new(31).expect("thirty-one is nonzero"));
+    pub const CURRENT: Self = Self::V31;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -432,6 +436,11 @@ pub enum OperationKind {
     ExactIntegerShiftRight {
         value: ValueId,
         count: ValueId,
+        obligation: ObligationId,
+    },
+    ExactIntegerAdd {
+        left: ValueId,
+        right: ValueId,
         obligation: ObligationId,
     },
     WrappingIntegerAdd {
