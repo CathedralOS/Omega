@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "dbf29443140596680c8c57d9fd3570e624a5e77012eadc85e90421e3ebd6c8b1"
+        "588bcc057cc356714ae0ebb499a36f70415ad1de2be3ab8efe3d5f7d97faea19"
     );
     assert_eq!(
         identity.program_fingerprint,

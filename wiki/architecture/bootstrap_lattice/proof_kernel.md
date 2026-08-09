@@ -139,6 +139,12 @@ addition selects the sign fact, and the subtraction selects the canonical
 conjunction of the sign and bound facts. Earlier versions retain their prior
 reconstruction.
 
+Terminal Psi v48 adds the symmetric signed nonpositive-subtrahend form. A
+checked path carrying `right <= 0` makes `MAX + right` Exact-safe; a nested
+true edge establishes `left <= MAX + right`. The bound addition selects the
+sign fact, and the subtraction selects the canonical conjunction of the sign
+and bound facts. Earlier versions retain their prior reconstruction.
+
 Terminal Psi v33 applies the split to Exact fixed-integer multiplication. The
 verifier may resolve either factor from terminal literals/equalities and
 reconstructs the carrier-tight interval of the other factor, including signed

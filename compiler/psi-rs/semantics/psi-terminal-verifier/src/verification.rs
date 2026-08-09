@@ -1388,6 +1388,22 @@ fn exact_integer_subtract_obligation(
                 return canonical_conjunction(vec![nonnegative, bound.clone()]);
             }
         }
+        if semantic_version >= SemanticVersion::V48 && integer_type.sign() == IntegerSign::Signed {
+            let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0))
+                .expect("zero belongs to every signed carrier");
+            let nonpositive = Proposition::LessOrEqual(right.clone(), zero);
+            if semantic_axioms.contains(&nonpositive)
+                && let Some(bound) = semantic_axioms.iter().rev().find(|axiom| match axiom {
+                    Proposition::LessOrEqual(bound_left, bound_right) => {
+                        bound_left == &left
+                            && is_maximum_plus(integer_type, bound_right, &right, semantic_axioms)
+                    }
+                    _ => false,
+                })
+            {
+                return canonical_conjunction(vec![nonpositive, bound.clone()]);
+            }
+        }
         if semantic_version >= SemanticVersion::V43 {
             if let (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(constant))) =
                 (integer_type.sign(), known_left)
@@ -1484,6 +1500,38 @@ fn is_minimum_plus(
             || (left.as_ref() == addend
                 && known_integer_term_value(integer_type, right, semantic_axioms)
                     == Some(integer_type.minimum_value())))
+}
+
+fn is_maximum_plus(
+    integer_type: psi_core::IntegerType,
+    term: &ScalarTerm,
+    addend: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let definition = semantic_axioms
+        .iter()
+        .rev()
+        .find_map(|axiom| match axiom {
+            Proposition::Equal(left, right) if left == term => Some(right),
+            Proposition::Equal(left, right) if right == term => Some(left),
+            _ => None,
+        })
+        .unwrap_or(term);
+    let ScalarTerm::ExactIntegerAdd {
+        scalar_type,
+        left,
+        right,
+    } = definition
+    else {
+        return false;
+    };
+    *scalar_type == integer_type
+        && ((right.as_ref() == addend
+            && known_integer_term_value(integer_type, left, semantic_axioms)
+                == Some(integer_type.maximum_value()))
+            || (left.as_ref() == addend
+                && known_integer_term_value(integer_type, right, semantic_axioms)
+                    == Some(integer_type.maximum_value())))
 }
 
 fn exact_integer_multiply_obligation(
@@ -2621,6 +2669,56 @@ mod tests {
                 right,
                 &axioms[1..],
                 SemanticVersion::V47,
+            ),
+            Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn v48_reconstructs_signed_nonpositive_joint_exact_subtract_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = ScalarTerm::value(
+            ValueId::new(12).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(13).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("0i8");
+        let maximum = ScalarTerm::integer(integer_type, IntegerValue::Signed(127)).expect("127i8");
+        let upper = ScalarTerm::exact_integer_add(integer_type, maximum, right.clone())
+            .expect("127 + right");
+        let nonpositive = Proposition::LessOrEqual(right.clone(), zero);
+        let bound = Proposition::LessOrEqual(left.clone(), upper);
+        let axioms = vec![nonpositive.clone(), bound.clone()];
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                SemanticVersion::V48,
+            ),
+            canonical_conjunction(vec![nonpositive.clone(), bound.clone()])
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                left.clone(),
+                right.clone(),
+                &axioms,
+                SemanticVersion::V47,
+            ),
+            Proposition::Falsehood
+        );
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                integer_type,
+                left,
+                right,
+                &axioms[1..],
+                SemanticVersion::V48,
             ),
             Proposition::Falsehood
         );

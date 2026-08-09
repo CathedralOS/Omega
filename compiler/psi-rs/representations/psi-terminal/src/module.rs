@@ -78,6 +78,7 @@ use psi_core::{
 /// Version 45 adds the symmetric signed nonpositive runtime-addend bound.
 /// Version 46 admits a direct unsigned runtime exact-subtract lower bound.
 /// Version 47 adds signed exact subtraction with a nonnegative subtrahend.
+/// Version 48 adds the symmetric signed nonpositive-subtrahend upper bound.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -130,7 +131,8 @@ impl SemanticVersion {
     pub const V45: Self = Self(NonZeroU16::new(45).expect("forty-five is nonzero"));
     pub const V46: Self = Self(NonZeroU16::new(46).expect("forty-six is nonzero"));
     pub const V47: Self = Self(NonZeroU16::new(47).expect("forty-seven is nonzero"));
-    pub const CURRENT: Self = Self::V47;
+    pub const V48: Self = Self(NonZeroU16::new(48).expect("forty-eight is nonzero"));
+    pub const CURRENT: Self = Self::V48;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
