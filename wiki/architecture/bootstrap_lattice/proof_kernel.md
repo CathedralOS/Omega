@@ -116,9 +116,10 @@ native wrapping-width multiplication is authorized only after the independent
 certificate establishes representability.
 
 Terminal Psi v34 applies the same split to Exact fixed-integer division. Source
-validation proves divisor nonzeroness and quotient representability, while the
-terminal verifier reconstructs the operation-owned proposition from terminal
-facts. A known nonzero divisor is total except for signed negative one, which
+validation rejects a provably zero divisor without treating a possibly-zero
+runtime value as statically safe; the terminal verifier reconstructs the
+operation-owned proposition from terminal facts. A known nonzero divisor is
+total except for signed negative one, which
 requires `MIN + 1 <= dividend`; zero and an unknown divisor reconstruct
 falsehood. Native truncating division is authorized only after that proposition
 is checked.
