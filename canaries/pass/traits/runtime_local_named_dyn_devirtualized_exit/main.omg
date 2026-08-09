@@ -16,7 +16,7 @@ machine Item::code(&self) -> i32 {
     }
 }
 
-Item satisfies Shape as Primary {
+Primary: Item satisfies Shape {
     machine code(&self) -> i32 {
         transition {
             _ -> self.value

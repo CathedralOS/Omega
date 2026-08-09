@@ -8,7 +8,7 @@ fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
             machine witness(value: i32);
         }
 
-        satisfies Evidence as ConcreteEvidence {
+        ConcreteEvidence: satisfies Evidence {
             machine witness(value: i32) { }
         }
     "#;
@@ -873,7 +873,7 @@ fn named_conformance_bound_rejects_a_different_concrete_carrier() {
         trait Marker {}
         data Good {}
         data Bad {}
-        Good satisfies Marker as Primary;
+        Primary: Good satisfies Marker;
 
         machine accept<T>(value: &T)
         where T satisfies Good::Primary

@@ -494,7 +494,7 @@ fn parses_generic_standalone_conformance_arguments() {
         data Adapter {
         }
 
-        Adapter satisfies Converter<i32, bool> as ScalarConversion;
+        ScalarConversion: Adapter satisfies Converter<i32, bool> {}
     "#;
 
     let tokens = Lexer::new(source)
@@ -533,7 +533,7 @@ fn parses_named_concrete_subjectless_conformance_block() {
             machine witness(value: i32);
         }
 
-        satisfies Evidence as ConcreteEvidence {
+        ConcreteEvidence: satisfies Evidence {
             machine witness(value: i32) { }
         }
     "#;
@@ -564,10 +564,10 @@ fn parses_named_concrete_subjectless_conformance_block() {
 }
 
 #[test]
-fn subjectless_conformance_requires_a_name_and_closed_body() {
+fn name_first_subjectless_conformance_requires_a_closed_body() {
     for source in [
         "satisfies Evidence { }",
-        "satisfies Evidence as ConcreteEvidence;",
+        "ConcreteEvidence: satisfies Evidence;",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -576,6 +576,31 @@ fn subjectless_conformance_requires_a_name_and_closed_body() {
             parse_syntax_trees(&tokens).is_err(),
             "subjectless shorthand must not parse: {source}"
         );
+    }
+}
+
+#[test]
+fn retired_named_conformance_headers_direct_the_name_first_migration() {
+    for (source, replacement) in [
+        (
+            "Item satisfies Shape as Primary {}",
+            "`Name: Subject satisfies Trait { ... }`",
+        ),
+        (
+            "satisfies Evidence as ConcreteEvidence {}",
+            "`Name: satisfies Trait { ... }`",
+        ),
+        (
+            "Item satisfies Shape {}",
+            "`Name: Subject satisfies Trait { ... }`",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("retired header must reject");
+        assert!(error.message.contains("is retired"));
+        assert!(error.message.contains(replacement));
     }
 }
 
@@ -591,7 +616,7 @@ fn parses_closed_conformance_block_members() {
 
         machine Card::stable_rank_value(&self) -> u32 { }
 
-        Card satisfies Ranked as PowerOrder {
+        PowerOrder: Card satisfies Ranked {
             machine before(&self, other: &Card) -> bool { }
 
             Ranked::rank_value = Card::stable_rank_value;
@@ -646,7 +671,7 @@ fn closed_conformance_member_cannot_repeat_satisfaction() {
     let source = r#"
         trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
         data Card { }
-        Card satisfies Ranked {
+        PowerOrder: Card satisfies Ranked {
             machine before(&self, other: &Card) -> bool
                 satisfies Ranked::before
             { }
@@ -671,7 +696,7 @@ fn retains_generic_and_named_conformance_bounds() {
     let source = r#"
         trait Converter<Message> { }
         data Card { }
-        Card satisfies Converter<i32> as PowerOrder;
+        PowerOrder: Card satisfies Converter<i32>;
 
         machine inspect<T, Message>(value: &T)
         where

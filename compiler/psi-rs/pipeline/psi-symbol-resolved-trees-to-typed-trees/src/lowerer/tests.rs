@@ -10,7 +10,7 @@ fn retains_subjectless_conformance_and_exact_typed_rows() {
             machine witness(value: i32);
         }
 
-        satisfies Evidence as ConcreteEvidence {
+        ConcreteEvidence: satisfies Evidence {
             machine witness(value: i32) { }
         }
     "#;

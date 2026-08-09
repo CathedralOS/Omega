@@ -566,9 +566,9 @@ pub enum ConformanceSubject {
 }
 
 /// A whole-trait conformance. The legacy `Point satisfies Equatable;` form
-/// checks separately attached machines. A block owns a closed member map:
-/// `Point satisfies Equatable { machine equals(...) { ... } }`. The concrete
-/// subjectless form is `satisfies Evidence as Name { ... }` and must be named.
+/// checks separately attached machines. A name-first block owns a closed
+/// member map: `Primary: Point satisfies Shape { ... }`. The concrete
+/// subjectless form is `EvidenceName: satisfies Evidence { ... }`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
     pub subject: ConformanceSubject,
