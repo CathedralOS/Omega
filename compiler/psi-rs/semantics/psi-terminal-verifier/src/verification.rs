@@ -151,6 +151,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     | OperationKind::ExactIntegerShiftLeft { .. }
                     | OperationKind::ExactIntegerShiftRight { .. }
                     | OperationKind::ExactIntegerAdd { .. }
+                    | OperationKind::ExactIntegerSubtract { .. }
             )
         })
     });
@@ -516,6 +517,35 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                         value_term(right),
                     )
                     .expect("validator requires exact exact-add operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
+                OperationKind::ExactIntegerSubtract {
+                    left,
+                    right,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires exact-subtract integer result type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: exact_integer_subtract_obligation(
+                                integer_type,
+                                value_term(left),
+                                value_term(right),
+                                &axioms,
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::exact_integer_subtract(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact exact-subtract operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
                 OperationKind::WrappingIntegerAdd { left, right } => {
@@ -962,6 +992,54 @@ fn exact_integer_add_obligation(
     }
 }
 
+fn exact_integer_subtract_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
+    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
+    if let (Some(left), Some(right)) = (known_left, known_right) {
+        return if integer_type.exact_sub(left, right).is_some() {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
+    let Some(constant) = known_right else {
+        return Proposition::Falsehood;
+    };
+    match (integer_type.sign(), constant) {
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
+        | (IntegerSign::Signed, IntegerValue::Signed(0)) => Proposition::Truth,
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(constant)) => {
+            let boundary = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(constant))
+                .expect("exact-subtract unsigned lower boundary remains in the carrier");
+            Proposition::LessOrEqual(boundary, left)
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(constant)) if constant > 0 => {
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                unreachable!("signed type has signed minimum")
+            };
+            let boundary =
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(minimum + constant))
+                    .expect("exact-subtract signed lower boundary remains in the carrier");
+            Proposition::LessOrEqual(boundary, left)
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(constant)) => {
+            let IntegerValue::Signed(maximum) = integer_type.maximum_value() else {
+                unreachable!("signed type has signed maximum")
+            };
+            let boundary =
+                ScalarTerm::integer(integer_type, IntegerValue::Signed(maximum + constant))
+                    .expect("exact-subtract signed upper boundary remains in the carrier");
+            Proposition::LessOrEqual(left, boundary)
+        }
+        _ => Proposition::Falsehood,
+    }
+}
+
 fn known_integer_term_value(
     integer_type: psi_core::IntegerType,
     term: &ScalarTerm,
@@ -1272,6 +1350,15 @@ fn substitute_scalar_term_values(
             left: Box::new(recurse(left)),
             right: Box::new(recurse(right)),
         },
+        ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } => ScalarTerm::ExactIntegerSubtract {
+            scalar_type: *scalar_type,
+            left: Box::new(recurse(left)),
+            right: Box::new(recurse(right)),
+        },
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
@@ -1348,3 +1435,69 @@ impl std::fmt::Display for VerificationError {
 }
 
 impl std::error::Error for VerificationError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_core::{IntegerType, ScalarType, ValueId};
+
+    #[test]
+    fn exact_subtract_reconstructs_carrier_tight_known_right_bounds() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_left = ScalarTerm::value(
+            ValueId::new(1).expect("value"),
+            ScalarType::Integer(u8_type),
+        );
+        let unsigned_five = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(5)).expect("5u8");
+        assert_eq!(
+            exact_integer_subtract_obligation(
+                u8_type,
+                unsigned_left.clone(),
+                unsigned_five.clone(),
+                &[],
+            ),
+            Proposition::LessOrEqual(unsigned_five, unsigned_left)
+        );
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_left = ScalarTerm::value(
+            ValueId::new(2).expect("value"),
+            ScalarType::Integer(i8_type),
+        );
+        let positive = ScalarTerm::integer(i8_type, IntegerValue::Signed(8)).expect("8i8");
+        let lower = ScalarTerm::integer(i8_type, IntegerValue::Signed(-120)).expect("-120i8");
+        assert_eq!(
+            exact_integer_subtract_obligation(i8_type, signed_left.clone(), positive, &[],),
+            Proposition::LessOrEqual(lower, signed_left.clone())
+        );
+
+        let negative = ScalarTerm::integer(i8_type, IntegerValue::Signed(-7)).expect("-7i8");
+        let upper = ScalarTerm::integer(i8_type, IntegerValue::Signed(120)).expect("120i8");
+        assert_eq!(
+            exact_integer_subtract_obligation(i8_type, signed_left.clone(), negative, &[]),
+            Proposition::LessOrEqual(signed_left, upper)
+        );
+    }
+
+    #[test]
+    fn exact_subtract_fails_closed_without_a_known_right_operand() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("value"),
+                ScalarType::Integer(integer_type),
+            )
+        };
+        assert_eq!(
+            exact_integer_subtract_obligation(integer_type, value(1), value(2), &[]),
+            Proposition::Falsehood
+        );
+
+        let four = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(4)).expect("4u8");
+        let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
+        assert_eq!(
+            exact_integer_subtract_obligation(integer_type, four, five, &[]),
+            Proposition::Falsehood
+        );
+    }
+}

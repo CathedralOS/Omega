@@ -54,10 +54,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&23_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&24_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(23))
+        Err(ProofCodecError::UnsupportedFormatVersion(24))
     );
 }
 
@@ -521,6 +521,43 @@ fn proof_format_v22_canonically_encodes_exact_integer_addition() {
     assert!(matches!(
         decode_proof_bundle(&old_version),
         Err(ProofCodecError::InvalidTag("ScalarTerm", 25))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
+}
+
+#[test]
+fn proof_format_v23_canonically_encodes_exact_integer_subtraction() {
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let left = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(42)).unwrap();
+    let right = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(2)).unwrap();
+    let difference = ScalarTerm::exact_integer_subtract(scalar_type, left, right).unwrap();
+    let goal = Proposition::Equal(difference.clone(), difference);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(113),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(113),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: proof.clone(),
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+        .expect("reflexive exact-subtract certificate");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v23 bytes");
+    assert_eq!(&bytes[8..10], &23_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&22_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("ScalarTerm", 26))
             | Err(ProofCodecError::NonCanonicalEncoding)
     ));
 }

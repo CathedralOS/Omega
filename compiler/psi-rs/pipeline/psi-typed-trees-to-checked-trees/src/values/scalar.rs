@@ -750,6 +750,9 @@ fn checked_integer_binary_kind(
             Some(CheckedIntegerBinaryKind::ExactShiftLeft)
         }
         (BinaryOperator::Add, ArithmeticDomain::Exact) => Some(CheckedIntegerBinaryKind::ExactAdd),
+        (BinaryOperator::Subtract, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactSubtract)
+        }
         (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
             Some(CheckedIntegerBinaryKind::WrappingAdd)
         }

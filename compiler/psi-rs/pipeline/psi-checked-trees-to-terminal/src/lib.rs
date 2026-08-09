@@ -185,6 +185,7 @@ enum LoweredIntegerBinaryKind {
     ExactShiftLeft,
     ExactShiftRight,
     ExactAdd,
+    ExactSubtract,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,
@@ -300,6 +301,16 @@ impl LoweredIntegerBinaryKind {
                         .get()
                         .checked_add(1)
                         .expect("exact-add obligation follows its operation identity"),
+                ),
+            },
+            Self::ExactSubtract => OperationKind::ExactIntegerSubtract {
+                left,
+                right,
+                obligation: obligation_id(
+                    operation
+                        .get()
+                        .checked_add(1)
+                        .expect("exact-subtract obligation follows its operation identity"),
                 ),
             },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
@@ -1785,6 +1796,7 @@ fn lower_checked_scalar_expression(
         } => Ok(LoweredDirectExpression::IntegerBinary {
             kind: match kind {
                 CheckedIntegerBinaryKind::ExactAdd => LoweredIntegerBinaryKind::ExactAdd,
+                CheckedIntegerBinaryKind::ExactSubtract => LoweredIntegerBinaryKind::ExactSubtract,
                 CheckedIntegerBinaryKind::WrappingAdd => LoweredIntegerBinaryKind::WrappingAdd,
                 CheckedIntegerBinaryKind::SaturatingAdd => LoweredIntegerBinaryKind::SaturatingAdd,
                 CheckedIntegerBinaryKind::WrappingSubtract => {
@@ -2168,6 +2180,7 @@ fn evaluate_lowered_integer_binary(
             integer_type.exact_shift_right(left, count_type, right)
         }
         LoweredIntegerBinaryKind::ExactAdd => integer_type.exact_add(left, right),
+        LoweredIntegerBinaryKind::ExactSubtract => integer_type.exact_sub(left, right),
         LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
         LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
         LoweredIntegerBinaryKind::WrappingSubtract => integer_type.wrapping_sub(left, right),

@@ -100,7 +100,8 @@ impl SemanticVersion {
     pub const V29: Self = Self(NonZeroU16::new(29).expect("twenty-nine is nonzero"));
     pub const V30: Self = Self(NonZeroU16::new(30).expect("thirty is nonzero"));
     pub const V31: Self = Self(NonZeroU16::new(31).expect("thirty-one is nonzero"));
-    pub const CURRENT: Self = Self::V31;
+    pub const V32: Self = Self(NonZeroU16::new(32).expect("thirty-two is nonzero"));
+    pub const CURRENT: Self = Self::V32;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -439,6 +440,11 @@ pub enum OperationKind {
         obligation: ObligationId,
     },
     ExactIntegerAdd {
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+    },
+    ExactIntegerSubtract {
         left: ValueId,
         right: ValueId,
         obligation: ObligationId,

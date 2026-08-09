@@ -320,6 +320,20 @@ Remaining:
   Omega to x86-64/AArch64 emission. Two unrelated runtime addends and relational
   shapes the terminal verifier cannot reduce to one constant-relative bound
   still fail closed. Proof format v22 carries the exact-add term.
+  Terminal Psi v32 now carries proof-gated Exact fixed-integer subtraction.
+  Source validation still proves the mathematical difference first; the
+  terminal verifier independently reconstructs representability when the
+  right operand is a terminal-known constant. Unsigned subtraction requires
+  `constant <= left`; positive signed constants require
+  `minimum + constant <= left`; negative signed constants require
+  `left <= maximum + constant`; zero and two compile-known representable
+  operands reduce to truth. The live source canary obtains the unsigned lower
+  bound from a true comparison edge, requires the operation-owned certificate,
+  survives canonical semantic/proof round trips, costs one fuel unit,
+  interprets from artifact sections, and lowers through Omega to
+  x86-64/AArch64 emission. An unknown right operand and relational shapes the
+  terminal verifier cannot reduce to one constant-relative bound still fail
+  closed. Proof format v23 carries the exact-subtract term.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
