@@ -1,0 +1,8 @@
+// An Exact left shift has two independent proof obligations. Even when the
+// count is statically inside the carrier width, an unconstrained runtime value
+// may overflow after multiplication by 2^count.
+data Main { value: u32; }
+machine Main::main(&mut self) {
+    let count: u32 = 5;
+    let shifted: u32 = self.value << count;
+}

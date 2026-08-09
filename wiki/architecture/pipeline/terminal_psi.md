@@ -65,8 +65,11 @@ independent integer type;
 the count reduces by Euclidean modulo of the shifted value's width.
 An Exact right shift retains the same operand types and requires a dedicated
 proof that the count denotes a value in `[0, value_width)`. Its signedness-aware
-result is otherwise total. Exact left shift remains outside this slice because
-it also requires a value-dependent no-overflow proof.
+result is otherwise total. Exact left shift remains outside the terminal slice
+because it also requires a value-dependent no-overflow proof. Source validation
+already checks that second fact by bounding the mathematical `value * 2^count`
+result; terminal retention must preserve it as independently checkable evidence
+rather than treating the count certificate as overflow authority.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the

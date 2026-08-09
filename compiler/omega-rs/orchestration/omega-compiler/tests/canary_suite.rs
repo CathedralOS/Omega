@@ -48056,6 +48056,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "float/named_float_to_integer_no_context_unproven",
     "float/named_float_to_integer_implicit_discard_rejected",
     "arithmetic/exact_integer_cast_unproven",
+    "arithmetic/exact_shift_left_value_unproven",
     "arithmetic/exact_shift_count_out_of_range",
     "arithmetic/exact_shift_count_unproven",
     "arithmetic/saturating_shift_count_unproven",

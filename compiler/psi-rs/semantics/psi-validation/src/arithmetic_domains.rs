@@ -1171,6 +1171,49 @@ impl Interval {
         }
     }
 
+    /// Mathematical `value * 2^count` bounds for an Exact left shift. A finite,
+    /// nonnegative count interval and finite value interval are required. The
+    /// four endpoint products cover both monotone sign regions; doing the
+    /// arithmetic in `i128` preserves the one representable 64-bit corner
+    /// `-1 << 63 == i64::MIN` while still failing closed when any other corner
+    /// exceeds this interval engine's representable range.
+    fn shift_left(self, count: Self) -> Self {
+        let (Some(value_low), Some(value_high), Some(count_low), Some(count_high)) =
+            (self.low, self.high, count.low, count.high)
+        else {
+            return Interval::UNBOUNDED;
+        };
+        let (Ok(count_low), Ok(count_high)) = (u32::try_from(count_low), u32::try_from(count_high))
+        else {
+            return Interval::UNBOUNDED;
+        };
+        let (Some(low_factor), Some(high_factor)) = (
+            1_i128.checked_shl(count_low),
+            1_i128.checked_shl(count_high),
+        ) else {
+            return Interval::UNBOUNDED;
+        };
+        let corners = [
+            i128::from(value_low).checked_mul(low_factor),
+            i128::from(value_low).checked_mul(high_factor),
+            i128::from(value_high).checked_mul(low_factor),
+            i128::from(value_high).checked_mul(high_factor),
+        ];
+        if corners.iter().any(Option::is_none) {
+            return Interval::UNBOUNDED;
+        }
+        let values = corners.into_iter().flatten().collect::<Vec<_>>();
+        let low = *values.iter().min().expect("four exact shift corners exist");
+        let high = *values.iter().max().expect("four exact shift corners exist");
+        let (Ok(low), Ok(high)) = (i64::try_from(low), i64::try_from(high)) else {
+            return Interval::UNBOUNDED;
+        };
+        Self {
+            low: Some(low),
+            high: Some(high),
+        }
+    }
+
     /// `a % b`: the remainder's magnitude is strictly below the divisor's
     /// magnitude (truncated-division semantics: the remainder takes the
     /// dividend's sign). SOUND only when the divisor is provably nonzero with a
@@ -1949,9 +1992,11 @@ fn analyze(
                 // poisoning the enclosing op with an unbounded operand. Neither is
                 // overflow-flagged below; the tighter interval is purely a better
                 // (still sound) over-approximation for any ENCLOSING op. Shifts
-                // stay unbounded.
+                // stay unbounded except for left shift, whose mathematical
+                // product bounds feed the Exact value-overflow obligation.
                 BinaryOperator::Modulo => left.interval.modulo(right.interval),
                 BinaryOperator::Divide => left.interval.divide(right.interval),
+                BinaryOperator::ShiftLeft => left.interval.shift_left(right.interval),
                 _ => Interval::UNBOUNDED,
             };
             // Operand primitives win. The destination type is a fallback ONLY when
@@ -1968,7 +2013,9 @@ fn analyze(
                 }
             });
 
-            // S3: an EXACT (undomained) `+`/`-`/`*` must be provably in range.
+            // S3: an EXACT (undomained) `+`/`-`/`*`/`<<` must be provably in
+            // range. Left shift separately retains F8's count obligation
+            // below; proving a legal count never authorizes value overflow.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
             // Abort-as-effect follow-up (owner 2026-07-18): a TRAPPING op
             // whose result interval is provably DISJOINT from its type's
@@ -1978,7 +2025,10 @@ fn analyze(
             if effective_domain == ArithmeticDomain::Trapping
                 && matches!(
                     operator,
-                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::ShiftLeft
                 )
                 && let Some(primitive) = primitive
                 && let Some(range) = primitive_range(primitive)
@@ -2003,7 +2053,10 @@ fn analyze(
             if effective_domain == ArithmeticDomain::Exact
                 && matches!(
                     operator,
-                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::ShiftLeft
                 )
                 && let Some(primitive) = primitive
                 && let Some(range) = primitive_range(primitive)
@@ -3026,6 +3079,26 @@ mod tests {
         assert_eq!(Interval::UNBOUNDED.divide(iv(2, 2)), Interval::UNBOUNDED);
         // maybe-zero divisor: cannot assume magnitude >= 1
         assert_eq!(iv(10, 50).divide(iv(0, 5)), Interval::UNBOUNDED);
+    }
+
+    #[test]
+    fn exact_left_shift_tracks_value_and_count_extrema() {
+        assert_eq!(iv(3, 3).shift_left(iv(5, 5)), iv(96, 96));
+        assert_eq!(iv(0, 1).shift_left(iv(0, 31)), iv(0, 1_i64 << 31));
+        assert_eq!(iv(-1, 0).shift_left(iv(0, 63)), iv(i64::MIN, 0));
+        assert_eq!(iv(-2, 3).shift_left(iv(1, 4)), iv(-32, 48));
+    }
+
+    #[test]
+    fn exact_left_shift_fails_closed_when_bounds_are_unusable() {
+        assert_eq!(
+            Interval::UNBOUNDED.shift_left(iv(0, 3)),
+            Interval::UNBOUNDED
+        );
+        assert_eq!(iv(1, 1).shift_left(iv(-1, 3)), Interval::UNBOUNDED);
+        assert_eq!(iv(1, 1).shift_left(iv(127, 128)), Interval::UNBOUNDED);
+        assert_eq!(iv(0, 2).shift_left(iv(127, 127)), Interval::UNBOUNDED);
+        assert_eq!(iv(2, 2).shift_left(iv(62, 62)), Interval::UNBOUNDED);
     }
 
     #[test]

@@ -292,9 +292,13 @@ Remaining:
   facts. Proof format v20 carries the exact-shift term. Canonical artifacts,
   one-unit operation fuel, artifact interpretation, Omega lowering, and
   logical/arithmetic x86-64/AArch64 emission are live. Missing evidence and an
-  out-of-range path reject. Exact left shift remains a later implementation
-  slice because it additionally needs a value-dependent no-overflow
-  obligation; it must not reuse the count proof as overflow authority.
+  out-of-range path reject. Source validation now independently proves the
+  mathematical result interval for Exact left shift and rejects a legal-count
+  shift whose value may overflow; signed extrema and the `-1 << 63` boundary
+  are covered without host-overflow shortcuts. Terminal retention of Exact
+  left shift remains the next implementation slice because its artifact still
+  needs a value-dependent no-overflow obligation; it must not reuse the count
+  proof as overflow authority.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
