@@ -204,7 +204,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "43588db90d5468099e702b6211b09bee88eff7c2236c33c57a719b75d56695dc"
+        "059fd111c962350f36681a733bcffb52e155b40ecb3add3f743f6b95478bc604"
     );
 
     let mut changed_plan = plan;
@@ -245,7 +245,7 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     future[8..10].copy_from_slice(&2_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatVersion(2))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(2))
     );
 
     let mut reordered = bytes.clone();

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Separately versioned logical-fuel schedule and meter for terminal Psi.
+//! Canonical logical-fuel schedule and meter for terminal Psi.
 //!
 //! Logical fuel is deterministic portable work, not native instructions,
 //! cycles, energy, or elapsed time. The executing program cannot inspect this
@@ -14,23 +14,21 @@ use psi_terminal::{Operation, OperationKind, Terminator};
 
 pub use psi_core::FuelScheduleIdentity;
 
-/// Version 1 charges one unit for each executed semantic operation and one unit
-/// for each taken terminal edge. Adding a vocabulary variant forces an explicit
-/// update to these exhaustive matches without changing semantic identity.
+/// The current schedule charges one unit for each executed semantic operation
+/// and one unit for each taken terminal edge. Adding a vocabulary variant
+/// forces an explicit update to these exhaustive matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalFuelSchedule {
     identity: FuelScheduleIdentity,
 }
 
 impl TerminalFuelSchedule {
-    pub const V1: Self = Self {
+    pub const CURRENT: Self = Self {
         identity: match FuelScheduleIdentity::new(1) {
             Some(identity) => identity,
             None => unreachable!(),
         },
     };
-
-    pub const CURRENT: Self = Self::V1;
 
     pub const fn identity(self) -> FuelScheduleIdentity {
         self.identity

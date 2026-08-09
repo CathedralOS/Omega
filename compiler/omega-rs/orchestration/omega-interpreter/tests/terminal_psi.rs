@@ -243,7 +243,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             }
         ))
     ));
-    assert_eq!(first.usage().schedule().schedule_version(), 1);
+    assert_eq!(first.usage().schedule().marker(), 1);
     assert_eq!(first.usage().total_units(), 3);
     assert_eq!(
         first

@@ -43,8 +43,8 @@ use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_VERSION: u16 = 1;
-const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint-v1\0";
+const FORMAT_MARKER: u16 = 1;
+const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
 const MAX_CONTENT_TERM_DEPTH: usize = 256;
@@ -61,9 +61,9 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     if reader.take(MAGIC.len())? != MAGIC {
         return Err(CodecError::InvalidMagic);
     }
-    let format_version = reader.u16()?;
-    if format_version != FORMAT_VERSION {
-        return Err(CodecError::UnsupportedFormatVersion(format_version));
+    let format_marker = reader.u16()?;
+    if format_marker != FORMAT_MARKER {
+        return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
     let module = decode_module_body(&mut reader)?;
     if reader.remaining() != 0 {
@@ -406,7 +406,7 @@ fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
 fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
-    writer.u16(FORMAT_VERSION);
+    writer.u16(FORMAT_MARKER);
     writer.u16(module.vocabulary_marker.get());
     writer.id(module.entry);
     writer.len(
@@ -2420,7 +2420,7 @@ impl<'bytes> Reader<'bytes> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodecError {
     InvalidMagic,
-    UnsupportedFormatVersion(u16),
+    UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),
     UnexpectedEnd,
     TrailingBytes(usize),

@@ -13,8 +13,8 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_VERSION: u16 = 1;
-const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
+const FORMAT_MARKER: u16 = 1;
+const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
 const MAX_CONTENT_TERM_DEPTH: usize = 256;
@@ -47,7 +47,7 @@ impl std::fmt::Display for ProofBundleFingerprint {
 
 pub fn encode_proof_bundle(bundle: &ProofBundle) -> Result<Vec<u8>, ProofCodecError> {
     validate_bundle(bundle)?;
-    encode_raw(bundle, FORMAT_VERSION)
+    encode_raw(bundle, FORMAT_MARKER)
 }
 
 pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError> {
@@ -55,21 +55,21 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
     if reader.take(MAGIC.len())? != MAGIC {
         return Err(ProofCodecError::InvalidMagic);
     }
-    let format_version = reader.u16()?;
-    if format_version != FORMAT_VERSION {
-        return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
+    let format_marker = reader.u16()?;
+    if format_marker != FORMAT_MARKER {
+        return Err(ProofCodecError::UnsupportedFormatMarker(format_marker));
     }
     let evidence_count = reader.count()?;
     let mut evidence = Vec::new();
     for _ in 0..evidence_count {
-        evidence.push(decode_evidence(&mut reader, format_version)?);
+        evidence.push(decode_evidence(&mut reader, format_marker)?);
     }
     if reader.remaining() != 0 {
         return Err(ProofCodecError::TrailingBytes(reader.remaining()));
     }
     let bundle = ProofBundle { evidence };
     validate_bundle(&bundle)?;
-    if encode_raw(&bundle, format_version)? != bytes {
+    if encode_raw(&bundle, format_marker)? != bytes {
         return Err(ProofCodecError::NonCanonicalEncoding);
     }
     Ok(bundle)
@@ -231,13 +231,13 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
     Ok(())
 }
 
-fn encode_raw(bundle: &ProofBundle, format_version: u16) -> Result<Vec<u8>, ProofCodecError> {
+fn encode_raw(bundle: &ProofBundle, format_marker: u16) -> Result<Vec<u8>, ProofCodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
-    writer.u16(format_version);
+    writer.u16(format_marker);
     writer.len("evidence", bundle.evidence.len())?;
     for evidence in &bundle.evidence {
-        encode_evidence(&mut writer, evidence, format_version)?;
+        encode_evidence(&mut writer, evidence, format_marker)?;
     }
     Ok(writer.finish())
 }
@@ -245,7 +245,7 @@ fn encode_raw(bundle: &ProofBundle, format_version: u16) -> Result<Vec<u8>, Proo
 fn encode_evidence(
     writer: &mut Writer,
     evidence: &ObligationEvidence,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<(), ProofCodecError> {
     writer.id(evidence.obligation);
     match &evidence.route {
@@ -257,7 +257,7 @@ fn encode_evidence(
             writer.u8(2);
             writer.id(certificate.identity);
             writer.u16(certificate.proof_system_version.get());
-            encode_proof_node(writer, &certificate.proof, 0, format_version)?;
+            encode_proof_node(writer, &certificate.proof, 0, format_marker)?;
         }
         EvidenceRoute::Admitted(evidence) => {
             writer.u8(3);
@@ -275,12 +275,12 @@ fn encode_proof_node(
     writer: &mut Writer,
     node: &ProofNode,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_PROOF_DEPTH {
         return Err(ProofCodecError::ProofNestingTooDeep);
     }
-    encode_proposition(writer, &node.conclusion, 0, format_version)?;
+    encode_proposition(writer, &node.conclusion, 0, format_marker)?;
     match &node.rule {
         ProofRule::Primitive(judgment) => {
             writer.u8(1);
@@ -298,7 +298,7 @@ fn encode_proof_node(
             writer.u8(4);
             writer.len("conjunction proofs", nodes.len())?;
             for node in nodes {
-                encode_proof_node(writer, node, depth + 1, format_version)?;
+                encode_proof_node(writer, node, depth + 1, format_marker)?;
             }
         }
         ProofRule::ConjunctionElimination {
@@ -306,28 +306,28 @@ fn encode_proof_node(
             conjunct,
         } => {
             writer.u8(5);
-            encode_proof_node(writer, conjunction, depth + 1, format_version)?;
+            encode_proof_node(writer, conjunction, depth + 1, format_marker)?;
             writer.index("conjunct index", *conjunct)?;
         }
         ProofRule::ImplicationIntroduction { body } => {
             writer.u8(6);
-            encode_proof_node(writer, body, depth + 1, format_version)?;
+            encode_proof_node(writer, body, depth + 1, format_marker)?;
         }
         ProofRule::ImplicationElimination {
             implication,
             premise,
         } => {
             writer.u8(7);
-            encode_proof_node(writer, implication, depth + 1, format_version)?;
-            encode_proof_node(writer, premise, depth + 1, format_version)?;
+            encode_proof_node(writer, implication, depth + 1, format_marker)?;
+            encode_proof_node(writer, premise, depth + 1, format_marker)?;
         }
         ProofRule::EqualityTransitivity {
             left_equals_middle,
             middle_equals_right,
         } => {
             writer.u8(8);
-            encode_proof_node(writer, left_equals_middle, depth + 1, format_version)?;
-            encode_proof_node(writer, middle_equals_right, depth + 1, format_version)?;
+            encode_proof_node(writer, left_equals_middle, depth + 1, format_marker)?;
+            encode_proof_node(writer, middle_equals_right, depth + 1, format_marker)?;
         }
     }
     Ok(())
@@ -337,7 +337,7 @@ fn encode_proposition(
     writer: &mut Writer,
     proposition: &Proposition,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_PROPOSITION_DEPTH {
         return Err(ProofCodecError::PropositionNestingTooDeep);
@@ -351,24 +351,24 @@ fn encode_proposition(
         }
         Proposition::Equal(left, right) => {
             writer.u8(4);
-            encode_scalar_term(writer, left, 0, format_version)?;
-            encode_scalar_term(writer, right, 0, format_version)?;
+            encode_scalar_term(writer, left, 0, format_marker)?;
+            encode_scalar_term(writer, right, 0, format_marker)?;
         }
         Proposition::LessThan(left, right) => {
             writer.u8(5);
-            encode_scalar_term(writer, left, 0, format_version)?;
-            encode_scalar_term(writer, right, 0, format_version)?;
+            encode_scalar_term(writer, left, 0, format_marker)?;
+            encode_scalar_term(writer, right, 0, format_marker)?;
         }
         Proposition::LessOrEqual(left, right) => {
             writer.u8(6);
-            encode_scalar_term(writer, left, 0, format_version)?;
-            encode_scalar_term(writer, right, 0, format_version)?;
+            encode_scalar_term(writer, left, 0, format_marker)?;
+            encode_scalar_term(writer, right, 0, format_marker)?;
         }
         Proposition::Conjunction(conjuncts) => {
             writer.u8(7);
             writer.len("proof proposition conjuncts", conjuncts.len())?;
             for conjunct in conjuncts {
-                encode_proposition(writer, conjunct, depth + 1, format_version)?;
+                encode_proposition(writer, conjunct, depth + 1, format_marker)?;
             }
         }
         Proposition::Implication {
@@ -376,14 +376,14 @@ fn encode_proposition(
             conclusion,
         } => {
             writer.u8(8);
-            encode_proposition(writer, premise, depth + 1, format_version)?;
-            encode_proposition(writer, conclusion, depth + 1, format_version)?;
+            encode_proposition(writer, premise, depth + 1, format_marker)?;
+            encode_proposition(writer, conclusion, depth + 1, format_marker)?;
         }
         Proposition::ContentConservation(conservation) => {
             writer.u8(9);
             encode_content_algebra(writer, conservation.algebra())?;
-            encode_content_term(writer, conservation.left(), 0, format_version)?;
-            encode_content_term(writer, conservation.right(), 0, format_version)?;
+            encode_content_term(writer, conservation.left(), 0, format_marker)?;
+            encode_content_term(writer, conservation.right(), 0, format_marker)?;
         }
     }
     Ok(())
@@ -404,7 +404,7 @@ fn encode_content_term(
     writer: &mut Writer,
     term: &ContentTerm,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_CONTENT_TERM_DEPTH {
         return Err(ProofCodecError::ContentTermNestingTooDeep);
@@ -444,7 +444,7 @@ fn encode_content_term(
             writer.u8(2);
             writer.len("separated content terms", terms.len())?;
             for term in terms {
-                encode_content_term(writer, term, depth + 1, format_version)?;
+                encode_content_term(writer, term, depth + 1, format_marker)?;
             }
         }
     }
@@ -455,7 +455,7 @@ fn encode_scalar_term(
     writer: &mut Writer,
     term: &ScalarTerm,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_SCALAR_TERM_DEPTH {
         return Err(ProofCodecError::ScalarTermNestingTooDeep);
@@ -472,7 +472,7 @@ fn encode_scalar_term(
         }
         ScalarTerm::BooleanNot { operand } => {
             writer.u8(10);
-            encode_scalar_term(writer, operand, depth + 1, format_version)?;
+            encode_scalar_term(writer, operand, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerAdd {
             scalar_type,
@@ -481,8 +481,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(25);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerSubtract {
             scalar_type,
@@ -491,8 +491,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(26);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
@@ -501,8 +501,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(27);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerDivide {
             scalar_type,
@@ -511,8 +511,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(28);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerRemainder {
             scalar_type,
@@ -521,8 +521,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(29);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::WrappingIntegerDivide {
             scalar_type,
@@ -531,8 +531,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(30);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
@@ -541,8 +541,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(31);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::SaturatingIntegerDivide {
             scalar_type,
@@ -551,8 +551,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(32);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::SaturatingIntegerRemainder {
             scalar_type,
@@ -561,8 +561,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(33);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerShiftLeft {
             value_type,
@@ -573,8 +573,8 @@ fn encode_scalar_term(
             writer.u8(24);
             encode_integer_type(writer, *value_type);
             encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1, format_version)?;
-            encode_scalar_term(writer, count, depth + 1, format_version)?;
+            encode_scalar_term(writer, value, depth + 1, format_marker)?;
+            encode_scalar_term(writer, count, depth + 1, format_marker)?;
         }
         ScalarTerm::ExactIntegerShiftRight {
             value_type,
@@ -585,8 +585,8 @@ fn encode_scalar_term(
             writer.u8(23);
             encode_integer_type(writer, *value_type);
             encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1, format_version)?;
-            encode_scalar_term(writer, count, depth + 1, format_version)?;
+            encode_scalar_term(writer, value, depth + 1, format_marker)?;
+            encode_scalar_term(writer, count, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerExactCast {
             source_type,
@@ -596,12 +596,12 @@ fn encode_scalar_term(
             writer.u8(22);
             encode_integer_type(writer, *source_type);
             encode_integer_type(writer, *target_type);
-            encode_scalar_term(writer, operand, depth + 1, format_version)?;
+            encode_scalar_term(writer, operand, depth + 1, format_marker)?;
         }
         ScalarTerm::BooleanEqual { left, right } => {
             writer.u8(11);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerEqual {
             scalar_type,
@@ -610,8 +610,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(12);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerLessThan {
             scalar_type,
@@ -620,8 +620,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(13);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerLessOrEqual {
             scalar_type,
@@ -630,8 +630,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(14);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
@@ -655,8 +655,8 @@ fn encode_scalar_term(
                 _ => unreachable!(),
             });
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::WrappingIntegerShiftLeft {
             value_type,
@@ -677,8 +677,8 @@ fn encode_scalar_term(
             });
             encode_integer_type(writer, *value_type);
             encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1, format_version)?;
-            encode_scalar_term(writer, count, depth + 1, format_version)?;
+            encode_scalar_term(writer, value, depth + 1, format_marker)?;
+            encode_scalar_term(writer, count, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerBitwiseNot {
             scalar_type,
@@ -686,7 +686,7 @@ fn encode_scalar_term(
         } => {
             writer.u8(20);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, operand, depth + 1, format_version)?;
+            encode_scalar_term(writer, operand, depth + 1, format_marker)?;
         }
         ScalarTerm::IntegerWiden {
             source_type,
@@ -696,7 +696,7 @@ fn encode_scalar_term(
             writer.u8(21);
             encode_integer_type(writer, *source_type);
             encode_integer_type(writer, *target_type);
-            encode_scalar_term(writer, operand, depth + 1, format_version)?;
+            encode_scalar_term(writer, operand, depth + 1, format_marker)?;
         }
         ScalarTerm::Integer { scalar_type, value } => {
             writer.u8(3);
@@ -710,8 +710,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(4);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::SaturatingIntegerAdd {
             scalar_type,
@@ -720,8 +720,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(5);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::WrappingIntegerSubtract {
             scalar_type,
@@ -730,8 +730,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(6);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::SaturatingIntegerSubtract {
             scalar_type,
@@ -740,8 +740,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(7);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::WrappingIntegerMultiply {
             scalar_type,
@@ -750,8 +750,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(8);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
         ScalarTerm::SaturatingIntegerMultiply {
             scalar_type,
@@ -760,8 +760,8 @@ fn encode_scalar_term(
         } => {
             writer.u8(9);
             encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1, format_version)?;
-            encode_scalar_term(writer, right, depth + 1, format_version)?;
+            encode_scalar_term(writer, left, depth + 1, format_marker)?;
+            encode_scalar_term(writer, right, depth + 1, format_marker)?;
         }
     }
     Ok(())
@@ -820,7 +820,7 @@ fn encode_admission_kind(writer: &mut Writer, kind: AdmissionKind) {
 
 fn decode_evidence(
     reader: &mut Reader<'_>,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<ObligationEvidence, ProofCodecError> {
     let obligation = reader.id("ObligationId")?;
     let route = match reader.u8()? {
@@ -829,7 +829,7 @@ fn decode_evidence(
             identity: reader.id("EvidenceIdentity")?,
             proof_system_version: ProofSystemVersion::new(reader.u16()?)
                 .ok_or(ProofCodecError::ZeroProofSystemVersion)?,
-            proof: decode_proof_node(reader, 0, format_version)?,
+            proof: decode_proof_node(reader, 0, format_marker)?,
         }),
         3 => EvidenceRoute::Admitted(AdmissionEvidence {
             site: reader.id("AdmissionSiteId")?,
@@ -846,12 +846,12 @@ fn decode_evidence(
 fn decode_proof_node(
     reader: &mut Reader<'_>,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<ProofNode, ProofCodecError> {
     if depth > MAX_PROOF_DEPTH {
         return Err(ProofCodecError::ProofNestingTooDeep);
     }
-    let conclusion = decode_proposition(reader, 0, format_version)?;
+    let conclusion = decode_proposition(reader, 0, format_marker)?;
     let rule = match reader.u8()? {
         1 => ProofRule::Primitive(decode_primitive(reader)?),
         2 => ProofRule::SemanticAxiom {
@@ -864,24 +864,24 @@ fn decode_proof_node(
             let count = reader.count()?;
             let mut nodes = Vec::new();
             for _ in 0..count {
-                nodes.push(decode_proof_node(reader, depth + 1, format_version)?);
+                nodes.push(decode_proof_node(reader, depth + 1, format_marker)?);
             }
             ProofRule::ConjunctionIntroduction(nodes)
         }
         5 => ProofRule::ConjunctionElimination {
-            conjunction: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
+            conjunction: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
             conjunct: reader.index()?,
         },
         6 => ProofRule::ImplicationIntroduction {
-            body: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
+            body: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
         },
         7 => ProofRule::ImplicationElimination {
-            implication: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
-            premise: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
+            implication: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            premise: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
         },
         8 => ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
-            middle_equals_right: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
+            left_equals_middle: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            middle_equals_right: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
         },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };
@@ -891,7 +891,7 @@ fn decode_proof_node(
 fn decode_proposition(
     reader: &mut Reader<'_>,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<Proposition, ProofCodecError> {
     if depth > MAX_PROPOSITION_DEPTH {
         return Err(ProofCodecError::PropositionNestingTooDeep);
@@ -901,33 +901,33 @@ fn decode_proposition(
         2 => Proposition::Falsehood,
         3 => Proposition::Atom(reader.id::<PropositionId>("PropositionId")?),
         4 => Proposition::Equal(
-            decode_scalar_term(reader, 0, format_version)?,
-            decode_scalar_term(reader, 0, format_version)?,
+            decode_scalar_term(reader, 0, format_marker)?,
+            decode_scalar_term(reader, 0, format_marker)?,
         ),
         5 => Proposition::LessThan(
-            decode_scalar_term(reader, 0, format_version)?,
-            decode_scalar_term(reader, 0, format_version)?,
+            decode_scalar_term(reader, 0, format_marker)?,
+            decode_scalar_term(reader, 0, format_marker)?,
         ),
         6 => Proposition::LessOrEqual(
-            decode_scalar_term(reader, 0, format_version)?,
-            decode_scalar_term(reader, 0, format_version)?,
+            decode_scalar_term(reader, 0, format_marker)?,
+            decode_scalar_term(reader, 0, format_marker)?,
         ),
         7 => {
             let count = reader.count()?;
             let mut conjuncts = Vec::new();
             for _ in 0..count {
-                conjuncts.push(decode_proposition(reader, depth + 1, format_version)?);
+                conjuncts.push(decode_proposition(reader, depth + 1, format_marker)?);
             }
             Proposition::Conjunction(conjuncts)
         }
         8 => Proposition::Implication {
-            premise: Box::new(decode_proposition(reader, depth + 1, format_version)?),
-            conclusion: Box::new(decode_proposition(reader, depth + 1, format_version)?),
+            premise: Box::new(decode_proposition(reader, depth + 1, format_marker)?),
+            conclusion: Box::new(decode_proposition(reader, depth + 1, format_marker)?),
         },
         9 => {
             let algebra = decode_content_algebra(reader)?;
-            let left = decode_content_term(reader, 0, format_version)?;
-            let right = decode_content_term(reader, 0, format_version)?;
+            let left = decode_content_term(reader, 0, format_marker)?;
+            let right = decode_content_term(reader, 0, format_marker)?;
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
         }
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
@@ -949,7 +949,7 @@ fn decode_content_algebra(reader: &mut Reader<'_>) -> Result<ContentAlgebra, Pro
 fn decode_content_term(
     reader: &mut Reader<'_>,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<ContentTerm, ProofCodecError> {
     if depth > MAX_CONTENT_TERM_DEPTH {
         return Err(ProofCodecError::ContentTermNestingTooDeep);
@@ -989,7 +989,7 @@ fn decode_content_term(
             let count = reader.count()?;
             let mut terms = Vec::new();
             for _ in 0..count {
-                terms.push(decode_content_term(reader, depth + 1, format_version)?);
+                terms.push(decode_content_term(reader, depth + 1, format_marker)?);
             }
             ContentTerm::separate(terms).map_err(ProofCodecError::MalformedProposition)?
         }
@@ -1000,7 +1000,7 @@ fn decode_content_term(
 fn decode_scalar_term(
     reader: &mut Reader<'_>,
     depth: usize,
-    format_version: u16,
+    format_marker: u16,
 ) -> Result<ScalarTerm, ProofCodecError> {
     if depth > MAX_SCALAR_TERM_DEPTH {
         return Err(ProofCodecError::ScalarTermNestingTooDeep);
@@ -1016,207 +1016,207 @@ fn decode_scalar_term(
         }
         4 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         5 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::saturating_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         6 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_subtract(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         7 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::saturating_integer_subtract(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         8 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_multiply(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         9 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::saturating_integer_multiply(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        10 => ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1, format_version)?)
+        10 => ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1, format_marker)?)
             .map_err(ProofCodecError::MalformedProposition)?,
         11 => {
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::boolean_equal(left, right).map_err(ProofCodecError::MalformedProposition)?
         }
         12 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_equal(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         13 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_less_than(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         14 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_less_or_equal(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         15 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_bitwise_and(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         16 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_bitwise_or(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         17 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_bitwise_xor(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         18 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1, format_version)?;
-            let count = decode_scalar_term(reader, depth + 1, format_version)?;
+            let value = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let count = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_shift_left(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         19 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1, format_version)?;
-            let count = decode_scalar_term(reader, depth + 1, format_version)?;
+            let value = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let count = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_shift_right(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         20 => {
             let scalar_type = decode_integer_type(reader)?;
-            let operand = decode_scalar_term(reader, depth + 1, format_version)?;
+            let operand = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_bitwise_not(scalar_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         21 => {
             let source_type = decode_integer_type(reader)?;
             let target_type = decode_integer_type(reader)?;
-            let operand = decode_scalar_term(reader, depth + 1, format_version)?;
+            let operand = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_widen(source_type, target_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         22 => {
             let source_type = decode_integer_type(reader)?;
             let target_type = decode_integer_type(reader)?;
-            let operand = decode_scalar_term(reader, depth + 1, format_version)?;
+            let operand = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::integer_exact_cast(source_type, target_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         23 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1, format_version)?;
-            let count = decode_scalar_term(reader, depth + 1, format_version)?;
+            let value = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let count = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_shift_right(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         24 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1, format_version)?;
-            let count = decode_scalar_term(reader, depth + 1, format_version)?;
+            let value = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let count = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_shift_left(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         25 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         26 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_subtract(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         27 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_multiply(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         28 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_divide(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         29 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::exact_integer_remainder(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         30 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_divide(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         31 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::wrapping_integer_remainder(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         32 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::saturating_integer_divide(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         33 => {
             let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1, format_version)?;
-            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            let left = decode_scalar_term(reader, depth + 1, format_marker)?;
+            let right = decode_scalar_term(reader, depth + 1, format_marker)?;
             ScalarTerm::saturating_integer_remainder(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
@@ -1408,7 +1408,7 @@ impl<'bytes> Reader<'bytes> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofCodecError {
     InvalidMagic,
-    UnsupportedFormatVersion(u16),
+    UnsupportedFormatMarker(u16),
     ZeroProofSystemVersion,
     UnexpectedEnd,
     TrailingBytes(usize),

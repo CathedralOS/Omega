@@ -2,7 +2,7 @@ use std::fmt;
 use std::num::NonZeroU32;
 use std::num::NonZeroU64;
 
-/// Identity of a logical-cost schedule, independently versioned from terminal
+/// Identity of the current logical-cost schedule, independent from terminal
 /// Psi semantics. The schedule implementation lives above this dependency-
 /// light identity so installation/resource records can name its units without
 /// depending on a semantic evaluator.
@@ -10,14 +10,14 @@ use std::num::NonZeroU64;
 pub struct FuelScheduleIdentity(NonZeroU32);
 
 impl FuelScheduleIdentity {
-    pub const fn new(schedule_version: u32) -> Option<Self> {
-        match NonZeroU32::new(schedule_version) {
-            Some(version) => Some(Self(version)),
+    pub const fn new(marker: u32) -> Option<Self> {
+        match NonZeroU32::new(marker) {
+            Some(marker) => Some(Self(marker)),
             None => None,
         }
     }
 
-    pub const fn schedule_version(self) -> u32 {
+    pub const fn marker(self) -> u32 {
         self.0.get()
     }
 }
@@ -127,7 +127,7 @@ mod tests {
         assert_eq!(
             FuelScheduleIdentity::new(3)
                 .expect("nonzero fuel schedule")
-                .schedule_version(),
+                .marker(),
             3
         );
     }

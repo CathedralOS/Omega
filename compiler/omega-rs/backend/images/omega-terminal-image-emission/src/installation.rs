@@ -8,10 +8,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{TerminalExecutableImage, can_emit_terminal_executable_image};
 
-pub const TERMINAL_INSTALLATION_FORMAT_VERSION: u16 = 1;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 1;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
-const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image-v1\0";
-const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record-v1\0";
+const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
+const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
 
 /// Exact normalized identity of one provider plan selected for this
 /// installation. The current scalar canaries have an empty provider closure;
@@ -176,7 +176,7 @@ pub fn encode_terminal_installation_record(
 
     let mut bytes = Vec::with_capacity(166 + record.selected_provider_plans.len() * 8);
     bytes.extend_from_slice(MAGIC);
-    push_u16(&mut bytes, TERMINAL_INSTALLATION_FORMAT_VERSION);
+    push_u16(&mut bytes, TERMINAL_INSTALLATION_FORMAT_MARKER);
     push_u16(&mut bytes, record.terminal_psi.vocabulary_marker.get());
     bytes.extend_from_slice(record.terminal_psi.program_fingerprint.as_bytes());
     bytes.push(architecture_tag(record.target.architecture));
@@ -239,10 +239,10 @@ pub fn decode_terminal_installation_record(
     if reader.array::<8>()? != *MAGIC {
         return Err(TerminalInstallationError::InvalidMagic);
     }
-    let format_version = reader.u16()?;
-    if format_version != TERMINAL_INSTALLATION_FORMAT_VERSION {
-        return Err(TerminalInstallationError::UnsupportedFormatVersion(
-            format_version,
+    let format_marker = reader.u16()?;
+    if format_marker != TERMINAL_INSTALLATION_FORMAT_MARKER {
+        return Err(TerminalInstallationError::UnsupportedFormatMarker(
+            format_marker,
         ));
     }
     let vocabulary_marker_raw = reader.u16()?;
@@ -512,7 +512,7 @@ impl<'bytes> Reader<'bytes> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInstallationError {
     InvalidMagic,
-    UnsupportedFormatVersion(u16),
+    UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),
     InvalidArchitectureTag(u8),
     InvalidObjectFormatTag(u8),

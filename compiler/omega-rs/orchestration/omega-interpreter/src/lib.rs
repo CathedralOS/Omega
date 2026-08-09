@@ -104,19 +104,19 @@ use psi_checked_trees::CheckedTrees;
 /// canonical portable IR exists.
 ///
 /// This is deliberately distinct from canonical-IR `FuelScheduleIdentity`.
-/// It versions the current TypedTrees interpreter's accounting precursor and
+/// Its marker names the current TypedTrees interpreter's accounting precursor and
 /// must not be used as an IR-derived fixed-work certificate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvaluationStepScheduleIdentity(u32);
 
 impl EvaluationStepScheduleIdentity {
-    pub const fn schedule_version(self) -> u32 {
+    pub const fn marker(self) -> u32 {
         self.0
     }
 }
 
-/// The current deterministic evaluator-step schedule. Version 1 charges one
-/// unit for each entered state, executed statement, and evaluated expression.
+/// The current deterministic evaluator-step schedule charges one unit for each
+/// entered state, executed statement, and evaluated expression.
 pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
     EvaluationStepScheduleIdentity(1);
 

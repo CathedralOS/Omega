@@ -7,10 +7,10 @@ use crate::{
     proof_bundle_fingerprint, terminal_psi_identity,
 };
 
-const MANIFEST_FORMAT_VERSION: u16 = 1;
-const INSTALLATION_DOMAIN: &[u8] = b"psi-terminal-installation-section-v1\0";
-const DEBUG_DOMAIN: &[u8] = b"psi-terminal-debug-section-v1\0";
-const ARTIFACT_DOMAIN: &[u8] = b"psi-terminal-artifact-manifest-v1\0";
+const MANIFEST_FORMAT_MARKER: u16 = 1;
+const INSTALLATION_DOMAIN: &[u8] = b"psi-terminal-installation-section\0";
+const DEBUG_DOMAIN: &[u8] = b"psi-terminal-debug-section\0";
+const ARTIFACT_DOMAIN: &[u8] = b"psi-terminal-artifact-manifest\0";
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SectionFingerprint([u8; 32]);
@@ -136,7 +136,7 @@ fn artifact_identity(
     debug: Option<SectionFingerprint>,
 ) -> TerminalArtifactIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&MANIFEST_FORMAT_VERSION.to_le_bytes());
+    bytes.extend_from_slice(&MANIFEST_FORMAT_MARKER.to_le_bytes());
     bytes.extend_from_slice(&semantic.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
     bytes.extend_from_slice(proof.as_bytes());

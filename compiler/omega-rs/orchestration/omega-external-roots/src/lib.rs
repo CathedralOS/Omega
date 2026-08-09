@@ -1042,8 +1042,8 @@ fn compose_fixed_fuel_summary(
         return Err(ExternalRootDiagnostic(format!(
             "fixed-fuel summary 0x{:016x} uses schedule version {}, but the root uses version {}",
             identity.normalized_identity(),
-            summary.local_evidence.schedule().schedule_version(),
-            schedule.schedule_version()
+            summary.local_evidence.schedule().marker(),
+            schedule.marker()
         )));
     }
     let mut units = summary.local_evidence.units();
@@ -1078,7 +1078,7 @@ fn fingerprint_fixed_fuel_composition(
     summaries: &BTreeMap<ProviderFuelSummaryId, &FixedFuelProviderSummary>,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.u64(u64::from(schedule.schedule_version()));
+    hash.u64(u64::from(schedule.marker()));
     hash.u64(used.len() as u64);
     for identity in used {
         let summary = summaries
@@ -1107,7 +1107,7 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             let terminal_psi = certificate.terminal_psi();
             hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
-            hash.u64(u64::from(certificate.schedule().schedule_version()));
+            hash.u64(u64::from(certificate.schedule().marker()));
             hash.u64(certificate.entry().get());
             hash.u64(certificate.relevant_preconditions().len() as u64);
             hash.u64(certificate.ceiling_units());
@@ -1121,7 +1121,7 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             let terminal_psi = certificate.terminal_psi();
             hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
-            hash.u64(u64::from(certificate.schedule().schedule_version()));
+            hash.u64(u64::from(certificate.schedule().marker()));
             hash.u64(certificate.machine().get());
             hash.u64(certificate.start_block().get());
             hash.u64(certificate.end_edge().get());
@@ -1134,7 +1134,7 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             validation_receipt,
         } => {
             hash.u64(2);
-            hash.u64(u64::from(schedule.schedule_version()));
+            hash.u64(u64::from(schedule.marker()));
             hash.u64(*units);
             hash.u64(validation_receipt.normalized_identity());
         }
@@ -2969,9 +2969,7 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     );
     hash.u64(candidate.stack.realization.composition_fingerprint());
     hash.u64(candidate.stack.validation_receipt.normalized_identity());
-    hash.u64(u64::from(
-        candidate.logical_fuel.schedule.schedule_version(),
-    ));
+    hash.u64(u64::from(candidate.logical_fuel.schedule.marker()));
     hash.u64(candidate.logical_fuel.provision.normalized_identity());
     hash.u64(candidate.logical_fuel.ceiling_units);
     hash.u64(

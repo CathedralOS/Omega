@@ -8,10 +8,7 @@ use psi_terminal_fuel::{
 #[test]
 fn schedule_identity_is_nonzero_and_independent() {
     assert_eq!(FuelScheduleIdentity::new(0), None);
-    assert_eq!(
-        TerminalFuelSchedule::CURRENT.identity().schedule_version(),
-        1
-    );
+    assert_eq!(TerminalFuelSchedule::CURRENT.identity().marker(), 1);
     assert_ne!(
         FuelScheduleIdentity::new(2).unwrap(),
         TerminalFuelSchedule::CURRENT.identity()
@@ -19,26 +16,27 @@ fn schedule_identity_is_nonzero_and_independent() {
 }
 
 #[test]
-fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
+fn current_vocabulary_has_explicit_costs_and_attribution() {
     assert_eq!(
-        TerminalFuelSchedule::V1.operation_units(&OperationKind::BooleanConstant { value: true }),
+        TerminalFuelSchedule::CURRENT
+            .operation_units(&OperationKind::BooleanConstant { value: true }),
         1,
-        "adding the v2 Boolean operation must not leave its v1-schedule cost implicit"
+        "every current Boolean operation has an explicit schedule cost"
     );
     assert_eq!(
-        TerminalFuelSchedule::V1.operation_units(&OperationKind::BooleanNot {
+        TerminalFuelSchedule::CURRENT.operation_units(&OperationKind::BooleanNot {
             operand: value_id(1),
         }),
         1,
-        "Boolean logical not has one explicit v1-schedule unit"
+        "Boolean logical not has one explicit schedule unit"
     );
     assert_eq!(
-        TerminalFuelSchedule::V1.operation_units(&OperationKind::BooleanEqual {
+        TerminalFuelSchedule::CURRENT.operation_units(&OperationKind::BooleanEqual {
             left: value_id(1),
             right: value_id(2),
         }),
         1,
-        "Boolean equality has one explicit v1-schedule unit"
+        "Boolean equality has one explicit schedule unit"
     );
     for kind in [
         OperationKind::IntegerLessThan {
@@ -71,9 +69,9 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
         },
     ] {
         assert_eq!(
-            TerminalFuelSchedule::V1.operation_units(&kind),
+            TerminalFuelSchedule::CURRENT.operation_units(&kind),
             1,
-            "each integer comparison, bitwise operation, or wrapping shift has one explicit v1-schedule unit"
+            "each integer comparison, bitwise operation, or wrapping shift has one explicit schedule unit"
         );
     }
     let operation = operation();
@@ -94,9 +92,9 @@ fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
         frontier_lower_bound: Vec::new(),
     };
     assert_eq!(
-        TerminalFuelSchedule::V1.terminator_units(&crash_edge),
+        TerminalFuelSchedule::CURRENT.terminator_units(&crash_edge),
         1,
-        "an explicit crash exit has one schedule-v1 unit"
+        "an explicit crash exit has one schedule unit"
     );
     let mut meter = TerminalFuelMeter::unbounded();
 
