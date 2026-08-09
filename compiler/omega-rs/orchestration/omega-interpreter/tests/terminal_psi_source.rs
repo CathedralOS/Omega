@@ -1428,7 +1428,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-add semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-add proof");
     let module = decode_module(&semantic).expect("decode exact-add semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V36);
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
     let mut missing_add_proof = decode_proof_bundle(&proof).expect("decode exact-add proof");
     missing_add_proof
         .evidence
@@ -1522,7 +1522,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-subtract semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-subtract proof");
     let module = decode_module(&semantic).expect("decode exact-subtract semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V36);
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
     let mut missing_subtract_proof =
         decode_proof_bundle(&proof).expect("decode exact-subtract proof");
     missing_subtract_proof
@@ -1621,7 +1621,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-multiply semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-multiply proof");
     let module = decode_module(&semantic).expect("decode exact-multiply semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V36);
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
     let mut missing_multiply_proof =
         decode_proof_bundle(&proof).expect("decode exact-multiply proof");
     missing_multiply_proof
@@ -1725,7 +1725,7 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-divide proof");
     let module = decode_module(&semantic).expect("decode exact-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V36);
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
     let mut missing_divide_proof = decode_proof_bundle(&proof).expect("decode exact-divide proof");
     missing_divide_proof
         .evidence
@@ -1862,7 +1862,7 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-remainder proof");
     let module = decode_module(&semantic).expect("decode exact-remainder semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V36);
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
     let mut missing_remainder_proof =
         decode_proof_bundle(&proof).expect("decode exact-remainder proof");
     missing_remainder_proof
@@ -2002,7 +2002,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-divide proof");
     let module = decode_module(&semantic).expect("decode wrapping-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V36);
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
     let mut missing_divide_proof =
         decode_proof_bundle(&proof).expect("decode wrapping-divide proof");
     missing_divide_proof
@@ -2108,6 +2108,154 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
             i64::MIN as u64,
             0,
             i64::MIN as u64,
+        ));
+    }
+}
+
+#[test]
+fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("known-divisor wrapping-remainder source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_wrapping_remainder_known_right")
+        .expect("known nonzero wrapping remainder should lower");
+    let remainder_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::WrappingIntegerRemainder { .. }
+            )
+        })
+        .expect("proof-gated wrapping remainder remains explicit terminal work");
+    let OperationKind::WrappingIntegerRemainder { obligation, .. } = remainder_operation.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.operation_units(&remainder_operation.kind),
+        1
+    );
+    assert!(
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == obligation)
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("wrapping-remainder semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-remainder proof");
+    let module = decode_module(&semantic).expect("decode wrapping-remainder semantics");
+    assert_eq!(module.semantic_version, SemanticVersion::V37);
+    let mut missing_remainder_proof =
+        decode_proof_bundle(&proof).expect("decode wrapping-remainder proof");
+    missing_remainder_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != obligation);
+    assert!(matches!(
+        verify_module(
+            &module,
+            &missing_remainder_proof,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+            if missing == obligation
+    ));
+
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u32_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(503), argument(0)],
+    )
+    .expect("verified wrapping remainder should interpret");
+    assert_eq!(execution.value(), argument(3));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("wrapping remainder should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(
+                operation,
+                TerminalAbstractOperation::WrappingIntegerRemainder { .. }
+            ))
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("wrapping remainder should select");
+        let assigned =
+            assign_registers(&target_operations).expect("wrapping-remainder homes should assign");
+        emit_machine_code(&assigned).expect("wrapping remainder should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("wrapping-remainder host selection");
+        let assigned = assign_registers(&target_operations).expect("wrapping-remainder host homes");
+        let machine_code = emit_machine_code(&assigned).expect("wrapping-remainder host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("wrapping-remainder host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(entry, 503, 0, 3));
+    }
+}
+
+#[test]
+fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative_one() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("signed wrapping-remainder source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_signed_wrapping_remainder_min")
+        .expect("known signed wrapping remainder should lower");
+    let semantic =
+        encode_module(&lowered.semantic_module).expect("signed wrapping-remainder semantics");
+    let proof =
+        encode_proof_bundle(&lowered.proof_bundle).expect("signed wrapping-remainder proof");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(i64::MIN as i128), argument(0)],
+    )
+    .expect("verified signed wrapping remainder should interpret");
+    assert_eq!(execution.value(), argument(0));
+
+    #[cfg(unix)]
+    {
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("signed wrapping remainder should cross the Omega boundary");
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("signed wrapping-remainder host selection");
+        let assigned =
+            assign_registers(&target_operations).expect("signed wrapping-remainder homes");
+        let machine_code =
+            emit_machine_code(&assigned).expect("signed wrapping-remainder host emission");
+        let object = build_terminal_object_artifact(&machine_code)
+            .expect("signed wrapping-remainder host object");
+        let entry = object.entry_function().bytes(&object);
+        assert!(host_machine_code_with_two_u64_matches(
+            entry,
+            i64::MIN as u64,
+            0,
+            0,
         ));
     }
 }

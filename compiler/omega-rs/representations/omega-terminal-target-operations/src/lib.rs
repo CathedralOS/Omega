@@ -365,6 +365,11 @@ pub enum TerminalTargetIntegerExpression {
         left: Box<TerminalTargetIntegerExpression>,
         right: Box<TerminalTargetIntegerExpression>,
     },
+    WrappingRemainder {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
     SaturatingMultiply {
         psi_operation: OperationId,
         left: Box<TerminalTargetIntegerExpression>,

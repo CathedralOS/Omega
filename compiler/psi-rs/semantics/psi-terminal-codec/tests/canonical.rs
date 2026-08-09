@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "6c2fdaf353d9a52851a7cb190e305bf290869339a8a97cef805bb9a3c90edf3d"
+        "5e458546fbdfa0b63618a4f84e309e92fa1859d93eff3d0f2550f7e5e8637dcc"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -1141,6 +1141,65 @@ fn v36_wrapping_divide_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "1046d2b16b3a519557f389854002e6cdb164609730f5f0d82f8ee0456c693e7d"
+    );
+}
+
+#[test]
+fn v37_wrapping_remainder_has_stable_canonical_bytes() {
+    let scalar_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let left = value_id(74);
+    let right = value_id(75);
+    let computed = value_id(76);
+    let result = value_id(77);
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type: ScalarType::Integer(scalar_type),
+    };
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V37,
+        entry: machine_id(27),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(27),
+            parameters: vec![declaration(left), declaration(right)],
+            result: declaration(result),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(27),
+            blocks: vec![Block {
+                id: block_id(27),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(27),
+                    result: declaration(computed),
+                    kind: OperationKind::WrappingIntegerRemainder {
+                        left,
+                        right,
+                        obligation: obligation_id(27),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(27),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(27),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let bytes = encode_module(&module).expect("v37 wrapping remainder should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "9bbd789ea30c652e9933aef0cda8fadc5fc8a2538ac17643e7e4c700a76dd25d"
     );
 }
 
