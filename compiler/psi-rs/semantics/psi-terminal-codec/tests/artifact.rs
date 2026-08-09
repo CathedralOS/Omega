@@ -7,7 +7,7 @@ use psi_core::{
 };
 use psi_proof_kernel::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
-    PrimitiveJudgment, ProofNode, ProofRule, ProofSystemVersion,
+    PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, TerminalMachine,
@@ -63,7 +63,7 @@ fn proof_format_canonically_encodes_boolean_equality() {
             obligation: obligation_id(101),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(101),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -74,6 +74,13 @@ fn proof_format_canonically_encodes_boolean_equality() {
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+
+    let mut stale = bytes;
+    stale[31..33].copy_from_slice(&2_u16.to_le_bytes());
+    assert_eq!(
+        decode_proof_bundle(&stale),
+        Err(ProofCodecError::UnsupportedProofSystemMarker(2))
+    );
 }
 
 #[test]
@@ -92,7 +99,7 @@ fn proof_format_canonically_encodes_integer_equality() {
             obligation: obligation_id(102),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(102),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -121,7 +128,7 @@ fn proof_format_canonically_encodes_integer_ordering() {
             obligation: obligation_id(103),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(103),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -150,7 +157,7 @@ fn proof_format_canonically_encodes_integer_bitwise_terms() {
             obligation: obligation_id(104),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(104),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -181,7 +188,7 @@ fn proof_format_canonically_encodes_wrapping_shift_terms() {
             obligation: obligation_id(105),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(105),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -209,7 +216,7 @@ fn proof_format_canonically_encodes_integer_bitwise_not() {
             obligation: obligation_id(106),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(106),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -238,7 +245,7 @@ fn proof_format_canonically_encodes_integer_widening() {
             obligation: obligation_id(107),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(107),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -265,7 +272,7 @@ fn proof_format_canonically_encodes_address_carriers() {
             obligation: obligation_id(108),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(108),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -296,7 +303,7 @@ fn proof_format_canonically_encodes_exact_right_shifts() {
             obligation: obligation_id(110),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(110),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -327,7 +334,7 @@ fn proof_format_canonically_encodes_exact_left_shifts() {
             obligation: obligation_id(111),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(111),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -356,7 +363,7 @@ fn proof_format_canonically_encodes_exact_integer_addition() {
             obligation: obligation_id(112),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(112),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -385,7 +392,7 @@ fn proof_format_canonically_encodes_exact_integer_subtraction() {
             obligation: obligation_id(113),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(113),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -414,7 +421,7 @@ fn proof_format_canonically_encodes_exact_integer_multiplication() {
             obligation: obligation_id(114),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(114),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -443,7 +450,7 @@ fn proof_format_canonically_encodes_exact_integer_division() {
             obligation: obligation_id(115),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(115),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -472,7 +479,7 @@ fn proof_format_canonically_encodes_exact_integer_remainder() {
             obligation: obligation_id(116),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(116),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -501,7 +508,7 @@ fn proof_format_canonically_encodes_wrapping_integer_division() {
             obligation: obligation_id(117),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(117),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -530,7 +537,7 @@ fn proof_format_canonically_encodes_wrapping_integer_remainder() {
             obligation: obligation_id(118),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(118),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -559,7 +566,7 @@ fn proof_format_canonically_encodes_saturating_integer_division() {
             obligation: obligation_id(119),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(119),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -588,7 +595,7 @@ fn proof_format_canonically_encodes_saturating_integer_remainder() {
             obligation: obligation_id(120),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(120),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -614,7 +621,7 @@ fn proof_format_canonically_encodes_boolean_negation() {
             obligation: obligation_id(100),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(100),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -640,7 +647,7 @@ fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -696,7 +703,7 @@ fn proof_format_canonically_encodes_content_certificates() {
             obligation: obligation_id(80),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(80),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: proof.clone(),
             }),
         }],
@@ -733,7 +740,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -771,7 +778,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -809,7 +816,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -847,7 +854,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -906,7 +913,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
             obligation: obligation_id(90),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(90),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -930,7 +937,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -981,7 +988,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
@@ -1002,7 +1009,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(1),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: Proposition::Equal(literal(), term),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -1106,7 +1113,7 @@ fn representative_bundle() -> ProofBundle {
                 obligation: obligation_id(2),
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: evidence_id(3),
-                    proof_system_version: ProofSystemVersion::CURRENT,
+                    proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: equality.clone(),
                         rule: ProofRule::EqualityTransitivity {
@@ -1207,7 +1214,7 @@ fn certificate_bundle() -> ProofBundle {
             obligation: obligation_id(1),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(9),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),

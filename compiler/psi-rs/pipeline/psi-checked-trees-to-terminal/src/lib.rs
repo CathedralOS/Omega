@@ -36,7 +36,7 @@ use psi_language_semantics::content::{
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
 };
 use psi_proof_kernel::{
-    CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemVersion,
+    CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
@@ -3801,7 +3801,7 @@ fn build_scalar_graph_module(
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(site.obligation.id.get())
                     .expect("terminal obligations have nonzero identities"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         });

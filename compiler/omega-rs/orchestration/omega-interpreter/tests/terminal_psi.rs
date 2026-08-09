@@ -12,7 +12,7 @@ use psi_core::{
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use psi_proof_kernel::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemVersion,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, ContractClause, CrashCause, CrashContextMaximum, MachineContract, Operation,
@@ -129,7 +129,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             obligation,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(1).expect("certificate"),
-                proof_system_version: ProofSystemVersion::CURRENT,
+                proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
         }],
