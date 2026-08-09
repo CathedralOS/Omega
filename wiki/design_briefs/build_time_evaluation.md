@@ -81,7 +81,7 @@ also prove at that site that its denominator is positive, its signed
 coordinates are cancelled, and its numerator magnitude and denominator are
 gcd-reduced.
 
-Implementation status (PDI1, 2026-08-01): generic `const` arguments now retain
+Current implementation: generic `const` arguments retain
 one compiler-generated canonical value atom across monomorphized and structural
 generic identity. Named literal constants over eligible integers, booleans,
 fixed arrays, records, and cases normalize recursively; record and payload
@@ -232,22 +232,18 @@ EvaluationUsage {
 }
 ```
 
-`fuel_units` is ultimately charged by the separately versioned terminal-Psi
-fuel schedule in
-[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+`fuel_units` is ultimately charged by the canonical Terminal Psi fuel schedule
+in [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
 The remaining counts are attributed telemetry rather than interchangeable work
-currencies. Until terminal Psi lands, the evaluator's versioned step
-schedule is the implementation precursor. Evaluator step schedule v1 is now
-explicit: it charges one unit for each entered state, executed statement, and
-evaluated expression. Successful semantic-evaluation APIs can return the value
-with this usage, and ordinary interpreted outcomes retain it as well. Equal
-invocations reproduce equal usage. This record is not terminal-Psi fuel and
-cannot support an IR fixed-work certificate.
+currencies. The evaluator's local schedule charges one unit for each entered
+state, executed statement, and evaluated expression. Semantic evaluation and
+ordinary interpreted outcomes retain the resulting usage, and equal
+invocations reproduce it. This telemetry is not Terminal Psi fuel and cannot
+support an IR fixed-work certificate.
 
-The usage record carries a schema identity independently from the evaluator
-step-schedule identity: adding an attributed field does not change what one
-scheduled step means. Usage schema v1 now records `result_cells` for
-successful semantic evaluation.
+The usage record carries a schema identity independently from evaluator-step
+identity: adding telemetry does not change what one step means. It records
+`result_cells` for successful semantic evaluation.
 Each returned scalar, unit, text, or aggregate root contributes one cell, and
 aggregate fields, case payload values, and array elements contribute their
 recursive cell counts. Text byte volume belongs to logical-work telemetry, so
@@ -327,10 +323,9 @@ artifact.
 
 - Constant positions, const-generic leaves, machine-backed domain facts, and
   layout/wire/calling policy sites already use the reference interpreter.
-- The interpreter publishes deterministic measured outcomes under evaluator
-  step schedule v1 while preserving the old value-only entry points. Usage
-  schema v1 also records exact recursively retained `result_cells`; logical
-  word, aggregate-construction, and peak-live-cell telemetry, progress
+- The interpreter publishes deterministic measured outcomes under the current
+  evaluator schedule and records exact recursively retained `result_cells`;
+  logical word, aggregate-construction, and peak-live-cell telemetry, progress
   attribution, cache charging, and root-selected warning/ceiling policy remain.
 - Canonical service reach, recursive suspension/blocking summaries, and
   ordinary checked termination across the concrete typed call closure are
@@ -396,7 +391,7 @@ and build-progress reporting.
   **Exhaustive by law**: every field bound or waived — the record twin of
   the landed no-silent-fall-through rule on sums; adding a field breaks
   every pattern that must now decide. Arm-position record binding shares
-  the grammar. v1 binding semantics may restrict to [copy]-eligible
+  the grammar. Initial binding semantics may restrict to [copy]-eligible
   fields (exactly Equatable's existing prerequisite list). Canonical
   hand-written equals opens with the exhaustive destructure — chapter
   convention, NOT enforced.
@@ -419,8 +414,9 @@ and build-progress reporting.
   NO reference-patterns or binding modes, ever (Rust's match-ergonomics
   axis — their multi-year confusion generator — never opens; also
   `&self as Player` cannot mean pattern matching, `as` in expression
-  position is the recast). Big fields cannot be silently copied: v1 binds
-  [copy]-eligible fields only (exactly Equatable's prerequisite list);
+  position is the recast). Big fields cannot be silently copied: the current
+  surface binds [copy]-eligible fields only (exactly Equatable's prerequisite
+  list);
   anything larger is waived (`as _`) or borrowed explicitly by hand
   (`let items: &[Color; 3] = &self.items;` — landed spelling).
 - **Still open (the one undecided item):** the unroll spelling for

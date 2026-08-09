@@ -365,7 +365,7 @@ sealed requirement-compatible entry references or descriptors.
 
 The normalized Omega-native container byte decoder and validator are live.
 The decoder uses the ordinary validated scalar-layout consumer rather than a
-bespoke pointer parser. Its canonical little-endian v2 form is deliberately
+bespoke pointer parser. Its canonical little-endian form is deliberately
 small:
 
 - a 64-byte `OMEGAXE2` header fixes version, architecture, total length,
@@ -431,7 +431,7 @@ current trusted build validates the artifact and signs its admitted identity,
 secure boot authenticates that identity and gates entry, and measured boot
 records what entered. The boot-admitted installer then loads later admitted
 artifacts. Future independent PCC/final-byte validation reduces reliance on the
-compiler; it is not a prerequisite for the v1 boot semantics. Measurement is
+compiler; it is not a prerequisite for the boot semantics. Measurement is
 evidence, never the admission gate.
 
 The normalized admission seam already binds a verifier decision to the exact

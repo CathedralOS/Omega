@@ -224,7 +224,7 @@ excluded: Liquid Haskell's evidence is a ~30× annotation reduction
 
 **Delta from today (engineering inventory):** symbolic range endpoints +
 value-vs-value guard establishments; the which-case and slice-length fact kinds
-(decision 18's v1 list — already frozen); loan-on-witness; couplings ride the
+(decision 18's initial list — already frozen); loan-on-witness; couplings ride the
 default-domain build-out (settled, unbuilt); the product rule; frames (§5);
 out-params-as-witnesses for boundary ensures (no existential machinery —
 mutation through `&mut` already names the witness).
@@ -297,7 +297,7 @@ zero annotations — no surveyed language gets this at this price. Only
 flow-scoped extras (guard narrowings, established subdomains) die, atom-wise, on
 written places.
 
-The v1 rule: *a call may change exactly what its signature admits — the paths
+The rule: *a call may change exactly what its signature admits — the paths
 reachable through exclusive borrows plus the abstract regions of its declared
 capability reach. Checked bodies refine that set with inferred implementation
 summaries. Opaque calls and unknown dynamic conformances remain maximal over
@@ -367,7 +367,7 @@ Silver level = all checks proven; only then is compiling checks out sound
 does not have). Swift's value witness tables are production dynamic-layout
 machinery solving the *wrong* problem (ABI resilience via hidden global
 metadata); the transferable lesson is only size-vs-stride and the
-alloca/boxing swamp that runtime-sized *locals* drag in — hence v1's rule:
+alloca/boxing swamp that runtime-sized *locals* drag in — hence the rule:
 dynamic-sized regions live behind views or fixed-capacity buffers; owned
 runtime-sized values wait for Arena-backed Allocation.
 

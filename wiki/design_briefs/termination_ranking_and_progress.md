@@ -3,7 +3,7 @@
 Settled 2026-07-18 (frozen decision 23). This brief replaces the old
 `terminates { decreases ...; }` split with one source family, separates a
 published completion guarantee from its implementation witness, and settles
-the v1 boundary representation of positive progress assumptions.
+the initial boundary representation of positive progress assumptions.
 
 ## One source family, two semantic fields
 
@@ -85,7 +85,7 @@ measure is never selected merely because it is the only visible candidate;
 adding another declaration must not change existing meaning. The compiler
 never invents ranking subjects or heuristically chooses a noncanonical view.
 
-Implementation status (TPR3, 2026-07-17): checker legality resolves subjects
+Current implementation: checker legality resolves subjects
 and argumented-view bounds from the normalized `RankingWitness`, and consumes
 its view/range identity directly. The typed machine's older decreases/order/
 argument/range spans are compatibility output only; clearing them does not
@@ -186,7 +186,7 @@ domain Scheduler::WeakFair;
 ```
 
 The qualification is routed and predicate-free: it supplies no predicate or operators, never
-flow-narrows into existence, and does not entail another profile in v1.
+flow-narrows into existence, and does not entail another profile.
 Profile establishment uses owner-authored provider requirements and admitted
 receipts:
 

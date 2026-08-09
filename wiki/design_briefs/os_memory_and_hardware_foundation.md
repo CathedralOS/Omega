@@ -586,7 +586,7 @@ explicit establishment route follows:
 
 - `Stable` may adopt provider-validated existing contents, initialize an
   exclusive vacant place, or validate stable existing contents;
-- `External` may only adopt in v1, and every readable field must be
+- `External` may only adopt, and every readable field must be
   total-decoding and covered by one admitted transfer; and
 - generic initialization never expands into a device-programming sequence.
 
@@ -947,417 +947,28 @@ Checked Omega code produces checkable footprint evidence. Admitted leaves
 supply accepted footprint claims under receipt. The validator, not backend
 optimism, decides acceptance.
 
-The first backend consumer now derives inbound runtime-frame storage writes
-from the complete validated boundary plan. Each target encoder publishes the
-registers its generated copy fragment overwrites; derivation unions those
-clobbers into implementation-only `StateFootprintEvidence`, rejects a selected
-input register destroyed before capture, and validates the fragment against the
-plan's state ceiling. This evidence covers only inbound storage realization.
-The normalized calling-plan foundation also composes any number of fragment
-footprints by deterministic register/state union and validates the aggregate
-against one retained boundary plan. Ordering and duplicate fragments cannot
-perturb that implementation-only evidence fingerprint. Validated inbound
-fragments now remain attached to the abstract-operation plan with
-`entry_storage` provenance, and `08_boundary_footprints.json` publishes the
-fragments plus their composed fingerprint. The special bytes-handoff entry also
-retains a distinct `entry_slice_descriptor` fragment whose fixed x86-64 or
-AArch64 scratch set is declared beside the encoder that emits it, so both the
-raw-register spill and constructed slice view are covered. Direct result
-materialization similarly retains `exit_result_registers` evidence for both
-immediate writes and runtime-storage loads, including target result registers,
-relocated frame-base scratch, and AArch64 large-offset scratch. Indirect results
-add a structurally scoped `exit_indirect_result_copy` fragment for the copy
-through the captured hidden pointer; generic body copies are deliberately not
-classified as boundary evidence. Its explicit
-`boundary_contract_fingerprint` binds every retained fragment to the canonical
-validated plan under which it was checked. Fragment retention revalidates the
-evidence and rejects cross-contract composition; this is a reference to
-requirement identity, not implementation evidence entering that identity. The
-fixed ordinary `CallReturn` path also retains `call_return_mechanics` evidence.
-x86-64 records its fixed saved-register frame, RSP, and control restoration;
-AArch64 records its fixed frame prologue and x19-x30, SP, and control
-restoration. Provenance-aware
-validation admits these prescribed boundary mechanics without widening the
-handler body's transitive-state ceiling. x86-64 now likewise uses a fixed
-64-byte frame to preserve the generated-code nonvolatile GPR union for SysV
-AMD64 and Microsoft x64; inbound stack offsets include the saved frame, and
-the retained mechanics evidence names every restored register. Runtime-dispatching entries add a
-structurally scoped `dispatch_scaffold` fragment whose target-owned facts cover
-x86-64 R12/AArch64 X28 dispatch-state writes and case-entry condition flags;
-storage-backed static guards add `static_guard_comparison` evidence with their
-exact GPR/vector scratch and flag effects. Storage-free and other guard-lowering
-shapes remain outside that structurally limited fragment. Dedicated runtime-text
-literal-buffer and descriptor-vs-literal guards add
-`runtime_text_guard_comparison` evidence for their encoder-owned base, pointer,
-length, loop, byte-scratch, large-offset, and flag effects; cross-target artifact
-canaries exercise the literal-buffer path. Place-pair and place-vs-immediate
-guards likewise retain `place_guard_comparison` evidence: x86-64 covers the
-complete place walk and compare scratch, while AArch64 covers its admitted
-direct-place shapes and offset-dependent address scratch. Cross-target artifact
-canaries exercise the place-pair path. Recursive `CompareRuntimeValues` guards
-add `runtime_value_guard_comparison` evidence from each ISA's closed evaluator
-may-write ceiling. x86 reports balanced push/pop SP use only for operand trees
-that contain nested binary evaluation, and that stack scratch is scoped to an
-ordinary call-return activation. Cross-target artifacts exercise text-equality
-value operands. The footprint plan lives in the canonical semantic boundary
-summary and is retained unchanged through target selection, assignment, machine
-instruction lowering, and machine-byte emission. The machine-readable artifact
-is generated from that encoded-machine carrier and names
-`evidence_stage: encoded_machine`; it no longer reads the earlier abstract-plan
-root. The artifact's explicit
-`enumeration_complete: false` status is a firewall: this retained slice is
-checkable implementation evidence, not yet the final certificate.
-Final-image construction now supplies the complementary placement inventory.
-It classifies object function spans and every PE/Mach-O import thunk appended by
-the format writer, resolves each region to its final image address, rejects
-overlap or out-of-bounds records, and publishes any unclassified executable
-gaps in `13_executable_regions.json`. Whole-text and per-region/gap fingerprints
-bind those records to the exact relocated bytes. The artifact repeats the exact
-boundary-contract and composed implementation-evidence identities from the
-encoded carrier and hashes them with the final inventory identity, preventing a
-placement record from being substituted across contracts or implementations.
-When a boundary contract is retained, the composed encoded-machine evidence is
-also attached to exactly one placed compiler entry-function region. Final
-inventory emission rejects a missing or duplicate entry-symbol match, so the
-handler evidence cannot float beside an unrelated compiler-function span. The
-typed placed inventory is recomputed after attachment, making that association
-part of its fingerprint rather than a presentation-only JSON annotation.
-Final compiler-body validation now replays both runtime-text guard forms from
-their retained normalized recipes. The certificate checks the exact final bytes
-outside relocation fields, binds the literal-buffer `.data` symbol and any
-descriptor source-storage symbol, and requires the re-derived target register/
-flags union to equal the earlier `runtime_text_guard_comparison` StatePlan
-fragment.
-Recursive runtime-value guard replay uses the same canonical `ValueOperand`
-arena retained once beside encoded machine code; instruction rows carry only
-their operand roots and normalized comparison parameters. Final validation
-regenerates the evaluator bytes, reconstructs every nested storage/index/text
-relocation site, and checks the target may-write ceiling plus operand-sensitive
-stack/control state against `runtime_value_guard_comparison`.
-Direct exit-result register materialization is also replayed from normalized
-register/value or register/storage recipes. Relocated storage loads must name
-their retained region, and the resulting register union must equal the earlier
-`exit_result_registers` StatePlan fragment.
-Entry materialization is likewise replayed from normalized register, incoming-
-stack, indirect-pointer, and `args` slice-descriptor recipes. The validator
-requires the exact runtime-frame relocation site—including the later address
-site used after loading a stack-held indirect pointer—and requires the derived
-clobber unions to equal the earlier `entry_storage` and
-`entry_slice_descriptor` StatePlan fragments.
-Indirect-result exit copies now retain an explicit boundary role on the
-canonical `CopyPlaces` operation. Final validation refuses to infer that role
-from an ordinary pointee-copy shape, regenerates the target place-copy program,
-checks every source and hidden-pointer relocation, and requires the resulting
-scratch union to equal the earlier `exit_indirect_result_copy` fragment.
-The first ordinary compiler-body write subset covers direct storage-pair
-`CopyPlaces` operations, direct-storage copies targeting a frame-held pointee,
-frame-held pointee sources landing in direct storage, and frame-held
-pointee-to-pointee copies. Single runtime-indexed sources with frame-held
-descriptor/index slots landing in direct frame or machine storage are included
-too, along with their cross-region direct-storage-source to frame-indexed-target
-mirror. The frame-indexed-source to frame-held-pointee form also accepts a
-machine-storage index and retains its distinct base relocation and scratch.
-Runtime-indexed reads from inline frame arrays into direct frame storage are
-also covered, as are inline machine-array reads into direct frame or machine
-storage and direct-storage writes into runtime-indexed inline frame or machine-
-array elements. An inline-frame target may take its index from frame or machine
-storage and reuses the machine index base for a machine-resident source.
-Double-runtime-indexed reads from inline frame or machine arrays, the
-machine-array write-side mirror, the all-frame AArch64 write from direct frame
-or machine storage, and both machine-inline and frame-inline single- and double-
-indexed pair copies are covered. Each all-frame pair shares one frame root
-across both array walks and all of its index slots.
-The all-frame read and write copy complete aggregate byte spans rather than
-only scalar widths, share one frame relocation across the collection and both
-indices, and add a distinct source relocation only for machine storage.
-Frame-inline single-indexed pair copies retain independently placed indices on
-both array walks. One frame root at byte 0 supplies both collections and every
-frame-held index, while one exact machine root at byte 12 supplies either
-machine-held index; the complete aggregate span is copied and replayed.
-Cross-region single-indexed pair copies move complete aggregate spans between
-machine-inline and frame-inline arrays in either direction. The source
-collection root is relocated at byte 0, the target root at byte 8, and each
-independently placed index reuses the matching machine or frame root.
-Cross-region double-indexed pair copies provide the same bidirectional coverage
-for machine-inline and frame-inline 2D arrays. The two collection roots remain
-at bytes 0 and 8, all four independently placed indices reuse the matching
-root, and the complete aggregate span is replayed.
-Frame-inline double-indexed direct reads and writes also retain mixed machine/
-frame indices. A read uses the frame collection root at byte 0, one machine-
-index root at byte 8 when needed, and its shifted direct-target root; a write
-uses the frame target root at byte 0 and one shared machine root at byte 12 for
-a machine source and/or either machine-held index. Both directions copy the
-complete aggregate span. Frame-inline double-indexed pair copies also retain
-independently placed indices on both array walks. One frame root at byte 0
-supplies both collections and every frame-held index, while one exact machine
-root at byte 12 supplies any of the four machine-held indices; the complete
-aggregate span is copied
-and replayed. An all-frame double-indexed source may also target a
-frame-held pointee: the collection, both indices, and pointer slot reuse that
-one frame root, and the
-copy covers the complete value representation. The reverse copy from a
-frame-held source pointee into an all-frame double-indexed target has the same
-one-root geometry and complete aggregate span.
-Frame-inline double-indexed elements also cross a frame-held pointee when one
-or both indices live in machine storage. The frame root continues to supply
-the collection and pointer slot, while one exact machine root at byte 12
-supplies every machine-held index in either direction; the complete aggregate
-span is copied and replayed.
-Machine-rooted double-indexed elements also cross a frame-held pointee in both
-directions. Their AArch64 recipe retains a machine collection root plus one
-frame root shared by the pointer slot and any frame-held indices, copies the
-complete aggregate span, and replays both exact relocations.
-Single-indexed machine-rooted elements use the same bidirectional two-root
-recipe. A mutable indexed reference is established by a distinct address write
-before any value copy may dereference its frame slot.
-Single-indexed all-frame aggregate copies through a frame-held pointee use one
-frame root for the inline array, index, and pointer slot in either direction;
-the exact complete value representation is replayed. A machine-held index
-retains one exact second root beside that frame root.
-The x86 general place materializer also replays every
-remaining otherwise-unclassified `CopyPlaces` path with scratch derived from
-the retained places' exact index depths.
-Direct-place immediate integer writes, writes through a frame-held pointer or
-indexed descriptor, and runtime-indexed writes into inline frame arrays also
-retain a separate ordinary-body fragment and replay exact target `Place`,
-value, width, every storage/index relocation, and target scratch. An inline-
-frame target's index may live in frame or machine storage.
-Runtime-indexed immediate writes into single- and double-indexed inline machine
-arrays are included too. AArch64 also replays literal integer writes into
-all-frame double-runtime-indexed inline arrays using one shared frame
-relocation. The x86 general place materializer replays the remaining otherwise-
-unclassified immediate integer-write paths with exact index-depth scratch and
-relocation sites.
-Direct-target binary writes, exact-integer writes through a frame-held pointer,
-and runtime-indexed writes through a frame-held descriptor retain their
-complete checked recipe and roots into the canonical runtime-value operand
-arena; runtime-indexed writes into an inline frame array accept frame- or
-machine-held indices, and exact-integer
-writes into single- and double-runtime-indexed inline machine arrays are
-included too, including cross-region index-base relocations.
-Final validation regenerates the evaluator/store bytes, walks nested operand
-relocations, and matches the closed target may-write ceiling to the separately
-retained `CompilerBodyPlaceBinaryWrite` fragment. The x86 general materializer
-also replays a frame-held descriptor indexed from machine storage. AArch64
-additionally replays that cross-region descriptor and exact-integer binary
-writes into all-frame double-runtime-indexed inline arrays using one shared
-frame relocation.
-Direct runtime-storage numeric conversion writes retain their complete cast
-policy and source-operand root, replay exact conversion/store bytes and nested
-relocations, and match a separate `CompilerBodyStorageConvertWrite` fragment.
-Composed-place conversion writes share that fragment and exact recipe for all
-x86 materializer targets and every classified AArch64 target: direct, pointee,
-frame-descriptor-indexed, inline-frame-indexed, and single- or double-runtime-
-indexed machine places. AArch64 also replays all-frame double-runtime-indexed
-conversion targets with one shared frame relocation, and inline-frame-indexed
-conversion targets whose index is held in either frame or machine storage with
-the exact second-base relocation. The conversion selector
-uses the same canonical walked-target resolver as the other mutation families.
-Text-buffer materialization is inside the partial proof for every x86 target
-accepted by the general place materializer, including double-indexed transient
-frame destinations; AArch64 also replays cross-region frame indices, transient
-inline-frame indexed destinations, and all-frame double-runtime-indexed
-destinations. The latter reuses one frame relocation for the collection and
-both indices. The retained row binds the exact buffer data-object identity and target place, replays the target encoder and
-mixed data/storage/index relocation set, and matches a dedicated
-`CompilerBodyTextAssemblyWrite` footprint. Literal and stored-source appends
-share all x86 materializer targets and the classified AArch64 coverage,
-retaining the exact literal or source storage, buffer, place, encoder, and
-relocation set. Persistent machine destinations remain source-rejected because
-the borrowed view cannot outlive the buffer. Segmented literal writes retain their exact
-buffer symbol, byte offset, literal, encoder, and sole data relocation under
-the same text-assembly fragment. Segmented stored-suffix appends retain the
-exact buffer and source/target storage identities, offsets, length delta,
-encoder, and mixed relocation set under that fragment too.
-Compiler-body place-address writes retain their canonical source `Place` and
-target runtime-frame slot. Final validation replays the exact target address
-materializer, independently derives every source, index, and target-frame
-relocation, and matches dedicated `CompilerBodyPlaceAddressWrite` evidence.
-Inline-frame AArch64 sources accept frame- or machine-held indices, including
-the exact second-base relocation and additional address scratch for a cross-
-region machine index.
-All-frame double-runtime-indexed sources reuse one frame relocation for the
-inline array, both indices, and the destination reference slot. Machine-rooted
-double-runtime-indexed elements crossing a frame-held reference in either
-direction retain the exact machine-root relocation plus one frame relocation:
-the frame base supplies every frame-held index and the reference slot while the
-complete aggregate value moves between the computed element and pointee.
-Place-copy selection retains its separate `compiler_body_place_copy` evidence
-only for
-the `Ordinary` role; final validation regenerates the same place-copy bytes,
-checks the storage, pointer-slot, and index relocations, and requires the target
-scratch union to match. Every x86 binary-write target accepted by the general
-place materializer is likewise replayed with exact index-depth scratch and
-target/index relocations. Unclassified AArch64 place shapes and calls remain
-outside the partial proof. The pointee-pair selector resolves
-both reference operands before flat storage, so the source remains a
-dereference rather than being mistaken for pointer-slot contents.
-Immediate compact bit-field writes are inside the partial proof: the retained
-row binds their exact storage region, base offset, fragment layout, value,
-target encoder, destination relocation, and dedicated state-footprint fragment.
-Immediate bounded-buffer literal writes are also inside the proof for all x86
-targets and every classified AArch64 place target, including indexed and
-double-indexed owned carriers, their target/literal/relocation walk, and the
-dedicated footprint fragment. Inline-frame AArch64 targets accept frame- or
-machine-held indices with the exact second-base relocation. All-frame double-
-runtime-indexed carriers reuse one frame relocation for the collection and both
-indices. Literal appends
-replay all x86 targets and every classified AArch64 target with a separate
-encoder and relocation recipe, including inline-frame targets whose index is
-frame- or machine-held and the exact second-base relocation. All-frame double-
-runtime-indexed literal-append targets reuse one frame relocation for the
-carrier and both indices. Source-carrier appends share that target set too: x86
-replays both general place walks; AArch64 serves every classified target with a
-direct or pointee source and replays the indexed target walk, source walk, and
-copy-loop state. Its all-frame double-indexed target also reuses one frame
-relocation.
-String-descriptor writes are inside the proof for all x86 targets and the
-direct, pointee, frame-indexed, cross-region frame-indexed, inline-frame-
-indexed, and single- or double-runtime-indexed machine-storage AArch64 shapes,
-with frame- or machine-held indices for the inline-frame shape, the exact
-second-base relocation, and exact rodata and storage/index relocation identity.
-AArch64 also replays all-frame double-runtime-indexed string-descriptor targets
-with one shared frame relocation and an exact data-object relocation after the
-address walk.
-Direct-image emission also validates the fixed encoder-owned function-entry
-prologue and return epilogue against the exact relocated entry-region bytes on
-x86-64 and AArch64 before publication. The inventory names this narrow
-call-return class separately from compiler-function bodies that still require
-final-byte footprint decoding.
-The final image's compiler-authored `.text` prefix is also compared bit-for-bit
-with encoded-machine bytes under the checked relocation plan. Only declared
-x86 displacement/address fields or the exact AArch64 immediate bitfields may
-change; opcode and register bits must remain identical. Bad widths, overlap,
-out-of-range records, and mutations outside that envelope reject before the
-output leaves checked image emission. Format-owned thunk tails retain their
-separate exact validators.
-The compiler publishes the encoded-prefix, final-prefix, and canonical
-relocation-envelope fingerprints plus their composed derivation identity. The
-boundary/placement binding includes that derivation identity, so a valid final
-inventory cannot be paired with evidence from a different encoded-to-final
-derivation. The single emitted artifact is now self-described as
-`omega.final-footprint-certificate` format v88, with a domain-separated
-certificate fingerprint over its final placement binding, compiler-text
-derivation, and region inventory. It remains explicitly incomplete evidence,
-not an admission certificate, until the missing footprint classes close. The
-compiler-body subset now also replays target constant-result materialization:
-the fixed immediate/store bytes, sole result-region relocation, and exact
-x86-64 or offset-sensitive AArch64 scratch footprint are checked without
-granting foreign-call control authority. The first outbound control-transfer
-subset is also explicit: immediate-only, no-result Linux syscalls replay their
-plan-selected register and supervisor instruction program, reject any
-relocation record, and retain the complete ordinary-clobber plus
-flags/instruction-pointer/control-state leaf under a dedicated origin. A
-value-result companion with immediate/byte-length parameters now replays the
-plan-selected parameter/result registers and exact result-region relocation,
-including AArch64's offset-sensitive X16[/X17] store-address scratch under its
-own origin. No-result syscalls may additionally consume scalar values, string
-pointer/length descriptor fields, pointee descriptor fields, or addresses of
-runtime frame/machine places. Each marshaller's exact storage relocation is
-replayed, and its plan-owned ordinary-clobber/control footprint is retained
-under a separate origin. AArch64 inline bounded-buffer pointers are admitted
-only through the closed immediate-offset form. Static data-object addresses now
-use separate no-result/result-bearing origins: the encoded carrier retains each
-exact symbol and final admission requires the complete mixed data-symbol and
-runtime-storage-root relocation set. Linux `clock_gettime` and `nanosleep` now
-have dedicated composite classes: final replay regenerates their private stack
-records, fixed conversion/trap programs, and exact result or optional argument
-relocation, while StatePlan retains their balanced stack-pointer effect and
-target-specific scratch. Ordinary built-in imports with one or more immediate
-or runtime-scalar integer arguments and no result now form the first
-direct-import subset on
-Windows x64 and macOS arm64. Checked replay directly invokes the retained-plan
-ISA encoder, regenerates the mandatory foreign floating-control envelope,
-requires the exact library/symbol call relocation, and admits only the exact
-call displacement bits as mutable after placement. Runtime-scalar rows use a
-distinct origin whose final recipe also requires every exact storage-root
-relocation beside the imported call. Both StatePlan fragments include ordinary
-call clobbers plus the envelope's stack/control state and target scratch.
-Integer-result built-in imports whose source arguments are all immediate
-integers, including no-argument calls, now use a third origin whose replay
-requires the exact result-region relocation beside the imported call and
-AArch64's offset-sensitive result-store scratch. Integer-result built-in
-imports with one or more runtime-scalar source arguments use a fourth origin
-whose final recipe requires every argument root and the result root beside the
-exact imported call. Built-in Math imports with one or more runtime-float
-parameters and a direct integer or float result now use a fifth origin. Replay
-retains the plan-selected vector placements, exact result and argument storage
-relocations, and the AArch64 float-result move when present. The built-in
-no-argument errno accessor now uses a sixth origin whose replay
-retains the exact imported call, one pointer dereference, and the scalar result
-root. Ordinary built-in imports with at least one compiler-owned static data
-address and otherwise immediate/runtime-scalar integer parameters now use
-seventh and eighth origins for no-result and direct-integer-result calls. Replay
-requires the exact library/symbol call plus every named data-object and
-storage-root relocation. Scalar source-authored imports with
-immediate/runtime-scalar integer or static-data parameters now use ninth and
-tenth origins for no-result and direct-integer-result calls. Replay consumes
-the source-selected canonical `CallPlan` unchanged and requires the exact
-authored library/symbol call plus every data/storage root. Scalar source-authored
-imports with runtime-float parameters now use eleventh and twelfth origins for
-no-result and direct scalar-result calls. Replay preserves the plan-selected
-vector/register/stack placements, requires the exact imported call and every
-data/storage root, and includes the AArch64 float-result move when present.
-Source-authored imports with small, HFA, SysV, or indirect aggregate parameters
-now use thirteenth and fourteenth origins for no-result and direct scalar-result
-calls. Replay keeps each aggregate as one source operand while requiring its
-exact fragmented, stack, or caller-copy marshalling and storage root. Authored
-aggregate results now use a fifteenth origin. Replay preserves the one result
-place across AArch64 X/V fragment spills, the hidden `x8` destination path, and
-Microsoft/SysV direct or indirect result plans; the exact result root and any
-argument roots accompany the imported call. Darwin `open_create` now has a
-dedicated sixteenth origin:
-replay regenerates the concrete Apple variadic `open(path, flags, mode)` subcall,
-including its anonymous I32 stack slot and exact result/path/optional-flags
-roots. Runtime byte read/write composites now have dedicated seventeenth and
-eighteenth origins. Replay regenerates the Linux syscall, Darwin direct-import,
-or complete Win64 two-call adapter from retained plan evidence, requires its
-exact storage/data and call relocation set, and admits only the adapter's exact
-scratch/control leaf. Runtime line-read composites now use a nineteenth origin
-for descriptor, bounded-carrier, and fixed-array destinations. Replay requires
-the exact shape-specific address roots, full target call set, byte-loop program,
-and offset-sensitive scratch. The runtime byte/line composite family is now
-inside this subset.
-Result-bearing runtime-storage-only syscalls
-continue to combine their argument relocation set with the exact result-region
-relocation and AArch64's offset-sensitive result-store scratch under a separate
-origin.
-The
-envelope now exists as a typed `omega-image` object with a closed class
-vocabulary and normalized coverage rows; its identity is replayed before the
-compiler serializes the artifact.
-Checked image emission rejects any unclassified final executable gap. The
-current closed emitter therefore publishes `region_enumeration_complete: true`:
-compiler functions and format-owned import thunks cover every `.text` byte,
-while relaxation products, veneers, and general generated stubs are absent by
-construction. This is deliberately separate from
-`footprint_enumeration_complete: false`; compiler-body decoding and admitted
-leaf evidence remain unfinished.
-The format writers also validate their own exact final import-thunk encodings
-after patching and relocation. PE `jmp [rip+disp32]` carries an
-instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus
-instruction-pointer effects. Opcode mutations reject before placement, and the
-attached per-region evidence participates in the inventory fingerprint.
-Compiler-function and checked-instruction replay consume only the exact
-compiler-authored `.text` prefix. Appended import-thunk tails therefore cannot
-be mistaken for unenumerated compiler instructions and remain covered solely
-by these separate format-owned validators.
-The inventory explicitly lists relaxation products, veneers, generated stubs,
-and admitted leaves as missing classes, so this new post-layout seam cannot
-accidentally promote the partial evidence to a complete certificate.
-The final certificate must still decode and validate compiler-function bytes,
-then aggregate StatePlan-driven nonordinary
-save/restore and return sequences, decoded compiler-function handler regions,
-relaxation products, veneers, generated stubs, and admitted indirect leaves
-after final placement.
+### Current footprint pipeline
 
-That certificate is the canonical boundary. It is self-describing and
-versioned, binds every normalized row to exact final bytes and placement, and
-is replayed against the closed target instruction specifications by the
-admission checker. The checker also proves that the region inventory covers
-every executable byte. Admitted leaves remain explicit accepted rows with
-separate provenance. There is no alternative whole-image decoder whose
-derived answer bypasses or competes with certificate validation.
+Inbound argument storage, outbound results, fixed call/return mechanics,
+dispatch scaffolding, supported guards, compiler-body memory operations, and
+the live syscall/import families retain normalized footprint fragments bound to
+the exact `BoundaryEntryPlan`. Fragment composition is deterministic and
+implementation-only; it cannot change public contract identity.
+
+The encoded-machine artifact retains those fragments through target selection,
+layout, and emission. Final-image construction separately inventories every
+compiler function and format-owned import thunk, binds regions to relocated
+bytes, rejects overlap or gaps, and replays each supported class against its
+closed target recipe and exact relocation envelope. Missing, foreign, or
+mismatched evidence fails closed.
+
+The single typed footprint certificate binds the final placement, compiler-text
+derivation, executable-region inventory, boundary contract, and composed
+implementation evidence. Region enumeration is complete for the current closed
+emitter, but footprint enumeration remains explicitly incomplete until general
+compiler-body decoding, generated stubs, relaxation products/veneers, and
+admitted indirect leaves are covered. Admission replays this certificate; no
+second whole-image decoder supplies an alternative answer.
 
 ## Symbolic materialization and admitted executable installation
 
@@ -1465,66 +1076,19 @@ certificate to different bytes; linear placement ownership prevents spending
 one destination twice. The certificate may remain reusable/reportable while
 `ValidatedPlacement` is consumed.
 
-This normalized ladder is live in `omega-executable-installation`. Canonically
-decoded artifacts are immutable and reusable; exact admission evidence checks
-the complete immutable artifact rather than relying on compact FNV identities
-as collision-resistant authority before establishing executable qualification.
-Admission from a validated container also binds the proof-payload identity and
-the exact proof bytes independently of content identity. The normalizer derives
-the former from the latter rather than accepting a restated pair, so verifier acceptance
-cannot be replayed across byte, proof, or semantic-container drift even if a
-compact proof identity collides;
-informational sections remain excluded from the gate. This is the substitution-
-safe verifier seam, not an implementation of the PCC verifier itself. A
-one-shot authority claims an Extent-backed
-placement. The reusable artifact retains its exact bytes and canonical
-relocations through admission. A provider-side pure materializer resolves only
-sealed entry/data identities, applies checked target relocations to a private
-copy, validates AArch64 instruction shapes, and derives a content- and
-placement-bound final-byte identity; this inert result grants neither writes
-nor execution. The write/freeze transition consumes that exact output and
-its receipt retains the complete canonical output rather than restating compact
-FNV identities. The gate matches artifact, admission, placement, base, plan,
-exact bytes, byte length, and final identity. `FrozenPlacement`
-retains the immutable final-byte snapshot, so final footprint/PCC validation
-examines exactly the bytes whose write authority was frozen. This is a
-provider-side inspection surface, not a source-visible byte-to-code operation.
-A separate provider writes those bytes and freezes authority.
-The final certificate can be constructed only from the exact frozen carrier it
-claims to validate and retains the complete artifact and byte snapshot plus
-placement and realized footprint. Compact artifact/final-byte IDs remain report
-keys, never collision-resistant authorization. Installation consumes an
-authority scoped to the complete validated placement: canonical artifact,
-frozen bytes, realized footprint, validation result, placement geometry,
-Extent space/rights/provenance/era/lineage, constraints, scope, and audience.
-The provider's installation receipt retains the same exact evidence; compact
-artifact, placement, and validation IDs remain report keys rather than
-authorization surrogates.
-Synchronous visibility and
-`HardwareEnforced | ConventionOnly | Unsupported` W^X reporting are checked.
-Failed linear transitions return their inputs. Schema byte decode, actual PCC
-and final-code validators, destination write/freeze and installation-provider
-execution, Omega linear integration, and live replacement remain.
+The executable-installation foundation implements this ladder with exact,
+non-replayed carriers. Admission, materialization, freezing, validation,
+installation, and retirement bind the complete artifact bytes, relocation and
+proof payload, placement authority/lineage, final-byte snapshot, footprint,
+audience, and provider receipts; compact fingerprints are report keys only.
+Failed linear transitions return their inputs.
 
-`CodePlacement` now consumes the existing placement-plan vocabulary rather
-than duplicating it. The one-shot authority carries normalized range,
-alignment, phase, machine-regime, and installation-scope constraints plus the
-provider's concrete site. It is minted from and retains the destination
-Extent's exact range, address space, rights, provenance, mapping era, and
-authority lineage. Claiming the Extent checks that complete authority evidence,
-then runs the shared `PlacementConstraints` validator before materialization.
-A caller cannot substitute either a friendlier placement hint or a
-same-address Extent from another authority lineage.
-
-The normalized retirement path is live as well. It consumes one exact
-`InstalledCode`; both retirement authority and provider receipt retain the
-complete installed realization, including its validated artifact/bytes,
-placement authority, validation result, and W^X fact. Visibility evidence
-cannot satisfy it. The provider receipt must separately establish executor
-quiescence, removal of execute permission, restoration of write authority, and
-every open target completion fact. Only then does the placement return to W+NX
-for a later admitted artifact. The runtime quiescence/provider implementation
-and replaceable requirement binding remain separate work.
+Materialization resolves only sealed entry/data identities into a private copy.
+Installation separately validates W^X, cache/order visibility, and audience.
+Retirement requires exact realization identity plus quiescence, execute removal,
+restored write authority, and completion facts before returning placement.
+Schema decoding, PCC/final-code validation, provider execution, source linear
+integration, and live replacement remain.
 
 This invariant covers every route to execute permission. Translation providers
 require admitted-artifact provenance before deriving an executable mapping,
@@ -1552,7 +1116,7 @@ Visibility gates future entry; quiescence gates retirement of existing code.
 They may share linear-obligation infrastructure but establish different facts
 and are not one token algebra. Template patching of already-live code uses
 admitted fragments at declared patch sites through the replacement path. The
-v1 loader completes visibility synchronously (it may itself suspend); a
+current loader completes visibility synchronously (it may itself suspend); a
 non-blocking visibility token waits for a real provider customer. Successful
 installation reports `HardwareEnforced` or `ConventionOnly` W^X; an
 `Unsupported` provider rejects installation.
@@ -1584,30 +1148,13 @@ ignorable section is informational only and contributes no admission authority;
 anything affecting meaning or trust is required. UEFI may require a thin
 PE/COFF boot envelope, but that envelope is not Omega's component format.
 
-The normalized post-decode validator is live in
-`omega-executable-installation`. It applies configured total/section/count
-bounds, checked range arithmetic, non-overlap, exact presence and identity of
-code/relocation/contract/footprint/placement/proof sections, and the required
-versus informational unknown-section rule. Its output is only an immutable
-`Artifact` candidate; executable qualification still requires the separate
-admission receipt. Decoded relocation records now cross a second closed
-validator: only the current absolute-64, x86 relative-32, and AArch64
-page/page-offset/branch meanings enter the canonical set; configured count,
-exact destination width, code bounds, overlap, and arithmetic overflow are
-checked while targets remain sealed entry/data identities. Actual byte
-decoding through LayoutPlan/schema machinery remains. The decoded carrier and
-resulting immutable artifact retain the exact code bytes, so later
-materialization needs no unmodeled byte side channel. Validation derives the
-normalizer-owned content identity over those bytes plus contract, footprint,
-placement, canonical entry, and canonical relocation promises. Section/entry
-presentation order, proof evidence, and informational sections do not perturb
-that identity. A backend
-adapter translates only the validated canonical carrier into
-the existing object-relocation plan, resolves each sealed target through
-compiler/provider infrastructure, and fails atomically on target-architecture
-mismatch, missing symbols, or offset overflow. Signed semantic addends survive
-the object carrier, direct-image application, reports, and identity
-fingerprints.
+The post-decode validator enforces configured bounds, checked ranges,
+non-overlap, required semantic sections, informational-section isolation, and a
+closed relocation vocabulary. It returns only an immutable candidate; separate
+admission establishes executable qualification. The exact bytes and normalized
+semantic promises feed content identity, while presentation order and
+informational sections do not. Backend translation accepts only this validated
+carrier and fails atomically on target or relocation mismatch.
 
 The boot base case preserves the same discipline:
 

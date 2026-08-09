@@ -33,7 +33,7 @@ in the erased proof stratum, not arbitrary value-to-runtime-`Type`
 computation, runtime proof objects, or value-directed layout.
 
 The rational-carrier work also supplies the first rung of F7's float semantics.
-Landed 2026-07-28: public `Rat` now carries an `IntPair` numerator over a
+Public `Rat` carries an `IntPair` numerator over a
 positive `Nat` denominator, and `mk_signed_rat` canonicalizes the difference
 pair before reduction. `rat_gap` remains `Nat`-valued; its reflexive, symmetric,
 and shared-denominator triangle theorems were rebuilt over the signed

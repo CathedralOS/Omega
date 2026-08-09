@@ -105,7 +105,7 @@ FloatSemantics::add(
 ) -> FloatMeaning;
 ```
 
-Landed 2026-07-28: this is ordinary core proof data.
+This is ordinary core proof data.
 `Rat::NonZero` is the checked `num.pos != num.neg` domain;
 `nonzero_rat(negative, positive, denominator)` establishes it from direct Nat
 premises, and the finite case accepts only the qualified result. Because the
@@ -176,213 +176,27 @@ integer-to-float conversion. The Fibonacci/golden-ratio sample also selects the
 saturating `I32::from_f64` result overload explicitly; its remaining integer
 cast only erases that same-carrier policy before the process-exit boundary.
 
-Rung-2 checkpoint (2026-07-29): executable policy adapters now live beside
-`FloatSemantics`. `Trapping` checks the semantic result alone, so propagating a
-pre-existing NaN or infinity traps; diagnostics may inspect the operands but
-cannot change that verdict. `Saturating` clamps infinity only when finite
-operands produced magnitude overflow, with division by signed zero explicitly
-excluded. The interpreter consumes these shared adapters. Checked spelled
-binary uses of the imported normalized float surface retain the selected
-binary32/binary64
-`FloatTrappingNonFinite` or `FloatSaturatingOverflowOnly` adapter beside the
-operation identity. Named F32/F64 calls now retain the selected requirement and
-same adapter in checked named-use evidence. The interpreter applies it to every
-float-returning unary, binary, ternary, and directed operation; classification
-results carry no float result adapter, and mixed explicit operand policies
-reject statically. The adapter now rides state-graph, control-flow, and abstract
-value facts, including nested operators. Normalized table instruction selection
-consumes that checked evidence, validates its binary32/binary64 format against
-the selected width, and rejects contradictory evidence; only compatibility
-operations with no checked operator evidence retain type-domain
-reconstruction. Native x86-64 and AArch64 guards implement result-only
-`Trapping` for spelled and named result operations, so propagated NaN and
-infinity trap as the semantic adapter requires. `Saturating` remains the
-operand-aware overflow-only adapter. Stage-copy tests and a native sentinel
-canary cover the path. This completes rung 2; rung 3 begins with explicit target
-satisfiers and selected `ProviderPlan` realization.
+### Current realization
 
-First rung-3 checkpoint (2026-07-31): the shared provider carrier can now reify
-one exact overloaded boundary-operator signature as its own single-row service
-slot, so binary32 and binary64 requirements cannot collide under the common
-name. Core supplies explicit f32/f64 satisfiers for all four primitive
-arithmetic and six primitive comparison requirements on `windows_x64`,
-`linux_x64`, `linux_arm64`, and `macos_arm64`; each selected plan names the
-matching compiler-known operation-and-format realization. Selection retention
-validates every selected operator plan even when its requirement is unused,
-rejects mislabeled intrinsics and absent exact selection, and attaches the
-normalized plan identity to checked spelled and named operator evidence. That
-identity survives state graph, control flow, and abstract-operation lowering;
-instruction selection resolves it back through the retained selected-plan set
-and rejects zero, missing, or contradictory evidence. Cross-target canaries pin
-all twenty exact slots per target, every used primitive operation family, and a
-native pipeline compile. The named-operation cohort adds exact F32/F64
-`minimum`, `maximum`, `square_root`, `negate`, `is_nan`, `is_finite`,
-`is_infinite`, `is_normal`, `is_subnormal`, and `multiply_then_add` slots on
-every native target. Their checked named-use plan
-identity authorizes an
-execution-only rewrite in both engine pipelines; proof evidence still names
-the source boundary requirement. Negate rewrites the same expression root to
-multiplication by a landed negative one. `is_nan` rewrites that root to an
-unnameable unary compiler builtin rather than duplicating its operand as
-`x != x`, retaining exactly-once evaluation and the operand's binary32/binary64
-width through nested lowering. NaN operand order, equal signed-zero selection,
-exact-square roots, signed-zero/infinity negation, and NaN/non-NaN predicates
-in both formats run in interpreter/native canaries; x86-64/AArch64 cross-target
-output and exact binding rejection pin the new realization paths.
-The four remaining bool-valued classification predicates use the same
-unnameable unary path. Interpreter execution delegates to the shared semantic
-engine; x86-64 and AArch64 classify signless IEEE bit patterns against the
-minimum-normal and infinity boundaries without touching floating-control
-state. An ignored static 4/8 metadata slot retains the authored operand format
-when a direct bool write folds that operand to an immediate, while the operand
-itself still evaluates exactly once. Zero, normal, subnormal, infinity, and NaN
-edges execute in both formats; width-lockstep and cross-target canaries pin the
-native paths.
-Enum-valued `classify` uses format-specific unnameable builtins and packs the
-declared `FloatClass` ABI directly: its source-order i32 tag occupies byte zero
-and the overlaid `negative: bool` payload occupies byte four. The acceptance
-test derives and asserts that eight-byte layout before executing every tag and
-both payload signs in the interpreter, native AArch64, and both Linux target
-emitters; exact-binding rejection keeps it distinct from bool predicates.
-Multiply-then-add rewrites the selected root to an unnameable format-specific
-ternary compiler call so its realization identity survives state-local
-expression copying. Native lowering retains the three authored operands, emits
-a separate multiply followed by add, and applies result policy only after both
-roundings. Binary32/binary64 cancellation edges prove native and interpreter
-execution remain unfused; a finite-overflow canary pins operand-aware
-Saturating behavior.
-Nearest-even F32/F64 FMA now has exact provider slots on `linux_arm64` and
-`macos_arm64`. Its distinct unnameable ternary compiler call preserves all
-three operands and the authored format; the interpreter calls
-`FloatSemantics::fused_multiply_add`, while AArch64 emits one scalar `FMADD`
-before applying the final result policy. Binary32/binary64 cancellation edges
-pin the positive fused residual, and intrinsic-label rejection keeps the FMA
-slot distinct from multiply-then-add. The generic x86-64 targets intentionally
-remain SSE2-baseline: selecting FMA3 there without a target feature claim would
-be unsound, so they await a feature-qualified or checked software provider.
-The six directed F32/F64 FMA slots likewise select exact AArch64 satisfiers.
-Their unnameable ternary calls preserve all three operands, the interpreter
-uses the matching directed `FloatSemantics` identity, and native lowering
-balances an FPCR direction change around exactly one scalar `FMADD` before
-result-policy adaptation. Half-ULP edges distinguish all three directions and
-prove that the following ordinary FMA remains nearest-even.
-The reusable checked-software dispatch path now exists for named boundary
-operators. A checked machine body with no `via` must prove equality/`&&`
-guarantees covering the operator contract under positional parameter
-substitution and may not add a stronger requires
-premise; its exact one-row `CheckedAdapter` plan is selected and retained on the
-named use before both engines redirect execution to the ordinary Omega body.
-This is provider infrastructure, not an FMA implementation: the x86 slots stay
-unselected until a checked binary32/binary64 algorithm or honest feature-
-qualified target provider is present.
-Primitive spellings, the twenty-two cross-target named slots above, and eight
-AArch64 FMA slots are migrated, not all of rung 3. Fixed generated callable
-frames now save the caller's complete MXCSR/FPCR, install Omega's canonical
-semantic controls, and restore the caller's value on return. Their composed
-footprints retain `ControlState`, which the state validator admits only as
-prescribed `CallReturn` mechanics. This covers ordinary generated entry and
-the callback entry/exit seam. Returning foreign mechanisms now conservatively
-receive an aligned control-state trampoline too: imported and indirect
-vtable/table calls save and restore the complete MXCSR/FPCR around the existing
-call program, while direct syscalls add no user-space crossing and receive no
-envelope. Layout, emission, and relocation planning share that mechanism
-classification; a hostile AArch64 canary calls `_fesetround(FE_UPWARD)` and
-proves the following half-ULP checked addition still ties nearest-even. An
-explicit preservation-proof optimization may later remove redundant envelopes.
-The first directed-rounding provider cohorts select exact F32/F64
-add/subtract/multiply/divide/square-root-toward-zero/positive/negative slots on
-all four native targets. Baseline x86-64 and AArch64 realize each one-step
-operation with a compiler-balanced MXCSR/FPCR save, requested-direction
-install, scalar operation, and exact restore before result-policy adaptation.
-Midpoint native and
-interpreter edges distinguish the three meanings and prove following ordinary
-arithmetic remains nearest-even. AArch64 also selects the six directed FMA
-slots and balances each requested FPCR direction around one scalar `FMADD`.
-x86-64 FMA, checked software fallbacks, and admitted-hardware differential
-evidence remain. The first retained differential results are
-`omega.float.hardware.macos_arm64.directed-add.v1` /
-`0xeb87c478c8a1e513` and
-`omega.float.hardware.macos_arm64.directed-subtract.v1` /
-`0xc014cab348eb363c`, plus
-`omega.float.hardware.macos_arm64.directed-multiply.v1` /
-`0xec7e7bae35b056cb` and
-`omega.float.hardware.macos_arm64.directed-divide.v1` /
-`0xb6dc18215e0c4019`, plus
-`omega.float.hardware.macos_arm64.directed-square-root.v1` /
-`0x8b87625fd5e9f1b7`. Each binds its six exact selected plan identities to
-binary32/binary64 rounding-edge cases, the three requested directions,
-control-state restoration, interpreter/native outputs, and Linux
-x86-64/AArch64 cross-build success. These are five target/family slices, not
-evidence for the remaining hardware realizations. Nearest-even FMA separately
-retains `omega.float.hardware.macos_arm64.nearest-fma.v1` /
-`0xa1b8c9cb16855a61`, binding its two exact plan identities to binary32/binary64
-cancellation cases, one fused rounding, interpreter/native outputs, and Linux
-AArch64 cross-build success. Multiply-then-add separately retains
-`omega.float.hardware.macos_arm64.multiply-then-add.v1` /
-`0x8b5fa3afbbf00653`, binding its two exact plan identities to binary32/binary64
-cancellation cases, two distinct roundings, binary32 finite-overflow saturation,
-interpreter/native outputs, and both Linux cross-builds. The
-minimum/maximum/square-root cohort retains
-`omega.float.hardware.macos_arm64.minimum-maximum-square-root.v1` /
-`0x8b3cf5ec26298fed`, binding its six exact plan identities to both-format NaN
-operand order, the settled signed-zero choices, exact square roots,
-interpreter/native outputs, and both Linux cross-builds. The negate/`is_nan`
-cohort retains `omega.float.hardware.macos_arm64.negate-is-nan.v1` /
-`0x57aa3468298305e9`, binding its four exact plan identities to both-format
-signed-zero and infinity negation, NaN/infinity/finite predicate separation,
-selected-root unary evaluation shape, interpreter/native outputs, and both Linux
-cross-builds. The bool-valued classification cohort retains
-`omega.float.hardware.macos_arm64.classification-predicates.v1` /
-`0xb89ec4b21c43f9a8`, binding its eight exact plan identities to both-format
-boundaries between finite/infinite, infinite/NaN, normal/subnormal, and
-subnormal/zero, exactly-once unary evaluation shape, interpreter/native outputs,
-and both Linux cross-builds. The enum-valued classification cohort retains
-`omega.float.hardware.macos_arm64.classify-enum.v1` /
-`0xf63a865e9bbb85f2`, binding its two exact plan identities to the eight-byte
-source-order `FloatClass` carrier, sign payload at byte four, every tag and
-signed payload in both formats, exactly-once unary evaluation shape,
-interpreter/native outputs, and both Linux cross-builds. The format-conversion
-cohort retains `omega.float.hardware.macos_arm64.format-conversion.v1` /
-`0xeb1e22fdac585936`, binding its two exact directional plan identities to the
-binary64-to-binary32 halfway and just-above cases, exact widening, infinity
-preservation, interpreter/native outputs, and both Linux cross-builds. The
-integer-to-float cohort retains
-`omega.float.hardware.macos_arm64.integer-to-float.v1` /
-`0x279651cb7ccd80ee`, binding all sixteen exact source/destination plan identities
-to narrow signed/unsigned extension, binary32/binary64 precision-boundary ties,
-maximum unsigned64 conversion, interpreter/native outputs, and both Linux
-cross-builds. The float-to-integer cohort retains
-`omega.float.hardware.macos_arm64.float-to-integer.v1` /
-`0x297cb8ce8d1adc1c`, binding all twenty exact source/destination/domain plan
-identities to both-format truncation toward zero across every integer width,
-in-range Trapping dispatch, signed/unsigned/NaN saturation, interpreter/native
-outputs, and both Linux cross-builds. The primitive arithmetic/comparison
-cohort retains
-`omega.float.hardware.macos_arm64.primitive-arithmetic-comparison.v1` /
-`0xab789e8539fe9f96`, binding all twenty exact operation/format plan identities
-to finite add/subtract/multiply/divide and all six equality/ordered comparisons
-in both formats, interpreter/native outputs, and both Linux cross-builds. The
-policy-adapter cohort retains
-`omega.float.hardware.macos_arm64.policy-adapters.v1` /
-`0x72c8984fc8703b9b`, binding all eight primitive arithmetic plan identities to
-both result adapters in both formats, finite and nested success paths, overflow-
-only saturation, unclamped division by zero, every Trapping non-finite class,
-interpreter/native observations, and both Linux builds for every case. Directed
-FMA separately
-retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
-`0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
-half-ULP cases, all three requested directions, one fused rounding,
-control-state restoration, interpreter/native outputs, and Linux AArch64
-cross-build success. The aggregate semantic-edge twin retains
-`omega.float.hardware.macos_arm64.semantic-edge-twins.v1` /
-`0xa6cd3291982e12a1`, binding all 56 exact plans selected by one zero-argument
-build/runtime machine to both-format rounding, subnormal/overflow, signed zero,
-infinity, NaN partial ordering, min/max, classification, square root, directed
-arithmetic/FMA, and fused-versus-unfused cases. Its retained result includes
-build-time evaluation, interpreter/native exit agreement, and Linux AArch64
-cross-build success. This is cross-family coherence evidence for the macOS
-AArch64 realization, not a replacement for the remaining target/family-specific
-results.
+Executable `Trapping` and `Saturating` adapters live beside `FloatSemantics`.
+`Trapping` judges the semantic result alone; `Saturating` clamps only
+finite-operand magnitude overflow and excludes division by signed zero. The
+selected adapter and exact operation/format provider identity survive checked
+uses through both interpreter and native lowering.
+
+All native target families select exact F32/F64 plans for primitive arithmetic,
+comparison, classification, conversion, square root, minimum/maximum, negate,
+and multiply-then-add. AArch64 additionally has fused and directed-rounding
+realizations. Generic x86-64 remains SSE2-baseline, so FMA awaits an honest
+feature-qualified or checked-software provider. Multiply-then-add and FMA stay
+distinct through lowering and result-policy adaptation.
+
+Generated call/return and foreign callback frames preserve the complete
+MXCSR/FPCR control state and install Omega's canonical controls. Returning
+foreign calls use the same conservative envelope; direct syscalls do not.
+Provider-plan identity, semantic edge cases, interpreter/native agreement, and
+cross-target builds are retained as executable evidence rather than copied here
+as per-cohort hashes. Remaining provider coverage is tracked in `TASKS.md`.
 
 ## 2. Domains: the value/policy split
 
@@ -458,7 +272,7 @@ Julia muladd vs fma, C23 _Float32, HLSL float16_t. Rules:
   integer compare. Rust needed a bolted-on method (total_cmp) and a
   no-Ord-for-floats scar; the conformance is the honest encoding. Posits
   total-order natively, so their `before` member is a plain integer compare.
-- Landed 2026-07-23: `omega::language::core::float_order` provides
+- `omega::language::core::float_order` provides
   `F32::TotalOrder` and `F64::TotalOrder` as ordinary complete `Order`
   conformances. Their branchless unsigned-key `before` member is exercised
   through static-machine selection in interpreter/native differential
@@ -562,5 +376,5 @@ makes format-as-data descriptive, not speculative.
 7. **Engineering order.** Signed Rat -> `FloatMeaning` -> executable semantic
    functions -> policy adapters -> target conformances -> differential
    validation. Signed Rat belongs to the quotient/Real lane and is a hard F7
-   dependency. The core format-record vocabulary v1 already covers
+   dependency. The current core format-record vocabulary already covers
    fixed-precision radix-2.

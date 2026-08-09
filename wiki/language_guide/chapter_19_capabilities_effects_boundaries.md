@@ -8,8 +8,9 @@ Omega should model host and compiler boundaries explicitly.
 > `blocks`, and guarded `crashes` clauses publish operational may-ceilings;
 > `terminates` remains a
 > separate positive progress guarantee. Authority remains capability values,
-> trust remains provider receipts, recoverable failure remains sums, mutation remains ownership, and v1
-> resource bounds remain dependent contracts. The lowercase fixed vocabulary
+> trust remains provider receipts, recoverable failure remains sums, mutation
+> remains ownership, and resource bounds remain dependent contracts. The
+> lowercase fixed vocabulary
 > documented later in this chapter is the current compiler compatibility layer,
 > not the end-state language model.
 
@@ -1280,7 +1281,7 @@ Blocking and parking are distinct. An imported/provider contract carries
 `blocks` when it may occupy the calling worker and `suspends` when it may park a
 task. Those ceilings are checked against the pinned requirement at admission; the
 eventual provider cannot widen a consumer compiled against a no-block/no-park
-slot. Decision 23 represents v1 positive wake/fairness premises as sealed,
+slot. Decision 23 represents positive wake/fairness premises as sealed,
 grant-backed opaque progress profiles on the pinned operation/provider
 contract. They participate in admission and trust reports but do not become
 ordinary proof facts or follow merely from an operational clause.

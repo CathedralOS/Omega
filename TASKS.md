@@ -2,9 +2,10 @@
 
 Last pruned: 2026-08-08.
 
-This file is the current execution queue, not a changelog. Commits, canaries,
-architecture pages, and design briefs retain completed implementation history.
-A task belongs here only when it names:
+This file is the current execution queue, not a changelog. Git retains completed
+implementation history; architecture pages and design briefs describe the
+current model and only the implementation state needed to explain remaining
+work. A task belongs here only when it names:
 
 - the remaining work;
 - the owning design and code area;

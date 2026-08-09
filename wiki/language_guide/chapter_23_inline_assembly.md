@@ -198,7 +198,7 @@ entry references or descriptors retaining requirement/satisfier identity.
 Opaque providers must supply an admitted `CallPlan + StatePlan` including their
 permitted exits or remain behind adequate hardware isolation; missing evidence
 fails closed. An independent final-byte transfer certificate and CET, PAC, or
-shadow-stack hardening are deferred PCC/TCB-reduction work, not v1 language
+shadow-stack hardening are deferred PCC/TCB-reduction work, not language
 semantics.
 
 External-root admission enforces that distinction directly. Provider body

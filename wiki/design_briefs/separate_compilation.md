@@ -96,15 +96,12 @@ Every replaceable binding publishes an entry contract with these semantics:
 4. reclamation waits for acknowledged quiescence; and
 5. entry and leave publish operational and resource cost.
 
-Implementation status (2026-08-03): the generic era-entry ledger binds one
-exact binding contract, entry contract, admitted entry plan, and profile-sealed
-executable manifest per era. Publication exposes the new current era and closes
-the previous one to future entry as separate checked facts. An invocation
-linearizes once, retains its selected era across a later routing switch, and
-must leave with exact evidence. A closing era becomes quiescent only at zero
-active entries, zero residual lifetime-cohort holds, and complete dispositions;
-only a fresh cohort-release receipt then removes the era and its live TCB
-manifest. Runtime-specific RCU/counter/hazard implementations remain policy.
+The current generic era-entry ledger binds each era to one exact binding and
+entry contract, admitted plan, and profile-sealed executable manifest. Entry
+linearizes once and retains that era across routing changes. Reclamation
+requires closure to new entry, zero active entries and cohort holds, complete
+dispositions, and a fresh release receipt. RCU, counters, hazards, and similar
+mechanisms remain runtime policy.
 
 The algorithm is runtime policy. Epochs, RCU, counters, hazard references, or a
 target-specific single-core scheme may satisfy the same contract. Whether a
@@ -174,16 +171,11 @@ separately defines logical name collision and handover. A registry may reject
 duplicate key `K`, version it, or provide an atomic transfer; the component
 framework cannot infer that policy.
 
-Implementation status (2026-08-03): the generic process-static service carrier
-enforces a service-authored duplicate-key, versioned-key, or atomic-transfer
-policy. Duplicate and exact key/version collisions fail without consuming the
-candidate. Atomic replacement is accepted only through a non-replayed receipt
-binding the service and handover contract, logical key, old/new registration
-and component-era identities, and independent facts for atomic publication,
-old-registration retirement, and obligation transfer. The retained completion
-states that the old obligations moved to the new registration; it never reports
-them as vanished. Cathedral remains responsible for concrete service policies
-and provider receipts.
+The generic process-static service carrier enforces service-authored
+duplicate-key, versioned-key, and atomic-transfer policies. Atomic replacement
+requires a non-replayed receipt binding the service, handover contract, key,
+registrations, eras, and publication/retirement/obligation-transfer facts.
+Cathedral owns concrete service policy and provider receipts.
 
 Candidate admission checks the new era's selected-provider TCB manifest before
 publication. While eras coexist, the live report is the union of their known
@@ -192,16 +184,12 @@ An opaque process-static platform provider remains a deployment baseline rather
 than becoming private to either era; component-owned registrations and handles
 still receive complete disposition.
 
-Implementation status (2026-08-03): the live executable-TCB carrier accepts
-only manifests already sealed by their scope profile. It retains the
-process-static baseline separately from sorted exact component-era identities,
-unions equal executable subjects with source attribution, and preserves every
-source's original completeness and closure evidence. One incomplete source
-makes the live scope incomplete; no synthetic selected-provider closure
-identity is invented. A containment axis applies to a shared executable only
-when every contributing row retains independent evidence for that axis. Era
-removal remains unavailable until the concrete entry ledger can prove closing
-and quiescence.
+The live executable-TCB carrier accepts only profile-sealed manifests. It keeps
+the process-static baseline separate from component eras, preserves source
+attribution and completeness evidence when equal executable subjects are
+unioned, and treats any incomplete contributor as making the scope incomplete.
+Shared containment claims require evidence from every contributor; era removal
+still requires closing and quiescence from the entry ledger.
 
 ## Opaque providers and mapping quarantine
 
@@ -220,15 +208,11 @@ current era, unless the provider supplies an accepted unregistration and
 quiescence contract. The gateway preserves replaceability of the Omega target;
 it does not make the opaque library reclaimable or complete its TCB manifest.
 
-Implementation status (2026-08-03): opaque callback admission now exposes only
-those two routes. Gateway admission binds the exact installed realization and
-entry, proves that the foreign target is the process-lifetime gateway and that
-the gateway uses the current-era dispatch contract, and retains a code borrow
-without a retirement operation. Direct registration into replaceable code
-instead consumes the installed external-root handle. It returns the root slot
-only after an exact provider unregister receipt succeeds and the existing root
-ledger independently proves entry unreachability and execution quiescence;
-failure at either gate returns the registration and receipts intact.
+Opaque callback admission exposes only those two routes. Gateway admission
+binds the installed realization and proves process-lifetime, current-era
+dispatch. Direct registration consumes an external-root handle and returns it
+only after exact provider unregistration plus independently proved
+unreachability and quiescence; failure preserves the registration evidence.
 
 Mapping reuse has one rule:
 
@@ -244,15 +228,12 @@ stale entry but discharges no lock, claim, or protocol obligation. Repeated
 incomplete replacements consume reserved virtual-address capacity and report
 the attributed loss.
 
-Implementation status (2026-08-03): the executable-installation carrier now
-separates these terminal outcomes. A quiescence receipt consumes installed code
-and returns its placement for ordinary W+NX reuse. An exact quarantine receipt
-instead proves execute removal, unmapping/trapping, and continued reservation;
-it consumes the installation without returning placement, retains the admitted
-artifact and attributed incomplete-drain or opaque-holder cause, and reports
-the exact reserved extent as capacity loss. A stale-entry fault can be derived
-only for that installation and explicitly discharges no obligations. Concrete
-era entry accounting and wider-domain retirement policy remain runtime work.
+The executable-installation carrier separates successful reclamation from
+quarantine. A quiescence receipt returns placement for W+NX reuse; a quarantine
+receipt proves execute removal and continued reservation, retains the artifact
+and attributed cause, and reports the reserved extent as capacity loss. A
+stale-entry fault discharges no obligations. Concrete entry accounting and
+wider-domain retirement remain runtime work.
 
 ## Claim custody and retention reporting
 
