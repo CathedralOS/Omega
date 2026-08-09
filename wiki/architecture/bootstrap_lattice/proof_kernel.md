@@ -131,6 +131,12 @@ divisors reconstruct falsehood. Native truncating remainder is authorized only
 after that operation-owned proposition is checked. Its signed result follows
 the dividend and is not Euclidean modulo.
 
+Terminal Psi v36 applies the producer/verifier split to Wrapping fixed-integer
+division. The operation owns a divisor-definedness obligation; a terminal-known
+nonzero divisor reconstructs truth, including signed negative one because
+`MIN / -1` wraps to `MIN`. Zero and unknown divisors reconstruct falsehood.
+Native division is authorized only after that proposition is checked.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

@@ -19,7 +19,8 @@
 //! legacy crash schema, v25 adds integer complement, v26-v27 add widening and
 //! the address carrier, v28-v33 add proof-gated exact casts, shifts, addition,
 //! subtraction, and multiplication, v34 adds proof-gated exact division, and
-//! current v35 adds proof-gated exact remainder.
+//! v35 adds proof-gated exact remainder, and current v36 adds proof-gated
+//! wrapping division.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other
