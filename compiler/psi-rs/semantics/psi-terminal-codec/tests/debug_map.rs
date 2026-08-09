@@ -116,7 +116,7 @@ fn typed_debug_map_decoder_rejects_hostile_encodings() {
     let bytes = encode_debug_map(&module, &debug_map).expect("debug map should encode");
 
     let mut zero_file = bytes.clone();
-    // magic + format + semantic version + fingerprint + file count
+    // magic + format marker + vocabulary marker + fingerprint + file count
     zero_file[48..52].copy_from_slice(&0_u32.to_le_bytes());
     assert_eq!(
         decode_debug_map(&module, &zero_file),

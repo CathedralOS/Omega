@@ -977,8 +977,8 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output,
         record.stack.validation_receipt.normalized_identity(),
     );
-    output.push_str("}, \"logical_fuel\": {\"schedule_version\": ");
-    output.push_str(&record.logical_fuel.schedule.schedule_version().to_string());
+    output.push_str("}, \"logical_fuel\": {\"schedule_marker\": ");
+    output.push_str(&record.logical_fuel.schedule.marker().to_string());
     output.push_str(", \"provision\": ");
     push_hex_identity(output, record.logical_fuel.provision.normalized_identity());
     output.push_str(", \"ceiling_units\": ");
@@ -2500,7 +2500,7 @@ mod tests {
             11
         );
         assert_eq!(
-            parsed["roots"][0]["resources"]["logical_fuel"]["schedule_version"],
+            parsed["roots"][0]["resources"]["logical_fuel"]["schedule_marker"],
             1
         );
         assert_eq!(

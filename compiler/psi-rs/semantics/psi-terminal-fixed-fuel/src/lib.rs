@@ -15,7 +15,7 @@ use psi_terminal_fuel::{FuelScheduleIdentity, TerminalFuelSchedule};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
 /// Exact restricted theorem: every path from one machine entry reaches a
-/// return within the published v1 logical-fuel ceiling.
+/// return within the published current logical-fuel ceiling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedEntryFuelCertificate {
     terminal_psi: TerminalPsiIdentity,

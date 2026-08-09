@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "dbc252d8e426baf21a67e308da3fe06b8bfb285b0c51fbcaaadc05ef0e41c8df"
+        "4c7d98fb82784069361b3f1ff75dac5a3da6f59349bbf245c3ce04d9a3b5d6d6"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -272,7 +272,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     future_format[8..10].copy_from_slice(&2_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatVersion(2))
+        Err(CodecError::UnsupportedFormatMarker(2))
     );
 
     assert_eq!(

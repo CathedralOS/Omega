@@ -259,7 +259,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         &[],
     )
     .expect("canonical artifact sections should execute with fuel");
-    assert_eq!(measured.usage().schedule().schedule_version(), 1);
+    assert_eq!(measured.usage().schedule().marker(), 1);
     assert_eq!(measured.usage().total_units(), fixed_fuel.ceiling_units());
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
@@ -7417,7 +7417,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
             panic!("the source canary has no crash exit")
         }
     };
-    assert_eq!(meter.usage().schedule().schedule_version(), 1);
+    assert_eq!(meter.usage().schedule().marker(), 1);
     assert_eq!(meter.usage().total_units(), fixed_fuel.ceiling_units());
     assert_eq!(
         meter

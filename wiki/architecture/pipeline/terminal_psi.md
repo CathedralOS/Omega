@@ -276,7 +276,7 @@ conjunctions, proposition nesting, recursive scalar terms, and content terms
 deeper than 256 edges are rejected. Execution-significant vectors—parameters, operations, and
 jump arguments—retain their declared order.
 
-Decoding fails on unknown versions or tags, zero identities, invalid booleans,
+Decoding fails on stale format/vocabulary markers or unknown tags, zero identities, invalid booleans,
 noncanonical ordering/forms, malformed or verifier-invalid modules, truncated
 input, and trailing bytes. A successfully decoded module is re-encoded and the
 bytes must match exactly; the decoder never normalizes an alternate encoding.
@@ -337,7 +337,7 @@ binds the terminal semantic identity, architecture, object format, pointer
 size/alignment, PE subsystem when present, exact profile-decision identity,
 strictly ordered selected-provider-plan identities, a domain-separated SHA-256
 of the complete emitted image, and the compiler text-validation evidence. Its
-decoder rejects unknown versions/tags, zero identities, invalid target facts,
+decoder rejects stale markers or unknown tags, zero identities, invalid target facts,
 alternate provider order, nonzero reserved fields, truncation, and trailing
 bytes, then reproduces the canonical bytes. Validation recomputes the image
 binding from the sealed `TerminalExecutableImage`. The scalar canaries carry an

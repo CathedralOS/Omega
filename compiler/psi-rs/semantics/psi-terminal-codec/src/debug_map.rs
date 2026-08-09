@@ -16,8 +16,8 @@ use sha2::{Digest, Sha256};
 use crate::{CodecError, Reader, Writer, terminal_psi_identity};
 
 const MAGIC: &[u8; 8] = b"PSIDBG\0\0";
-const FORMAT_VERSION: u16 = 1;
-const SOURCE_DIGEST_DOMAIN: &[u8] = b"psi-terminal-debug-source-v1\0";
+const FORMAT_MARKER: u16 = 1;
+const SOURCE_DIGEST_DOMAIN: &[u8] = b"psi-terminal-debug-source\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DebugFileId(NonZeroU32);
@@ -138,9 +138,9 @@ pub fn decode_debug_map(
     if reader.take(MAGIC.len())? != MAGIC {
         return Err(DebugMapError::InvalidMagic);
     }
-    let format_version = reader.u16()?;
-    if format_version != FORMAT_VERSION {
-        return Err(DebugMapError::UnsupportedFormatVersion(format_version));
+    let format_marker = reader.u16()?;
+    if format_marker != FORMAT_MARKER {
+        return Err(DebugMapError::UnsupportedFormatMarker(format_marker));
     }
     let vocabulary_marker_raw = reader.u16()?;
     let vocabulary_marker = VocabularyMarker::new(vocabulary_marker_raw).ok_or(
@@ -241,7 +241,7 @@ pub fn validate_debug_map(
 fn encode_raw(debug_map: &TerminalDebugMap) -> Result<Vec<u8>, DebugMapError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
-    writer.u16(FORMAT_VERSION);
+    writer.u16(FORMAT_MARKER);
     writer.u16(debug_map.semantic.vocabulary_marker.get());
     writer.bytes(debug_map.semantic.program_fingerprint.as_bytes());
     writer.len("debug source files", debug_map.files.len())?;
@@ -408,7 +408,7 @@ fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
 pub enum DebugMapError {
     Codec(CodecError),
     InvalidMagic,
-    UnsupportedFormatVersion(u16),
+    UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),
     ZeroFileIdentity,
     InvalidTag(&'static str, u8),

@@ -58,7 +58,7 @@ TerminalPsiIdentity {
 }
 
 FuelScheduleIdentity {
-    schedule_version;
+    schedule_marker;
 }
 ```
 
@@ -322,7 +322,7 @@ Provider-local `FixedFuelProviderSummary` and `LogicalFuelResourceColumn` are
 the current implementation precursor for hard roots. Each summary and
 provision now names the `psi-core`-owned nonzero `FuelScheduleIdentity` directly;
 composition rejects mixed schedules, and the external-root artifact publishes
-the schedule version, provision, ceiling, and composed units. A summary's local
+the schedule marker, provision, ceiling, and composed units. A summary's local
 evidence now distinguishes a sealed recomputable terminal-Psi entry/segment
 certificate from an admitted opaque-provider unit claim. Certificate-backed
 units derive from the certificate, contribute no provider-validation receipt,

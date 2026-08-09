@@ -45,7 +45,7 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
     stale[8..10].copy_from_slice(&2_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&stale),
-        Err(ProofCodecError::UnsupportedFormatVersion(2))
+        Err(ProofCodecError::UnsupportedFormatMarker(2))
     );
 }
 

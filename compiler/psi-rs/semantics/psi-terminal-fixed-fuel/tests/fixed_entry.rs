@@ -25,7 +25,7 @@ fn straight_line_entry_has_an_exact_recomputable_bound() {
         certificate.terminal_psi(),
         terminal_psi_identity(&module).unwrap()
     );
-    assert_eq!(certificate.schedule().schedule_version(), 1);
+    assert_eq!(certificate.schedule().marker(), 1);
     assert_eq!(certificate.entry(), machine_id(1));
     assert!(certificate.relevant_preconditions().is_empty());
     assert_eq!(certificate.ceiling_units(), 3);
@@ -90,7 +90,7 @@ fn selected_segments_include_their_exact_terminal_edge() {
         entry_to_jump.terminal_psi(),
         terminal_psi_identity(&module).unwrap()
     );
-    assert_eq!(entry_to_jump.schedule().schedule_version(), 1);
+    assert_eq!(entry_to_jump.schedule().marker(), 1);
     assert_eq!(entry_to_jump.machine(), machine_id(1));
     assert_eq!(entry_to_jump.start_block(), block_id(1));
     assert_eq!(entry_to_jump.end_edge(), edge_id(1));

@@ -431,7 +431,7 @@ pub struct LoweredContentPartitionCompositions {
     pub compositions: Vec<ContentPartitionComposition>,
 }
 
-/// Lower a validated checked-tree content equation into the terminal-Psi v9
+/// Lower a validated checked-tree content equation into the current terminal-Psi
 /// proposition vocabulary. This translation is independent of the narrow
 /// executable source slice so broader terminal lowering can reuse it directly.
 pub fn lower_content_conservation_plan(
@@ -644,7 +644,7 @@ pub fn lower_content_identity_reshuffles(
     })
 }
 
-/// Lower checker-proved direct partition composition into terminal-Psi v12.
+/// Lower checker-proved direct partition composition into terminal Psi.
 /// The terminal row retains both equations and the exact place substitution so
 /// the verifier can replay it and reject any manufactured `separate(...)` node.
 pub fn lower_content_partition_compositions(
@@ -1249,10 +1249,10 @@ fn lower_content_place(
 /// ensures L == L
 /// {
 ///     transition { _ -> next(E0, E1, ...) }
-///     state next(v0: integer, v1: integer, ...) -> integer {
+///     state next(p0: integer, p1: integer, ...) -> integer {
 ///         transition { _ -> done(E0, E1, ...) }
 ///     }
-///     state done(v0: integer, v1: integer, ...) -> integer { E }
+///     state done(p0: integer, p1: integer, ...) -> integer { E }
 /// }
 /// ```
 ///

@@ -54,7 +54,7 @@ machine Main::main(&mut self) { }
     let checked = compile_to_checked(&main_path, None).expect("pilot program should compile");
     let interpreted = interpret(&checked, &[]);
     assert!(interpreted.error.is_none());
-    assert_eq!(interpreted.usage.schedule().schedule_version(), 1);
+    assert_eq!(interpreted.usage.schedule().marker(), 1);
     assert!(interpreted.usage.fuel_units() > 0);
 
     let schema = BuildTimeValue::Struct {
@@ -73,7 +73,7 @@ machine Main::main(&mut self) { }
             .expect("equal evaluation should reproduce usage");
     assert_eq!(first.usage(), second.usage());
     assert_eq!(first.usage().schema().schema_version(), 1);
-    assert_eq!(first.usage().schedule().schedule_version(), 1);
+    assert_eq!(first.usage().schedule().marker(), 1);
     assert!(first.usage().fuel_units() > 0);
     assert_eq!(first.usage().result_cells(), 4);
     assert_eq!(first.value(), second.value());

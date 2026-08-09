@@ -70,7 +70,7 @@ pub fn interpret_terminal(
 }
 
 /// Execute terminal Psi and return deterministic logical usage under the
-/// current separately versioned schedule.
+/// current canonical schedule.
 pub fn interpret_terminal_measured(
     verified: &VerifiedTerminalModule<'_>,
     arguments: &[TerminalScalarValue],
