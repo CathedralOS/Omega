@@ -71,7 +71,8 @@ division/remainder; v43 admits a joint unsigned Exact-add bound; v44 extends
 that upper-bound form to signed nonnegative addends; v45 adds the symmetric
 signed nonpositive lower-bound form; v46 admits a direct unsigned two-runtime
 Exact-subtract bound; v47 adds a signed lower-bound form for nonnegative
-runtime subtrahends; and current v48 adds its symmetric nonpositive upper bound.
+runtime subtrahends; v48 adds its symmetric nonpositive upper bound; and
+current v49 admits unsigned multiplication bounded by a positive runtime factor.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -134,6 +135,9 @@ factor `k` requires `value <= MAX / k`. Signed factors reconstruct the exact
 lower and upper quotient bounds; zero and one are total, while negative one
 requires `MIN + 1 <= value`. Two known operands reduce to truth only when their
 mathematical product is admitted. Two unrelated runtime factors fail closed.
+Starting in v49, an unsigned pair can instead carry `1 <= right` plus
+`left <= MAX / right`. The positive-factor fact proves the Exact bound division
+defined, and the multiplication reconstructs the conjunction of both facts.
 An Exact division retains two values of the same fixed integer type and owns a
 dedicated definedness-and-representability obligation. The first v34
 reconstruction surface requires a terminal-known right operand. A nonzero
@@ -540,6 +544,10 @@ negative `k`. Zero and one require no proof beyond truth, negative one excludes
 the signed minimum, and two known operands reduce to truth only when their
 mathematical product is admitted. Two-runtime relational shapes reconstruct
 falsehood. Once verified, Omega may select ordinary fixed-width multiplication.
+Terminal Psi v49 additionally recognizes the unsigned runtime relation
+`1 <= right` together with `left <= MAX / right`. The bound division
+independently selects the positive-factor fact; the multiplication selects
+their conjunction.
 Terminal Psi v34 retains Exact fixed-integer division as
 `ExactIntegerDivide { left, right, obligation }`. The verifier resolves a
 terminal-known divisor from a literal-result equality or another path-local
@@ -1246,7 +1254,8 @@ signed nonnegative addends; version 45 adds the symmetric signed nonpositive
 lower-bound form; version 46 adds one joint unsigned Exact-subtract
 reconstruction; and version 47 adds its signed nonnegative-subtrahend
 lower-bound form; version 48 adds the symmetric signed nonpositive-subtrahend
-upper-bound form, without adding operation tags.
+upper-bound form; and version 49 adds one joint unsigned Exact-multiply
+reconstruction, without adding operation tags.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1258,10 +1267,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v48 modules under their original
+execution continue to accept valid v1 through v49 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v48 translation.
+`migrate_module_to_current` is an explicit validated older-to-v49 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1275,7 +1284,7 @@ the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
 exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
 fixture, the v36 wrapping-divide fixture, the v37 wrapping-remainder fixture,
 the v38 saturating-divide fixture, the v39 saturating-remainder fixture, and the
-current-vocabulary v48 identity, plus the
+current-vocabulary v49 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary

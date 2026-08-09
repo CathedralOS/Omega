@@ -60,8 +60,9 @@ across all six fixed division/remainder operations, v43 admits a joint unsigned
 Exact-add bound, v44 extends its upper-bound form to signed nonnegative
 addends, v45 adds the symmetric signed nonpositive lower bound, v46 admits a
 direct unsigned two-runtime Exact-subtract bound, v47 adds its signed
-nonnegative-subtrahend lower-bound form, and current v48 adds the symmetric
-signed nonpositive-subtrahend upper bound.
+nonnegative-subtrahend lower-bound form, v48 adds the symmetric signed
+nonpositive-subtrahend upper bound, and current v49 admits unsigned
+multiplication bounded by a positive runtime factor.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -80,7 +81,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v48 row. Artifact-root native lowering
+validation, and fuel cover the complete v49 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -225,6 +226,11 @@ the checked interval that admitted the source expression. Proof format v24
 carries the recursive exact-multiply term, the operation costs one unit, and
 verified Omega lowering uses the ordinary fixed-width target multiply. Two
 unrelated runtime factors remain fail-closed.
+Terminal Psi v49 adds the first joint runtime multiplication form for unsigned
+carriers. A checked `1 <= right` path proves `MAX / right` defined, and
+`left <= MAX / right` supplies the product bound. The verifier selects their
+conjunction. Proof vocabulary, one-unit operation fuel, and Omega lowering
+remain unchanged.
 Terminal Psi v34 adds proof-gated Exact fixed-integer division. The operation
 owns one obligation, and the verifier resolves a terminal-known right operand
 without trusting the producer's range result. Nonzero unsigned divisors and
@@ -326,6 +332,13 @@ terminal verifier independently uses it for the `MAX + right` addition and
 conjoins it with `left <= MAX + right` for the subtraction obligation.
 Canonical semantics, selected-path fuel, artifact interpretation, and both
 native targets carry the upper-bound slice.
+Terminal Psi v49 adds one joint unsigned Exact-multiply relation without new
+operation or proof tags. The source checker transports a positive-factor fact
+into the nested quotient-bound state; the terminal verifier independently uses
+it for `MAX / right` and conjoins it with `left <= MAX / right` for the
+multiplication obligation. Canonical semantics, selected-path fuel, artifact
+interpretation, and both native targets carry the relational multiplication
+slice.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

@@ -270,6 +270,10 @@ fn narrow_env_by_condition(
         {
             env.mark_signed_joint_subtract_upper_bound(left, right);
         }
+        if let Some((left, right)) = joint_multiply_guard(program, machine, state, env, &comparison)
+        {
+            env.mark_joint_multiply_bound(left, right);
+        }
         if comparison.operator == BinaryOperator::Equal
             && let (Some(left), Some(right)) = (
                 place_path(program, comparison.left),
@@ -605,6 +609,57 @@ fn signed_joint_subtract_upper_guard(
         _ => return None,
     };
     if literal_i64(program, maximum) != Some(maximum_value) {
+        return None;
+    }
+    Some((place_path(program, left)?, right_path))
+}
+
+/// Recognize the unsigned guard `left <= MAX / right` (including its `>=`
+/// spelling) once the current path proves `right >= 1`. The positive-factor
+/// fact makes the bound division defined, and the comparison is exactly the
+/// no-overflow condition for `left * right`.
+fn joint_multiply_guard(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    env: &ValueEnv,
+    comparison: &psi_typed_trees::expression::TableBinaryExpression,
+) -> Option<(String, String)> {
+    let (left, bound) = match comparison.operator {
+        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
+        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
+        _ => return None,
+    };
+    let ExpressionNode::Binary(divide) = program.expression_table.expression(bound) else {
+        return None;
+    };
+    if divide.operator != BinaryOperator::Divide {
+        return None;
+    }
+    let left_type = declared_place_type_raw(program, machine, state, left)?;
+    let right_type = declared_place_type_raw(program, machine, state, divide.right)?;
+    let left_primitive = program.primitive_type_reference(left_type)?;
+    if program.primitive_type_reference(right_type) != Some(left_primitive)
+        || !matches!(
+            left_primitive,
+            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32
+        )
+        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let right_path = place_path(program, divide.right)?;
+    if env.get(&right_path)?.low? < 1 {
+        return None;
+    }
+    let maximum = match left_primitive {
+        PrimitiveType::U8 => u8::MAX as i64,
+        PrimitiveType::U16 => u16::MAX as i64,
+        PrimitiveType::U32 => u32::MAX as i64,
+        _ => return None,
+    };
+    if literal_i64(program, divide.left) != Some(maximum) {
         return None;
     }
     Some((place_path(program, left)?, right_path))
@@ -989,6 +1044,7 @@ pub(crate) struct ValueEnv {
     joint_subtract_bounds: BTreeSet<(String, String)>,
     signed_joint_subtract_lower_bounds: BTreeSet<(String, String)>,
     signed_joint_subtract_upper_bounds: BTreeSet<(String, String)>,
+    joint_multiply_bounds: BTreeSet<(String, String)>,
 }
 
 impl ValueEnv {
@@ -1007,6 +1063,7 @@ impl ValueEnv {
         self.joint_subtract_bounds.clear();
         self.signed_joint_subtract_lower_bounds.clear();
         self.signed_joint_subtract_upper_bounds.clear();
+        self.joint_multiply_bounds.clear();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.
@@ -1030,6 +1087,8 @@ impl ValueEnv {
         self.signed_joint_subtract_lower_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
         self.signed_joint_subtract_upper_bounds
+            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
+        self.joint_multiply_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
     }
 
@@ -1086,6 +1145,11 @@ impl ValueEnv {
     fn mark_signed_joint_subtract_upper_bound(&mut self, left: String, right: String) {
         self.signed_joint_subtract_upper_bounds
             .insert((left, right));
+    }
+
+    fn mark_joint_multiply_bound(&mut self, left: String, right: String) {
+        self.joint_multiply_bounds
+            .insert(canonical_path_pair(left, right));
     }
 
     fn proves_joint_add_upper_bound(
@@ -1167,6 +1231,22 @@ impl ValueEnv {
             .contains(&(left, right))
     }
 
+    fn proves_joint_multiply_bound(
+        &self,
+        program: &TypedTrees,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> bool {
+        let Some(left) = place_path(program, left) else {
+            return false;
+        };
+        let Some(right) = place_path(program, right) else {
+            return false;
+        };
+        self.joint_multiply_bounds
+            .contains(&canonical_path_pair(left, right))
+    }
+
     fn float_fact(&self, path: &str) -> (FloatInterval, bool) {
         (
             self.float_intervals
@@ -1223,6 +1303,11 @@ impl ValueEnv {
         joined.signed_joint_subtract_upper_bounds.extend(
             self.signed_joint_subtract_upper_bounds
                 .intersection(&other.signed_joint_subtract_upper_bounds)
+                .cloned(),
+        );
+        joined.joint_multiply_bounds.extend(
+            self.joint_multiply_bounds
+                .intersection(&other.joint_multiply_bounds)
                 .cloned(),
         );
         joined
@@ -1495,6 +1580,9 @@ pub(crate) fn record_assignment(
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
+        env.joint_multiply_bounds.retain(|(left, right)| {
+            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
+        });
         let interval = match declared_range {
             Some(declared) => interval.intersect(declared),
             None => interval,
@@ -2454,6 +2542,13 @@ fn analyze(
                         binary.left,
                         binary.right,
                     ))
+                && let Some(range) = primitive.and_then(primitive_range)
+            {
+                interval = range;
+            }
+            if effective_domain == ArithmeticDomain::Exact
+                && operator == BinaryOperator::Multiply
+                && env.proves_joint_multiply_bound(program, binary.left, binary.right)
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = range;
