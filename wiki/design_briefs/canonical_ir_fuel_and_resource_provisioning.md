@@ -47,8 +47,9 @@ fixed-width integer bitwise complement, v26 adds universally total fixed-width
 distinguishes the address carrier from an ordinary same-width unsigned integer
 while retaining its current 64-bit representation, v28 adds proof-gated exact
 fixed-integer casts, v29 and v30 add proof-gated Exact right and left shifts,
-v31 adds proof-gated Exact fixed-integer addition, and current v32 adds
-proof-gated Exact fixed-integer subtraction.
+v31 adds proof-gated Exact fixed-integer addition, v32 adds proof-gated Exact
+fixed-integer subtraction, and current v33 adds proof-gated Exact fixed-integer
+multiplication.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -66,7 +67,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v32 row. Artifact-root native lowering
+validation, and fuel cover the complete v33 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -178,6 +179,14 @@ format v23 carries the recursive exact-subtract term, the operation costs one
 unit, and verified Omega lowering uses the ordinary fixed-width target
 subtract. An unknown right operand and other two-runtime relational shapes
 remain fail-closed until the terminal proposition surface can prove them.
+Terminal Psi v33 adds proof-gated Exact fixed-integer multiplication. The
+verifier uses terminal literals/equalities to identify either constant factor
+and derives the exact carrier interval required of the other factor, including
+negative signed factors and the signed-minimum negation edge. It does not trust
+the checked interval that admitted the source expression. Proof format v24
+carries the recursive exact-multiply term, the operation costs one unit, and
+verified Omega lowering uses the ordinary fixed-width target multiply. Two
+unrelated runtime factors remain fail-closed.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

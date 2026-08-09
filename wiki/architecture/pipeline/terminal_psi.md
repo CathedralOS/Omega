@@ -59,7 +59,8 @@ address carrier from an ordinary same-width unsigned integer while retaining
 its current 64-bit representation; v28 adds proof-gated exact conversions
 between fixed integer carriers; v29 adds proof-gated Exact integer right shift;
 v30 adds proof-gated Exact integer left shift; v31 adds proof-gated Exact
-integer addition; and current v32 adds proof-gated Exact integer subtraction.
+integer addition; v32 adds proof-gated Exact integer subtraction; and current
+v33 adds proof-gated Exact integer multiplication.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -92,6 +93,13 @@ signed positive `k` it requires `MIN + k <= value`, and for signed negative
 `k` it requires `value <= MAX + k`. Zero reduces to truth, and two known
 operands reduce to truth only when their mathematical difference is admitted.
 An unknown right operand fails closed because subtraction is not commutative.
+An Exact multiplication retains two values of the same fixed integer type and
+owns a dedicated representability obligation. The first v33 reconstruction
+surface accepts a terminal-known factor on either side. A nonzero unsigned
+factor `k` requires `value <= MAX / k`. Signed factors reconstruct the exact
+lower and upper quotient bounds; zero and one are total, while negative one
+requires `MIN + 1 <= value`. Two known operands reduce to truth only when their
+mathematical product is admitted. Two unrelated runtime factors fail closed.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -419,6 +427,15 @@ admitted. An unknown right operand and other two-runtime relational shapes
 reconstruct falsehood and therefore reject. Once verified, Omega may select an
 ordinary fixed-width subtraction because the proof establishes equivalence to
 the mathematical result.
+Terminal Psi v33 retains Exact fixed-integer multiplication as
+`ExactIntegerMultiply { left, right, obligation }`. The verifier resolves a
+terminal-known factor from a literal-result equality or another path-local
+equality. Unsigned `k > 0` reconstructs `variable <= MAX / k`; signed factors
+reconstruct the carrier-tight interval with inequality direction reversed for
+negative `k`. Zero and one require no proof beyond truth, negative one excludes
+the signed minimum, and two known operands reduce to truth only when their
+mathematical product is admitted. Two-runtime relational shapes reconstruct
+falsehood. Once verified, Omega may select ordinary fixed-width multiplication.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1058,9 +1075,9 @@ sparse per-cause crash-context maxima; version 25 adds total
 total range-contained `IntegerWiden` operations and recursive scalar terms;
 version 27 adds a distinct address-carrier integer-type tag without a new
 executable operation; version 28 adds exact integer casts; versions 29 and 30
-add exact right and left shifts; version 31 adds exact integer addition; and
-current version 32 adds exact integer subtraction with an operation-owned
-obligation.
+add exact right and left shifts; version 31 adds exact integer addition;
+version 32 adds exact integer subtraction; and current version 33 adds exact
+integer multiplication with an operation-owned obligation.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1072,10 +1089,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v32 modules under their original
+execution continue to accept valid v1 through v33 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v32 translation.
+`migrate_module_to_current` is an explicit validated older-to-v33 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1085,8 +1102,8 @@ migrated module. Golden tests retain archived v1 through v24 identities and
 independently freeze the v25 integer-bitwise-complement fixture, the v26
 integer-widening fixture, the v27 address-carrier fixture, the v28 exact-cast
 fixture, the v29 exact-right-shift fixture, the v30 exact-left-shift fixture,
-the v31 exact-add fixture, the v32 exact-subtract fixture, and the
-current-vocabulary v32 identity, plus the
+the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
+exact-multiply fixture, and the current-vocabulary v33 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary

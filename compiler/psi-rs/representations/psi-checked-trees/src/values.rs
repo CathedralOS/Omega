@@ -167,6 +167,7 @@ pub enum CheckedScalarExpression {
 pub enum CheckedIntegerBinaryKind {
     ExactAdd,
     ExactSubtract,
+    ExactMultiply,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,

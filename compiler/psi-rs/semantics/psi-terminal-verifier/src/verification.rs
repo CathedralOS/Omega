@@ -152,6 +152,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     | OperationKind::ExactIntegerShiftRight { .. }
                     | OperationKind::ExactIntegerAdd { .. }
                     | OperationKind::ExactIntegerSubtract { .. }
+                    | OperationKind::ExactIntegerMultiply { .. }
             )
         })
     });
@@ -546,6 +547,35 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                         value_term(right),
                     )
                     .expect("validator requires exact exact-subtract operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
+                OperationKind::ExactIntegerMultiply {
+                    left,
+                    right,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires exact-multiply integer result type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: exact_integer_multiply_obligation(
+                                integer_type,
+                                value_term(left),
+                                value_term(right),
+                                &axioms,
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::exact_integer_multiply(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact exact-multiply operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
                 OperationKind::WrappingIntegerAdd { left, right } => {
@@ -1040,6 +1070,89 @@ fn exact_integer_subtract_obligation(
     }
 }
 
+fn exact_integer_multiply_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
+    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
+    if let (Some(left), Some(right)) = (known_left, known_right) {
+        return if integer_type.exact_mul(left, right).is_some() {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
+    let (variable, constant) = match (known_left, known_right) {
+        (Some(constant), None) => (right, constant),
+        (None, Some(constant)) => (left, constant),
+        (None, None) => return Proposition::Falsehood,
+        (Some(_), Some(_)) => unreachable!("known exact-multiply operands returned above"),
+    };
+    match (integer_type.sign(), constant) {
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(0))
+        | (IntegerSign::Signed, IntegerValue::Signed(0))
+        | (IntegerSign::Signed, IntegerValue::Signed(1)) => Proposition::Truth,
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(constant)) => {
+            let IntegerValue::Unsigned(maximum) = integer_type.maximum_value() else {
+                unreachable!("unsigned type has unsigned maximum")
+            };
+            let boundary =
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(maximum / constant))
+                    .expect("exact-multiply unsigned upper boundary remains in the carrier");
+            Proposition::LessOrEqual(variable, boundary)
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(-1)) => {
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                unreachable!("signed type has signed minimum")
+            };
+            let boundary = ScalarTerm::integer(
+                integer_type,
+                IntegerValue::Signed(
+                    minimum
+                        .checked_add(1)
+                        .expect("fixed signed minimum is below maximum"),
+                ),
+            )
+            .expect("exact-multiply negation boundary remains in the carrier");
+            Proposition::LessOrEqual(boundary, variable)
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(constant)) if constant > 1 => {
+            let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                (integer_type.minimum_value(), integer_type.maximum_value())
+            else {
+                unreachable!("signed type has signed bounds")
+            };
+            let lower = ScalarTerm::integer(integer_type, IntegerValue::Signed(minimum / constant))
+                .expect("exact-multiply signed lower boundary remains in the carrier");
+            let upper = ScalarTerm::integer(integer_type, IntegerValue::Signed(maximum / constant))
+                .expect("exact-multiply signed upper boundary remains in the carrier");
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(lower, variable.clone()),
+                Proposition::LessOrEqual(variable, upper),
+            ])
+        }
+        (IntegerSign::Signed, IntegerValue::Signed(constant)) => {
+            let (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) =
+                (integer_type.minimum_value(), integer_type.maximum_value())
+            else {
+                unreachable!("signed type has signed bounds")
+            };
+            let lower = ScalarTerm::integer(integer_type, IntegerValue::Signed(maximum / constant))
+                .expect("exact-multiply negative signed lower boundary remains in the carrier");
+            let upper = ScalarTerm::integer(integer_type, IntegerValue::Signed(minimum / constant))
+                .expect("exact-multiply negative signed upper boundary remains in the carrier");
+            canonical_conjunction(vec![
+                Proposition::LessOrEqual(lower, variable.clone()),
+                Proposition::LessOrEqual(variable, upper),
+            ])
+        }
+        _ => Proposition::Falsehood,
+    }
+}
+
 fn known_integer_term_value(
     integer_type: psi_core::IntegerType,
     term: &ScalarTerm,
@@ -1359,6 +1472,15 @@ fn substitute_scalar_term_values(
             left: Box::new(recurse(left)),
             right: Box::new(recurse(right)),
         },
+        ScalarTerm::ExactIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        } => ScalarTerm::ExactIntegerMultiply {
+            scalar_type: *scalar_type,
+            left: Box::new(recurse(left)),
+            right: Box::new(recurse(right)),
+        },
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
@@ -1498,6 +1620,87 @@ mod tests {
         assert_eq!(
             exact_integer_subtract_obligation(integer_type, four, five, &[]),
             Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn exact_multiply_reconstructs_carrier_tight_known_factor_bounds() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_value = ScalarTerm::value(
+            ValueId::new(3).expect("value"),
+            ScalarType::Integer(u8_type),
+        );
+        let unsigned_five = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(5)).expect("5u8");
+        let unsigned_maximum =
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(51)).expect("51u8");
+        assert_eq!(
+            exact_integer_multiply_obligation(
+                u8_type,
+                unsigned_value.clone(),
+                unsigned_five.clone(),
+                &[],
+            ),
+            Proposition::LessOrEqual(unsigned_value.clone(), unsigned_maximum.clone())
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(u8_type, unsigned_five, unsigned_value.clone(), &[]),
+            Proposition::LessOrEqual(unsigned_value, unsigned_maximum)
+        );
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_value = ScalarTerm::value(
+            ValueId::new(4).expect("value"),
+            ScalarType::Integer(i8_type),
+        );
+        let signed_three = ScalarTerm::integer(i8_type, IntegerValue::Signed(3)).expect("3i8");
+        let negative_three = ScalarTerm::integer(i8_type, IntegerValue::Signed(-3)).expect("-3i8");
+        let negative_42 = ScalarTerm::integer(i8_type, IntegerValue::Signed(-42)).expect("-42i8");
+        let positive_42 = ScalarTerm::integer(i8_type, IntegerValue::Signed(42)).expect("42i8");
+        let expected = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(negative_42.clone(), signed_value.clone()),
+            Proposition::LessOrEqual(signed_value.clone(), positive_42.clone()),
+        ]);
+        assert_eq!(
+            exact_integer_multiply_obligation(i8_type, signed_value.clone(), signed_three, &[],),
+            expected.clone()
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(i8_type, signed_value, negative_three, &[],),
+            expected
+        );
+
+        let negative_one = ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).expect("-1i8");
+        let minimum_plus_one =
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-127)).expect("-127i8");
+        let signed_value = ScalarTerm::value(
+            ValueId::new(4).expect("value"),
+            ScalarType::Integer(i8_type),
+        );
+        assert_eq!(
+            exact_integer_multiply_obligation(i8_type, signed_value.clone(), negative_one, &[],),
+            Proposition::LessOrEqual(minimum_plus_one, signed_value)
+        );
+    }
+
+    #[test]
+    fn exact_multiply_fails_closed_without_a_known_factor() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let value = |id| {
+            ScalarTerm::value(
+                ValueId::new(id).expect("value"),
+                ScalarType::Integer(integer_type),
+            )
+        };
+        assert_eq!(
+            exact_integer_multiply_obligation(integer_type, value(1), value(2), &[]),
+            Proposition::Falsehood
+        );
+        let fifty_one =
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(51)).expect("51u8");
+        let five = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).expect("5u8");
+        assert_eq!(
+            exact_integer_multiply_obligation(integer_type, fifty_one, five, &[]),
+            Proposition::Truth
         );
     }
 }

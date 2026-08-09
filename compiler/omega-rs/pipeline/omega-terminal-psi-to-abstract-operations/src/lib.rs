@@ -325,6 +325,21 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::ExactIntegerMultiply { left, right, .. }
+                | OperationKind::WrappingIntegerMultiply { left, right } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedWrappingMultiplyMalformed(
+                            operation.id,
+                        ));
+                    };
+                    operations.push(TerminalAbstractOperation::WrappingIntegerMultiply {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        left,
+                        right,
+                    });
+                }
                 OperationKind::SaturatingIntegerAdd { left, right } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedSaturatingAddMalformed(operation.id));
@@ -344,20 +359,6 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         ));
                     };
                     operations.push(TerminalAbstractOperation::SaturatingIntegerSubtract {
-                        psi_operation: operation.id,
-                        result: operation.result.id,
-                        scalar_type,
-                        left,
-                        right,
-                    });
-                }
-                OperationKind::WrappingIntegerMultiply { left, right } => {
-                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
-                        return Err(LoweringError::VerifiedWrappingMultiplyMalformed(
-                            operation.id,
-                        ));
-                    };
-                    operations.push(TerminalAbstractOperation::WrappingIntegerMultiply {
                         psi_operation: operation.id,
                         result: operation.result.id,
                         scalar_type,

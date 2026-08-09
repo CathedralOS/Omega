@@ -107,6 +107,14 @@ rejects an unknown right operand or other two-runtime relation. Native
 wrapping-width subtraction is authorized only after that certificate has
 established representability.
 
+Terminal Psi v33 applies the split to Exact fixed-integer multiplication. The
+verifier may resolve either factor from terminal literals/equalities and
+reconstructs the carrier-tight interval of the other factor, including signed
+negative-factor reversal and the `MIN * -1` exclusion. The producer's interval
+proof remains unavailable as an axiom. Two unrelated runtime factors reject;
+native wrapping-width multiplication is authorized only after the independent
+certificate establishes representability.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

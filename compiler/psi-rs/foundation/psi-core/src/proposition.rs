@@ -306,6 +306,25 @@ impl IntegerType {
         self.admits(result).then_some(result)
     }
 
+    /// Multiply two admitted values when their mathematical product remains admitted.
+    pub fn exact_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        let result = match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => IntegerValue::Unsigned(left.checked_mul(right)?),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                IntegerValue::Signed(left.checked_mul(right)?)
+            }
+            _ => return None,
+        };
+        self.admits(result).then_some(result)
+    }
+
     /// Subtract two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -744,6 +763,11 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    ExactIntegerMultiply {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1043,6 +1067,19 @@ impl ScalarTerm {
         })
     }
 
+    pub fn exact_integer_multiply(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::ExactIntegerMultiply {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn integer(
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1189,6 +1226,7 @@ impl ScalarTerm {
             | Self::IntegerBitwiseXor { scalar_type, .. }
             | Self::ExactIntegerAdd { scalar_type, .. }
             | Self::ExactIntegerSubtract { scalar_type, .. }
+            | Self::ExactIntegerMultiply { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerSubtract { scalar_type, .. }
@@ -1417,6 +1455,18 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.exact_sub(left, right)?))
+            }
+            Self::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.exact_mul(left, right)?))
             }
             _ => None,
         }
@@ -1653,6 +1703,15 @@ impl ScalarTerm {
                 validate_integer_operands(*scalar_type, left, right)
             }
             Self::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                validate_integer_operands(*scalar_type, left, right)
+            }
+            Self::ExactIntegerMultiply {
                 scalar_type,
                 left,
                 right,
@@ -1928,6 +1987,7 @@ impl PropositionContext {
             }
             ScalarTerm::ExactIntegerAdd { left, right, .. }
             | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
             | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -2618,6 +2678,47 @@ mod tests {
         assert_eq!(
             i128_type.exact_sub(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(1)),
             None
+        );
+    }
+
+    #[test]
+    fn exact_mul_rejects_products_outside_the_declared_carrier() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert_eq!(
+            u8_type.exact_mul(IntegerValue::Unsigned(51), IntegerValue::Unsigned(5)),
+            Some(IntegerValue::Unsigned(255))
+        );
+        assert_eq!(
+            u8_type.exact_mul(IntegerValue::Unsigned(52), IntegerValue::Unsigned(5)),
+            None
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        assert_eq!(
+            i8_type.exact_mul(IntegerValue::Signed(-42), IntegerValue::Signed(3)),
+            Some(IntegerValue::Signed(-126))
+        );
+        assert_eq!(
+            i8_type.exact_mul(IntegerValue::Signed(-43), IntegerValue::Signed(3)),
+            None
+        );
+        assert_eq!(
+            i8_type.exact_mul(IntegerValue::Signed(-128), IntegerValue::Signed(-1)),
+            None
+        );
+        let u128_type = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+        assert_eq!(
+            u128_type.exact_mul(IntegerValue::Unsigned(u128::MAX), IntegerValue::Unsigned(2)),
+            None
+        );
+        let term = ScalarTerm::exact_integer_multiply(
+            u8_type,
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(51)).unwrap(),
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(5)).unwrap(),
+        )
+        .expect("exact multiply term");
+        assert_eq!(
+            term.integer_value(),
+            Some((u8_type, IntegerValue::Unsigned(255)))
         );
     }
 
