@@ -22,9 +22,9 @@ use psi_checked_trees::{
 use psi_core::{
     BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
+    PropositionError, PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_language_semantics::PermissionClaimIdentity;
 use psi_language_semantics::content::{
@@ -35,7 +35,9 @@ use psi_language_semantics::content::{
     ContentPlaceVersion as CheckedContentPlaceVersion,
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
 };
-use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
+use psi_proof_kernel::{
+    CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemVersion,
+};
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause,
@@ -49,7 +51,7 @@ use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
     TerminalDebugMap, source_digest, terminal_psi_identity, validate_debug_map,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+use psi_terminal_verifier::{ObligationEvidence, ProofBundle, reconstruct_operation_obligations};
 
 /// Semantic module and separate replaceable proof artifact produced by the
 /// Psi frontend producer.
@@ -87,6 +89,10 @@ enum LoweredDirectExpression {
         scalar_type: ScalarType,
         operand: Box<LoweredDirectExpression>,
     },
+    IntegerExactCast {
+        scalar_type: ScalarType,
+        operand: Box<LoweredDirectExpression>,
+    },
     Boolean {
         expression: Box<LoweredBooleanReturnExpression>,
     },
@@ -99,7 +105,8 @@ impl LoweredDirectExpression {
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
             | Self::IntegerBitwiseNot { scalar_type, .. }
-            | Self::IntegerWiden { scalar_type, .. } => *scalar_type,
+            | Self::IntegerWiden { scalar_type, .. }
+            | Self::IntegerExactCast { scalar_type, .. } => *scalar_type,
             Self::Boolean { .. } => ScalarType::Boolean,
         }
     }
@@ -1655,13 +1662,13 @@ fn lower_scalar_graph_machine(
         }
         None
     };
-    Ok(build_scalar_graph_module(
+    build_scalar_graph_module(
         &lowered_states,
         result_type,
         contract_value,
         identity_reshuffles,
         partition_compositions,
-    ))
+    )
 }
 
 fn lower_scalar_graph_successor(
@@ -1786,6 +1793,14 @@ fn lower_checked_scalar_expression(
             scalar_type: terminal_scalar_type(*primitive_type)?,
             operand: Box::new(lower_checked_scalar_expression(operand)?),
         }),
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type,
+            operand,
+            ..
+        } => Ok(LoweredDirectExpression::IntegerExactCast {
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+            operand: Box::new(lower_checked_scalar_expression(operand)?),
+        }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
             expression: Box::new(lower_checked_boolean_expression(expression)?),
         }),
@@ -1890,6 +1905,9 @@ fn validate_direct_parameter_types(
             validate_direct_parameter_types(operand, parameter_types)
         }
         LoweredDirectExpression::IntegerWiden { operand, .. } => {
+            validate_direct_parameter_types(operand, parameter_types)
+        }
+        LoweredDirectExpression::IntegerExactCast { operand, .. } => {
             validate_direct_parameter_types(operand, parameter_types)
         }
         LoweredDirectExpression::Boolean { expression } => {
@@ -2032,6 +2050,25 @@ fn evaluate_direct_expression(
             };
             source_type
                 .widen_value_to(*target_type, value)
+                .map(KnownDirectScalar::Integer)
+        }
+        LoweredDirectExpression::IntegerExactCast {
+            scalar_type,
+            operand,
+        } => {
+            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+                return None;
+            };
+            let ScalarType::Integer(target_type) = scalar_type else {
+                return None;
+            };
+            let KnownDirectScalar::Integer(value) =
+                evaluate_direct_expression(operand, parameters)?
+            else {
+                return None;
+            };
+            source_type
+                .exact_cast_value_to(*target_type, value)
                 .map(KnownDirectScalar::Integer)
         }
         LoweredDirectExpression::Boolean { expression } => {
@@ -2924,7 +2961,8 @@ fn build_scalar_conditional_target(
             LoweredDirectExpression::IntegerLiteral { .. }
             | LoweredDirectExpression::IntegerBinary { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }
-            | LoweredDirectExpression::IntegerWiden { .. } => None,
+            | LoweredDirectExpression::IntegerWiden { .. }
+            | LoweredDirectExpression::IntegerExactCast { .. } => None,
         })
         .collect::<Option<Vec<_>>>();
     if let Some(arguments) = direct_arguments {
@@ -3050,7 +3088,7 @@ fn build_scalar_graph_module(
     contract_value: Option<KnownDirectScalar>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
+) -> Result<LoweredTerminalPsi, LoweringError> {
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -3554,7 +3592,7 @@ fn build_scalar_graph_module(
         merge_content_place_declaration(&mut structural_places, place)
             .expect("checked lowering rejects conflicting structural places");
     }
-    LoweredTerminalPsi {
+    let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
             semantic_version: SemanticVersion::CURRENT,
             entry: machine_id(1),
@@ -3583,7 +3621,48 @@ fn build_scalar_graph_module(
         },
         proof_bundle: ProofBundle { evidence },
         debug_map: None,
+    };
+    for site in reconstruct_operation_obligations(&lowered.semantic_module)
+        .map_err(LoweringError::InvalidTerminalModule)?
+    {
+        let proof = proof_from_semantic_axioms(&site.obligation.proposition, &site.semantic_axioms);
+        let proof = proof.ok_or(LoweringError::ExactIntegerCastProofUnavailable(
+            site.obligation.id,
+        ))?;
+        lowered.proof_bundle.evidence.push(ObligationEvidence {
+            obligation: site.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(site.obligation.id.get())
+                    .expect("terminal obligations have nonzero identities"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof,
+            }),
+        });
     }
+    Ok(lowered)
+}
+
+fn proof_from_semantic_axioms(
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    if let Some(index) = semantic_axioms.iter().position(|axiom| axiom == goal) {
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::SemanticAxiom { index },
+        });
+    }
+    let Proposition::Conjunction(conjuncts) = goal else {
+        return None;
+    };
+    let proofs = conjuncts
+        .iter()
+        .map(|conjunct| proof_from_semantic_axioms(conjunct, semantic_axioms))
+        .collect::<Option<Vec<_>>>()?;
+    Some(ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::ConjunctionIntroduction(proofs),
+    })
 }
 
 fn emit_boolean_expression(
@@ -3788,6 +3867,40 @@ fn emit_direct_expression(
                     scalar_type: *scalar_type,
                 },
                 kind: OperationKind::IntegerWiden { operand },
+            });
+            id
+        }
+        LoweredDirectExpression::IntegerExactCast {
+            scalar_type,
+            operand,
+        } => {
+            let operand =
+                emit_direct_expression(operand, parameters, next_value_identity, operations);
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after an exact integer cast");
+            let operation = operation_id(
+                u64::try_from(operations.len())
+                    .expect("operation count fits a semantic identity")
+                    .checked_add(1)
+                    .expect("operation identity is nonzero"),
+            );
+            operations.push(Operation {
+                id: operation,
+                result: ValueDeclaration {
+                    id,
+                    scalar_type: *scalar_type,
+                },
+                kind: OperationKind::IntegerExactCast {
+                    operand,
+                    obligation: obligation_id(
+                        operation
+                            .get()
+                            .checked_add(1)
+                            .expect("exact-cast obligation follows its operation identity"),
+                    ),
+                },
             });
             id
         }
@@ -4003,6 +4116,7 @@ pub enum LoweringError {
     DebugSemanticCodec(psi_terminal_codec::CodecError),
     InvalidDebugMap(psi_terminal_codec::DebugMapError),
     InvalidTerminalModule(psi_terminal_verifier::ModuleError),
+    ExactIntegerCastProofUnavailable(ObligationId),
     Unsupported(&'static str),
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,

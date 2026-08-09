@@ -39,7 +39,12 @@ pub(crate) fn lower_typed_trees(
     // consume the call identity.
     psi_validation::resolve_named_result_overloads(&mut program)?;
     let validated = validate_typed_program(&program)?;
-    let mut facts = build_check_facts(&program, &validated.proof_plan, validated.operational)?;
+    let mut facts = build_check_facts(
+        &program,
+        &validated.proof_plan,
+        validated.operational,
+        &validated.validation_facts,
+    )?;
 
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,

@@ -19,6 +19,7 @@ pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
     operational: OperationalPlan,
+    validation_facts: &psi_validation::ProgramValidationFacts,
 ) -> Result<CheckFacts, Vec<psi_diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let mut values = build_value_facts(program, proof_plan);
@@ -44,8 +45,11 @@ pub(crate) fn build_check_facts(
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
-    values.scalar_expressions =
-        crate::values::build_checked_scalar_expression_plans(program, &operators);
+    values.scalar_expressions = crate::values::build_checked_scalar_expression_plans(
+        program,
+        &operators,
+        &validation_facts.exact_integer_casts,
+    );
     flow.terminal_scalar_graphs = crate::flow::build_checked_scalar_graph_plans(program);
     flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
     flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);

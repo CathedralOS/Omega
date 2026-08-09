@@ -125,10 +125,17 @@ is no terminal operation, proof term, or fuel charge. Strict-width casts whose
 target contains the complete source range retain an `IntegerWiden` operation,
 preserve the mathematical value at the wider carrier, and cost one operation
 unit. This includes unsigned-to-signed widening when the target is wider.
-Narrowing, same-width signedness changes, signed-to-unsigned casts, and
-conversions whose validity depends on nonliteral occurrence range evidence
-remain rejected until the terminal vocabulary carries the facts needed to
-prove them. A compile-known exact fixed-integer cast whose literal is
+Terminal Psi v28 admits proof-gated exact conversions between distinct fixed
+integer carriers when the target does not contain the complete source range.
+The checked plan retains the accepted occurrence interval from the existing
+validation range engine. Terminal production emits `IntegerExactCast` with a
+dedicated obligation; the artifact verifier ignores the retained producer
+interval and independently reconstructs the stricter target bound or bounds
+from the carrier types and path facts. The first live route derives a true-edge
+exact-type integer comparison, substitutes terminal constants, and rewrites
+the fact through successor parameters. The operation costs one unit. More
+complex range proofs reject if that independent reconstruction cannot derive
+the obligation. A compile-known exact fixed-integer cast whose literal is
 representable in the target re-lands as the existing target-typed constant and
 therefore adds neither an operation nor fuel. Terminal Psi v27 retains `addr`
 distinctly from `u64` through declarations, scalar terms,
@@ -375,7 +382,13 @@ identity changes no fuel rule; proof format v18 is selected only when a carried
 certificate contains an address-typed term. The exact-literal narrowing canary
 re-lands `127u64 as u8` before terminal production, crosses canonical artifact
 interpretation and both native targets as an ordinary `u8` constant, and costs
-the existing one constant plus one return edge. The v3
+the existing one constant plus one return edge. The v28 guarded narrowing
+canary admits `value as u8` only on the `value <= 255u64` arm. Its independently
+reconstructed operation obligation is mandatory, proof format v19 carries
+exact-cast terms, both selected paths cost six schedule-v1 units, and the cast
+site itself costs one operation unit. Artifact interpretation and emitted
+x86-64/AArch64 code return 255 on the proved boundary and zero on the fallback
+path. The v3
 wrapping slice
 round-trips, verifies,
 meters, lowers, emits,

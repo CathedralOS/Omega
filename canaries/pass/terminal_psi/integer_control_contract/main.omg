@@ -42,6 +42,18 @@ ensures 127u8 == 127u8
     127u64 as u8
 }
 
+machine terminal_guarded_exact_narrow(value: u64, ignored: u64) -> u8
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    transition value <= 255u64 {
+        true -> finish(value as u8)
+        _ -> finish(0u8)
+    }
+
+    state finish(value: u8) -> u8 { value }
+}
+
 machine terminal_address_reflexive(value: addr) -> bool
 requires true == true
 ensures true == true

@@ -919,6 +919,127 @@ fn checked_source_exact_literal_narrowing_relands_before_terminal_psi() {
 }
 
 #[test]
+fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("guarded exact-narrowing source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_guarded_exact_narrow")
+        .expect("guarded exact narrowing should lower with path evidence");
+    let cast_operation = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::IntegerExactCast { .. }))
+        .expect("the runtime narrowing remains explicit terminal work");
+    let OperationKind::IntegerExactCast {
+        obligation: cast_obligation,
+        ..
+    } = cast_operation.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.operation_units(&cast_operation.kind),
+        1
+    );
+    assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
+        evidence.obligation == cast_obligation
+            && matches!(
+                evidence.route,
+                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+            )
+    }));
+
+    let semantic = encode_module(&lowered.semantic_module).expect("guarded narrowing semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("guarded narrowing proof");
+    let module = decode_module(&semantic).expect("decode guarded narrowing semantics");
+    let mut missing_cast_proof = decode_proof_bundle(&proof).expect("decode guarded proof");
+    missing_cast_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != cast_obligation);
+    assert!(matches!(
+        verify_module(
+            &module,
+            &missing_cast_proof,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            if obligation == cast_obligation
+    ));
+
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u64_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execute = |value| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(value), argument(0)],
+        )
+        .expect("verified guarded narrowing should interpret")
+    };
+    let narrowed = execute(255);
+    let rejected = execute(256);
+    assert_eq!(
+        narrowed.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(255),
+        }
+    );
+    assert_eq!(
+        rejected.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(0),
+        }
+    );
+    assert_eq!(
+        narrowed.usage().total_units(),
+        rejected.usage().total_units()
+    );
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("guarded narrowing should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| {
+                matches!(
+                    operation,
+                    TerminalAbstractOperation::IntegerExactCast { .. }
+                )
+            })
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("guarded narrowing should select");
+        let assigned =
+            assign_registers(&target_operations).expect("guarded narrowing homes should assign");
+        emit_machine_code(&assigned).expect("guarded narrowing should emit");
+    }
+
+    #[cfg(unix)]
+    {
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .expect("guarded narrowing host selection");
+        let assigned = assign_registers(&target_operations).expect("guarded narrowing host homes");
+        let machine_code = emit_machine_code(&assigned).expect("guarded narrowing host emission");
+        let object =
+            build_terminal_object_artifact(&machine_code).expect("guarded narrowing host object");
+        let entry = object.entry_function().bytes(&object);
+        assert_eq!(run_host_machine_code_with_two_u64(entry, 255, 0), 255);
+        assert_eq!(run_host_machine_code_with_two_u64(entry, 256, 0), 0);
+    }
+}
+
+#[test]
 fn checked_source_conditional_survives_frontend_drop() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi conditional source canary should compile");
@@ -3507,7 +3628,7 @@ fn checked_source_address_identity_survives_artifacts_and_native_realization() {
 
     assert_eq!(
         lowered.semantic_module.semantic_version,
-        SemanticVersion::V27
+        SemanticVersion::CURRENT
     );
     assert_eq!(
         lowered.semantic_module.machines[0].parameters[0].scalar_type,

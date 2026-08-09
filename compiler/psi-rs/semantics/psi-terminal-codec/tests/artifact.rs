@@ -54,10 +54,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&19_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&20_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(19))
+        Err(ProofCodecError::UnsupportedFormatVersion(20))
     );
 }
 
@@ -371,6 +371,43 @@ fn proof_format_v18_canonically_encodes_address_carriers() {
         decode_proof_bundle(&old_version),
         Err(ProofCodecError::NonCanonicalEncoding)
     );
+}
+
+#[test]
+fn proof_format_v19_canonically_encodes_exact_integer_casts() {
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let operand = ScalarTerm::integer(source_type, IntegerValue::Unsigned(255)).unwrap();
+    let cast = ScalarTerm::integer_exact_cast(source_type, target_type, operand).unwrap();
+    let goal = Proposition::Equal(cast.clone(), cast);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(109),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(109),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: proof.clone(),
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+        .expect("reflexive exact-integer-cast certificate");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v19 bytes");
+    assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&18_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("ScalarTerm", 22))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
 }
 
 #[test]

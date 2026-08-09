@@ -30,6 +30,7 @@ const FORMAT_VERSION_V15: u16 = 15;
 const FORMAT_VERSION_V16: u16 = 16;
 const FORMAT_VERSION_V17: u16 = 17;
 const FORMAT_VERSION_V18: u16 = 18;
+const FORMAT_VERSION_V19: u16 = 19;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -92,6 +93,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             | FORMAT_VERSION_V16
             | FORMAT_VERSION_V17
             | FORMAT_VERSION_V18
+            | FORMAT_VERSION_V19
     ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
@@ -228,7 +230,8 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
     match term {
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => {
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => {
             validate_scalar_term_depth(operand, depth + 1)?;
         }
         ScalarTerm::BooleanEqual { left, right }
@@ -259,6 +262,14 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
 
 fn required_format_version(bundle: &ProofBundle) -> u16 {
     if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v19_term(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V19
+    } else if bundle.evidence.iter().any(|evidence| {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
@@ -424,6 +435,78 @@ fn proof_uses_v18_address(node: &ProofNode) -> bool {
         }
 }
 
+fn proof_uses_v19_term(node: &ProofNode) -> bool {
+    proposition_uses_v19_term(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v19_term),
+            ProofRule::ConjunctionElimination { conjunction, .. }
+            | ProofRule::ImplicationIntroduction { body: conjunction } => {
+                proof_uses_v19_term(conjunction)
+            }
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v19_term(implication) || proof_uses_v19_term(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                proof_uses_v19_term(left_equals_middle) || proof_uses_v19_term(middle_equals_right)
+            }
+        }
+}
+
+fn proposition_uses_v19_term(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_v19(left) || scalar_term_uses_v19(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v19_term),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_v19_term(premise) || proposition_uses_v19_term(conclusion),
+    }
+}
+
+fn scalar_term_uses_v19(term: &ScalarTerm) -> bool {
+    match term {
+        ScalarTerm::IntegerExactCast { .. } => true,
+        ScalarTerm::BooleanNot { operand }
+        | ScalarTerm::IntegerBitwiseNot { operand, .. }
+        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v19(operand),
+        ScalarTerm::BooleanEqual { left, right }
+        | ScalarTerm::IntegerEqual { left, right, .. }
+        | ScalarTerm::IntegerLessThan { left, right, .. }
+        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            scalar_term_uses_v19(left) || scalar_term_uses_v19(right)
+        }
+        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
+            scalar_term_uses_v19(value) || scalar_term_uses_v19(count)
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
+    }
+}
+
 fn proposition_uses_address(proposition: &Proposition) -> bool {
     match proposition {
         Proposition::Truth
@@ -460,6 +543,15 @@ fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
             scalar_term_uses_address(left) || scalar_term_uses_address(right)
         }
         ScalarTerm::IntegerWiden {
+            source_type,
+            target_type,
+            operand,
+        } => {
+            integer_type_is_address(*source_type)
+                || integer_type_is_address(*target_type)
+                || scalar_term_uses_address(operand)
+        }
+        ScalarTerm::IntegerExactCast {
             source_type,
             target_type,
             operand,
@@ -602,6 +694,7 @@ fn proposition_uses_v17_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v17(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::IntegerWiden { .. } => true,
+        ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v17(operand),
         ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
             scalar_term_uses_v17(operand)
         }
@@ -674,9 +767,9 @@ fn proposition_uses_v16_term(proposition: &Proposition) -> bool {
 fn scalar_term_uses_v16(term: &ScalarTerm) -> bool {
     match term {
         ScalarTerm::IntegerBitwiseNot { .. } => true,
-        ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerWiden { operand, .. } => {
-            scalar_term_uses_v16(operand)
-        }
+        ScalarTerm::BooleanNot { operand }
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v16(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -749,7 +842,8 @@ fn scalar_term_uses_v15(term: &ScalarTerm) -> bool {
         | ScalarTerm::WrappingIntegerShiftRight { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v15(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v15(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -823,7 +917,8 @@ fn scalar_term_uses_v14(term: &ScalarTerm) -> bool {
         | ScalarTerm::IntegerBitwiseXor { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v14(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v14(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -892,7 +987,8 @@ fn scalar_term_uses_v13(term: &ScalarTerm) -> bool {
         ScalarTerm::IntegerLessThan { .. } | ScalarTerm::IntegerLessOrEqual { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v13(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v13(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
@@ -962,7 +1058,8 @@ fn scalar_term_uses_v12(term: &ScalarTerm) -> bool {
         ScalarTerm::IntegerEqual { .. } => true,
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v12(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v12(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerLessThan { left, right, .. }
         | ScalarTerm::IntegerLessOrEqual { left, right, .. }
@@ -1041,7 +1138,8 @@ fn scalar_term_uses_v11(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v11(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v11(operand),
         ScalarTerm::WrappingIntegerAdd { left, right, .. }
         | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
         | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -1105,7 +1203,8 @@ fn scalar_term_uses_v10(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { .. } => true,
         ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v10(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v10(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1280,7 +1379,8 @@ fn scalar_term_uses_v7(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v7(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v7(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1351,7 +1451,8 @@ fn scalar_term_uses_v6(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v6(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v6(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1422,7 +1523,8 @@ fn scalar_term_uses_v5(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v5(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v5(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1493,7 +1595,8 @@ fn scalar_term_uses_v4(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v4(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v4(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1570,7 +1673,8 @@ fn scalar_term_uses_v3(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v3(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v3(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1649,7 +1753,8 @@ fn scalar_term_uses_v2(term: &ScalarTerm) -> bool {
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v2(operand),
+        | ScalarTerm::IntegerWiden { operand, .. }
+        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v2(operand),
         ScalarTerm::BooleanEqual { left, right }
         | ScalarTerm::IntegerEqual { left, right, .. }
         | ScalarTerm::IntegerLessThan { left, right, .. }
@@ -1929,6 +2034,19 @@ fn encode_scalar_term(
                 return Err(ProofCodecError::UnsupportedScalarTermForFormat);
             }
             writer.u8(10);
+            encode_scalar_term(writer, operand, depth + 1, format_version)?;
+        }
+        ScalarTerm::IntegerExactCast {
+            source_type,
+            target_type,
+            operand,
+        } => {
+            if format_version < FORMAT_VERSION_V19 {
+                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
+            }
+            writer.u8(22);
+            encode_integer_type(writer, *source_type);
+            encode_integer_type(writer, *target_type);
             encode_scalar_term(writer, operand, depth + 1, format_version)?;
         }
         ScalarTerm::BooleanEqual { left, right } => {
@@ -2511,6 +2629,13 @@ fn decode_scalar_term(
             let target_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_widen(source_type, target_type, operand)
+                .map_err(ProofCodecError::MalformedProposition)?
+        }
+        22 if format_version >= FORMAT_VERSION_V19 => {
+            let source_type = decode_integer_type(reader)?;
+            let target_type = decode_integer_type(reader)?;
+            let operand = decode_scalar_term(reader, depth + 1, format_version)?;
+            ScalarTerm::integer_exact_cast(source_type, target_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),

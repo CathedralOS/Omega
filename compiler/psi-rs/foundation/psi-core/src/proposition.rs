@@ -25,6 +25,44 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
+    pub fn can_exact_cast_to(self, target: Self) -> bool {
+        self.carrier == IntegerCarrier::Fixed && target.carrier == IntegerCarrier::Fixed
+    }
+
+    pub fn exact_cast_value_to(self, target: Self, value: IntegerValue) -> Option<IntegerValue> {
+        if !self.can_exact_cast_to(target) || !self.admits(value) {
+            return None;
+        }
+        let converted = match (target.sign, value) {
+            (IntegerSign::Signed, IntegerValue::Signed(value)) => IntegerValue::Signed(value),
+            (IntegerSign::Signed, IntegerValue::Unsigned(value)) => {
+                IntegerValue::Signed(i128::try_from(value).ok()?)
+            }
+            (IntegerSign::Unsigned, IntegerValue::Signed(value)) => {
+                IntegerValue::Unsigned(u128::try_from(value).ok()?)
+            }
+            (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => IntegerValue::Unsigned(value),
+        };
+        target.admits(converted).then_some(converted)
+    }
+
+    pub fn minimum_value(self) -> IntegerValue {
+        match self.sign {
+            IntegerSign::Signed if self.bits == 128 => IntegerValue::Signed(i128::MIN),
+            IntegerSign::Signed => IntegerValue::Signed(-(1_i128 << (self.bits - 1))),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+        }
+    }
+
+    pub fn maximum_value(self) -> IntegerValue {
+        match self.sign {
+            IntegerSign::Signed if self.bits == 128 => IntegerValue::Signed(i128::MAX),
+            IntegerSign::Signed => IntegerValue::Signed((1_i128 << (self.bits - 1)) - 1),
+            IntegerSign::Unsigned if self.bits == 128 => IntegerValue::Unsigned(u128::MAX),
+            IntegerSign::Unsigned => IntegerValue::Unsigned((1_u128 << self.bits) - 1),
+        }
+    }
+
     pub fn can_widen_to(self, target: Self) -> bool {
         self.carrier == IntegerCarrier::Fixed
             && target.carrier == IntegerCarrier::Fixed
@@ -536,6 +574,11 @@ pub enum ScalarTerm {
         target_type: IntegerType,
         operand: Box<ScalarTerm>,
     },
+    IntegerExactCast {
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: Box<ScalarTerm>,
+    },
     IntegerBitwiseOr {
         scalar_type: IntegerType,
         left: Box<ScalarTerm>,
@@ -718,6 +761,27 @@ impl ScalarTerm {
             });
         }
         Ok(Self::IntegerWiden {
+            source_type,
+            target_type,
+            operand: Box::new(operand),
+        })
+    }
+
+    pub fn integer_exact_cast(
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        let actual = operand.scalar_type();
+        let expected = ScalarType::Integer(source_type);
+        if actual != expected || !source_type.can_exact_cast_to(target_type) {
+            return Err(PropositionError::IntegerExactCastTypeMismatch {
+                source: expected,
+                target: ScalarType::Integer(target_type),
+                operand: actual,
+            });
+        }
+        Ok(Self::IntegerExactCast {
             source_type,
             target_type,
             operand: Box::new(operand),
@@ -932,7 +996,9 @@ impl ScalarTerm {
             | Self::SaturatingIntegerMultiply { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }
-            Self::IntegerWiden { target_type, .. } => ScalarType::Integer(*target_type),
+            Self::IntegerWiden { target_type, .. } | Self::IntegerExactCast { target_type, .. } => {
+                ScalarType::Integer(*target_type)
+            }
             Self::WrappingIntegerShiftLeft { value_type, .. }
             | Self::WrappingIntegerShiftRight { value_type, .. } => {
                 ScalarType::Integer(*value_type)
@@ -965,6 +1031,20 @@ impl ScalarTerm {
                 Some((
                     *target_type,
                     source_type.widen_value_to(*target_type, operand)?,
+                ))
+            }
+            Self::IntegerExactCast {
+                source_type,
+                target_type,
+                operand,
+            } => {
+                let (operand_type, operand) = operand.integer_value()?;
+                if operand_type != *source_type || !source_type.can_exact_cast_to(*target_type) {
+                    return None;
+                }
+                Some((
+                    *target_type,
+                    source_type.exact_cast_value_to(*target_type, operand)?,
                 ))
             }
             Self::WrappingIntegerAdd {
@@ -1152,6 +1232,23 @@ impl ScalarTerm {
                     return Err(PropositionError::BooleanNotTypeMismatch(
                         operand.scalar_type(),
                     ));
+                }
+                Ok(())
+            }
+            Self::IntegerExactCast {
+                source_type,
+                target_type,
+                operand,
+            } => {
+                operand.validate()?;
+                let expected = ScalarType::Integer(*source_type);
+                if operand.scalar_type() != expected || !source_type.can_exact_cast_to(*target_type)
+                {
+                    return Err(PropositionError::IntegerExactCastTypeMismatch {
+                        source: expected,
+                        target: ScalarType::Integer(*target_type),
+                        operand: operand.scalar_type(),
+                    });
                 }
                 Ok(())
             }
@@ -1579,7 +1676,8 @@ impl PropositionContext {
             }
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. } => self.validate_term(operand)?,
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => self.validate_term(operand)?,
             ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
         Ok(())
@@ -1672,6 +1770,11 @@ pub enum PropositionError {
         operand: ScalarType,
     },
     IntegerWidenTypeMismatch {
+        source: ScalarType,
+        target: ScalarType,
+        operand: ScalarType,
+    },
+    IntegerExactCastTypeMismatch {
         source: ScalarType,
         target: ScalarType,
         operand: ScalarType,

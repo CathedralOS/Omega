@@ -334,10 +334,19 @@ operation fuel. A strict-width primitive cast whose target contains the
 complete source range retains an `IntegerWiden` operation: its exact result is
 the same mathematical integer at the wider carrier, and it costs one operation
 unit. This includes unsigned-to-signed widening when the signed target has a
-strictly larger width. Narrowing, same-width signedness changes,
-signed-to-unsigned casts, and conversions whose totality depends
-on nonliteral occurrence range evidence remain outside this scalar slice rather
-than being mistaken for identities. A compile-known exact fixed-integer cast
+strictly larger width. Terminal Psi v28 represents a nonliteral exact
+conversion between distinct fixed integer carriers as
+`IntegerExactCast { operand, obligation }` whenever the target does not contain
+the complete source range. Checked facts retain the accepted occurrence
+interval from the ordinary validation range engine, but artifact verification
+does not trust that producer interval. The verifier reconstructs the stricter
+target bound or bounds from the exact carriers and path-local terminal facts,
+then requires the operation's dedicated derivable obligation. The first live
+route derives true exact-type comparison edges, substitutes terminal constants,
+and rewrites facts through successor parameters. Missing or unreconstructable
+evidence rejects rather than becoming a runtime policy. Same-width signedness
+and signed-to-unsigned forms use this operation when the same reconstruction
+succeeds. A compile-known exact fixed-integer cast
 whose literal is representable in the target re-lands as the existing
 target-typed integer constant; it introduces no cast operation, semantic
 version, or additional fuel. Terminal Psi v27 retains `addr` distinctly from
@@ -503,6 +512,13 @@ meaning, while a direct policy erasure remains the existing parameter return.
 Unary integer negation likewise selects the existing target subtraction after
 materializing its exact-width zero; it does not create a target-only negation
 meaning.
+Proof-gated exact fixed-integer casts retain source and target carriers in
+Omega's terminal abstract operation, lower to an `IntegerExactCast` target
+expression, evaluate in the source carrier, and normalize into the target
+carrier. The proof makes that conversion total on the selected path; native
+realization adds no trap or fallback policy. The guarded `u64 -> u8` canary
+round-trips semantic v28 and its mandatory certificate, interprets both arms,
+emits both targets, and executes 255 at the proved boundary and zero at 256.
 Runtime wrapping shifts retain the count operand's independent integer type,
 reduce that value modulo the shifted width, and select logical or arithmetic
 right shift from the shifted value's signedness. Current native source widths
@@ -512,6 +528,10 @@ Recursive Boolean expressions may also serve as
 target control conditions for either Boolean- or integer-result control and as
 Boolean return leaves; assignment gives each expression
 its own frame, and emission tears that frame down before entering either arm.
+On AArch64, computed-condition emission preserves entry `x0` in platform
+scratch `x16`, retains the Boolean decision in `w17`, and restores `x0` before
+either arm; an arm that reuses parameter zero therefore cannot observe the
+condition result in place of its input.
 This lets short-circuit terminal trees branch on nested equality expressions
 without introducing eager Boolean opcodes. For the exact conditional form, a
 Boolean ABI parameter retains both emitted arms, while a compile-known Boolean
@@ -1098,6 +1118,11 @@ one return edge. The nested wrapping-add companion costs four units: one
 widening, one constant, one addition, and one return edge. Artifact-root tests
 round-trip canonical sections, interpret exact signed and unsigned results,
 and execute full-width host comparisons after both native selectors emit.
+The guarded exact-narrowing canary costs six units on either selected path:
+one bound constant, one comparison, the conditional edge, one arm-local cast
+or fallback constant, one convergence edge, and one return edge. The exact cast
+site therefore retains the schedule's ordinary one-operation charge rather
+than hiding work in proof validation or adding a runtime policy charge.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
 schedule. It derives the maximum entry-to-terminal-exit cost over the verified

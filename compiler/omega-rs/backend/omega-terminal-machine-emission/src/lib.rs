@@ -465,7 +465,17 @@ fn emit_aarch64_conditional_integer_expression_control(
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
 ) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_aarch64_boolean_expression_value(condition_frame, condition)?;
+    // Expression evaluation uses x0 as its result register, while the first
+    // entry argument also arrives in x0 and may still be consumed by either
+    // arm. Preserve it in the platform scratch register x16, retain the
+    // Boolean decision in x17, then restore x0 before entering either arm.
+    let mut bytes = 0xaa00_03f0_u32.to_le_bytes().to_vec(); // mov x16, x0
+    bytes.extend(emit_aarch64_boolean_expression_value(
+        condition_frame,
+        condition,
+    )?);
+    bytes.extend_from_slice(&0x2a00_03f1_u32.to_le_bytes()); // mov w17, w0
+    bytes.extend_from_slice(&0xaa10_03e0_u32.to_le_bytes()); // mov x0, x16
     let true_bytes = emit_aarch64_integer_control(scalar_type, &when_true.control)?;
     let false_bytes = emit_aarch64_integer_control(scalar_type, &when_false.control)?;
     let branch_words = true_bytes
@@ -476,7 +486,7 @@ fn emit_aarch64_conditional_integer_expression_control(
     if branch_words > 0x3ffff {
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
-    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5); // cbz w0, false
+    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | 17; // cbz w17, false
     bytes.extend_from_slice(&cbz.to_le_bytes());
     bytes.extend_from_slice(&true_bytes);
     bytes.extend_from_slice(&false_bytes);
@@ -514,7 +524,13 @@ fn emit_aarch64_conditional_boolean_expression_control(
     when_true: &TerminalAssignedConditionalBooleanArm,
     when_false: &TerminalAssignedConditionalBooleanArm,
 ) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_aarch64_boolean_expression_value(condition_frame, condition)?;
+    let mut bytes = 0xaa00_03f0_u32.to_le_bytes().to_vec(); // mov x16, x0
+    bytes.extend(emit_aarch64_boolean_expression_value(
+        condition_frame,
+        condition,
+    )?);
+    bytes.extend_from_slice(&0x2a00_03f1_u32.to_le_bytes()); // mov w17, w0
+    bytes.extend_from_slice(&0xaa10_03e0_u32.to_le_bytes()); // mov x0, x16
     let true_bytes = emit_aarch64_boolean_control(&when_true.control)?;
     let false_bytes = emit_aarch64_boolean_control(&when_false.control)?;
     let branch_words = true_bytes
@@ -525,7 +541,7 @@ fn emit_aarch64_conditional_boolean_expression_control(
     if branch_words > 0x3ffff {
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
-    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5); // cbz w0, false
+    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | 17; // cbz w17, false
     bytes.extend_from_slice(&cbz.to_le_bytes());
     bytes.extend_from_slice(&true_bytes);
     bytes.extend_from_slice(&false_bytes);
@@ -1143,6 +1159,11 @@ fn emit_x86_64_expression_node(
             source_type,
             operand,
             ..
+        }
+        | TerminalAssignedIntegerExpression::IntegerExactCast {
+            source_type,
+            operand,
+            ..
         } => {
             emit_x86_64_expression_node(
                 bytes,
@@ -1673,6 +1694,11 @@ fn emit_aarch64_expression_node(
             source_type,
             operand,
             ..
+        }
+        | TerminalAssignedIntegerExpression::IntegerExactCast {
+            source_type,
+            operand,
+            ..
         } => {
             emit_aarch64_expression_node(instructions, *source_type, operand, frame, stack_depth)?;
             emit_aarch64_normalize(instructions, scalar_type);
@@ -1960,7 +1986,8 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         TerminalAssignedIntegerExpression::Immediate { source_value, .. }
         | TerminalAssignedIntegerExpression::Parameter { source_value, .. } => *source_value,
         TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
-        | TerminalAssignedIntegerExpression::IntegerWiden { operand, .. } => {
+        | TerminalAssignedIntegerExpression::IntegerWiden { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerExactCast { operand, .. } => {
             expression_source(operand)
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, .. }

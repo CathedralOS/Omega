@@ -189,6 +189,38 @@ fn assignment_value_fact_retains_stable_guard_range() {
     assert_eq!(guarded.maximum, psi_numerics::bignum::BigInt::from_i64(127));
 }
 
+#[test]
+fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
+    let source = r#"
+        machine narrow(value: u64) -> u8 {
+            transition value <= 255u64 {
+                true -> finish(value as u8)
+                _ -> finish(0u8)
+            }
+
+            state finish(value: u8) -> u8 { value }
+        }
+    "#;
+
+    let checked = lower_typed_trees(typed_trees(source))
+        .expect("the dominating guard proves the exact narrowing cast");
+    let cast = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter()
+        .find_map(|located| match &located.expression {
+            psi_checked_trees::CheckedScalarExpression::IntegerExactCast { range, .. } => {
+                Some(range)
+            }
+            _ => None,
+        })
+        .expect("checked scalar facts should retain the exact cast");
+    assert_eq!(cast.minimum, psi_numerics::bignum::BigInt::from_i64(0));
+    assert_eq!(cast.maximum, psi_numerics::bignum::BigInt::from_i64(255));
+}
+
 fn typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

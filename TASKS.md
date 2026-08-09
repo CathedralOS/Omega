@@ -271,10 +271,19 @@ Remaining:
   zero-extending x86-64/AArch64 emission. Same-carrier casts remain static
   retags. A compile-known exact fixed-integer cast whose literal is
   representable in the target now re-lands as an ordinary target-typed terminal
-  constant, with no cast operation or extra fuel. Runtime narrowing,
-  same-width signedness changes, signed-to-unsigned casts, and conversions that
-  depend on nonliteral occurrence range evidence continue to fail closed until
-  terminal Psi retains the proof-bearing range facts needed to justify them.
+  constant, with no cast operation or extra fuel. Terminal Psi v28 now carries
+  proof-gated nonliteral exact fixed-integer casts. The existing validation
+  range engine records each accepted occurrence interval in checked facts; the
+  terminal operation carries its own obligation identity, and the verifier
+  independently reconstructs the stricter target bounds from exact source and
+  target carriers. The first source slice derives a true-edge exact-type
+  integer comparison, substitutes compile-known constants, rewrites the fact
+  through arm-local block parameters, and requires a certificate at the cast
+  site. Missing evidence, an unproved path, address involvement, a redundant
+  widening, or a same-carrier no-op rejects. Canonical semantic/proof sections,
+  one-unit fuel, artifact interpretation, Omega lowering, and x86-64/AArch64
+  emission are live. More complex nonliteral range proofs continue to fail
+  closed when the independent terminal verifier cannot reconstruct them.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

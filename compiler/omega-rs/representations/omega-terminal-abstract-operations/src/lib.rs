@@ -107,6 +107,13 @@ pub enum TerminalAbstractOperation {
         target_type: IntegerType,
         operand: ValueId,
     },
+    IntegerExactCast {
+        psi_operation: OperationId,
+        result: ValueId,
+        source_type: IntegerType,
+        target_type: IntegerType,
+        operand: ValueId,
+    },
     IntegerBitwiseAnd {
         psi_operation: OperationId,
         result: ValueId,
