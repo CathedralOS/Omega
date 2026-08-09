@@ -63,164 +63,29 @@ need only understand the canonical proposition and derivation calculus. A
 component must still understand terminal Psi well enough to reconstruct the
 right propositions.
 
-Terminal Psi v28 exercises this split for exact fixed-integer casts. The
-producer carries an obligation identity but does not choose its proposition.
-The Psi-aware verifier derives the representability bound or conjunction from
-the source and target carriers at the operation site, reconstructs only
-path-local comparison facts that reach that site, and passes those facts as
-semantic axioms to the small kernel. Removing the certificate, moving the cast
-off the proved edge, changing either carrier, or involving `addr` rejects
-without treating producer range metadata as authority.
+### Current arithmetic reconstruction
 
-Terminal Psi v29 applies the same separation to Exact integer right shift. The
-operation carries only its value, independently typed count, result, and
-obligation identity. The verifier derives the nonnegative and/or
-`value_width - 1` bounds that the count carrier does not guarantee, reconstructs
-path-local comparison facts, and asks the kernel to check the dedicated
-certificate. Count masking in a native instruction cannot discharge this
-obligation. Terminal Psi v30 closes the left-shift side without collapsing the
-facts: its operation-owned proposition conjoins those count bounds with a
-distinct value no-overflow bound. The first runtime surface uses bounds safe at
-the worst legal count (`value <= 1` unsigned; `-1 <= value <= 0` signed) unless
-prior terminal facts determine one exact legal count or a finite legal count
-ceiling. In that case the verifier reconstructs the carrier-tight shifted
-minimum and maximum for the largest possible count and retains the exact ceiling
-as a certificate conjunct. Both paths use terminal carriers and path-local facts
-rather than producer range metadata.
+For proof-gated arithmetic the operation carries operands, result type, and an
+obligation identity. The artifact verifier derives the proposition from terminal
+carriers and path-local semantic facts; producer interval metadata is never an
+axiom. Native lowering is authorized only after the exact proposition is
+certified. Unsupported relations fail closed.
 
-Terminal Psi v31 applies the same split to Exact fixed-integer addition. The
-operation carries its two same-typed addends and obligation identity, while the
-verifier independently resolves terminal-known constants and reconstructs the
-carrier-tight bound on the other addend. The producer's interval proof is not
-an axiom. The first surface therefore accepts literal/terminal-equality addends
-under matching path-local bounds and rejects two unrelated runtime addends.
-Native wrapping-width addition is authorized only after that certificate has
-established representability.
+| Operation | Independently reconstructed sufficient forms |
+| --- | --- |
+| Exact cast | the source value is within the target carrier |
+| Exact right shift | `0 <= count < width` |
+| Exact left shift | legal count plus carrier-tight no-overflow bounds |
+| Exact add | a known addend and its complementary carrier bound; unsigned `left <= MAX - right`; signed positive/negative variants with the sign fact that makes the bound operation total |
+| Exact subtract | a known right operand and its complementary carrier bound; unsigned `right <= left`; signed positive/negative variants with the sign fact that makes the bound operation total |
+| Exact multiply | a known factor and the carrier-tight interval; positive runtime factor plus `MIN / factor <= value <= MAX / factor` for signed carriers, or the upper bound for unsigned carriers |
+| Exact divide/remainder | a known safe divisor; `1 <= divisor`; `divisor <= -2`; or `divisor <= -1` together with `MIN + 1 <= dividend` |
+| Wrapping/Saturating divide/remainder | a known nonzero divisor, `1 <= divisor`, `divisor <= -2`, or `divisor <= -1`; policy defines the signed `MIN`/`-1` result |
 
-Terminal Psi v43 adds one joint unsigned relation without trusting producer
-range metadata. The checked path computes the total Exact subtraction
-`MAX - right` and establishes `left <= MAX - right`; the verifier independently
-reconstructs truth for that subtraction and selects the exact carried
-comparison as the addition's operation-owned proposition. Earlier versions
-retain the v31 constant-addend surface.
-
-Terminal Psi v44 extends the same upper-bound form to signed addends on a path
-carrying `0 <= right`. That sign fact makes `MAX - right` Exact-safe; a nested
-true edge establishes `left <= MAX - right`. The subtraction selects the sign
-fact, and the addition selects the canonical conjunction of the sign and bound
-facts. Earlier versions retain their prior reconstruction.
-
-Terminal Psi v45 adds the symmetric lower-bound form for a signed addend on a
-path carrying `right <= 0`. That sign fact makes `MIN - right` Exact-safe; a
-nested true edge establishes `MIN - right <= left`. The subtraction selects
-the sign fact, and the addition selects the canonical conjunction of the sign
-and bound facts. Earlier versions retain their prior reconstruction.
-
-Terminal Psi v32 applies the split to Exact fixed-integer subtraction. The
-operation carries its two same-typed operands and obligation identity, while
-the verifier independently resolves a terminal-known right operand and
-reconstructs the carrier-tight lower or upper bound on the left operand. The
-producer's interval proof is not an axiom. The first surface accepts
-literal/terminal-equality right operands under matching path-local bounds and
-rejects an unknown right operand or other two-runtime relation. Native
-wrapping-width subtraction is authorized only after that certificate has
-established representability.
-
-Terminal Psi v46 adds one joint unsigned relation without trusting producer
-range metadata. A checked path establishes `right <= left`, which is exactly
-the unsigned subtraction's no-underflow obligation; the verifier selects that
-carried proposition directly. Earlier versions retain the v32 constant-right
-surface.
-
-Terminal Psi v47 extends joint subtraction to a signed nonnegative runtime
-subtrahend. A checked path carrying `0 <= right` makes `MIN + right`
-Exact-safe; a nested true edge establishes `MIN + right <= left`. The bound
-addition selects the sign fact, and the subtraction selects the canonical
-conjunction of the sign and bound facts. Earlier versions retain their prior
-reconstruction.
-
-Terminal Psi v48 adds the symmetric signed nonpositive-subtrahend form. A
-checked path carrying `right <= 0` makes `MAX + right` Exact-safe; a nested
-true edge establishes `left <= MAX + right`. The bound addition selects the
-sign fact, and the subtraction selects the canonical conjunction of the sign
-and bound facts. Earlier versions retain their prior reconstruction.
-
-Terminal Psi v33 applies the split to Exact fixed-integer multiplication. The
-verifier may resolve either factor from terminal literals/equalities and
-reconstructs the carrier-tight interval of the other factor, including signed
-negative-factor reversal and the `MIN * -1` exclusion. The producer's interval
-proof remains unavailable as an axiom. Two unrelated runtime factors reject;
-native wrapping-width multiplication is authorized only after the independent
-certificate establishes representability.
-
-Terminal Psi v49 adds one joint unsigned relation without trusting producer
-range metadata. A checked path carrying `1 <= right` makes `MAX / right`
-Exact-defined; a nested true edge establishes `left <= MAX / right`. The bound
-division selects the positive-factor fact, and the multiplication selects the
-canonical conjunction of the positive and bound facts. Earlier versions retain
-the v33 constant-factor surface.
-
-Terminal Psi v34 applies the same split to Exact fixed-integer division. Source
-validation rejects a provably zero divisor without treating a possibly-zero
-runtime value as statically safe; the terminal verifier reconstructs the
-operation-owned proposition from terminal facts. A known nonzero divisor is
-total except for signed negative one, which
-requires `MIN + 1 <= dividend`; zero and an unknown divisor reconstruct
-falsehood. Native truncating division is authorized only after that proposition
-is checked.
-
-Terminal Psi v35 applies the same boundary to Exact fixed-integer remainder.
-The terminal verifier requires a known nonzero divisor and excludes the signed
-`MIN % -1` quotient-overflow case with `MIN + 1 <= dividend`; zero and unknown
-divisors reconstruct falsehood. Native truncating remainder is authorized only
-after that operation-owned proposition is checked. Its signed result follows
-the dividend and is not Euclidean modulo.
-
-Terminal Psi v36 applies the producer/verifier split to Wrapping fixed-integer
-division. The operation owns a divisor-definedness obligation; a terminal-known
-nonzero divisor reconstructs truth, including signed negative one because
-`MIN / -1` wraps to `MIN`. Zero and unknown divisors reconstruct falsehood.
-Native division is authorized only after that proposition is checked.
-
-Terminal Psi v37 applies the same boundary to Wrapping fixed-integer remainder.
-The operation owns a divisor-definedness obligation; a terminal-known nonzero
-divisor reconstructs truth, including signed negative one because
-`MIN % -1` is zero. Zero and unknown divisors reconstruct falsehood. Native
-remainder is authorized only after that proposition is checked.
-
-Terminal Psi v38 applies the producer/verifier split to Saturating fixed-integer
-division. The operation owns a divisor-definedness obligation; a terminal-known
-nonzero divisor reconstructs truth, including signed negative one because
-`MIN / -1` clamps to `MAX`. Zero and unknown divisors reconstruct falsehood.
-Native saturating division is authorized only after that proposition is checked.
-
-Terminal Psi v39 applies the same boundary to Saturating fixed-integer
-remainder. The operation owns a divisor-definedness obligation; a terminal-known
-nonzero divisor reconstructs truth, including signed negative one because
-`MIN % -1` is zero. Zero and unknown divisors reconstruct falsehood. Native
-saturating remainder is authorized only after that proposition is checked.
-
-Terminal Psi v40 expands all six fixed-integer division/remainder obligation
-reconstructors with one path-local relational form. When the divisor is not
-terminal-known, `1 <= divisor` is the exact reconstructed proposition. A true
-control edge can establish and transport that fact into the selected arm; the
-other arm must bypass the arithmetic. Older semantic versions, zero, and an
-unbounded runtime divisor still reconstruct falsehood.
-
-Terminal Psi v41 adds the complementary signed relational form. When a
-path-local semantic axiom is exactly `divisor <= -2`, the six fixed-integer
-division/remainder reconstructors select it as their operation-owned
-proposition. That bound excludes zero and negative one, so it discharges both
-definedness and Exact's sole signed quotient overflow. Earlier versions keep
-their prior reconstruction.
-
-Terminal Psi v42 extends that relational form through negative one. Wrapping
-and Saturating division/remainder select an exact path-local
-`divisor <= -1` axiom because their negative-one cases are policy-defined.
-Exact division/remainder additionally require the exact path-local axiom
-`MIN + 1 <= dividend`; their reconstructed proposition is the conjunction of
-both facts, excluding the sole signed overflow pair. Earlier versions keep
-their prior reconstruction.
+Path facts must reach the operation through verified terminal control. Count
+masking, machine overflow behavior, or a producer claim cannot discharge an
+obligation. The verifier passes only the reconstructed proposition and exact
+semantic axioms to the small kernel.
 
 ## Trust and meaning
 
@@ -287,8 +152,9 @@ certified derivation.
 - Automation and proof search live outside it and must materialize evidence.
 - New logical capabilities require negative tests and an operational or semantic
   seam where one exists.
-- The certificate format and the soundness connection are versioned compatibility
-  surfaces.
+- During pre-release development the certificate producer and every checker move
+  together. Stale certificates reject; this page describes only the current
+  calculus.
 
 ## Open work
 

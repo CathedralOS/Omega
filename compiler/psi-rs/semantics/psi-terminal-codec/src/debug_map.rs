@@ -10,7 +10,7 @@ use std::num::NonZeroU32;
 use psi_core::{
     BlockId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, ValueId,
 };
-use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalModule, TerminalPsiIdentity};
+use psi_terminal::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 use sha2::{Digest, Sha256};
 
 use crate::{CodecError, Reader, Writer, terminal_psi_identity};
@@ -142,8 +142,10 @@ pub fn decode_debug_map(
     if format_version != FORMAT_VERSION {
         return Err(DebugMapError::UnsupportedFormatVersion(format_version));
     }
-    let semantic_version =
-        SemanticVersion::new(reader.u16()?).ok_or(DebugMapError::ZeroSemanticVersion)?;
+    let vocabulary_marker_raw = reader.u16()?;
+    let vocabulary_marker = VocabularyMarker::new(vocabulary_marker_raw).ok_or(
+        DebugMapError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
+    )?;
     let program_fingerprint = SemanticFingerprint::from_bytes(reader.array()?);
     let file_count = reader.count()?;
     let mut files = Vec::with_capacity(file_count as usize);
@@ -186,7 +188,7 @@ pub fn decode_debug_map(
     }
     let debug_map = TerminalDebugMap {
         semantic: TerminalPsiIdentity {
-            semantic_version,
+            vocabulary_marker,
             program_fingerprint,
         },
         files,
@@ -240,7 +242,7 @@ fn encode_raw(debug_map: &TerminalDebugMap) -> Result<Vec<u8>, DebugMapError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
     writer.u16(FORMAT_VERSION);
-    writer.u16(debug_map.semantic.semantic_version.get());
+    writer.u16(debug_map.semantic.vocabulary_marker.get());
     writer.bytes(debug_map.semantic.program_fingerprint.as_bytes());
     writer.len("debug source files", debug_map.files.len())?;
     for file in &debug_map.files {
@@ -407,7 +409,7 @@ pub enum DebugMapError {
     Codec(CodecError),
     InvalidMagic,
     UnsupportedFormatVersion(u16),
-    ZeroSemanticVersion,
+    UnsupportedVocabularyMarker(u16),
     ZeroFileIdentity,
     InvalidTag(&'static str, u8),
     TrailingBytes(usize),

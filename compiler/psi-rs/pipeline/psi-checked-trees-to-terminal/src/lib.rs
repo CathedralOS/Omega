@@ -44,8 +44,8 @@ use psi_terminal::{
     CrashCause as TerminalCrashCause, MachineContract, Operation, OperationKind,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, SemanticVersion, StructuralPlaceDeclaration,
-    SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -3761,7 +3761,7 @@ fn build_scalar_graph_module(
     }
     let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),

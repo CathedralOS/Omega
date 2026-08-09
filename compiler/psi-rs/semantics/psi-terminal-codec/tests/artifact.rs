@@ -10,35 +10,23 @@ use psi_proof_kernel::{
     PrimitiveJudgment, ProofNode, ProofRule, ProofSystemVersion,
 };
 use psi_terminal::{
-    Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ContractClause, MachineContract, Operation, OperationKind, TerminalMachine,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     ArtifactManifestError, ProofCodecError, build_artifact_manifest, decode_proof_bundle,
-    encode_proof_bundle, proof_bundle_fingerprint, terminal_psi_identity,
-    validate_artifact_manifest,
+    encode_proof_bundle, terminal_psi_identity, validate_artifact_manifest,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
 #[test]
-fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
+fn proof_bundle_uses_one_current_canonical_vocabulary() {
     let bundle = representative_bundle();
     let bytes = encode_proof_bundle(&bundle).expect("representative proof bundle should encode");
 
     assert_eq!(&bytes[..8], b"PSIPRF\0\0");
-    assert_eq!(&bytes[8..10], 1_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "f4b07ab8cdca7a33b0d2184c77db19d11626bf5db938d19ce13afa38628d06c4"
-    );
-
-    let mut unnecessarily_v2 = bytes.clone();
-    unnecessarily_v2[8..10].copy_from_slice(&2_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&unnecessarily_v2),
-        Err(ProofCodecError::NonCanonicalEncoding)
-    );
 
     let mut noncanonical = bytes.clone();
     noncanonical[14..22].copy_from_slice(&3_u64.to_le_bytes());
@@ -53,16 +41,16 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         decode_proof_bundle(&trailing),
         Err(ProofCodecError::TrailingBytes(1))
     );
-    let mut future = bytes;
-    future[8..10].copy_from_slice(&31_u16.to_le_bytes());
+    let mut stale = bytes;
+    stale[8..10].copy_from_slice(&2_u16.to_le_bytes());
     assert_eq!(
-        decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(31))
+        decode_proof_bundle(&stale),
+        Err(ProofCodecError::UnsupportedFormatVersion(2))
     );
 }
 
 #[test]
-fn proof_format_v11_canonically_encodes_boolean_equality() {
+fn proof_format_canonically_encodes_boolean_equality() {
     let equality =
         ScalarTerm::boolean_equal(ScalarTerm::boolean(false), ScalarTerm::boolean(true)).unwrap();
     let goal = Proposition::Equal(equality.clone(), equality);
@@ -83,25 +71,13 @@ fn proof_format_v11_canonically_encodes_boolean_equality() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-equality certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v11 bytes");
-    assert_eq!(&bytes[8..10], &11_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "ee2cd0db2d7c0f49168062bc753431dab3ee7859efba38c21505fc85547d9aff"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&10_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 11))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v12_canonically_encodes_integer_equality() {
+fn proof_format_canonically_encodes_integer_equality() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
@@ -124,25 +100,13 @@ fn proof_format_v12_canonically_encodes_integer_equality() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-equality certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v12 bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "873c3ed580ce0865f52383fefb520a902cef17ca31acb28e392dbc64533794d9"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&11_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 12))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v13_canonically_encodes_integer_ordering() {
+fn proof_format_canonically_encodes_integer_ordering() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let left = ScalarTerm::integer(integer, IntegerValue::Signed(-1)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Signed(0)).unwrap();
@@ -165,25 +129,13 @@ fn proof_format_v13_canonically_encodes_integer_ordering() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-ordering certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v13 bytes");
-    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "49adedea6c8305cdadf74c8893ec8ee89840746cce54ee68151ed074de4a722a"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&12_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 13))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v14_canonically_encodes_integer_bitwise_terms() {
+fn proof_format_canonically_encodes_integer_bitwise_terms() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(0b1100)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(0b1010)).unwrap();
@@ -206,25 +158,13 @@ fn proof_format_v14_canonically_encodes_integer_bitwise_terms() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v14 bytes");
-    assert_eq!(&bytes[8..10], &14_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "434c4b9be141c91c22be2853d4608fa42353408be095b2925e564173bffc55c4"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&13_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 15))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v15_canonically_encodes_wrapping_shift_terms() {
+fn proof_format_canonically_encodes_wrapping_shift_terms() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let value = ScalarTerm::integer(value_type, IntegerValue::Unsigned(1)).unwrap();
@@ -249,25 +189,13 @@ fn proof_format_v15_canonically_encodes_wrapping_shift_terms() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-shift certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v15 bytes");
-    assert_eq!(&bytes[8..10], &15_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "989a82be68195a61c5b41f5a71462e8087cefb6fc3533d17fea36bb01f142d98"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&14_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 18))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v16_canonically_encodes_integer_bitwise_not() {
+fn proof_format_canonically_encodes_integer_bitwise_not() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let operand = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(0x0f)).unwrap();
     let complemented = ScalarTerm::integer_bitwise_not(scalar_type, operand).unwrap();
@@ -289,21 +217,13 @@ fn proof_format_v16_canonically_encodes_integer_bitwise_not() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise-not certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v16 bytes");
-    assert_eq!(&bytes[8..10], &16_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&15_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 20))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v17_canonically_encodes_integer_widening() {
+fn proof_format_canonically_encodes_integer_widening() {
     let source_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let target_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let operand = ScalarTerm::integer(source_type, IntegerValue::Signed(-128)).unwrap();
@@ -326,21 +246,13 @@ fn proof_format_v17_canonically_encodes_integer_widening() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-widen certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v17 bytes");
-    assert_eq!(&bytes[8..10], &17_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&16_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 21))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v18_canonically_encodes_address_carriers() {
+fn proof_format_canonically_encodes_address_carriers() {
     let address = IntegerType::address(64).expect("addr");
     let value = ScalarTerm::integer(address, IntegerValue::Unsigned(0x1234)).unwrap();
     let goal = Proposition::Equal(value.clone(), value);
@@ -361,57 +273,13 @@ fn proof_format_v18_canonically_encodes_address_carriers() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive address certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v18 bytes");
-    assert_eq!(&bytes[8..10], &18_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&17_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::NonCanonicalEncoding)
-    );
 }
 
 #[test]
-fn proof_format_v19_canonically_encodes_exact_integer_casts() {
-    let source_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
-    let target_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
-    let operand = ScalarTerm::integer(source_type, IntegerValue::Unsigned(255)).unwrap();
-    let cast = ScalarTerm::integer_exact_cast(source_type, target_type, operand).unwrap();
-    let goal = Proposition::Equal(cast.clone(), cast);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-    };
-    let bundle = ProofBundle {
-        evidence: vec![ObligationEvidence {
-            obligation: obligation_id(109),
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: evidence_id(109),
-                proof_system_version: ProofSystemVersion::CURRENT,
-                proof: proof.clone(),
-            }),
-        }],
-    };
-
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
-        .expect("reflexive exact-integer-cast certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v19 bytes");
-    assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
-    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&18_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 22))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
-}
-
-#[test]
-fn proof_format_v20_canonically_encodes_exact_right_shifts() {
+fn proof_format_canonically_encodes_exact_right_shifts() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
     let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let value = ScalarTerm::integer(value_type, IntegerValue::Unsigned(1 << 63)).unwrap();
@@ -436,21 +304,13 @@ fn proof_format_v20_canonically_encodes_exact_right_shifts() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-right-shift certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v20 bytes");
-    assert_eq!(&bytes[8..10], &20_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&19_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 23))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v21_canonically_encodes_exact_left_shifts() {
+fn proof_format_canonically_encodes_exact_left_shifts() {
     let value_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let value = ScalarTerm::integer(value_type, IntegerValue::Unsigned(1)).unwrap();
@@ -475,21 +335,13 @@ fn proof_format_v21_canonically_encodes_exact_left_shifts() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-left-shift certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v21 bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&20_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 24))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v22_canonically_encodes_exact_integer_addition() {
+fn proof_format_canonically_encodes_exact_integer_addition() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(40)).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(2)).unwrap();
@@ -512,21 +364,13 @@ fn proof_format_v22_canonically_encodes_exact_integer_addition() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-add certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v22 bytes");
-    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&21_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 25))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v23_canonically_encodes_exact_integer_subtraction() {
+fn proof_format_canonically_encodes_exact_integer_subtraction() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(42)).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(2)).unwrap();
@@ -549,21 +393,13 @@ fn proof_format_v23_canonically_encodes_exact_integer_subtraction() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-subtract certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v23 bytes");
-    assert_eq!(&bytes[8..10], &23_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&22_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 26))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v24_canonically_encodes_exact_integer_multiplication() {
+fn proof_format_canonically_encodes_exact_integer_multiplication() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(21)).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(2)).unwrap();
@@ -586,21 +422,13 @@ fn proof_format_v24_canonically_encodes_exact_integer_multiplication() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-multiply certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v24 bytes");
-    assert_eq!(&bytes[8..10], &24_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&23_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 27))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v25_canonically_encodes_exact_integer_division() {
+fn proof_format_canonically_encodes_exact_integer_division() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(42)).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Unsigned(2)).unwrap();
@@ -623,21 +451,13 @@ fn proof_format_v25_canonically_encodes_exact_integer_division() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-divide certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v25 bytes");
-    assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&24_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 28))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v26_canonically_encodes_exact_integer_remainder() {
+fn proof_format_canonically_encodes_exact_integer_remainder() {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Signed(-43)).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Signed(5)).unwrap();
@@ -660,21 +480,13 @@ fn proof_format_v26_canonically_encodes_exact_integer_remainder() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-remainder certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v26 bytes");
-    assert_eq!(&bytes[8..10], &26_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&25_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 29))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v27_canonically_encodes_wrapping_integer_division() {
+fn proof_format_canonically_encodes_wrapping_integer_division() {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Signed(i32::MIN.into())).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Signed(-1)).unwrap();
@@ -697,21 +509,13 @@ fn proof_format_v27_canonically_encodes_wrapping_integer_division() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-divide certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v27 bytes");
-    assert_eq!(&bytes[8..10], &27_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&26_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 30))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v28_canonically_encodes_wrapping_integer_remainder() {
+fn proof_format_canonically_encodes_wrapping_integer_remainder() {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Signed(i32::MIN.into())).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Signed(-1)).unwrap();
@@ -734,21 +538,13 @@ fn proof_format_v28_canonically_encodes_wrapping_integer_remainder() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-remainder certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v28 bytes");
-    assert_eq!(&bytes[8..10], &28_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&27_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 31))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v29_canonically_encodes_saturating_integer_division() {
+fn proof_format_canonically_encodes_saturating_integer_division() {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Signed(i32::MIN.into())).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Signed(-1)).unwrap();
@@ -771,21 +567,13 @@ fn proof_format_v29_canonically_encodes_saturating_integer_division() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-divide certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v29 bytes");
-    assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&28_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 32))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v30_canonically_encodes_saturating_integer_remainder() {
+fn proof_format_canonically_encodes_saturating_integer_remainder() {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let left = ScalarTerm::integer(scalar_type, IntegerValue::Signed(i32::MIN.into())).unwrap();
     let right = ScalarTerm::integer(scalar_type, IntegerValue::Signed(-1)).unwrap();
@@ -808,21 +596,13 @@ fn proof_format_v30_canonically_encodes_saturating_integer_remainder() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-remainder certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v30 bytes");
-    assert_eq!(&bytes[8..10], &30_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&29_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 33))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v10_canonically_encodes_boolean_negation() {
+fn proof_format_canonically_encodes_boolean_negation() {
     let negated = ScalarTerm::boolean_not(ScalarTerm::boolean(false)).unwrap();
     let goal = Proposition::Equal(negated.clone(), negated);
     let proof = ProofNode {
@@ -842,25 +622,13 @@ fn proof_format_v10_canonically_encodes_boolean_negation() {
 
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-negation certificate");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v10 bytes");
-    assert_eq!(&bytes[8..10], &10_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "c9433df4989ba29bb867bd9ab31e33b0f827a0585d82773ed41f4458b2841bc4"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&9_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ScalarTerm", 10))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v2_canonically_encodes_closed_wrapping_arithmetic() {
+fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(200)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(100)).unwrap();
@@ -892,24 +660,13 @@ fn proof_format_v2_canonically_encodes_closed_wrapping_arithmetic() {
         },
     )
     .expect("closed u8 wrapping addition proves 44");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v2 bytes");
-    assert_eq!(&bytes[8..10], &2_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "efe529c7e2ee78900801f6423704d4f7f6312b35b91657dc0bac25adcc9595cd"
-    );
-
-    let mut unnecessarily_v3 = bytes;
-    unnecessarily_v3[8..10].copy_from_slice(&3_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&unnecessarily_v3),
-        Err(ProofCodecError::NonCanonicalEncoding)
-    );
 }
 
 #[test]
-fn proof_format_v8_canonically_encodes_content_certificates() {
+fn proof_format_canonically_encodes_content_certificates() {
     let root = PlaceId::new(80).expect("place");
     let term = ContentTerm::Projection {
         projection: ContentProjectionIdentity {
@@ -958,25 +715,13 @@ fn proof_format_v8_canonically_encodes_content_certificates() {
     psi_proof_kernel::check_certificate(&context, &goal, &[], &[], &proof)
         .expect("reflexive content certificate");
 
-    let bytes = encode_proof_bundle(&bundle).expect("proof v8 bytes");
-    assert_eq!(&bytes[8..10], &8_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "324790fa10f2378aece0064e0b3d64220398455745f6aa747376f4589c1a8550"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&7_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("Proposition", 9))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v3_canonically_encodes_closed_saturating_arithmetic() {
+fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(200)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(100)).unwrap();
@@ -1008,17 +753,13 @@ fn proof_format_v3_canonically_encodes_closed_saturating_arithmetic() {
         },
     )
     .expect("closed u8 saturating addition proves 255");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v3 bytes");
-    assert_eq!(&bytes[8..10], &3_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "d9cada7d8d15d785b3dbe60b8845032e58a1ee06f40532a4b15b320de495dbf6"
-    );
 }
 
 #[test]
-fn proof_format_v4_canonically_encodes_closed_wrapping_subtraction() {
+fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(5)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap();
@@ -1050,17 +791,13 @@ fn proof_format_v4_canonically_encodes_closed_wrapping_subtraction() {
         },
     )
     .expect("closed u8 wrapping subtraction proves 251");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v4 bytes");
-    assert_eq!(&bytes[8..10], &4_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "de2583689692dc8f2031d71d1f6a2d4256890cc3b5583d8d0fe9b36b36f83ecf"
-    );
 }
 
 #[test]
-fn proof_format_v5_canonically_encodes_closed_saturating_subtraction() {
+fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(5)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap();
@@ -1092,17 +829,13 @@ fn proof_format_v5_canonically_encodes_closed_saturating_subtraction() {
         },
     )
     .expect("closed u8 saturating subtraction proves zero");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v5 bytes");
-    assert_eq!(&bytes[8..10], &5_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "4ff038480cc5a7573c2a217b4ad4e76fa0f7ce267f84bdb82ab6876395e8deb3"
-    );
 }
 
 #[test]
-fn proof_format_v6_canonically_encodes_closed_wrapping_multiplication() {
+fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(20)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(13)).unwrap();
@@ -1134,17 +867,13 @@ fn proof_format_v6_canonically_encodes_closed_wrapping_multiplication() {
         },
     )
     .expect("closed u8 wrapping multiplication proves four");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v6 bytes");
-    assert_eq!(&bytes[8..10], &6_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "ca94daffef56eebbb5ecb44f90e619f7cc85fa62c4a5af0b413f1b60ddf3426a"
-    );
 }
 
 #[test]
-fn proof_format_v9_canonically_encodes_sum_case_content_certificates() {
+fn proof_format_canonically_encodes_sum_case_content_certificates() {
     let root = PlaceId::new(90).expect("place");
     let term = ContentTerm::Projection {
         projection: ContentProjectionIdentity {
@@ -1183,25 +912,13 @@ fn proof_format_v9_canonically_encodes_sum_case_content_certificates() {
         }],
     };
 
-    let bytes = encode_proof_bundle(&bundle).expect("proof v9 bytes");
-    assert_eq!(&bytes[8..10], &9_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "2ae22800e0bc7ad9b375b73467c43a24120267dd4da822013a513bfa281107ae"
-    );
-
-    let mut old_version = bytes;
-    old_version[8..10].copy_from_slice(&8_u16.to_le_bytes());
-    assert!(matches!(
-        decode_proof_bundle(&old_version),
-        Err(ProofCodecError::InvalidTag("ContentPlaceSegment", 3))
-            | Err(ProofCodecError::NonCanonicalEncoding)
-    ));
 }
 
 #[test]
-fn proof_format_v7_canonically_encodes_closed_saturating_multiplication() {
+fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(20)).unwrap();
     let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(13)).unwrap();
@@ -1233,13 +950,9 @@ fn proof_format_v7_canonically_encodes_closed_saturating_multiplication() {
         },
     )
     .expect("closed u8 saturating multiplication proves 255");
-    let bytes = encode_proof_bundle(&bundle).expect("proof v7 bytes");
-    assert_eq!(&bytes[8..10], &7_u16.to_le_bytes());
+    let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    assert_eq!(
-        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
-        "7177d8d039d445440366ef12bad459d9c1c2906eabf09f5322b1b12440ba2c82"
-    );
 }
 
 #[test]
@@ -1429,7 +1142,7 @@ fn semantic_module() -> TerminalModule {
     let literal = ScalarTerm::integer(integer, IntegerValue::Signed(7)).unwrap();
     let goal = Proposition::Equal(literal.clone(), literal);
     TerminalModule {
-        semantic_version: SemanticVersion::CURRENT,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),

@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_core::ProfileDecisionId;
-use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
+use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use sha2::{Digest, Sha256};
 
 use crate::{TerminalExecutableImage, can_emit_terminal_executable_image};
@@ -177,7 +177,7 @@ pub fn encode_terminal_installation_record(
     let mut bytes = Vec::with_capacity(166 + record.selected_provider_plans.len() * 8);
     bytes.extend_from_slice(MAGIC);
     push_u16(&mut bytes, TERMINAL_INSTALLATION_FORMAT_VERSION);
-    push_u16(&mut bytes, record.terminal_psi.semantic_version.get());
+    push_u16(&mut bytes, record.terminal_psi.vocabulary_marker.get());
     bytes.extend_from_slice(record.terminal_psi.program_fingerprint.as_bytes());
     bytes.push(architecture_tag(record.target.architecture));
     bytes.push(object_format_tag(record.target.object_format));
@@ -245,9 +245,10 @@ pub fn decode_terminal_installation_record(
             format_version,
         ));
     }
-    let semantic_version_raw = reader.u16()?;
-    let semantic_version = SemanticVersion::new(semantic_version_raw)
-        .ok_or(TerminalInstallationError::ZeroSemanticVersion)?;
+    let vocabulary_marker_raw = reader.u16()?;
+    let vocabulary_marker = VocabularyMarker::new(vocabulary_marker_raw).ok_or(
+        TerminalInstallationError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
+    )?;
     let program_fingerprint = SemanticFingerprint::from_bytes(reader.array()?);
     let architecture = decode_architecture(reader.u8()?)?;
     let object_format = decode_object_format(reader.u8()?)?;
@@ -305,7 +306,7 @@ pub fn decode_terminal_installation_record(
 
     let record = TerminalInstallationRecord {
         terminal_psi: TerminalPsiIdentity {
-            semantic_version,
+            vocabulary_marker,
             program_fingerprint,
         },
         target: NativeTarget {
@@ -512,7 +513,7 @@ impl<'bytes> Reader<'bytes> {
 pub enum TerminalInstallationError {
     InvalidMagic,
     UnsupportedFormatVersion(u16),
-    ZeroSemanticVersion,
+    UnsupportedVocabularyMarker(u16),
     InvalidArchitectureTag(u8),
     InvalidObjectFormatTag(u8),
     InvalidBoolean(u8),

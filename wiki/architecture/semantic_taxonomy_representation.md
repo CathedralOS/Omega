@@ -362,58 +362,7 @@ an operation/conformance, stack availability is resource reservation, and
 inline completion belongs to the concrete `start` operation. There is no
 `SafePoints | Asynchronous` provider mode.
 
-Implementation status (2026-07-24): `CarryPolicy` and its four closed axes live
-in the dependency-safe semantic vocabulary and are copied through syntax,
-resolved, typed, and syntax snapshots. Checked trees own a `CarryFacts` plan
-that keeps the authored minimum separate from the effective derived policy.
-The parser requires a complete `[carry(...)]` product and rejects retired
-`[send]` with guidance. Transparent data and generic bounds use independent
-per-axis composition/comparison; concrete generic instantiations substitute
-their actual arguments through nested transparent wrappers. Canonical
-place-liveness rejects forbidden values across direct or transitive possible
-suspension, including persistent fields through reachable state transitions,
-arguments carried by the call itself, and later operands under left-to-right
-evaluation. Accepted-claim admission, per-claim qualification,
-contained-machine runtime admission, and richer artifact/model export remain.
-The
-parser-unreachable resolved/typed contained-machine span has been retired
-end-to-end. Checked `CarryFacts` now derives contained topology exactly once
-from authored attached-data fields whose data type has one or more attached
-machines, storing machine roots, fields, and targets in grouped arenas/spans.
-State-graph metadata and backend reports consume that fact. Canonical semantic
-suspension crossings join across the cycle-safe descendant closure. A target
-that may migrate execution outside those crossings must establish
-activation-wide preservation for any possible CPU/thread-restricted value; it
-does not select an alternate all-instruction runtime-supply envelope. There is
-no separate `contains` source form or compatibility carrier.
-
-Implementation checkpoint (2026-07-28): `CarryPermission` now supplies the
-closed compiler vocabulary, including parser expansion of `Carry::Portable`
-and transparent user aliases over the atoms. Boundary call guarantees admit
-only an exact owner-authorized result permission and retain its requirement and
-provider receipt; a direct call to the checked adapter does not grant it.
-Admitted linear routed resource facts additionally seed an independent
-born-strict `CarryOrigin`. Local transfers and one-to-one state-parameter
-handoffs preserve that origin and its exact per-axis relaxations even when the
-qualification fact is later absent. Call exits infer the same carry mapping for
-one scalar linear input and one scalar linear output across checked,
-generic-slot, and admitted targets; conditional aggregates deliberately wait
-for P1c path-indexed mappings. Chained checked helpers therefore preserve the
-claim entry without republishing its authority domain or carry facts.
-Canonical suspension liveness records and checks each live value's effective
-claim policy, while activation-wide carry envelopes conservatively join
-established claim origins and permissions without publishing a provider
-preemption mode. Qualification and carry artifacts expose the admitted atom and
-the effective crossing policy. Remaining work is
-path-indexed aggregate and partial-move propagation plus conserved multi-output
-mappings under P1c. The task source/artifact canary pins an admitted
-suspension-only permission through qualified selected-machine specialization
-and canonical safe-point liveness. The activation artifact now carries a
-fixed-stack `StackPlan`, canonical suspension crossings, and demanded
-CPU/thread preservation; the retired safe-point/all-instruction
-`MigrationDemand` compatibility fields are gone. Fixed nonmoving stack storage
-supplies continuation address stability structurally; no provider preemption
-mode selects an alternate all-instruction supply envelope.
+The current compiler retains the closed carry axes, explicit claim origin, exact per-axis relaxations, canonical suspension crossings, and fixed nonmoving stack plans. Boundary admission is owner-authorized and receipt-bound; direct adapter calls mint no permission. State and call transfers preserve origin independently of later qualification. Remaining path-indexed aggregate, partial-move, multi-output, and provider-preservation work is tracked in `TASKS.md`.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes

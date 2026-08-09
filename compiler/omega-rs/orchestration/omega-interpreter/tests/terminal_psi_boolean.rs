@@ -31,8 +31,8 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, SemanticVersion, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
@@ -41,14 +41,14 @@ use psi_terminal_verifier::{ProofBundle, verify_module};
 
 #[cfg(unix)]
 #[test]
-fn v2_boolean_reaches_owned_object_image_and_native_execution() {
+fn boolean_reaches_owned_object_image_and_native_execution() {
     let machine = MachineId::new(20).expect("machine");
     let operation = OperationId::new(20).expect("operation");
     let edge = EdgeId::new(20).expect("edge");
     let constant = ValueId::new(20).expect("constant");
     let result = ValueId::new(21).expect("result");
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V2,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -88,10 +88,10 @@ fn v2_boolean_reaches_owned_object_image_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v2 identity");
-    let canonical_bytes = encode_module(&module).expect("v2 canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("identity");
+    let canonical_bytes = encode_module(&module).expect("canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v2 after producer drop");
+    let module = decode_module(&canonical_bytes).expect("decode after producer drop");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
 
     let verified = verify_module(
@@ -179,7 +179,7 @@ fn v2_boolean_reaches_owned_object_image_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
-fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
+fn wrapping_add_reaches_owned_object_image_and_native_execution() {
     let machine = MachineId::new(30).expect("machine");
     let left_operation = OperationId::new(30).expect("left operation");
     let right_operation = OperationId::new(31).expect("right operation");
@@ -192,7 +192,7 @@ fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V3,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -251,10 +251,10 @@ fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v3 identity");
-    let canonical_bytes = encode_module(&module).expect("v3 canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("identity");
+    let canonical_bytes = encode_module(&module).expect("canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v3 after producer drop");
+    let module = decode_module(&canonical_bytes).expect("decode after producer drop");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
 
     let verified = verify_module(
@@ -350,7 +350,7 @@ fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
-fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
+fn saturating_add_reaches_owned_object_image_and_native_execution() {
     let machine = MachineId::new(40).expect("machine");
     let left_operation = OperationId::new(40).expect("left operation");
     let right_operation = OperationId::new(41).expect("right operation");
@@ -363,7 +363,7 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V4,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -422,10 +422,10 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v4 identity");
-    let canonical_bytes = encode_module(&module).expect("v4 canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("identity");
+    let canonical_bytes = encode_module(&module).expect("canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v4 after producer drop");
+    let module = decode_module(&canonical_bytes).expect("decode after producer drop");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
 
     let verified = verify_module(
@@ -522,7 +522,7 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
-fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
+fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
     let machine = MachineId::new(120).expect("machine");
     let operation = OperationId::new(120).expect("operation");
     let edge = EdgeId::new(120).expect("edge");
@@ -533,7 +533,7 @@ fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
     let integer = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V6,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -582,10 +582,10 @@ fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v6 subtraction identity");
-    let canonical_bytes = encode_module(&module).expect("v6 subtraction canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("subtraction identity");
+    let canonical_bytes = encode_module(&module).expect("subtraction canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v6 subtraction module");
+    let module = decode_module(&canonical_bytes).expect("decode subtraction module");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
     let verified = verify_module(
         &module,
@@ -658,7 +658,7 @@ fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
 
 #[cfg(unix)]
 #[test]
-fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
+fn wrapping_subtract_matches_interpretation_and_native_execution() {
     let machine = MachineId::new(100).expect("machine");
     let operation = OperationId::new(100).expect("operation");
     let edge = EdgeId::new(100).expect("edge");
@@ -669,7 +669,7 @@ fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V5,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -718,10 +718,10 @@ fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v5 subtraction identity");
-    let canonical_bytes = encode_module(&module).expect("v5 subtraction canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("subtraction identity");
+    let canonical_bytes = encode_module(&module).expect("subtraction canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v5 subtraction module");
+    let module = decode_module(&canonical_bytes).expect("decode subtraction module");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
     let verified = verify_module(
         &module,
@@ -801,7 +801,7 @@ fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
-fn v7_wrapping_multiply_matches_interpretation_and_native_execution() {
+fn wrapping_multiply_matches_interpretation_and_native_execution() {
     let machine = MachineId::new(110).expect("machine");
     let operation = OperationId::new(110).expect("operation");
     let edge = EdgeId::new(110).expect("edge");
@@ -812,7 +812,7 @@ fn v7_wrapping_multiply_matches_interpretation_and_native_execution() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V7,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -861,10 +861,10 @@ fn v7_wrapping_multiply_matches_interpretation_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v7 multiplication identity");
-    let canonical_bytes = encode_module(&module).expect("v7 multiplication canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("multiplication identity");
+    let canonical_bytes = encode_module(&module).expect("multiplication canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v7 multiplication module");
+    let module = decode_module(&canonical_bytes).expect("decode multiplication module");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
     let verified = verify_module(
         &module,
@@ -944,7 +944,7 @@ fn v7_wrapping_multiply_matches_interpretation_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
-fn v8_saturating_multiply_matches_interpretation_and_native_execution() {
+fn saturating_multiply_matches_interpretation_and_native_execution() {
     let machine = MachineId::new(130).expect("machine");
     let operation = OperationId::new(130).expect("operation");
     let edge = EdgeId::new(130).expect("edge");
@@ -955,7 +955,7 @@ fn v8_saturating_multiply_matches_interpretation_and_native_execution() {
     let integer = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V8,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1004,10 +1004,10 @@ fn v8_saturating_multiply_matches_interpretation_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v8 multiplication identity");
-    let canonical_bytes = encode_module(&module).expect("v8 multiplication canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("multiplication identity");
+    let canonical_bytes = encode_module(&module).expect("multiplication canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v8 multiplication module");
+    let module = decode_module(&canonical_bytes).expect("decode multiplication module");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
     let verified = verify_module(
         &module,
@@ -1084,7 +1084,7 @@ fn v8_saturating_multiply_matches_interpretation_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
-fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
+fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
     let machine = MachineId::new(60).expect("machine");
     let wrapping_operation = OperationId::new(60).expect("wrapping operation");
     let saturating_operation = OperationId::new(61).expect("saturating operation");
@@ -1101,7 +1101,7 @@ fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         })
         .collect::<Vec<_>>();
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V4,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1157,10 +1157,10 @@ fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v4 runtime identity");
-    let canonical_bytes = encode_module(&module).expect("v4 runtime canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("runtime identity");
+    let canonical_bytes = encode_module(&module).expect("runtime canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v4 runtime module");
+    let module = decode_module(&canonical_bytes).expect("decode runtime module");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
     let verified = verify_module(
         &module,
@@ -1221,7 +1221,7 @@ fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
 
 #[cfg(unix)]
 #[test]
-fn v4_signed_i64_runtime_saturation_matches_both_bounds_natively() {
+fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
     let machine = MachineId::new(80).expect("machine");
     let operation = OperationId::new(80).expect("operation");
     let edge = EdgeId::new(80).expect("edge");
@@ -1232,7 +1232,7 @@ fn v4_signed_i64_runtime_saturation_matches_both_bounds_natively() {
     let integer = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let scalar_type = ScalarType::Integer(integer);
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V4,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1333,7 +1333,7 @@ fn v4_signed_i64_runtime_saturation_matches_both_bounds_natively() {
 
 #[cfg(unix)]
 #[test]
-fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
+fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
     let machine = MachineId::new(50).expect("machine");
     let edge = EdgeId::new(50).expect("edge");
     let result = ValueId::new(59).expect("result");
@@ -1347,7 +1347,7 @@ fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
         .collect::<Vec<_>>();
     let returned = parameters[8].id;
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V1,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -1380,10 +1380,10 @@ fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
             },
         }],
     };
-    let original_identity = terminal_psi_identity(&module).expect("v1 identity");
-    let canonical_bytes = encode_module(&module).expect("v1 canonical bytes");
+    let original_identity = terminal_psi_identity(&module).expect("identity");
+    let canonical_bytes = encode_module(&module).expect("canonical bytes");
     drop(module);
-    let module = decode_module(&canonical_bytes).expect("decode v1 after producer drop");
+    let module = decode_module(&canonical_bytes).expect("decode after producer drop");
     assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
 
     let verified = verify_module(

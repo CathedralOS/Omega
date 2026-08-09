@@ -1105,7 +1105,7 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             hash.u64(binding.entry.normalized_identity());
             let certificate = &binding.certificate;
             let terminal_psi = certificate.terminal_psi();
-            hash.u64(u64::from(terminal_psi.semantic_version.get()));
+            hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
             hash.u64(u64::from(certificate.schedule().schedule_version()));
             hash.u64(certificate.entry().get());
@@ -1119,7 +1119,7 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             hash.u64(binding.entry.normalized_identity());
             let certificate = &binding.certificate;
             let terminal_psi = certificate.terminal_psi();
-            hash.u64(u64::from(terminal_psi.semantic_version.get()));
+            hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
             hash.u64(u64::from(certificate.schedule().schedule_version()));
             hash.u64(certificate.machine().get());

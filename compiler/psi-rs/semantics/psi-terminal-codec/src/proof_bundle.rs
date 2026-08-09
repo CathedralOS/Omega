@@ -12,36 +12,8 @@ use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
-const FORMAT_VERSION_V1: u16 = 1;
-const FORMAT_VERSION_V2: u16 = 2;
-const FORMAT_VERSION_V3: u16 = 3;
-const FORMAT_VERSION_V4: u16 = 4;
-const FORMAT_VERSION_V5: u16 = 5;
-const FORMAT_VERSION_V6: u16 = 6;
-const FORMAT_VERSION_V7: u16 = 7;
-const FORMAT_VERSION_V8: u16 = 8;
-const FORMAT_VERSION_V9: u16 = 9;
-const FORMAT_VERSION_V10: u16 = 10;
-const FORMAT_VERSION_V11: u16 = 11;
-const FORMAT_VERSION_V12: u16 = 12;
-const FORMAT_VERSION_V13: u16 = 13;
-const FORMAT_VERSION_V14: u16 = 14;
-const FORMAT_VERSION_V15: u16 = 15;
-const FORMAT_VERSION_V16: u16 = 16;
-const FORMAT_VERSION_V17: u16 = 17;
-const FORMAT_VERSION_V18: u16 = 18;
-const FORMAT_VERSION_V19: u16 = 19;
-const FORMAT_VERSION_V20: u16 = 20;
-const FORMAT_VERSION_V21: u16 = 21;
-const FORMAT_VERSION_V22: u16 = 22;
-const FORMAT_VERSION_V23: u16 = 23;
-const FORMAT_VERSION_V24: u16 = 24;
-const FORMAT_VERSION_V25: u16 = 25;
-const FORMAT_VERSION_V26: u16 = 26;
-const FORMAT_VERSION_V27: u16 = 27;
-const FORMAT_VERSION_V28: u16 = 28;
-const FORMAT_VERSION_V29: u16 = 29;
-const FORMAT_VERSION_V30: u16 = 30;
+/// Single current pre-release proof vocabulary marker.
+const FORMAT_VERSION: u16 = 1;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -75,7 +47,7 @@ impl std::fmt::Display for ProofBundleFingerprint {
 
 pub fn encode_proof_bundle(bundle: &ProofBundle) -> Result<Vec<u8>, ProofCodecError> {
     validate_bundle(bundle)?;
-    encode_raw(bundle, required_format_version(bundle))
+    encode_raw(bundle, FORMAT_VERSION)
 }
 
 pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError> {
@@ -84,39 +56,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
         return Err(ProofCodecError::InvalidMagic);
     }
     let format_version = reader.u16()?;
-    if !matches!(
-        format_version,
-        FORMAT_VERSION_V1
-            | FORMAT_VERSION_V2
-            | FORMAT_VERSION_V3
-            | FORMAT_VERSION_V4
-            | FORMAT_VERSION_V5
-            | FORMAT_VERSION_V6
-            | FORMAT_VERSION_V7
-            | FORMAT_VERSION_V8
-            | FORMAT_VERSION_V9
-            | FORMAT_VERSION_V10
-            | FORMAT_VERSION_V11
-            | FORMAT_VERSION_V12
-            | FORMAT_VERSION_V13
-            | FORMAT_VERSION_V14
-            | FORMAT_VERSION_V15
-            | FORMAT_VERSION_V16
-            | FORMAT_VERSION_V17
-            | FORMAT_VERSION_V18
-            | FORMAT_VERSION_V19
-            | FORMAT_VERSION_V20
-            | FORMAT_VERSION_V21
-            | FORMAT_VERSION_V22
-            | FORMAT_VERSION_V23
-            | FORMAT_VERSION_V24
-            | FORMAT_VERSION_V25
-            | FORMAT_VERSION_V26
-            | FORMAT_VERSION_V27
-            | FORMAT_VERSION_V28
-            | FORMAT_VERSION_V29
-            | FORMAT_VERSION_V30
-    ) {
+    if format_version != FORMAT_VERSION {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
     let evidence_count = reader.count()?;
@@ -129,9 +69,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
     }
     let bundle = ProofBundle { evidence };
     validate_bundle(&bundle)?;
-    if required_format_version(&bundle) != format_version
-        || encode_raw(&bundle, format_version)? != bytes
-    {
+    if encode_raw(&bundle, format_version)? != bytes {
         return Err(ProofCodecError::NonCanonicalEncoding);
     }
     Ok(bundle)
@@ -293,2781 +231,6 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
     Ok(())
 }
 
-fn required_format_version(bundle: &ProofBundle) -> u16 {
-    if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v30_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V30
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v29_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V29
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v28_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V28
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v27_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V27
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v26_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V26
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v25_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V25
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v24_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V24
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v23_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V23
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v22_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V22
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v21_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V21
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v20_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V20
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v19_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V19
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v18_address(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V18
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v17_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V17
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v16_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V16
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v15_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V15
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v14_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V14
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v13_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V13
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v12_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V12
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v11_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V11
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v10_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V10
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v9_content_case(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V9
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v8_content(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V8
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v7_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V7
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v6_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V6
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v5_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V5
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v4_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V4
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v3_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V3
-    } else if bundle.evidence.iter().any(|evidence| {
-        matches!(
-            &evidence.route,
-            EvidenceRoute::CertificateDerived(certificate)
-                if proof_uses_v2_term(&certificate.proof)
-        )
-    }) {
-        FORMAT_VERSION_V2
-    } else {
-        FORMAT_VERSION_V1
-    }
-}
-
-fn proof_uses_v30_term(node: &ProofNode) -> bool {
-    proposition_uses_v30_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v30_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v30_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v30_term(implication) || proof_uses_v30_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v30_term(left_equals_middle) || proof_uses_v30_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v30_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v30(left) || scalar_term_uses_v30(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v30_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v30_term(premise) || proposition_uses_v30_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v30(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v30(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-        | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-        | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-        | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v30(left) || scalar_term_uses_v30(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v30(value) || scalar_term_uses_v30(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v29_term(node: &ProofNode) -> bool {
-    proposition_uses_v29_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v29_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v29_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v29_term(implication) || proof_uses_v29_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v29_term(left_equals_middle) || proof_uses_v29_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v29_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v29(left) || scalar_term_uses_v29(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v29_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v29_term(premise) || proposition_uses_v29_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v29(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v29(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-        | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-        | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v29(left) || scalar_term_uses_v29(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v29(value) || scalar_term_uses_v29(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v28_term(node: &ProofNode) -> bool {
-    proposition_uses_v28_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v28_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v28_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v28_term(implication) || proof_uses_v28_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v28_term(left_equals_middle) || proof_uses_v28_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v28_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v28(left) || scalar_term_uses_v28(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v28_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v28_term(premise) || proposition_uses_v28_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v28(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v28(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-        | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v28(left) || scalar_term_uses_v28(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v28(value) || scalar_term_uses_v28(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v27_term(node: &ProofNode) -> bool {
-    proposition_uses_v27_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v27_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v27_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v27_term(implication) || proof_uses_v27_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v27_term(left_equals_middle) || proof_uses_v27_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v27_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v27(left) || scalar_term_uses_v27(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v27_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v27_term(premise) || proposition_uses_v27_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v27(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v27(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v27(left) || scalar_term_uses_v27(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v27(value) || scalar_term_uses_v27(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v26_term(node: &ProofNode) -> bool {
-    proposition_uses_v26_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v26_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v26_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v26_term(implication) || proof_uses_v26_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v26_term(left_equals_middle) || proof_uses_v26_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v26_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v26(left) || scalar_term_uses_v26(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v26_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v26_term(premise) || proposition_uses_v26_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v26(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v26(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v26(left) || scalar_term_uses_v26(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v26(value) || scalar_term_uses_v26(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v25_term(node: &ProofNode) -> bool {
-    proposition_uses_v25_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v25_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v25_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v25_term(implication) || proof_uses_v25_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v25_term(left_equals_middle) || proof_uses_v25_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v25_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v25(left) || scalar_term_uses_v25(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v25_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v25_term(premise) || proposition_uses_v25_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v25(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v25(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v25(left) || scalar_term_uses_v25(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v25(value) || scalar_term_uses_v25(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v24_term(node: &ProofNode) -> bool {
-    proposition_uses_v24_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v24_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v24_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v24_term(implication) || proof_uses_v24_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v24_term(left_equals_middle) || proof_uses_v24_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v24_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v24(left) || scalar_term_uses_v24(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v24_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v24_term(premise) || proposition_uses_v24_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v24(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v24(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v24(left) || scalar_term_uses_v24(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v24(value) || scalar_term_uses_v24(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v23_term(node: &ProofNode) -> bool {
-    proposition_uses_v23_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v23_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v23_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v23_term(implication) || proof_uses_v23_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v23_term(left_equals_middle) || proof_uses_v23_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v23_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v23(left) || scalar_term_uses_v23(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v23_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v23_term(premise) || proposition_uses_v23_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v23(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v23(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v23(left) || scalar_term_uses_v23(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v23(value) || scalar_term_uses_v23(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v22_term(node: &ProofNode) -> bool {
-    proposition_uses_v22_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v22_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v22_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v22_term(implication) || proof_uses_v22_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v22_term(left_equals_middle) || proof_uses_v22_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v22_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v22(left) || scalar_term_uses_v22(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v22_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v22_term(premise) || proposition_uses_v22_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v22(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v22(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v22(left) || scalar_term_uses_v22(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v22(value) || scalar_term_uses_v22(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v21_term(node: &ProofNode) -> bool {
-    proposition_uses_v21_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v21_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v21_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v21_term(implication) || proof_uses_v21_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v21_term(left_equals_middle) || proof_uses_v21_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v21_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v21(left) || scalar_term_uses_v21(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v21_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v21_term(premise) || proposition_uses_v21_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v21(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v21(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v21(left) || scalar_term_uses_v21(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v21(value) || scalar_term_uses_v21(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v20_term(node: &ProofNode) -> bool {
-    proposition_uses_v20_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v20_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v20_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v20_term(implication) || proof_uses_v20_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v20_term(left_equals_middle) || proof_uses_v20_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v20_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v20(left) || scalar_term_uses_v20(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v20_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v20_term(premise) || proposition_uses_v20_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v20(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftRight { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v20(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v20(left) || scalar_term_uses_v20(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. } => {
-            scalar_term_uses_v20(value) || scalar_term_uses_v20(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v18_address(node: &ProofNode) -> bool {
-    proposition_uses_address(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v18_address),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v18_address(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v18_address(implication) || proof_uses_v18_address(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v18_address(left_equals_middle)
-                    || proof_uses_v18_address(middle_equals_right)
-            }
-        }
-}
-
-fn proof_uses_v19_term(node: &ProofNode) -> bool {
-    proposition_uses_v19_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v19_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v19_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v19_term(implication) || proof_uses_v19_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v19_term(left_equals_middle) || proof_uses_v19_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v19_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v19(left) || scalar_term_uses_v19(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v19_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v19_term(premise) || proposition_uses_v19_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v19(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::IntegerExactCast { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. } => scalar_term_uses_v19(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v19(left) || scalar_term_uses_v19(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v19(value) || scalar_term_uses_v19(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proposition_uses_address(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_address(left) || scalar_term_uses_address(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_address),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_address(premise) || proposition_uses_address(conclusion),
-    }
-}
-
-fn integer_type_is_address(integer_type: IntegerType) -> bool {
-    integer_type.carrier() == IntegerCarrier::Address
-}
-
-fn scalar_type_uses_address(scalar_type: ScalarType) -> bool {
-    matches!(scalar_type, ScalarType::Integer(integer_type) if integer_type_is_address(integer_type))
-}
-
-fn scalar_term_uses_address(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::Value { scalar_type, .. } => scalar_type_uses_address(*scalar_type),
-        ScalarTerm::Boolean(_) => false,
-        ScalarTerm::BooleanNot { operand } => scalar_term_uses_address(operand),
-        ScalarTerm::BooleanEqual { left, right } => {
-            scalar_term_uses_address(left) || scalar_term_uses_address(right)
-        }
-        ScalarTerm::IntegerWiden {
-            source_type,
-            target_type,
-            operand,
-        } => {
-            integer_type_is_address(*source_type)
-                || integer_type_is_address(*target_type)
-                || scalar_term_uses_address(operand)
-        }
-        ScalarTerm::IntegerExactCast {
-            source_type,
-            target_type,
-            operand,
-        } => {
-            integer_type_is_address(*source_type)
-                || integer_type_is_address(*target_type)
-                || scalar_term_uses_address(operand)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft {
-            value_type,
-            count_type,
-            value,
-            count,
-        }
-        | ScalarTerm::WrappingIntegerShiftRight {
-            value_type,
-            count_type,
-            value,
-            count,
-        }
-        | ScalarTerm::ExactIntegerShiftLeft {
-            value_type,
-            count_type,
-            value,
-            count,
-        }
-        | ScalarTerm::ExactIntegerShiftRight {
-            value_type,
-            count_type,
-            value,
-            count,
-        } => {
-            integer_type_is_address(*value_type)
-                || integer_type_is_address(*count_type)
-                || scalar_term_uses_address(value)
-                || scalar_term_uses_address(count)
-        }
-        ScalarTerm::Integer { scalar_type, .. }
-        | ScalarTerm::IntegerBitwiseNot { scalar_type, .. } => {
-            integer_type_is_address(*scalar_type)
-        }
-        ScalarTerm::IntegerEqual {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::IntegerLessThan {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::IntegerLessOrEqual {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::IntegerBitwiseAnd {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::IntegerBitwiseOr {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::IntegerBitwiseXor {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::ExactIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::ExactIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::ExactIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::ExactIntegerDivide {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::ExactIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::WrappingIntegerDivide {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::WrappingIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::SaturatingIntegerDivide {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::SaturatingIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::WrappingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::SaturatingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::WrappingIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::SaturatingIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::WrappingIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::SaturatingIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        } => {
-            integer_type_is_address(*scalar_type)
-                || scalar_term_uses_address(left)
-                || scalar_term_uses_address(right)
-        }
-    }
-}
-
-fn proof_uses_v17_term(node: &ProofNode) -> bool {
-    proposition_uses_v17_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v17_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v17_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v17_term(implication) || proof_uses_v17_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v17_term(left_equals_middle) || proof_uses_v17_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v17_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v17(left) || scalar_term_uses_v17(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v17_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v17_term(premise) || proposition_uses_v17_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v17(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::IntegerWiden { .. } => true,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v17(value) || scalar_term_uses_v17(count)
-        }
-        ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v17(operand),
-        ScalarTerm::BooleanNot { operand } | ScalarTerm::IntegerBitwiseNot { operand, .. } => {
-            scalar_term_uses_v17(operand)
-        }
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v17(left) || scalar_term_uses_v17(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v17(value) || scalar_term_uses_v17(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v16_term(node: &ProofNode) -> bool {
-    proposition_uses_v16_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v16_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v16_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v16_term(implication) || proof_uses_v16_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v16_term(left_equals_middle) || proof_uses_v16_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v16_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v16(left) || scalar_term_uses_v16(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v16_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v16_term(premise) || proposition_uses_v16_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v16(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::IntegerBitwiseNot { .. } => true,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v16(value) || scalar_term_uses_v16(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v16(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v16(left) || scalar_term_uses_v16(right)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v16(value) || scalar_term_uses_v16(count)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v15_term(node: &ProofNode) -> bool {
-    proposition_uses_v15_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v15_term),
-            ProofRule::ConjunctionElimination { conjunction, .. }
-            | ProofRule::ImplicationIntroduction { body: conjunction } => {
-                proof_uses_v15_term(conjunction)
-            }
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v15_term(implication) || proof_uses_v15_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v15_term(left_equals_middle) || proof_uses_v15_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v15_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v15(left) || scalar_term_uses_v15(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v15_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v15_term(premise) || proposition_uses_v15_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v15(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::WrappingIntegerShiftLeft { .. }
-        | ScalarTerm::WrappingIntegerShiftRight { .. } => true,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v15(value) || scalar_term_uses_v15(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v15(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v15(left) || scalar_term_uses_v15(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v14_term(node: &ProofNode) -> bool {
-    proposition_uses_v14_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v14_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v14_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v14_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v14_term(implication) || proof_uses_v14_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v14_term(left_equals_middle) || proof_uses_v14_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v14_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v14(left) || scalar_term_uses_v14(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v14_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v14_term(premise) || proposition_uses_v14_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v14(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v14(value) || scalar_term_uses_v14(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v14(value) || scalar_term_uses_v14(count)
-        }
-        ScalarTerm::IntegerBitwiseAnd { .. }
-        | ScalarTerm::IntegerBitwiseOr { .. }
-        | ScalarTerm::IntegerBitwiseXor { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v14(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v14(left) || scalar_term_uses_v14(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v13_term(node: &ProofNode) -> bool {
-    proposition_uses_v13_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v13_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v13_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v13_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v13_term(implication) || proof_uses_v13_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v13_term(left_equals_middle) || proof_uses_v13_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v13_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v13(left) || scalar_term_uses_v13(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v13_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v13_term(premise) || proposition_uses_v13_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v13(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v13(value) || scalar_term_uses_v13(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v13(value) || scalar_term_uses_v13(count)
-        }
-        ScalarTerm::IntegerLessThan { .. } | ScalarTerm::IntegerLessOrEqual { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v13(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v13(left) || scalar_term_uses_v13(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v12_term(node: &ProofNode) -> bool {
-    proposition_uses_v12_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v12_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v12_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v12_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v12_term(implication) || proof_uses_v12_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v12_term(left_equals_middle) || proof_uses_v12_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v12_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v12(left) || scalar_term_uses_v12(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v12_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v12_term(premise) || proposition_uses_v12_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v12(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v12(value) || scalar_term_uses_v12(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v12(value) || scalar_term_uses_v12(count)
-        }
-        ScalarTerm::IntegerEqual { .. } => true,
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v12(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v12(left) || scalar_term_uses_v12(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v11_term(node: &ProofNode) -> bool {
-    proposition_uses_v11_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v11_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v11_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v11_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v11_term(implication) || proof_uses_v11_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v11_term(left_equals_middle) || proof_uses_v11_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v11_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v11(left) || scalar_term_uses_v11(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v11_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v11_term(premise) || proposition_uses_v11_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v11(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v11(value) || scalar_term_uses_v11(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v11(value) || scalar_term_uses_v11(count)
-        }
-        ScalarTerm::BooleanEqual { .. } => true,
-        ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v11(left) || scalar_term_uses_v11(right)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v11(operand),
-        ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v11(left) || scalar_term_uses_v11(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v10_term(node: &ProofNode) -> bool {
-    proposition_uses_v10_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v10_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v10_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v10_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v10_term(implication) || proof_uses_v10_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v10_term(left_equals_middle) || proof_uses_v10_term(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v10_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v10(left) || scalar_term_uses_v10(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v10_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v10_term(premise) || proposition_uses_v10_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v10(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v10(value) || scalar_term_uses_v10(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v10(value) || scalar_term_uses_v10(count)
-        }
-        ScalarTerm::BooleanNot { .. } => true,
-        ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v10(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v10(left) || scalar_term_uses_v10(right)
-        }
-        ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v10(left) || scalar_term_uses_v10(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v9_content_case(node: &ProofNode) -> bool {
-    proposition_uses_v9_content_case(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => {
-                nodes.iter().any(proof_uses_v9_content_case)
-            }
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v9_content_case(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v9_content_case(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v9_content_case(implication) || proof_uses_v9_content_case(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v9_content_case(left_equals_middle)
-                    || proof_uses_v9_content_case(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v9_content_case(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::ContentConservation(conservation) => {
-            content_term_uses_case(conservation.left())
-                || content_term_uses_case(conservation.right())
-        }
-        Proposition::Conjunction(conjuncts) => {
-            conjuncts.iter().any(proposition_uses_v9_content_case)
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => {
-            proposition_uses_v9_content_case(premise)
-                || proposition_uses_v9_content_case(conclusion)
-        }
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::Equal(_, _)
-        | Proposition::LessThan(_, _)
-        | Proposition::LessOrEqual(_, _) => false,
-    }
-}
-
-fn content_term_uses_case(term: &ContentTerm) -> bool {
-    match term {
-        ContentTerm::Projection { subject, .. } => subject
-            .segments
-            .iter()
-            .any(|segment| matches!(segment, ContentPlaceSegment::Case(_))),
-        ContentTerm::Separate(terms) => terms.iter().any(content_term_uses_case),
-    }
-}
-
-fn proof_uses_v8_content(node: &ProofNode) -> bool {
-    proposition_uses_v8_content(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v8_content),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v8_content(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v8_content(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v8_content(implication) || proof_uses_v8_content(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => {
-                proof_uses_v8_content(left_equals_middle)
-                    || proof_uses_v8_content(middle_equals_right)
-            }
-        }
-}
-
-fn proposition_uses_v8_content(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::ContentConservation(_) => true,
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v8_content),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v8_content(premise) || proposition_uses_v8_content(conclusion),
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::Equal(_, _)
-        | Proposition::LessThan(_, _)
-        | Proposition::LessOrEqual(_, _) => false,
-    }
-}
-
-fn proof_uses_v7_term(node: &ProofNode) -> bool {
-    proposition_uses_v7_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v7_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v7_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v7_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v7_term(implication) || proof_uses_v7_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => proof_uses_v7_term(left_equals_middle) || proof_uses_v7_term(middle_equals_right),
-        }
-}
-
-fn proposition_uses_v7_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v7(left) || scalar_term_uses_v7(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v7_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v7_term(premise) || proposition_uses_v7_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v7(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v7(value) || scalar_term_uses_v7(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v7(value) || scalar_term_uses_v7(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v7(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v7(left) || scalar_term_uses_v7(right)
-        }
-        ScalarTerm::SaturatingIntegerMultiply { .. } => true,
-        ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v7(left) || scalar_term_uses_v7(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v6_term(node: &ProofNode) -> bool {
-    proposition_uses_v6_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v6_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v6_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v6_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v6_term(implication) || proof_uses_v6_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => proof_uses_v6_term(left_equals_middle) || proof_uses_v6_term(middle_equals_right),
-        }
-}
-
-fn proposition_uses_v6_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v6(left) || scalar_term_uses_v6(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v6_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v6_term(premise) || proposition_uses_v6_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v6(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v6(value) || scalar_term_uses_v6(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v6(value) || scalar_term_uses_v6(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v6(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v6(left) || scalar_term_uses_v6(right)
-        }
-        ScalarTerm::WrappingIntegerMultiply { .. } => true,
-        ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v6(left) || scalar_term_uses_v6(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v5_term(node: &ProofNode) -> bool {
-    proposition_uses_v5_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v5_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v5_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v5_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v5_term(implication) || proof_uses_v5_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => proof_uses_v5_term(left_equals_middle) || proof_uses_v5_term(middle_equals_right),
-        }
-}
-
-fn proposition_uses_v5_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v5(left) || scalar_term_uses_v5(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v5_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v5_term(premise) || proposition_uses_v5_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v5(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v5(value) || scalar_term_uses_v5(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v5(value) || scalar_term_uses_v5(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v5(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v5(left) || scalar_term_uses_v5(right)
-        }
-        ScalarTerm::SaturatingIntegerSubtract { .. } => true,
-        ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v5(left) || scalar_term_uses_v5(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v4_term(node: &ProofNode) -> bool {
-    proposition_uses_v4_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v4_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v4_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v4_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v4_term(implication) || proof_uses_v4_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => proof_uses_v4_term(left_equals_middle) || proof_uses_v4_term(middle_equals_right),
-        }
-}
-
-fn proposition_uses_v4_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v4_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v4_term(premise) || proposition_uses_v4_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v4(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v4(value) || scalar_term_uses_v4(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v4(value) || scalar_term_uses_v4(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v4(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
-        }
-        ScalarTerm::WrappingIntegerSubtract { .. } => true,
-        ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
-            scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
-        }
-        ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
-            scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
-        }
-        ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
-        }
-        ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v4(left) || scalar_term_uses_v4(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v3_term(node: &ProofNode) -> bool {
-    proposition_uses_v3_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v3_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v3_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v3_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v3_term(implication) || proof_uses_v3_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => proof_uses_v3_term(left_equals_middle) || proof_uses_v3_term(middle_equals_right),
-        }
-}
-
-fn proposition_uses_v3_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v3_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v3_term(premise) || proposition_uses_v3_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v3(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v3(value) || scalar_term_uses_v3(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v3(value) || scalar_term_uses_v3(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v3(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        ScalarTerm::SaturatingIntegerAdd { .. } => true,
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
-fn proof_uses_v2_term(node: &ProofNode) -> bool {
-    proposition_uses_v2_term(&node.conclusion)
-        || match &node.rule {
-            ProofRule::Primitive(_)
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Assumption { .. } => false,
-            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v2_term),
-            ProofRule::ConjunctionElimination { conjunction, .. } => {
-                proof_uses_v2_term(conjunction)
-            }
-            ProofRule::ImplicationIntroduction { body } => proof_uses_v2_term(body),
-            ProofRule::ImplicationElimination {
-                implication,
-                premise,
-            } => proof_uses_v2_term(implication) || proof_uses_v2_term(premise),
-            ProofRule::EqualityTransitivity {
-                left_equals_middle,
-                middle_equals_right,
-            } => proof_uses_v2_term(left_equals_middle) || proof_uses_v2_term(middle_equals_right),
-        }
-}
-
-fn proposition_uses_v2_term(proposition: &Proposition) -> bool {
-    match proposition {
-        Proposition::Truth
-        | Proposition::Falsehood
-        | Proposition::Atom(_)
-        | Proposition::ContentConservation(_) => false,
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v2_term),
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => proposition_uses_v2_term(premise) || proposition_uses_v2_term(conclusion),
-    }
-}
-
-fn scalar_term_uses_v2(term: &ScalarTerm) -> bool {
-    match term {
-        ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-        ScalarTerm::SaturatingIntegerDivide { .. } => false,
-        ScalarTerm::WrappingIntegerRemainder { .. } => false,
-        ScalarTerm::WrappingIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerRemainder { .. } => false,
-        ScalarTerm::ExactIntegerDivide { .. } => false,
-        ScalarTerm::ExactIntegerMultiply { .. } => false,
-        ScalarTerm::ExactIntegerSubtract { .. } => false,
-        ScalarTerm::ExactIntegerAdd { .. } => false,
-        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v2(value) || scalar_term_uses_v2(count)
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. } => {
-            scalar_term_uses_v2(value) || scalar_term_uses_v2(count)
-        }
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_uses_v2(operand),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        ScalarTerm::WrappingIntegerAdd { .. } => true,
-        ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
-        }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
-    }
-}
-
 fn encode_raw(bundle: &ProofBundle, format_version: u16) -> Result<Vec<u8>, ProofCodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
@@ -3217,9 +380,6 @@ fn encode_proposition(
             encode_proposition(writer, conclusion, depth + 1, format_version)?;
         }
         Proposition::ContentConservation(conservation) => {
-            if format_version < FORMAT_VERSION_V8 {
-                return Err(ProofCodecError::UnsupportedContentPropositionForFormat);
-            }
             writer.u8(9);
             encode_content_algebra(writer, conservation.algebra())?;
             encode_content_term(writer, conservation.left(), 0, format_version)?;
@@ -3266,9 +426,6 @@ fn encode_content_term(
             for segment in &subject.segments {
                 match segment {
                     ContentPlaceSegment::Case(name) => {
-                        if format_version < FORMAT_VERSION_V9 {
-                            return Err(ProofCodecError::UnsupportedContentCasePathForFormat);
-                        }
                         writer.u8(3);
                         writer.string("content case", name)?;
                     }
@@ -3314,9 +471,6 @@ fn encode_scalar_term(
             writer.u8(u8::from(*value));
         }
         ScalarTerm::BooleanNot { operand } => {
-            if format_version < FORMAT_VERSION_V10 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(10);
             encode_scalar_term(writer, operand, depth + 1, format_version)?;
         }
@@ -3325,9 +479,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V22 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(25);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3338,9 +489,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V23 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(26);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3351,9 +499,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V24 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(27);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3364,9 +509,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V25 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(28);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3377,9 +519,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V26 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(29);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3390,9 +529,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V27 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(30);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3403,9 +539,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V28 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(31);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3416,9 +549,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V29 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(32);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3429,9 +559,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V30 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(33);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3443,9 +570,6 @@ fn encode_scalar_term(
             value,
             count,
         } => {
-            if format_version < FORMAT_VERSION_V21 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(24);
             encode_integer_type(writer, *value_type);
             encode_integer_type(writer, *count_type);
@@ -3458,9 +582,6 @@ fn encode_scalar_term(
             value,
             count,
         } => {
-            if format_version < FORMAT_VERSION_V20 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(23);
             encode_integer_type(writer, *value_type);
             encode_integer_type(writer, *count_type);
@@ -3472,18 +593,12 @@ fn encode_scalar_term(
             target_type,
             operand,
         } => {
-            if format_version < FORMAT_VERSION_V19 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(22);
             encode_integer_type(writer, *source_type);
             encode_integer_type(writer, *target_type);
             encode_scalar_term(writer, operand, depth + 1, format_version)?;
         }
         ScalarTerm::BooleanEqual { left, right } => {
-            if format_version < FORMAT_VERSION_V11 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(11);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
             encode_scalar_term(writer, right, depth + 1, format_version)?;
@@ -3493,9 +608,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V12 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(12);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3506,9 +618,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V13 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(13);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3519,9 +628,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V13 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(14);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3542,9 +648,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V14 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(match term {
                 ScalarTerm::IntegerBitwiseAnd { .. } => 15,
                 ScalarTerm::IntegerBitwiseOr { .. } => 16,
@@ -3567,9 +670,6 @@ fn encode_scalar_term(
             value,
             count,
         } => {
-            if format_version < FORMAT_VERSION_V15 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(match term {
                 ScalarTerm::WrappingIntegerShiftLeft { .. } => 18,
                 ScalarTerm::WrappingIntegerShiftRight { .. } => 19,
@@ -3584,9 +684,6 @@ fn encode_scalar_term(
             scalar_type,
             operand,
         } => {
-            if format_version < FORMAT_VERSION_V16 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(20);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, operand, depth + 1, format_version)?;
@@ -3596,9 +693,6 @@ fn encode_scalar_term(
             target_type,
             operand,
         } => {
-            if format_version < FORMAT_VERSION_V17 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(21);
             encode_integer_type(writer, *source_type);
             encode_integer_type(writer, *target_type);
@@ -3614,9 +708,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V2 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(4);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3627,9 +718,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V3 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(5);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3640,9 +728,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V4 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(6);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3653,9 +738,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V5 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(7);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3666,9 +748,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V6 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(8);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3679,9 +758,6 @@ fn encode_scalar_term(
             left,
             right,
         } => {
-            if format_version < FORMAT_VERSION_V7 {
-                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
-            }
             writer.u8(9);
             encode_integer_type(writer, *scalar_type);
             encode_scalar_term(writer, left, depth + 1, format_version)?;
@@ -3848,7 +924,7 @@ fn decode_proposition(
             premise: Box::new(decode_proposition(reader, depth + 1, format_version)?),
             conclusion: Box::new(decode_proposition(reader, depth + 1, format_version)?),
         },
-        9 if format_version >= FORMAT_VERSION_V8 => {
+        9 => {
             let algebra = decode_content_algebra(reader)?;
             let left = decode_content_term(reader, 0, format_version)?;
             let right = decode_content_term(reader, 0, format_version)?;
@@ -3896,9 +972,7 @@ fn decode_content_term(
                 segments.push(match reader.u8()? {
                     1 => ContentPlaceSegment::Field(reader.string("content field")?),
                     2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
-                    3 if format_version >= FORMAT_VERSION_V9 => {
-                        ContentPlaceSegment::Case(reader.string("content case")?)
-                    }
+                    3 => ContentPlaceSegment::Case(reader.string("content case")?),
                     tag => return Err(ProofCodecError::InvalidTag("ContentPlaceSegment", tag)),
                 });
             }
@@ -3940,100 +1014,98 @@ fn decode_scalar_term(
             ScalarTerm::integer(scalar_type, value)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        4 if format_version >= FORMAT_VERSION_V2 => {
+        4 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::wrapping_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        5 if format_version >= FORMAT_VERSION_V3 => {
+        5 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::saturating_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        6 if format_version >= FORMAT_VERSION_V4 => {
+        6 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::wrapping_integer_subtract(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        7 if format_version >= FORMAT_VERSION_V5 => {
+        7 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::saturating_integer_subtract(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        8 if format_version >= FORMAT_VERSION_V6 => {
+        8 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::wrapping_integer_multiply(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        9 if format_version >= FORMAT_VERSION_V7 => {
+        9 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::saturating_integer_multiply(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        10 if format_version >= FORMAT_VERSION_V10 => {
-            ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1, format_version)?)
-                .map_err(ProofCodecError::MalformedProposition)?
-        }
-        11 if format_version >= FORMAT_VERSION_V11 => {
+        10 => ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1, format_version)?)
+            .map_err(ProofCodecError::MalformedProposition)?,
+        11 => {
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::boolean_equal(left, right).map_err(ProofCodecError::MalformedProposition)?
         }
-        12 if format_version >= FORMAT_VERSION_V12 => {
+        12 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_equal(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        13 if format_version >= FORMAT_VERSION_V13 => {
+        13 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_less_than(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        14 if format_version >= FORMAT_VERSION_V13 => {
+        14 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_less_or_equal(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        15 if format_version >= FORMAT_VERSION_V14 => {
+        15 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_bitwise_and(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        16 if format_version >= FORMAT_VERSION_V14 => {
+        16 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_bitwise_or(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        17 if format_version >= FORMAT_VERSION_V14 => {
+        17 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_bitwise_xor(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        18 if format_version >= FORMAT_VERSION_V15 => {
+        18 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
             let value = decode_scalar_term(reader, depth + 1, format_version)?;
@@ -4041,7 +1113,7 @@ fn decode_scalar_term(
             ScalarTerm::wrapping_integer_shift_left(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        19 if format_version >= FORMAT_VERSION_V15 => {
+        19 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
             let value = decode_scalar_term(reader, depth + 1, format_version)?;
@@ -4049,27 +1121,27 @@ fn decode_scalar_term(
             ScalarTerm::wrapping_integer_shift_right(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        20 if format_version >= FORMAT_VERSION_V16 => {
+        20 => {
             let scalar_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_bitwise_not(scalar_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        21 if format_version >= FORMAT_VERSION_V17 => {
+        21 => {
             let source_type = decode_integer_type(reader)?;
             let target_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_widen(source_type, target_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        22 if format_version >= FORMAT_VERSION_V19 => {
+        22 => {
             let source_type = decode_integer_type(reader)?;
             let target_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::integer_exact_cast(source_type, target_type, operand)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        23 if format_version >= FORMAT_VERSION_V20 => {
+        23 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
             let value = decode_scalar_term(reader, depth + 1, format_version)?;
@@ -4077,7 +1149,7 @@ fn decode_scalar_term(
             ScalarTerm::exact_integer_shift_right(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        24 if format_version >= FORMAT_VERSION_V21 => {
+        24 => {
             let value_type = decode_integer_type(reader)?;
             let count_type = decode_integer_type(reader)?;
             let value = decode_scalar_term(reader, depth + 1, format_version)?;
@@ -4085,63 +1157,63 @@ fn decode_scalar_term(
             ScalarTerm::exact_integer_shift_left(value_type, count_type, value, count)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        25 if format_version >= FORMAT_VERSION_V22 => {
+        25 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::exact_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        26 if format_version >= FORMAT_VERSION_V23 => {
+        26 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::exact_integer_subtract(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        27 if format_version >= FORMAT_VERSION_V24 => {
+        27 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::exact_integer_multiply(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        28 if format_version >= FORMAT_VERSION_V25 => {
+        28 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::exact_integer_divide(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        29 if format_version >= FORMAT_VERSION_V26 => {
+        29 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::exact_integer_remainder(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        30 if format_version >= FORMAT_VERSION_V27 => {
+        30 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::wrapping_integer_divide(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        31 if format_version >= FORMAT_VERSION_V28 => {
+        31 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::wrapping_integer_remainder(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        32 if format_version >= FORMAT_VERSION_V29 => {
+        32 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::saturating_integer_divide(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
-        33 if format_version >= FORMAT_VERSION_V30 => {
+        33 => {
             let scalar_type = decode_integer_type(reader)?;
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
@@ -4352,9 +1424,6 @@ pub enum ProofCodecError {
     ScalarTermNestingTooDeep,
     ContentTermNestingTooDeep,
     ProofNestingTooDeep,
-    UnsupportedScalarTermForFormat,
-    UnsupportedContentPropositionForFormat,
-    UnsupportedContentCasePathForFormat,
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),

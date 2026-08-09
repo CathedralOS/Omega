@@ -3260,7 +3260,7 @@ mod tests {
     };
     use omega_terminal_target_operations::MachineRegister;
     use psi_core::{BlockId, EdgeId};
-    use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
+    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     #[test]
     fn refuses_a_return_whose_value_was_never_materialized() {
@@ -3935,7 +3935,7 @@ mod tests {
 
     fn identity() -> TerminalPsiIdentity {
         TerminalPsiIdentity {
-            semantic_version: SemanticVersion::CURRENT,
+            vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
         }
     }

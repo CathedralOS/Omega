@@ -1025,11 +1025,11 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
             omega_external_roots::FixedFuelLocalEvidence::TerminalEntry(binding) => {
                 let certificate = binding.certificate();
                 output
-                    .push_str(", \"origin\": \"terminal_entry\", \"terminal_semantic_version\": ");
+                    .push_str(", \"origin\": \"terminal_entry\", \"terminal_vocabulary_marker\": ");
                 output.push_str(
                     &certificate
                         .terminal_psi()
-                        .semantic_version
+                        .vocabulary_marker
                         .get()
                         .to_string(),
                 );
@@ -1047,12 +1047,12 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
             omega_external_roots::FixedFuelLocalEvidence::TerminalSegment(binding) => {
                 let certificate = binding.certificate();
                 output.push_str(
-                    ", \"origin\": \"terminal_segment\", \"terminal_semantic_version\": ",
+                    ", \"origin\": \"terminal_segment\", \"terminal_vocabulary_marker\": ",
                 );
                 output.push_str(
                     &certificate
                         .terminal_psi()
-                        .semantic_version
+                        .vocabulary_marker
                         .get()
                         .to_string(),
                 );

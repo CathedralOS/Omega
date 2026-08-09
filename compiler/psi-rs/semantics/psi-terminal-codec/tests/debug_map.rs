@@ -4,8 +4,8 @@ use psi_core::{
     IntegerType, MachineId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentEntryClaim, MachineContract, SemanticVersion,
-    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ClaimContentProjection, ContentEntryClaim, MachineContract, StructuralPlaceDeclaration,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -64,7 +64,7 @@ fn typed_debug_map_rejects_unknown_subjects_invalid_spans_and_order_drift() {
 #[test]
 fn typed_debug_map_accepts_an_entry_only_claim_subject() {
     let mut module = fixture();
-    module.semantic_version = SemanticVersion::V14;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
     let claim = ClaimId::new(1).expect("claim");
     let place = PlaceId::new(1).expect("place");
     module.machines[0].structural_places = vec![StructuralPlaceDeclaration {
@@ -176,7 +176,7 @@ fn fixture() -> TerminalModule {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("valid integer type"));
     TerminalModule {
-        semantic_version: SemanticVersion::V1,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),

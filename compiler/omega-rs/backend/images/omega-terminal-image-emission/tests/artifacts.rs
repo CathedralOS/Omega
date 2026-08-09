@@ -11,7 +11,7 @@ use omega_terminal_image_emission::{
 use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::{EdgeId, MachineId, OperationId, ProfileDecisionId};
-use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
+use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[test]
 fn object_artifact_owns_canonical_function_spans_and_psi_provenance() {
@@ -352,7 +352,7 @@ fn provider_id(raw: u64) -> SelectedProviderPlanIdentity {
 
 fn identity() -> TerminalPsiIdentity {
     TerminalPsiIdentity {
-        semantic_version: SemanticVersion::CURRENT,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
     }
 }

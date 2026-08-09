@@ -1,4 +1,4 @@
-use crate::SemanticVersion;
+use crate::VocabularyMarker;
 
 /// Canonical semantic-module digest bytes.
 ///
@@ -35,6 +35,6 @@ impl std::fmt::Display for SemanticFingerprint {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalPsiIdentity {
-    pub semantic_version: SemanticVersion,
+    pub vocabulary_marker: VocabularyMarker,
     pub program_fingerprint: SemanticFingerprint,
 }

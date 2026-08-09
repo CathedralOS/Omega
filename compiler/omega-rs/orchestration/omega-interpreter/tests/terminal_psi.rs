@@ -15,8 +15,8 @@ use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemVersion,
 };
 use psi_terminal::{
-    Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, SemanticVersion,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    Block, ContractClause, CrashCause, CrashContextMaximum, MachineContract, Operation,
+    OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{
@@ -25,7 +25,7 @@ use psi_terminal_fuel::{
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
 #[test]
-fn verified_v1_integer_control_contract_slice_executes_directly() {
+fn verified_integer_control_contract_slice_executes_directly() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let scalar_type = ScalarType::Integer(integer);
     let constant = ValueId::new(1).expect("constant");
@@ -92,7 +92,7 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
         },
     };
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V1,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -313,7 +313,7 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
 }
 
 #[test]
-fn verified_v22_and_v23_crashes_are_stable_terminal_outcomes() {
+fn verified_crashes_are_stable_terminal_outcomes() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),
@@ -341,13 +341,16 @@ fn verified_v22_and_v23_crashes_are_stable_terminal_outcomes() {
         }],
         contract: MachineContract {
             id: ContractId::new(90).expect("contract"),
-            crash_context: Vec::new(),
+            crash_context: vec![CrashContextMaximum {
+                cause: CrashCause::Trap,
+                maximum_scope: "ExecutionDomain".to_owned(),
+            }],
             requires: Vec::new(),
             ensures: Vec::new(),
         },
     };
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V22,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
@@ -387,7 +390,7 @@ fn verified_v22_and_v23_crashes_are_stable_terminal_outcomes() {
     assert_eq!(meter.usage().total_units(), 1, "crash must not replay");
 
     let mut current = module.clone();
-    current.semantic_version = SemanticVersion::V23;
+    current.vocabulary_marker = VocabularyMarker::CURRENT;
     let Terminator::Crash {
         containment_demand, ..
     } = &mut current.machines[0].blocks[0].terminator
@@ -400,7 +403,7 @@ fn verified_v22_and_v23_crashes_are_stable_terminal_outcomes() {
         &ProofBundle::default(),
         &AdmissionProfile::default(),
     )
-    .expect("the separated v23 crash scopes verify");
+    .expect("the separated crash scopes verify");
     assert_eq!(
         interpret_terminal(&verified, &[]),
         Err(TerminalInterpretError::Crash(TerminalCrash {
@@ -450,7 +453,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         },
     };
     let module = TerminalModule {
-        semantic_version: SemanticVersion::V1,
+        vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
