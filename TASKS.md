@@ -357,6 +357,18 @@ Remaining:
   A zero or runtime-unknown divisor fails closed. Proof format v25, canonical
   semantic v34 bytes, one-unit fuel, artifact interpretation, Omega lowering,
   and truncating x86-64/AArch64 native emission are live.
+  Terminal Psi v35 now carries proof-gated Exact fixed-integer remainder.
+  Source validation retains `%` after rejecting a provably zero divisor; the
+  terminal verifier independently reconstructs the same quotient-definedness
+  boundary as exact division from a terminal-known right operand. Any nonzero
+  unsigned divisor is total. A signed divisor other than zero and negative one
+  is total; negative one requires `MIN + 1 <= dividend`. Two compile-known
+  operands reduce to truth only when truncating remainder is defined and
+  admitted. Zero and runtime-unknown divisors fail closed. Proof format v26,
+  canonical semantic v35 bytes, one-unit fuel, artifact interpretation, Omega
+  lowering, and truncating x86-64/AArch64 native emission are live. This `%`
+  result keeps the dividend's sign and is distinct from Euclidean modulo used
+  to normalize wrapping shift counts.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

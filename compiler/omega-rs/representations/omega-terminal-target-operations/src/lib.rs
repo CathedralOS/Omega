@@ -355,6 +355,11 @@ pub enum TerminalTargetIntegerExpression {
         left: Box<TerminalTargetIntegerExpression>,
         right: Box<TerminalTargetIntegerExpression>,
     },
+    ExactRemainder {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
     SaturatingMultiply {
         psi_operation: OperationId,
         left: Box<TerminalTargetIntegerExpression>,

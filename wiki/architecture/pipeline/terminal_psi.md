@@ -60,8 +60,8 @@ its current 64-bit representation; v28 adds proof-gated exact conversions
 between fixed integer carriers; v29 adds proof-gated Exact integer right shift;
 v30 adds proof-gated Exact integer left shift; v31 adds proof-gated Exact
 integer addition; v32 adds proof-gated Exact integer subtraction; v33 adds
-proof-gated Exact integer multiplication; and current v34 adds
-proof-gated Exact integer division.
+proof-gated Exact integer multiplication; v34 adds proof-gated Exact integer
+division; and current v35 adds proof-gated Exact integer remainder.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -108,6 +108,14 @@ unsigned divisor is total. A signed divisor other than zero and negative one is
 total; negative one requires `MIN + 1 <= dividend`. Two known operands reduce
 to truth only when truncating-toward-zero division is defined and admitted by
 the result carrier. A zero or runtime-unknown divisor fails closed.
+An Exact remainder retains the same operand and result types and owns the same
+quotient-definedness boundary. The first v35 reconstruction surface requires a
+terminal-known right operand. Nonzero unsigned divisors and signed divisors
+other than negative one are total; negative one requires
+`MIN + 1 <= dividend`. Two known operands reduce to truth only when truncating
+remainder is defined and admitted. Zero and runtime-unknown divisors fail
+closed. The signed result follows truncating division and therefore keeps the
+dividend's sign; it is not the Euclidean modulo used for wrapping shift counts.
 None of v9-v14 or v16 adds an executable operation. The conditional is control vocabulary rather than an
 operation, and an entry-claim binding is identity metadata rather than a
 proposition. The current crash row is the first representation slice: the
@@ -453,6 +461,11 @@ excluding the sole fixed-width signed overflow. Zero and an unknown divisor
 reconstruct falsehood. Two known operands reduce to truth only when the exact
 truncating quotient is admitted. Once verified, Omega may select ordinary
 signed or unsigned fixed-width division.
+Terminal Psi v35 retains Exact fixed-integer remainder as
+`ExactIntegerRemainder { left, right, obligation }`. Its verifier reconstruction
+uses the same known-divisor and signed-minimum boundary as division. Once
+verified, Omega may select ordinary signed or unsigned fixed-width remainder;
+the result follows truncating division rather than Euclidean modulo.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1106,10 +1119,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v34 modules under their original
+execution continue to accept valid v1 through v35 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v34 translation.
+`migrate_module_to_current` is an explicit validated older-to-v35 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1120,8 +1133,8 @@ independently freeze the v25 integer-bitwise-complement fixture, the v26
 integer-widening fixture, the v27 address-carrier fixture, the v28 exact-cast
 fixture, the v29 exact-right-shift fixture, the v30 exact-left-shift fixture,
 the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
-exact-multiply fixture, the v34 exact-divide fixture, and the current-vocabulary
-v34 identity, plus the
+exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
+fixture, and the current-vocabulary v35 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
@@ -1150,6 +1163,9 @@ integer terms; format v19 adds recursive exact-integer-cast terms; and format
 v20 adds recursive exact-right-shift terms with independent value and count
 integer types; v21 adds recursive exact-left-shift terms; and v22 adds recursive
 exact-integer-add terms.
+Format v23 adds recursive exact-integer-subtract terms, v24 adds recursive
+exact-integer-multiply terms, v25 adds recursive exact-integer-divide terms,
+and v26 adds recursive exact-integer-remainder terms.
 The encoder selects the minimal format needed by a carried proof tree, and the
 decoder rejects a bundle encoded with a newer format than its proof tree needs.
 Evidence entries are strictly ordered by `ObligationId`; the

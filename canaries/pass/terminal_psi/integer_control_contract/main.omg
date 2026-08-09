@@ -983,6 +983,20 @@ ensures 0i64 == 0i64
     value / 2i64
 }
 
+machine terminal_exact_remainder_known_right(value: u32, ignored: u32) -> u32
+requires 0u32 == 0u32
+ensures 0u32 == 0u32
+{
+    value % 5u32
+}
+
+machine terminal_exact_signed_remainder_known_right(value: i64, ignored: i64) -> i64
+requires 0i64 == 0i64
+ensures 0i64 == 0i64
+{
+    value % 5i64
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true
