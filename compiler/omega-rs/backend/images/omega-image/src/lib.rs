@@ -12,8 +12,8 @@ mod x86_64_relocations;
 pub use aarch64_relocations::apply_aarch64_relocations;
 pub use builder::{FinalImageInput, build_final_image};
 pub use footprint_certificate::{
-    FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION, FINAL_FOOTPRINT_CERTIFICATE_SCHEMA,
-    FinalFootprintCertificate, FinalFootprintClass, FinalFootprintCoverage,
+    FINAL_FOOTPRINT_CERTIFICATE_MARKER, FinalFootprintCertificate, FinalFootprintClass,
+    FinalFootprintCoverage,
 };
 pub use model::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,

@@ -4,8 +4,7 @@ use crate::{
 };
 use psi_diagnostics::Diagnostic;
 
-pub const FINAL_FOOTPRINT_CERTIFICATE_SCHEMA: &str = "omega.final-footprint-certificate";
-pub const FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION: u32 = 141;
+pub const FINAL_FOOTPRINT_CERTIFICATE_MARKER: &str = "omega.final-footprint-certificate.current";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
@@ -164,8 +163,7 @@ impl FinalFootprintCoverage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalFootprintCertificate {
-    pub schema: &'static str,
-    pub format_version: u32,
+    pub marker: &'static str,
     pub certificate_fingerprint: u64,
     pub coverage_fingerprint: u64,
     pub coverage: FinalFootprintCoverage,
@@ -228,8 +226,7 @@ impl FinalFootprintCertificate {
             inventory.inventory_fingerprint,
         );
         Ok(Self {
-            schema: FINAL_FOOTPRINT_CERTIFICATE_SCHEMA,
-            format_version: FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION,
+            marker: FINAL_FOOTPRINT_CERTIFICATE_MARKER,
             certificate_fingerprint,
             coverage_fingerprint,
             coverage,
@@ -244,11 +241,9 @@ impl FinalFootprintCertificate {
     }
 
     pub fn validate_identity(&self) -> Result<(), Diagnostic> {
-        if self.schema != FINAL_FOOTPRINT_CERTIFICATE_SCHEMA
-            || self.format_version != FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION
-        {
+        if self.marker != FINAL_FOOTPRINT_CERTIFICATE_MARKER {
             return Err(Diagnostic::error(
-                "unsupported final footprint certificate schema or format version",
+                "unsupported final footprint certificate marker",
             ));
         }
         self.coverage.validate_normalized()?;
@@ -367,11 +362,7 @@ fn certificate_fingerprint(
     inventory_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
-    fingerprint_bytes(&mut hash, FINAL_FOOTPRINT_CERTIFICATE_SCHEMA.as_bytes());
-    fingerprint_bytes(
-        &mut hash,
-        &FINAL_FOOTPRINT_CERTIFICATE_FORMAT_VERSION.to_le_bytes(),
-    );
+    fingerprint_bytes(&mut hash, FINAL_FOOTPRINT_CERTIFICATE_MARKER.as_bytes());
     fingerprint_bytes(&mut hash, &coverage_fingerprint.to_le_bytes());
     fingerprint_bytes(
         &mut hash,
@@ -448,6 +439,11 @@ mod tests {
         certificate.validate_identity().expect("valid identity");
 
         for drifted in [
+            {
+                let mut value = certificate.clone();
+                value.marker = "omega.final-footprint-certificate.stale";
+                value
+            },
             {
                 let mut value = certificate.clone();
                 value.coverage.missing_classes.pop();

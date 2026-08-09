@@ -168,9 +168,8 @@ fn write_executable_region_inventory(
     let coverage = &certificate.coverage;
     let inventory = &certificate.inventory;
     let mut json = format!(
-        "{{\n  \"certificate_schema\": \"{}\",\n  \"certificate_format_version\": {},\n  \"certificate_fingerprint\": \"0x{:016x}\",\n  \"coverage_fingerprint\": \"0x{:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": {},\n  \"region_enumeration_complete\": {},\n  \"footprint_enumeration_complete\": {},\n",
-        certificate.schema,
-        certificate.format_version,
+        "{{\n  \"certificate_marker\": \"{}\",\n  \"certificate_fingerprint\": \"0x{:016x}\",\n  \"coverage_fingerprint\": \"0x{:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": {},\n  \"region_enumeration_complete\": {},\n  \"footprint_enumeration_complete\": {},\n",
+        certificate.marker,
         certificate.certificate_fingerprint,
         certificate.coverage_fingerprint,
         coverage.enumeration_complete,
