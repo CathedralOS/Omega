@@ -1428,7 +1428,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-add semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-add proof");
     let module = decode_module(&semantic).expect("decode exact-add semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_add_proof = decode_proof_bundle(&proof).expect("decode exact-add proof");
     missing_add_proof
         .evidence
@@ -1522,7 +1522,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-subtract semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-subtract proof");
     let module = decode_module(&semantic).expect("decode exact-subtract semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_subtract_proof =
         decode_proof_bundle(&proof).expect("decode exact-subtract proof");
     missing_subtract_proof
@@ -1621,7 +1621,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-multiply semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-multiply proof");
     let module = decode_module(&semantic).expect("decode exact-multiply semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_multiply_proof =
         decode_proof_bundle(&proof).expect("decode exact-multiply proof");
     missing_multiply_proof
@@ -1725,7 +1725,7 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-divide proof");
     let module = decode_module(&semantic).expect("decode exact-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_divide_proof = decode_proof_bundle(&proof).expect("decode exact-divide proof");
     missing_divide_proof
         .evidence
@@ -1862,7 +1862,7 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("exact-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-remainder proof");
     let module = decode_module(&semantic).expect("decode exact-remainder semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_remainder_proof =
         decode_proof_bundle(&proof).expect("decode exact-remainder proof");
     missing_remainder_proof
@@ -2002,7 +2002,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-divide proof");
     let module = decode_module(&semantic).expect("decode wrapping-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_divide_proof =
         decode_proof_bundle(&proof).expect("decode wrapping-divide proof");
     missing_divide_proof
@@ -2148,7 +2148,7 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-remainder proof");
     let module = decode_module(&semantic).expect("decode wrapping-remainder semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_remainder_proof =
         decode_proof_bundle(&proof).expect("decode wrapping-remainder proof");
     missing_remainder_proof
@@ -2295,7 +2295,7 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("saturating-divide proof");
     let module = decode_module(&semantic).expect("decode saturating-divide semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_divide_proof =
         decode_proof_bundle(&proof).expect("decode saturating-divide proof");
     missing_divide_proof
@@ -2442,7 +2442,7 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("saturating-remainder proof");
     let module = decode_module(&semantic).expect("decode saturating-remainder semantics");
-    assert_eq!(module.semantic_version, SemanticVersion::V40);
+    assert_eq!(module.semantic_version, SemanticVersion::V41);
     let mut missing_remainder_proof =
         decode_proof_bundle(&proof).expect("decode saturating-remainder proof");
     missing_remainder_proof
@@ -2579,7 +2579,7 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         assert_eq!(
             lowered.semantic_module.semantic_version,
-            SemanticVersion::V40
+            SemanticVersion::V41
         );
         let obligation = lowered.semantic_module.machines[0]
             .blocks
@@ -2639,6 +2639,52 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             emit_machine_code(&assigned)
                 .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
         }
+    }
+}
+
+#[test]
+fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_one() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("guarded negative runtime-divisor source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_divide_guarded_negative_right")
+        .expect("divisor <= -2 should lower exact signed division");
+    assert_eq!(
+        lowered.semantic_module.semantic_version,
+        SemanticVersion::V41
+    );
+    let semantic = encode_module(&lowered.semantic_module).expect("negative-divisor semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("negative-divisor proof");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i32_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execution = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(23), argument(-5)],
+    )
+    .expect("negative guarded divisor should interpret");
+    assert_eq!(execution.value(), argument(-4));
+    let bypassed = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[argument(23), argument(-1)],
+    )
+    .expect("negative one should take the bypass arm");
+    assert_eq!(bypassed.value(), argument(0));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("negative-divisor artifact should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("negative-divisor control should select");
+        let assigned =
+            assign_registers(&target_operations).expect("negative-divisor control should assign");
+        emit_machine_code(&assigned).expect("negative-divisor control should emit");
     }
 }
 

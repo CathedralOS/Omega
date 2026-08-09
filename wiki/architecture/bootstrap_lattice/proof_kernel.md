@@ -162,6 +162,13 @@ control edge can establish and transport that fact into the selected arm; the
 other arm must bypass the arithmetic. Older semantic versions, zero, and an
 unbounded runtime divisor still reconstruct falsehood.
 
+Terminal Psi v41 adds the complementary signed relational form. When a
+path-local semantic axiom is exactly `divisor <= -2`, the six fixed-integer
+division/remainder reconstructors select it as their operation-owned
+proposition. That bound excludes zero and negative one, so it discharges both
+definedness and Exact's sole signed quotient overflow. Earlier versions keep
+their prior reconstruction.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

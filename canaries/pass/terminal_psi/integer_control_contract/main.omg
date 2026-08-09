@@ -1173,6 +1173,20 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_divide_guarded_negative_right(value: i32, divisor: i32) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+{
+    transition divisor <= -2i32 {
+        true -> finish_exact_divide_guarded_negative_right(value / divisor)
+        _ -> finish_exact_divide_guarded_negative_right(0i32)
+    }
+
+    state finish_exact_divide_guarded_negative_right(value: i32) -> i32 {
+        value
+    }
+}
+
 machine terminal_boolean_not_equal_runtime(left: bool, right: bool) -> bool
 requires true == true
 ensures true == true

@@ -405,6 +405,12 @@ Remaining:
   Older semantic versions and unbounded runtime divisors remain fail-closed.
   The existing proof vocabulary, canonical artifacts, selected-path fuel,
   interpretation, and both native targets carry the complete relational slice.
+  Terminal Psi v41 adds the complementary signed runtime-divisor range. A
+  checked true edge proving `divisor <= -2` is selected as the operation-owned
+  proposition for all six fixed division/remainder operations, excluding both
+  zero and Exact's signed `MIN / -1` overflow. v40 and earlier retain their
+  prior reconstruction. Canonical artifacts, proof replay, selected-path fuel,
+  interpretation, and both native targets carry the signed relational slice.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
