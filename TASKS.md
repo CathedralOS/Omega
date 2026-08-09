@@ -369,6 +369,14 @@ Remaining:
   lowering, and truncating x86-64/AArch64 native emission are live. This `%`
   result keeps the dividend's sign and is distinct from Euclidean modulo used
   to normalize wrapping shift counts.
+  Terminal Psi v36 now carries proof-gated Wrapping fixed-integer division.
+  The terminal verifier requires a terminal-known nonzero divisor but does not
+  impose Exact's signed-minimum bound: `MIN / -1` reduces to `MIN` at the
+  declared width. Zero and runtime-unknown divisors fail closed. Proof format
+  v27, canonical semantic v36 bytes, one-unit fuel, artifact interpretation,
+  Omega lowering, and x86-64/AArch64 native emission are live. AArch64 uses
+  its defined signed divide result directly; x86-64 guards divisor `-1` and
+  uses width-normalized negation so the wrapping corner cannot raise `#DE`.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

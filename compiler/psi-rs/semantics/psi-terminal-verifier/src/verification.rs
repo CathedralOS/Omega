@@ -155,6 +155,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     | OperationKind::ExactIntegerMultiply { .. }
                     | OperationKind::ExactIntegerDivide { .. }
                     | OperationKind::ExactIntegerRemainder { .. }
+                    | OperationKind::WrappingIntegerDivide { .. }
             )
         })
     });
@@ -636,6 +637,35 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                         value_term(right),
                     )
                     .expect("validator requires exact exact-remainder operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
+                OperationKind::WrappingIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires wrapping-divide integer result type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: wrapping_integer_divide_obligation(
+                                integer_type,
+                                value_term(left),
+                                value_term(right),
+                                &axioms,
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::wrapping_integer_divide(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact wrapping-divide operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
                 OperationKind::WrappingIntegerAdd { left, right } => {
@@ -1287,6 +1317,30 @@ fn exact_integer_remainder_obligation(
     }
 }
 
+fn wrapping_integer_divide_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
+    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
+    if let (Some(left), Some(right)) = (known_left, known_right) {
+        return if integer_type.wrapping_div(left, right).is_some() {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
+    match (integer_type.sign(), known_right) {
+        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
+        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
+        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
+        | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
+        _ => Proposition::Falsehood,
+    }
+}
+
 fn known_integer_term_value(
     integer_type: psi_core::IntegerType,
     term: &ScalarTerm,
@@ -1633,6 +1687,15 @@ fn substitute_scalar_term_values(
             left: Box::new(recurse(left)),
             right: Box::new(recurse(right)),
         },
+        ScalarTerm::WrappingIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } => ScalarTerm::WrappingIntegerDivide {
+            scalar_type: *scalar_type,
+            left: Box::new(recurse(left)),
+            right: Box::new(recurse(right)),
+        },
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
@@ -1937,6 +2000,44 @@ mod tests {
         );
         assert_eq!(
             exact_integer_remainder_obligation(
+                i8_type,
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
+                unknown,
+                &[]
+            ),
+            Proposition::Falsehood
+        );
+    }
+
+    #[test]
+    fn wrapping_divide_reconstructs_known_nonzero_divisor_safety() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let value = ScalarTerm::value(
+            ValueId::new(1).expect("value"),
+            ScalarType::Integer(i8_type),
+        );
+        let negative_one = ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).unwrap();
+        assert_eq!(
+            wrapping_integer_divide_obligation(i8_type, value.clone(), negative_one, &[]),
+            Proposition::Truth
+        );
+        let zero = ScalarTerm::integer(i8_type, IntegerValue::Signed(0)).unwrap();
+        assert_eq!(
+            wrapping_integer_divide_obligation(i8_type, value, zero, &[]),
+            Proposition::Falsehood
+        );
+        let minimum = ScalarTerm::integer(i8_type, IntegerValue::Signed(-128)).unwrap();
+        let negative_one = ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).unwrap();
+        assert_eq!(
+            wrapping_integer_divide_obligation(i8_type, minimum, negative_one, &[]),
+            Proposition::Truth
+        );
+        let unknown = ScalarTerm::value(
+            ValueId::new(2).expect("divisor"),
+            ScalarType::Integer(i8_type),
+        );
+        assert_eq!(
+            wrapping_integer_divide_obligation(
                 i8_type,
                 ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
                 unknown,

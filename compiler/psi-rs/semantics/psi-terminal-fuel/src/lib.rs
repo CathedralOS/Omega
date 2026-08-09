@@ -60,6 +60,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ExactIntegerMultiply { .. }
             | OperationKind::ExactIntegerDivide { .. }
             | OperationKind::ExactIntegerRemainder { .. }
+            | OperationKind::WrappingIntegerDivide { .. }
             | OperationKind::WrappingIntegerAdd { .. }
             | OperationKind::SaturatingIntegerAdd { .. }
             | OperationKind::WrappingIntegerSubtract { .. }

@@ -934,6 +934,32 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::WrappingIntegerDivide {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            } => {
+                let value = lower_conditional_integer_binary(
+                    &values,
+                    *result,
+                    *scalar_type,
+                    *left,
+                    *right,
+                    IntegerBinaryKind::WrappingDivide,
+                    *psi_operation,
+                )?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::Jump {
                 psi_edge, bindings, ..
             } => {
@@ -2079,6 +2105,26 @@ fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::WrappingDivide,
+                *psi_operation,
+            )?,
+        ),
         TerminalAbstractOperation::IntegerBitwiseNot {
             psi_operation,
             result,
@@ -2326,6 +2372,7 @@ enum IntegerBinaryKind {
     SaturatingMultiply,
     ExactDivide,
     ExactRemainder,
+    WrappingDivide,
 }
 
 #[derive(Clone, Copy)]
@@ -2508,6 +2555,7 @@ impl IntegerBinaryKind {
             }
             Self::ExactDivide => LoweringError::ExactDivideOperandTypeMismatch(result),
             Self::ExactRemainder => LoweringError::ExactRemainderOperandTypeMismatch(result),
+            Self::WrappingDivide => LoweringError::WrappingDivideOperandTypeMismatch(result),
         }
     }
 
@@ -2529,6 +2577,7 @@ impl IntegerBinaryKind {
             Self::SaturatingMultiply => scalar_type.saturating_mul(left, right),
             Self::ExactDivide => scalar_type.exact_div(left, right),
             Self::ExactRemainder => scalar_type.exact_rem(left, right),
+            Self::WrappingDivide => scalar_type.wrapping_div(left, right),
         }
     }
 
@@ -2592,6 +2641,11 @@ impl IntegerBinaryKind {
                 right,
             },
             Self::ExactRemainder => TerminalTargetIntegerExpression::ExactRemainder {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::WrappingDivide => TerminalTargetIntegerExpression::WrappingDivide {
                 psi_operation,
                 left,
                 right,
@@ -2937,6 +2991,9 @@ fn conditional_provenance(
             TerminalAbstractOperation::ExactIntegerRemainder { psi_operation, .. } => {
                 Some(*psi_operation)
             }
+            TerminalAbstractOperation::WrappingIntegerDivide { psi_operation, .. } => {
+                Some(*psi_operation)
+            }
             TerminalAbstractOperation::Jump { .. }
             | TerminalAbstractOperation::Conditional { .. }
             | TerminalAbstractOperation::Return { .. }
@@ -3002,6 +3059,7 @@ pub enum LoweringError {
     SaturatingMultiplyOperandTypeMismatch(ValueId),
     ExactDivideOperandTypeMismatch(ValueId),
     ExactRemainderOperandTypeMismatch(ValueId),
+    WrappingDivideOperandTypeMismatch(ValueId),
     ParameterWidthNotNativelySupported { value: ValueId, bits: u16 },
     UnsupportedScalarParameterPlacement(ValueId),
     AbiPlan(PlanDiagnostic),

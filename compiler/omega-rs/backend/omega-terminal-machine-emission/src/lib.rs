@@ -1368,6 +1368,49 @@ fn emit_x86_64_expression_node(
             bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
             emit_x86_64_normalize(bytes, scalar_type);
         }
+        TerminalAssignedIntegerExpression::WrappingDivide { left, right, .. } => {
+            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            bytes.push(0x50);
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.push(0x50); // push divisor
+            bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
+            match scalar_type.sign() {
+                IntegerSign::Unsigned => {
+                    bytes.extend_from_slice(&[0x31, 0xd2]);
+                    bytes.extend_from_slice(&[0x48, 0xf7, 0x34, 0x24]);
+                    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
+                    emit_x86_64_normalize(bytes, scalar_type);
+                }
+                IntegerSign::Signed => {
+                    let mut negative_one = vec![0x48, 0xf7, 0xd8]; // neg rax
+                    negative_one.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
+                    emit_x86_64_normalize(&mut negative_one, scalar_type);
+
+                    let mut ordinary = vec![0x48, 0x99]; // cqo
+                    ordinary.extend_from_slice(&[0x48, 0xf7, 0x3c, 0x24]);
+                    ordinary.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
+                    emit_x86_64_normalize(&mut ordinary, scalar_type);
+
+                    bytes.extend_from_slice(&[0x48, 0x83, 0x3c, 0x24, 0xff]); // cmp [rsp], -1
+                    bytes.extend_from_slice(&[0x0f, 0x85]); // jne ordinary
+                    let ordinary_offset = i32::try_from(negative_one.len() + 5)
+                        .expect("wrapping-divide branch is small");
+                    bytes.extend_from_slice(&ordinary_offset.to_le_bytes());
+                    bytes.extend_from_slice(&negative_one);
+                    bytes.push(0xe9); // jmp done
+                    let done_offset =
+                        i32::try_from(ordinary.len()).expect("wrapping-divide branch is small");
+                    bytes.extend_from_slice(&done_offset.to_le_bytes());
+                    bytes.extend_from_slice(&ordinary);
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -1993,6 +2036,34 @@ fn emit_aarch64_expression_node(
             instructions.push(0x9b00_a540); // msub x0, x10, x0, x9
             emit_aarch64_normalize(instructions, scalar_type);
         }
+        TerminalAssignedIntegerExpression::WrappingDivide { left, right, .. } => {
+            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                expression_source(left),
+                0,
+            )?);
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                expression_source(left),
+                0,
+            )?);
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            instructions.push(match scalar_type.sign() {
+                IntegerSign::Signed => 0x9ac0_0d20,   // sdiv x0, x9, x0
+                IntegerSign::Unsigned => 0x9ac0_0920, // udiv x0, x9, x0
+            });
+            emit_aarch64_normalize(instructions, scalar_type);
+        }
     }
     Ok(())
 }
@@ -2181,6 +2252,7 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         }
         TerminalAssignedIntegerExpression::ExactDivide { left, .. } => expression_source(left),
         TerminalAssignedIntegerExpression::ExactRemainder { left, .. } => expression_source(left),
+        TerminalAssignedIntegerExpression::WrappingDivide { left, .. } => expression_source(left),
     }
 }
 
@@ -3156,6 +3228,71 @@ mod tests {
             let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
             assert!(instructions.contains(&aarch64_divide));
             assert!(instructions.contains(&0x9b00_a540)); // msub x0, x10, x0, x9
+            assert_eq!(instructions.last(), Some(&0xd65f_03c0));
+        }
+    }
+
+    #[test]
+    fn emits_parameter_fed_wrapping_divide_for_both_architectures() {
+        for (sign, x86_opcode, aarch64_opcode) in [
+            (IntegerSign::Unsigned, [0x48, 0xf7, 0x34], 0x9ac0_0920),
+            (IntegerSign::Signed, [0x48, 0xf7, 0x3c], 0x9ac0_0d20),
+        ] {
+            let scalar_type = IntegerType::new(sign, 64).expect("64-bit integer");
+            let expression = |left, right| TerminalTargetIntegerExpression::WrappingDivide {
+                psi_operation: OperationId::new(6).expect("operation"),
+                left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(1).expect("left"),
+                    parameter_index: 0,
+                    location: left,
+                }),
+                right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(2).expect("right"),
+                    parameter_index: 1,
+                    location: right,
+                }),
+            };
+            let x86 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_x64(),
+                scalar_type,
+                expression(
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+                ),
+            ))
+            .expect("x86-64 wrapping divide emits");
+            assert!(
+                x86.functions[0]
+                    .bytes
+                    .windows(x86_opcode.len())
+                    .any(|window| window == x86_opcode)
+            );
+            if sign == IntegerSign::Signed {
+                assert!(
+                    x86.functions[0]
+                        .bytes
+                        .windows(5)
+                        .any(|window| window == [0x48, 0x83, 0x3c, 0x24, 0xff])
+                );
+                assert!(
+                    x86.functions[0]
+                        .bytes
+                        .windows(3)
+                        .any(|window| window == [0x48, 0xf7, 0xd8])
+                );
+            }
+
+            let aarch64 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_arm64(),
+                scalar_type,
+                expression(
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+                ),
+            ))
+            .expect("AArch64 wrapping divide emits");
+            let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+            assert!(instructions.contains(&aarch64_opcode));
             assert_eq!(instructions.last(), Some(&0xd65f_03c0));
         }
     }

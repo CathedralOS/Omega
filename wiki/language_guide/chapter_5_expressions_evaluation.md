@@ -354,6 +354,11 @@ primitive **domain** that defines the behavior:
 - `Trapping`: checks at runtime and traps on overflow — the escape hatch when
   safety cannot be proven and neither wrap nor saturate is wanted.
 
+For signed division's sole overflow, `Wrapping` defines `MIN / -1 == MIN`,
+while `Saturating` defines `MIN / -1 == MAX`; the corresponding remainder is
+zero in both policies. Division or remainder by zero is not overflow and is
+never licensed by either policy.
+
 These three domains occupy one closed **arithmetic-policy semantic role**.
 Exactly one policy may govern an operation. The role composes with independent
 domain roles: `Km & Wrapping` combines dimensional meaning with modular
