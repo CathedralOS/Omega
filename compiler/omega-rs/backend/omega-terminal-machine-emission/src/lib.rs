@@ -1317,6 +1317,31 @@ fn emit_x86_64_expression_node(
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
             }
         }
+        TerminalAssignedIntegerExpression::ExactDivide { left, right, .. } => {
+            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            bytes.push(0x50); // push rax
+            let nested_depth = stack_depth.checked_add(8).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
+            bytes.push(0x50); // push divisor
+            bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
+            match scalar_type.sign() {
+                IntegerSign::Signed => {
+                    bytes.extend_from_slice(&[0x48, 0x99]); // cqo
+                    bytes.extend_from_slice(&[0x48, 0xf7, 0x3c, 0x24]); // idiv qword [rsp]
+                }
+                IntegerSign::Unsigned => {
+                    bytes.extend_from_slice(&[0x31, 0xd2]); // xor edx, edx
+                    bytes.extend_from_slice(&[0x48, 0xf7, 0x34, 0x24]); // div qword [rsp]
+                }
+            }
+            bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]); // add rsp, 8
+            emit_x86_64_normalize(bytes, scalar_type);
+        }
     }
     Ok(())
 }
@@ -1885,6 +1910,34 @@ fn emit_aarch64_expression_node(
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
             }
         }
+        TerminalAssignedIntegerExpression::ExactDivide { left, right, .. } => {
+            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_adjust_sp(instructions, 16, false)?;
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                0,
+                expression_source(left),
+                0,
+            )?); // str x0, [sp]
+            let nested_depth = stack_depth.checked_add(16).ok_or(
+                EmissionError::ExpressionStackDepthNotEncodable {
+                    value: expression_source(left),
+                },
+            )?;
+            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            instructions.push(aarch64_stack_access(
+                0xf940_0000,
+                9,
+                expression_source(left),
+                0,
+            )?); // ldr x9, [sp]
+            emit_aarch64_adjust_sp(instructions, 16, true)?;
+            instructions.push(match scalar_type.sign() {
+                IntegerSign::Signed => 0x9ac0_0d20,   // sdiv x0, x9, x0
+                IntegerSign::Unsigned => 0x9ac0_0920, // udiv x0, x9, x0
+            });
+            emit_aarch64_normalize(instructions, scalar_type);
+        }
     }
     Ok(())
 }
@@ -2071,6 +2124,7 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, .. } => {
             expression_source(left)
         }
+        TerminalAssignedIntegerExpression::ExactDivide { left, .. } => expression_source(left),
     }
 }
 
@@ -2939,6 +2993,57 @@ mod tests {
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
         assert!(instructions.contains(&0x9b00_7d20)); // mul x0, x9, x0
         assert_eq!(instructions.last(), Some(&0xd65f_03c0));
+    }
+
+    #[test]
+    fn emits_parameter_fed_exact_divide_for_both_architectures() {
+        for (sign, x86_opcode, aarch64_opcode) in [
+            (IntegerSign::Unsigned, [0x48, 0xf7, 0x34], 0x9ac0_0920),
+            (IntegerSign::Signed, [0x48, 0xf7, 0x3c], 0x9ac0_0d20),
+        ] {
+            let scalar_type = IntegerType::new(sign, 64).expect("64-bit integer");
+            let expression = |left, right| TerminalTargetIntegerExpression::ExactDivide {
+                psi_operation: OperationId::new(4).expect("operation"),
+                left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(1).expect("left"),
+                    parameter_index: 0,
+                    location: left,
+                }),
+                right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                    source_value: ValueId::new(2).expect("right"),
+                    parameter_index: 1,
+                    location: right,
+                }),
+            };
+            let x86 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_x64(),
+                scalar_type,
+                expression(
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                    TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+                ),
+            ))
+            .expect("x86-64 exact divide emits");
+            assert!(
+                x86.functions[0]
+                    .bytes
+                    .windows(x86_opcode.len())
+                    .any(|window| window == x86_opcode)
+            );
+
+            let aarch64 = emit_machine_code(&expression_plan(
+                NativeTarget::linux_arm64(),
+                scalar_type,
+                expression(
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                    TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+                ),
+            ))
+            .expect("AArch64 exact divide emits");
+            let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+            assert!(instructions.contains(&aarch64_opcode));
+            assert_eq!(instructions.last(), Some(&0xd65f_03c0));
+        }
     }
 
     #[test]

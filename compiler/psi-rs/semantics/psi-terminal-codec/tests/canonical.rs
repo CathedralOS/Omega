@@ -32,7 +32,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "acbf9bbdc9b62ff46fdaf02eaf0a0bf39d58419ce1bb1ab7835568fd9deb6b9d"
+        "d0b14a23a4e1a1eed628dd46d89222136d393e258e69e0939a3ca2f99283cb90"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -964,6 +964,65 @@ fn v33_exact_multiply_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "89073e4a28853cd7b262435f90f67088ed3ae5de0789db32fbd75f715aa5173b"
+    );
+}
+
+#[test]
+fn v34_exact_divide_has_stable_canonical_bytes() {
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let left = value_id(50);
+    let right = value_id(51);
+    let computed = value_id(52);
+    let result = value_id(53);
+    let declaration = |id| ValueDeclaration {
+        id,
+        scalar_type: ScalarType::Integer(scalar_type),
+    };
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V34,
+        entry: machine_id(24),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(24),
+            parameters: vec![declaration(left), declaration(right)],
+            result: declaration(result),
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(24),
+            blocks: vec![Block {
+                id: block_id(24),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(24),
+                    result: declaration(computed),
+                    kind: OperationKind::ExactIntegerDivide {
+                        left,
+                        right,
+                        obligation: obligation_id(24),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(24),
+                    value: computed,
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(24),
+                crash_context: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let bytes = encode_module(&module).expect("v34 exact divide should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "c63e87f2702e611915a471d312e796e1189bbb916aeb49c87c70e2da6600e5f4"
     );
 }
 

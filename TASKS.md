@@ -347,6 +347,16 @@ Remaining:
   artifact sections, and lowers through Omega to x86-64/AArch64 emission. Two
   unrelated runtime factors still fail closed. Proof format v24 carries the
   exact-multiply term.
+  Terminal Psi v34 now carries proof-gated Exact fixed-integer division.
+  Source validation still proves a nonzero divisor and quotient
+  representability first; the terminal verifier independently reconstructs
+  safety when the right operand is terminal-known. Any nonzero unsigned
+  divisor is total. A signed divisor other than zero and negative one is total;
+  negative one requires `MIN + 1 <= dividend`. Two compile-known operands
+  reduce to truth only when truncating division is defined and representable.
+  A zero or runtime-unknown divisor fails closed. Proof format v25, canonical
+  semantic v34 bytes, one-unit fuel, artifact interpretation, Omega lowering,
+  and truncating x86-64/AArch64 native emission are live.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

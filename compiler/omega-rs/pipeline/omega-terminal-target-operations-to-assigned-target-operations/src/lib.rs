@@ -755,6 +755,21 @@ fn assign_expression(
                 right,
             },
         ),
+        TerminalTargetIntegerExpression::ExactDivide {
+            psi_operation,
+            left,
+            right,
+        } => binary(
+            *psi_operation,
+            left,
+            right,
+            locations,
+            |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactDivide {
+                psi_operation,
+                left,
+                right,
+            },
+        ),
     }
 }
 
@@ -899,6 +914,10 @@ fn expression_parameter_locations(
             | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
             | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. } => {
+                collect(left, locations)?;
+                collect(right, locations)?;
+            }
+            TerminalTargetIntegerExpression::ExactDivide { left, right, .. } => {
                 collect(left, locations)?;
                 collect(right, locations)?;
             }

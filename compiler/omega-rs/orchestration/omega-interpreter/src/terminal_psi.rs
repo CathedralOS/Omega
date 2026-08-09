@@ -508,6 +508,7 @@ impl<'module> TerminalExecution<'module> {
                     | OperationKind::ExactIntegerSubtract { left, right, .. }
                     | OperationKind::WrappingIntegerSubtract { left, right }
                     | OperationKind::ExactIntegerMultiply { left, right, .. }
+                    | OperationKind::ExactIntegerDivide { left, right, .. }
                     | OperationKind::WrappingIntegerMultiply { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -553,6 +554,9 @@ impl<'module> TerminalExecution<'module> {
                             }
                             OperationKind::ExactIntegerMultiply { .. } => {
                                 scalar_type.exact_mul(left, right)
+                            }
+                            OperationKind::ExactIntegerDivide { .. } => {
+                                scalar_type.exact_div(left, right)
                             }
                             OperationKind::WrappingIntegerMultiply { .. } => {
                                 scalar_type.wrapping_mul(left, right)

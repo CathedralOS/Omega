@@ -153,6 +153,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     | OperationKind::ExactIntegerAdd { .. }
                     | OperationKind::ExactIntegerSubtract { .. }
                     | OperationKind::ExactIntegerMultiply { .. }
+                    | OperationKind::ExactIntegerDivide { .. }
             )
         })
     });
@@ -576,6 +577,35 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                         value_term(right),
                     )
                     .expect("validator requires exact exact-multiply operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                }
+                OperationKind::ExactIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires exact-divide integer result type")
+                    };
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        obligation: Obligation {
+                            id: obligation,
+                            proposition: exact_integer_divide_obligation(
+                                integer_type,
+                                value_term(left),
+                                value_term(right),
+                                &axioms,
+                            ),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                    });
+                    let result = ScalarTerm::exact_integer_divide(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact exact-divide operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), result));
                 }
                 OperationKind::WrappingIntegerAdd { left, right } => {
@@ -1153,6 +1183,45 @@ fn exact_integer_multiply_obligation(
     }
 }
 
+fn exact_integer_divide_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
+    let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
+    if let (Some(left), Some(right)) = (known_left, known_right) {
+        return if integer_type.exact_div(left, right).is_some() {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        };
+    }
+    match (integer_type.sign(), known_right) {
+        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(0)))
+        | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
+        (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_))) => Proposition::Truth,
+        (IntegerSign::Signed, Some(IntegerValue::Signed(-1))) => {
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                unreachable!("signed type has signed minimum")
+            };
+            let boundary = ScalarTerm::integer(
+                integer_type,
+                IntegerValue::Signed(
+                    minimum
+                        .checked_add(1)
+                        .expect("fixed signed minimum is below maximum"),
+                ),
+            )
+            .expect("exact-divide negation boundary remains in the carrier");
+            Proposition::LessOrEqual(boundary, left)
+        }
+        (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
+        _ => Proposition::Falsehood,
+    }
+}
+
 fn known_integer_term_value(
     integer_type: psi_core::IntegerType,
     term: &ScalarTerm,
@@ -1481,6 +1550,15 @@ fn substitute_scalar_term_values(
             left: Box::new(recurse(left)),
             right: Box::new(recurse(right)),
         },
+        ScalarTerm::ExactIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } => ScalarTerm::ExactIntegerDivide {
+            scalar_type: *scalar_type,
+            left: Box::new(recurse(left)),
+            right: Box::new(recurse(right)),
+        },
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
@@ -1701,6 +1779,51 @@ mod tests {
         assert_eq!(
             exact_integer_multiply_obligation(integer_type, fifty_one, five, &[]),
             Proposition::Truth
+        );
+    }
+
+    #[test]
+    fn exact_divide_reconstructs_known_divisor_safety() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let value = ScalarTerm::value(
+            ValueId::new(1).expect("value"),
+            ScalarType::Integer(u8_type),
+        );
+        let five = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(5)).expect("5u8");
+        assert_eq!(
+            exact_integer_divide_obligation(u8_type, value.clone(), five, &[]),
+            Proposition::Truth
+        );
+        let zero = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(0)).expect("0u8");
+        assert_eq!(
+            exact_integer_divide_obligation(u8_type, value, zero, &[]),
+            Proposition::Falsehood
+        );
+
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let value = ScalarTerm::value(
+            ValueId::new(2).expect("value"),
+            ScalarType::Integer(i8_type),
+        );
+        let negative_one = ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).expect("-1i8");
+        let minimum_plus_one =
+            ScalarTerm::integer(i8_type, IntegerValue::Signed(-127)).expect("-127i8");
+        assert_eq!(
+            exact_integer_divide_obligation(i8_type, value.clone(), negative_one, &[]),
+            Proposition::LessOrEqual(minimum_plus_one, value)
+        );
+        let unknown = ScalarTerm::value(
+            ValueId::new(3).expect("divisor"),
+            ScalarType::Integer(i8_type),
+        );
+        assert_eq!(
+            exact_integer_divide_obligation(
+                i8_type,
+                ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
+                unknown,
+                &[]
+            ),
+            Proposition::Falsehood
         );
     }
 }
