@@ -752,9 +752,11 @@ fn signed_joint_multiply_quotient_guard(
         (PrimitiveType::I8, true) => i8::MIN as i64,
         (PrimitiveType::I16, true) => i16::MIN as i64,
         (PrimitiveType::I32, true) => i32::MIN as i64,
+        (PrimitiveType::I64, true) => i64::MIN,
         (PrimitiveType::I8, false) => i8::MAX as i64,
         (PrimitiveType::I16, false) => i16::MAX as i64,
         (PrimitiveType::I32, false) => i32::MAX as i64,
+        (PrimitiveType::I64, false) => i64::MAX,
         _ => return None,
     };
     if literal_i64(program, divide.left) != Some(boundary) {
@@ -786,6 +788,7 @@ fn signed_joint_multiply_negation_guard(
         PrimitiveType::I8 => i8::MIN as i64 + 1,
         PrimitiveType::I16 => i16::MIN as i64 + 1,
         PrimitiveType::I32 => i32::MIN as i64 + 1,
+        PrimitiveType::I64 => i64::MIN + 1,
         _ => return None,
     };
     if literal_i64(program, boundary) != Some(minimum_plus_one) {

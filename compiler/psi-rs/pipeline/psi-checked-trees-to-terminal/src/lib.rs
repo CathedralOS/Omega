@@ -3806,6 +3806,10 @@ fn build_scalar_graph_module(
             }),
         });
     }
+    lowered
+        .proof_bundle
+        .evidence
+        .sort_by_key(|evidence| evidence.obligation);
     Ok(lowered)
 }
 

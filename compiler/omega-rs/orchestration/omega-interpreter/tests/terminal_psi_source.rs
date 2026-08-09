@@ -2220,6 +2220,77 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
 }
 
 #[test]
+fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("signed i64 runtime-bound exact-multiply source canary should compile");
+    let lowered = lower_machine(
+        &checked,
+        "terminal_exact_multiply_signed_i64_runtime_bounds",
+    )
+    .expect("signed i64 exact multiplication should use every runtime-factor proof form");
+    assert_eq!(
+        lowered.semantic_module.vocabulary_marker,
+        VocabularyMarker::CURRENT
+    );
+    let semantic = encode_module(&lowered.semantic_module).expect("signed i64 semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed i64 proof");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execute = |left, right| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(left), argument(right)],
+        )
+        .expect("verified signed i64 runtime-bound multiplication should interpret")
+    };
+
+    assert_eq!(
+        execute(i64::MIN as i128 + 1, -1).value(),
+        argument(i64::MAX as i128)
+    );
+    assert_eq!(execute(i64::MIN as i128, -1).value(), argument(0));
+
+    assert_eq!(
+        execute(-4_611_686_018_427_387_904, 2).value(),
+        argument(i64::MIN as i128)
+    );
+    assert_eq!(
+        execute(3_074_457_345_618_258_602, 3).value(),
+        argument(9_223_372_036_854_775_806)
+    );
+    assert_eq!(execute(-4_611_686_018_427_387_905, 2).value(), argument(0));
+    assert_eq!(execute(4_611_686_018_427_387_904, 2).value(), argument(0));
+
+    assert_eq!(
+        execute(-4_611_686_018_427_387_903, -2).value(),
+        argument(9_223_372_036_854_775_806)
+    );
+    assert_eq!(
+        execute(4_611_686_018_427_387_904, -2).value(),
+        argument(i64::MIN as i128)
+    );
+    assert_eq!(execute(-4_611_686_018_427_387_904, -2).value(), argument(0));
+    assert_eq!(execute(4_611_686_018_427_387_905, -2).value(), argument(0));
+    assert_eq!(execute(20, 0).value(), argument(0));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("signed i64 runtime-bound multiplication should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("signed i64 runtime-bound multiplication should select");
+        let assigned = assign_registers(&target_operations)
+            .expect("signed i64 runtime-bound multiply homes should assign");
+        emit_machine_code(&assigned).expect("signed i64 runtime-bound multiplication should emit");
+    }
+}
+
+#[test]
 fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-divisor exact-divide source canary should compile");
