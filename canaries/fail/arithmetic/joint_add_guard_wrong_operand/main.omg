@@ -1,0 +1,13 @@
+// FAIL CANARY (joint Exact-add identity): bounding `left` against
+// `MAX - other` says nothing about `left + right`. The relational guard is
+// operand-exact and cannot be transferred to a different runtime addend.
+machine joint_add_guard_wrong_operand(left: u32, right: u32, other: u32) -> u32 {
+    transition left <= 4294967295u32 - other {
+        true -> finish(left + right)
+        _ -> finish(0u32)
+    }
+
+    state finish(value: u32) -> u32 {
+        value
+    }
+}

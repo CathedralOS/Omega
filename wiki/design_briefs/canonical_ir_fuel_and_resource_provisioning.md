@@ -54,9 +54,10 @@ proof-gated Exact fixed-integer remainder, v36 adds proof-gated Wrapping
 fixed-integer division, v37 adds proof-gated Wrapping fixed-integer remainder,
 v38 adds proof-gated Saturating fixed-integer division, v39 adds proof-gated
 Saturating fixed-integer remainder, v40 admits path-proved positive runtime
-divisors, v41 admits signed runtime divisors proven at most negative two, and
-current v42 extends that range through negative one with Exact's additional
-dividend bound across all six fixed division/remainder operations.
+divisors, v41 admits signed runtime divisors proven at most negative two, v42
+extends that range through negative one with Exact's additional dividend bound
+across all six fixed division/remainder operations, and current v43 admits a
+joint unsigned Exact-add bound.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -75,7 +76,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v42 row. Artifact-root native lowering
+validation, and fuel cover the complete v43 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -176,9 +177,12 @@ uses terminal literals/equalities to identify one constant addend and derives
 the exact carrier upper or lower bound required of the other addend. It does
 not trust the checked interval that admitted the source expression. Proof
 format v22 carries the recursive exact-add term, the operation costs one unit,
-and verified Omega lowering uses the ordinary fixed-width target add. Two
-unrelated runtime addends remain fail-closed until the terminal proposition
-surface can express and prove their joint relation.
+and verified Omega lowering uses the ordinary fixed-width target add. Terminal
+Psi v43 adds the first joint runtime form for unsigned carriers: the source path
+computes the total `MAX - right` subtraction and establishes
+`left <= MAX - right`; the verifier independently proves the subtraction and
+selects the exact carried comparison for the add obligation. Other unrelated
+runtime relations remain fail-closed.
 Terminal Psi v32 adds proof-gated Exact fixed-integer subtraction. The verifier
 uses terminal literals/equalities to identify a constant right operand and
 derives the exact carrier lower or upper bound required of the left operand. It
@@ -259,6 +263,13 @@ also require `MIN + 1 <= dividend` and select the conjunction, excluding their
 sole signed overflow pair. Existing proof vocabulary, canonical semantics,
 selected-path fuel, artifact interpretation, and both native targets carry the
 complete guarded range.
+Terminal Psi v43 adds one joint unsigned Exact-add relation without new
+operation or proof tags. The source checker retains a true-edge
+`left <= MAX - right` fact without inventing independent operand intervals.
+The terminal verifier proves the Exact bound subtraction from its known maximum
+minuend and selects the carried comparison as the add's representability
+obligation. Canonical semantics, selected-path fuel, artifact interpretation,
+and both native targets carry the relational addition slice.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

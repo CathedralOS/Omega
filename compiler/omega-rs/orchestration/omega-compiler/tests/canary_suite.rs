@@ -5800,6 +5800,22 @@ fn transition_value_overflow_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn joint_add_guard_cannot_bound_a_different_operand() {
+    let canary = fail_canary("arithmetic/joint_add_guard_wrong_operand");
+    let diagnostics = compile_canary_without_output(&canary)
+        .expect_err("a guard over `other` must not authorize `left + right`");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("transition argument may overflow"),
+        "expected the exact-add obligation to reject:\n{combined}"
+    );
+}
+
+#[test]
 fn struct_literal_class_mismatch_rejected_canary_is_rejected() {
     // A cross-class struct-literal field value (`Point { x: true }`, bool -> i32
     // field) is rejected. This was a SILENT MISCOMPILE at construction, the

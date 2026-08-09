@@ -941,6 +941,20 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_add_runtime_bound(left: u32, right: u32) -> u32
+requires 0u32 == 0u32
+ensures 0u32 == 0u32
+{
+    transition left <= 4294967295u32 - right {
+        true -> finish_exact_add_runtime_bound(left + right)
+        _ -> finish_exact_add_runtime_bound(0u32)
+    }
+
+    state finish_exact_add_runtime_bound(value: u32) -> u32 {
+        value
+    }
+}
+
 machine terminal_exact_subtract_known_right(value: u32, ignored: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

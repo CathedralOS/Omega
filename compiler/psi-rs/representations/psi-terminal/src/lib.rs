@@ -23,9 +23,10 @@
 //! division, v37 adds proof-gated wrapping remainder, v38 adds proof-gated
 //! saturating division, v39 adds proof-gated saturating remainder, v40 admits
 //! path-proved positive runtime divisors for fixed division and remainder, v41
-//! admits signed runtime divisors proven at most negative two, and current v42
-//! admits negative-one-inclusive signed ranges with policy-appropriate dividend
-//! evidence.
+//! admits signed runtime divisors proven at most negative two, v42 admits
+//! negative-one-inclusive signed ranges with policy-appropriate dividend
+//! evidence, and current v43 admits a guarded two-runtime unsigned Exact-add
+//! bound.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other
