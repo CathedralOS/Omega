@@ -866,9 +866,18 @@ fn encode_scalar_parameter_import(
                         .first()
                         .and_then(InstructionOperandLike::runtime_scalar_integer)
                         .is_none(),
+                    // Result storage is an addressable scalar slot. Some
+                    // frontend paths preserve its integer carrier spelling
+                    // even when the selected CallPlan returns floating bits;
+                    // the plan, not that storage label, chooses the foreign
+                    // result register and store encoding.
                     omega_calling_conventions::ValueClass::Float => operands
                         .first()
-                        .and_then(InstructionOperandLike::runtime_scalar_float)
+                        .and_then(|operand| {
+                            operand
+                                .runtime_scalar_float()
+                                .or_else(|| operand.runtime_scalar_integer())
+                        })
                         .is_none(),
                     _ => true,
                 }))
@@ -974,11 +983,20 @@ fn encode_scalar_parameter_import(
                         )?
                     }
                     omega_calling_conventions::ValueClass::Float => {
-                        omega_isa_aarch64::encode_host_call_sequence_authored_float_returning_from_operands(
-                            call_operands.iter().copied(),
-                            &plan.parameters,
-                            *result_register,
-                        )?
+                        if operands[0].runtime_scalar_integer().is_some() {
+                            omega_isa_aarch64::encode_host_call_sequence_value_returning_float_from_operands(
+                                call_operands.iter().copied(),
+                                &plan.parameters,
+                                *result_register,
+                                usize::from(result.shape.byte_size),
+                            )?
+                        } else {
+                            omega_isa_aarch64::encode_host_call_sequence_authored_float_returning_from_operands(
+                                call_operands.iter().copied(),
+                                &plan.parameters,
+                                *result_register,
+                            )?
+                        }
                     }
                     _ => unreachable!("validated scalar result class"),
                 }
