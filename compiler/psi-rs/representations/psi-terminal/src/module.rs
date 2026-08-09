@@ -114,7 +114,8 @@ impl SemanticVersion {
     pub const V38: Self = Self(NonZeroU16::new(38).expect("thirty-eight is nonzero"));
     pub const V39: Self = Self(NonZeroU16::new(39).expect("thirty-nine is nonzero"));
     pub const V40: Self = Self(NonZeroU16::new(40).expect("forty is nonzero"));
-    pub const CURRENT: Self = Self::V40;
+    pub const V41: Self = Self(NonZeroU16::new(41).expect("forty-one is nonzero"));
+    pub const CURRENT: Self = Self::V41;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)

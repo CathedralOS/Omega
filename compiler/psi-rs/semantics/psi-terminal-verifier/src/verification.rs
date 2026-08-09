@@ -1380,7 +1380,7 @@ fn exact_integer_divide_obligation_at_version(
             Proposition::LessOrEqual(boundary, left)
         }
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => positive_divisor_obligation(integer_type, right, semantic_version),
+        _ => runtime_divisor_obligation(integer_type, right, semantic_axioms, semantic_version),
     }
 }
 
@@ -1416,7 +1416,7 @@ fn exact_integer_remainder_obligation_at_version(
             Proposition::LessOrEqual(boundary, left)
         }
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => positive_divisor_obligation(integer_type, right, semantic_version),
+        _ => runtime_divisor_obligation(integer_type, right, semantic_axioms, semantic_version),
     }
 }
 
@@ -1441,7 +1441,7 @@ fn wrapping_integer_divide_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => positive_divisor_obligation(integer_type, right, semantic_version),
+        _ => runtime_divisor_obligation(integer_type, right, semantic_axioms, semantic_version),
     }
 }
 
@@ -1466,7 +1466,7 @@ fn wrapping_integer_remainder_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => positive_divisor_obligation(integer_type, right, semantic_version),
+        _ => runtime_divisor_obligation(integer_type, right, semantic_axioms, semantic_version),
     }
 }
 
@@ -1491,7 +1491,7 @@ fn saturating_integer_divide_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => positive_divisor_obligation(integer_type, right, semantic_version),
+        _ => runtime_divisor_obligation(integer_type, right, semantic_axioms, semantic_version),
     }
 }
 
@@ -1516,7 +1516,7 @@ fn saturating_integer_remainder_obligation_at_version(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => positive_divisor_obligation(integer_type, right, semantic_version),
+        _ => runtime_divisor_obligation(integer_type, right, semantic_axioms, semantic_version),
     }
 }
 
@@ -1616,13 +1616,22 @@ fn saturating_integer_remainder_obligation(
     )
 }
 
-fn positive_divisor_obligation(
+fn runtime_divisor_obligation(
     integer_type: psi_core::IntegerType,
     right: ScalarTerm,
+    semantic_axioms: &[Proposition],
     semantic_version: SemanticVersion,
 ) -> Proposition {
     if semantic_version < SemanticVersion::V40 {
         return Proposition::Falsehood;
+    }
+    if semantic_version >= SemanticVersion::V41 && integer_type.sign() == IntegerSign::Signed {
+        if let Ok(negative_two) = ScalarTerm::integer(integer_type, IntegerValue::Signed(-2)) {
+            let negative_bound = Proposition::LessOrEqual(right.clone(), negative_two);
+            if semantic_axioms.contains(&negative_bound) {
+                return negative_bound;
+            }
+        }
     }
     let one = match integer_type.sign() {
         IntegerSign::Unsigned => IntegerValue::Unsigned(1),
@@ -2466,7 +2475,7 @@ mod tests {
         let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("one");
         let expected = Proposition::LessOrEqual(one, right.clone());
 
-        for reconstruct in reconstructors {
+        for &reconstruct in &reconstructors {
             assert_eq!(
                 reconstruct(
                     integer_type,
@@ -2486,6 +2495,43 @@ mod tests {
                     SemanticVersion::V39,
                 ),
                 Proposition::Falsehood
+            );
+        }
+
+        let signed_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = ScalarTerm::value(
+            ValueId::new(14).expect("left"),
+            ScalarType::Integer(signed_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(15).expect("right"),
+            ScalarType::Integer(signed_type),
+        );
+        let negative_two =
+            ScalarTerm::integer(signed_type, IntegerValue::Signed(-2)).expect("-2i8");
+        let negative_bound = Proposition::LessOrEqual(right.clone(), negative_two);
+        let positive_one = ScalarTerm::integer(signed_type, IntegerValue::Signed(1)).expect("1i8");
+        let positive_bound = Proposition::LessOrEqual(positive_one, right.clone());
+        for &reconstruct in &reconstructors {
+            assert_eq!(
+                reconstruct(
+                    signed_type,
+                    left.clone(),
+                    right.clone(),
+                    std::slice::from_ref(&negative_bound),
+                    SemanticVersion::V41,
+                ),
+                negative_bound.clone()
+            );
+            assert_eq!(
+                reconstruct(
+                    signed_type,
+                    left.clone(),
+                    right.clone(),
+                    std::slice::from_ref(&negative_bound),
+                    SemanticVersion::V40,
+                ),
+                positive_bound.clone()
             );
         }
 
