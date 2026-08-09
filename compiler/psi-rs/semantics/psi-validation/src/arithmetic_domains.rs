@@ -284,6 +284,11 @@ fn narrow_env_by_condition(
         {
             env.mark_signed_joint_multiply_upper_bound(left, right);
         }
+        if let Some(value) =
+            signed_joint_multiply_negation_guard(program, machine, state, &comparison)
+        {
+            env.mark_signed_joint_multiply_negation_bound(value);
+        }
         if comparison.operator == BinaryOperator::Equal
             && let (Some(left), Some(right)) = (
                 place_path(program, comparison.left),
@@ -758,6 +763,37 @@ fn signed_joint_multiply_quotient_guard(
     Some((place_path(program, left)?, right_path))
 }
 
+/// Recognize `MIN + 1 <= value` (including its `>=` spelling). Together with
+/// another operand proved equal to `-1`, this is the exact representability
+/// condition for signed negation through multiplication.
+fn signed_joint_multiply_negation_guard(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    comparison: &psi_typed_trees::expression::TableBinaryExpression,
+) -> Option<String> {
+    let (boundary, value) = match comparison.operator {
+        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
+        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
+        _ => return None,
+    };
+    let value_type = declared_place_type_raw(program, machine, state, value)?;
+    let primitive = program.primitive_type_reference(value_type)?;
+    if program.arithmetic_domain_for_type_reference(value_type) != ArithmeticDomain::Exact {
+        return None;
+    }
+    let minimum_plus_one = match primitive {
+        PrimitiveType::I8 => i8::MIN as i64 + 1,
+        PrimitiveType::I16 => i16::MIN as i64 + 1,
+        PrimitiveType::I32 => i32::MIN as i64 + 1,
+        _ => return None,
+    };
+    if literal_i64(program, boundary) != Some(minimum_plus_one) {
+        return None;
+    }
+    place_path(program, value)
+}
+
 /// R4 witness mint (out-params as witnesses): a BOUNDARY callee's
 /// `ensures <param> <OP> <literal>` bounds the `&mut` OUT-ARGUMENT's place
 /// the moment the call returns -- the boundary model's citable fact
@@ -1140,6 +1176,7 @@ pub(crate) struct ValueEnv {
     joint_multiply_bounds: BTreeSet<(String, String)>,
     signed_joint_multiply_lower_bounds: BTreeSet<(String, String)>,
     signed_joint_multiply_upper_bounds: BTreeSet<(String, String)>,
+    signed_joint_multiply_negation_bounds: BTreeSet<String>,
 }
 
 impl ValueEnv {
@@ -1161,6 +1198,7 @@ impl ValueEnv {
         self.joint_multiply_bounds.clear();
         self.signed_joint_multiply_lower_bounds.clear();
         self.signed_joint_multiply_upper_bounds.clear();
+        self.signed_joint_multiply_negation_bounds.clear();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.
@@ -1191,6 +1229,8 @@ impl ValueEnv {
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
         self.signed_joint_multiply_upper_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
+        self.signed_joint_multiply_negation_bounds
+            .retain(|value| !overlaps(value));
     }
 
     fn get(&self, path: &str) -> Option<Interval> {
@@ -1261,6 +1301,10 @@ impl ValueEnv {
     fn mark_signed_joint_multiply_upper_bound(&mut self, left: String, right: String) {
         self.signed_joint_multiply_upper_bounds
             .insert(canonical_path_pair(left, right));
+    }
+
+    fn mark_signed_joint_multiply_negation_bound(&mut self, value: String) {
+        self.signed_joint_multiply_negation_bounds.insert(value);
     }
 
     fn proves_joint_add_upper_bound(
@@ -1375,6 +1419,29 @@ impl ValueEnv {
             && self.signed_joint_multiply_upper_bounds.contains(&pair)
     }
 
+    fn proves_signed_joint_multiply_negation_bound(
+        &self,
+        program: &TypedTrees,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> bool {
+        for (value, factor) in [(left, right), (right, left)] {
+            let (Some(value), Some(factor)) =
+                (place_path(program, value), place_path(program, factor))
+            else {
+                continue;
+            };
+            let factor_is_negative_one = self
+                .get(&factor)
+                .is_some_and(|interval| interval.low == Some(-1) && interval.high == Some(-1));
+            if self.signed_joint_multiply_negation_bounds.contains(&value) && factor_is_negative_one
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     fn float_fact(&self, path: &str) -> (FloatInterval, bool) {
         (
             self.float_intervals
@@ -1446,6 +1513,11 @@ impl ValueEnv {
         joined.signed_joint_multiply_upper_bounds.extend(
             self.signed_joint_multiply_upper_bounds
                 .intersection(&other.signed_joint_multiply_upper_bounds)
+                .cloned(),
+        );
+        joined.signed_joint_multiply_negation_bounds.extend(
+            self.signed_joint_multiply_negation_bounds
+                .intersection(&other.signed_joint_multiply_negation_bounds)
                 .cloned(),
         );
         joined
@@ -1729,6 +1801,8 @@ pub(crate) fn record_assignment(
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
+        env.signed_joint_multiply_negation_bounds
+            .retain(|value| !place_paths_overlap(value, &path));
         let interval = match declared_range {
             Some(declared) => interval.intersect(declared),
             None => interval,
@@ -2695,7 +2769,12 @@ fn analyze(
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Multiply
                 && (env.proves_joint_multiply_bound(program, binary.left, binary.right)
-                    || env.proves_signed_joint_multiply_bounds(program, binary.left, binary.right))
+                    || env.proves_signed_joint_multiply_bounds(program, binary.left, binary.right)
+                    || env.proves_signed_joint_multiply_negation_bound(
+                        program,
+                        binary.left,
+                        binary.right,
+                    ))
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = range;

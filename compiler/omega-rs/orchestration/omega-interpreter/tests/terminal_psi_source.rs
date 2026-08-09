@@ -2175,6 +2175,51 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
 }
 
 #[test]
+fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("runtime-negation exact-multiply source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_negation_bound")
+        .expect("runtime-negation exact multiplication should use all path propositions");
+    assert_eq!(
+        lowered.semantic_module.vocabulary_marker,
+        VocabularyMarker::CURRENT
+    );
+    let semantic = encode_module(&lowered.semantic_module).expect("runtime-negation semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("runtime-negation proof");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i32_type,
+        value: IntegerValue::Signed(value),
+    };
+    let execute = |left, right| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(left), argument(right)],
+        )
+        .expect("verified runtime-negation exact multiplication should interpret")
+    };
+    assert_eq!(execute(-2_147_483_647, -1).value(), argument(2_147_483_647));
+    assert_eq!(execute(2_147_483_647, -1).value(), argument(-2_147_483_647));
+    assert_eq!(execute(0, -1).value(), argument(0));
+    assert_eq!(execute(i32::MIN as i128, -1).value(), argument(0));
+    assert_eq!(execute(20, -2).value(), argument(0));
+    assert_eq!(execute(20, 0).value(), argument(0));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("runtime-negation exact multiplication should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("runtime-negation exact multiplication should select");
+        let assigned = assign_registers(&target_operations)
+            .expect("runtime-negation exact-multiply homes should assign");
+        emit_machine_code(&assigned).expect("runtime-negation exact multiplication should emit");
+    }
+}
+
+#[test]
 fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-divisor exact-divide source canary should compile");
