@@ -209,7 +209,7 @@ target-relative—a hosted process, a Cathedral Matrix, or a bare-metal image an
 its grants. New stable scopes may be inserted below that top without changing
 the meaning of existing artifacts. The declaration and cross-package ordering
 form for those intermediate scopes is not yet settled; see
-`OWNER_QUESTIONS.md` Q2.
+`OWNER_QUESTIONS.md` Q1.
 
 Each route publishes how much containment it may demand. Each enclosing
 execution context publishes, separately for each cause, the widest scope it

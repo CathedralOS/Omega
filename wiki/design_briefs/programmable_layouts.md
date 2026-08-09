@@ -356,8 +356,8 @@ state forwarding.
 
 ## Policy selection
 
-Bare codec calls may use the destination's declared policy domain when it
-selects one home conformance unambiguously:
+Bare codec calls may use the exact codec policy already named by the
+destination's declared policy domain:
 
 ```omega
 let save: [u8; 256] in Protobuf<Level>;
@@ -366,7 +366,7 @@ encode(level, &mut save);
 
 Otherwise the call names the policy explicitly. Candidate meaning never changes
 because an unrelated import adds a conformance. Third-party conformances remain
-callable by name; implicit selection consults only the coherent home surface.
+callable by name; no visible-conformance search participates.
 
 `OmegaLayout` is the default policy family for Omega-native numbered schemas.
 Foreign formats such as Protobuf or a platform ABI are sibling library

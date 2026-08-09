@@ -1019,7 +1019,7 @@ covering subset independently requires the bucket's containment demand to cover
 `damage_minimum`; exact identity plus the permanent
 `ExecutionDomain` top is the first conservative nominal order. Richer logical
 entailment remains. Declared intermediate
-scope ordering is blocked on `OWNER_QUESTIONS.md` Q2. Checked sites are
+scope ordering is blocked on `OWNER_QUESTIONS.md` Q1. Checked sites are
 implementation evidence and never enter the
 published contract fingerprint.
 

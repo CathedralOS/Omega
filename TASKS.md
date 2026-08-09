@@ -424,7 +424,7 @@ Remaining:
   checked provider or Build selection to that seam when those context owners
   land.
   Retaining declared intermediate nominal scope ordering is design blocked on
-  `OWNER_QUESTIONS.md` Q2.
+  `OWNER_QUESTIONS.md` Q1.
   Generalize guarded source production beyond the live structural implication
   rules and current acyclic integer-control shape.
   Terminal Psi v24 already carries the explicit no-successor terminator, both
@@ -604,17 +604,22 @@ Remaining N6/N8 work:
 - **SELECTED-WITNESS-EVIDENCE:** bind a selected named
   conformance block to one carrierless proof term that introduction and
   elimination can reopen. Consume its complete normalized requirement map;
-  do not infer evidence from attached state names. Blocked on owner Q3 for the
+  do not infer evidence from attached state names. Blocked on owner Q2 for the
   proof-only introduction/elimination surface and retained term identity.
-- Add the generic binder telescope to the live concrete subjectless form
-  `satisfies Trait as Name { ... }`. Concrete blocks already receive a
-  package-scoped symbol and retain the shared closed normalized resolved/typed
-  row map without a carrier. Only the generic source spelling is blocked on
-  owner Q1; do not infer a trait argument as its subject.
+- Replace the inherited-subject conformance header with the settled name-first
+  satisfaction declaration and evidence-binder grammar:
+  `Name<Telescope>: [Subject] satisfies Trait { ... }` declares one named
+  closed implementation, while `Evidence: Subject satisfies Trait` binds one
+  explicitly passed implementation. The subject may be omitted for
+  carrierless evidence. Every whole-trait implementation is named; no unique-
+  visible, priority, or specificity selection is permitted. Retain the name,
+  telescope, optional subject, instantiated trait, and normalized rows in
+  semantic identity, and migrate existing `Type satisfies Trait as Name`
+  source with a targeted diagnostic.
 - Add proof-only selected-conformance projection and by-value carrierless `dyn`
   from the complete conformance-block map. The representation can follow the
   settled two-stratum projection, but source selection/opening is blocked on
-  owner Q3.
+  owner Q2.
 - Add `Respects` over compiler-derived parallel callable argument telescopes.
   Positions are semantic and source names are debug aliases. Derive the
   representative-dependent domain by semantic dependency, the pointwise input

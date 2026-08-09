@@ -449,11 +449,12 @@ The compiler derives small operation requirements from accepted fields:
 families. Helpers may accept one such accessor instead of the whole view:
 
 ```omega
-machine send_byte<T>(transmit: T, byte: u8)
-where
-    T satisfies Writable<u8>
+machine send_byte<T, Write: T satisfies Writable<u8>>(
+    transmit: T,
+    byte: u8
+)
 {
-    transmit.write(byte);
+    Write::write(transmit, byte);
 }
 ```
 

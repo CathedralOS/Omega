@@ -300,7 +300,7 @@ Examples:
 - `bytes as [u8]::Path` requires a proof of `no_nul(bytes)`;
 - `5 as i32::Km` is direct qualification because `Km` states no obligations;
 - `small as u32` succeeds only when representability is proved;
-- `&card as &dyn Card::PowerOrder` proves the named conformance fits and
+- `&card as &dyn PowerOrder` proves the named conformance fits and
   packages the same referent with its local dispatch table;
 - `reservation as Reservation::Issued` fails when issuance requires
   `BoxOffice` state;

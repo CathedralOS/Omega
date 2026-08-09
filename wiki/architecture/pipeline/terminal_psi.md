@@ -166,7 +166,7 @@ supervisor composition and validates the completed semantic module before
 artifact production. Build/provider selection still needs to supply that input.
 Archived modules migrate only causes used by their crash terminators to the
 legacy root maximum. Declared intermediate nominal scope
-ordering is separately blocked on `OWNER_QUESTIONS.md` Q2.
+ordering is separately blocked on `OWNER_QUESTIONS.md` Q1.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
