@@ -12,9 +12,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         proposition converges_together<machine Left, machine Right>(
             left: Stream<Left>,
             right: Stream<Right>
-        ) {
-            ConvergenceEvidence<Left, Right>;
-        }
+        ) evidence ConvergenceEvidence<Left, Right>;
 
         proposition reflexive(value: i32) = related(value, value);
     "#;
@@ -113,6 +111,21 @@ fn proposition_declarations_reject_runtime_or_ambiguous_body_shapes() {
             .expect("tokenize should succeed");
         parse_syntax_trees(&tokens).expect_err("invalid proposition body must reject");
     }
+}
+
+#[test]
+fn proposition_declarations_reject_retired_brace_evidence_with_migration_guidance() {
+    let tokens = Lexer::new("proposition old(value: i32) { Evidence; }")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("retired proposition evidence must reject");
+
+    assert!(
+        error
+            .message
+            .contains("`{ Evidence; }` proposition evidence is retired")
+    );
+    assert!(error.message.contains("`evidence Evidence;`"));
 }
 
 #[test]

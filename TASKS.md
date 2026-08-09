@@ -644,11 +644,13 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **SELECTED-WITNESS-EVIDENCE:** implement the settled
-  `proposition P(...) evidence Interface;` clause and migrate the transitional
-  brace-form terminal-Psi canary with a targeted diagnostic. Bind a privately
-  selected named conformance block to one carrierless proof term at a named
-  `ensures` assignment; consume its complete normalized requirement map.
+- **SELECTED-WITNESS-EVIDENCE:** the settled
+  `proposition P(...) evidence Interface;` clause is live through parsing and
+  terminal-Psi production. The terminal-Psi canary uses that spelling, and the
+  retired `{ Interface; }` form reports a targeted migration diagnostic. Bind
+  a privately selected named conformance block to one carrierless proof term
+  at a named `ensures` assignment; consume its complete normalized requirement
+  map.
   Named `requires` clauses retain positional erased input terms and project
   members through ordinary `term.member` syntax. Calls pass those terms
   explicitly in clause order after the `;` lane separator. Do not infer a term,

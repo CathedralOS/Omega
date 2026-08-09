@@ -25,12 +25,15 @@ pub(super) fn parse_proposition_definition<'tokens, 'source>(
             PropositionBody::Primitive,
             input.take_punctuation(PunctuationKind::Semicolon, ";")?,
         )
-    } else if input.at_punctuation(PunctuationKind::LeftBrace) {
-        let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    } else if input.at_contextual("evidence") {
+        let input = input.take_contextual("evidence")?;
         let (evidence, input) = parse_type_reference_handle(syntax_trees, input)?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
         (PropositionBody::Witness { evidence }, input)
+    } else if input.at_punctuation(PunctuationKind::LeftBrace) {
+        return Err(input.error_here(
+            "`{ Evidence; }` proposition evidence is retired; write `evidence Evidence;` after the proposition signature",
+        ));
     } else if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (proposition, input) =
@@ -40,7 +43,7 @@ pub(super) fn parse_proposition_definition<'tokens, 'source>(
     } else {
         return Err(input.expected_one_of_here(&[
             "`;` for a primitive proposition",
-            "`{ Evidence; }` for a witness-bearing proposition",
+            "`evidence Interface;` for a witness-bearing proposition",
             "`= fact;` for a transparent proposition",
         ]));
     };
