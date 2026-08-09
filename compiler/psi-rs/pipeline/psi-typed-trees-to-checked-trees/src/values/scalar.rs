@@ -771,6 +771,9 @@ fn checked_integer_binary_kind(
         (BinaryOperator::Divide, ArithmeticDomain::Saturating) => {
             Some(CheckedIntegerBinaryKind::SaturatingDivide)
         }
+        (BinaryOperator::Modulo, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingRemainder)
+        }
         (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
             Some(CheckedIntegerBinaryKind::WrappingAdd)
         }

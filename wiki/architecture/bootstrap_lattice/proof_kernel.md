@@ -149,6 +149,12 @@ nonzero divisor reconstructs truth, including signed negative one because
 `MIN / -1` clamps to `MAX`. Zero and unknown divisors reconstruct falsehood.
 Native saturating division is authorized only after that proposition is checked.
 
+Terminal Psi v39 applies the same boundary to Saturating fixed-integer
+remainder. The operation owns a divisor-definedness obligation; a terminal-known
+nonzero divisor reconstructs truth, including signed negative one because
+`MIN % -1` is zero. Zero and unknown divisors reconstruct falsehood. Native
+saturating remainder is authorized only after that proposition is checked.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

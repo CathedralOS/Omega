@@ -513,6 +513,7 @@ impl<'module> TerminalExecution<'module> {
                     | OperationKind::WrappingIntegerDivide { left, right, .. }
                     | OperationKind::WrappingIntegerRemainder { left, right, .. }
                     | OperationKind::SaturatingIntegerDivide { left, right, .. }
+                    | OperationKind::SaturatingIntegerRemainder { left, right, .. }
                     | OperationKind::WrappingIntegerMultiply { left, right } => {
                         let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -573,6 +574,9 @@ impl<'module> TerminalExecution<'module> {
                             }
                             OperationKind::SaturatingIntegerDivide { .. } => {
                                 scalar_type.saturating_div(left, right)
+                            }
+                            OperationKind::SaturatingIntegerRemainder { .. } => {
+                                scalar_type.saturating_rem(left, right)
                             }
                             OperationKind::WrappingIntegerMultiply { .. } => {
                                 scalar_type.wrapping_mul(left, right)
