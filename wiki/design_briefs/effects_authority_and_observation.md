@@ -79,7 +79,7 @@ and artifact homes:
 | Authority possession | capability values, domains, and parameters |
 | Trust reach | provider/admission receipts and the trust ledger |
 | Positive temporal guarantees | operation/provider contracts and context floors |
-| Resource consumption | explicit capabilities and dependent contracts in v1 |
+| Resource consumption | explicit capabilities and dependent contracts |
 | Recoverable failure | returned sums and case-specific contracts |
 | Crash possibility | guarded `crashes` buckets and crash plans |
 | Mutation | ownership, borrows, and state contracts |
@@ -443,7 +443,7 @@ contracts. It does not prove no suspension, fairness, a deadline, eventual
 wakeup, or starvation freedom by itself. Omission of `suspends` or `blocks`
 proves only the corresponding negative operational guarantee.
 
-Decision 23 represents v1 positive progress premises as opaque, sealed
+Decision 23 represents positive progress premises as opaque, sealed
 profiles on boundary traits/providers/slots. They use grant receipts,
 participate in admission, and never entail proof facts. General trace theorems
 and profile entailment remain deferred. See

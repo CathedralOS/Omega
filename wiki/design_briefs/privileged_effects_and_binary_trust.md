@@ -96,7 +96,7 @@ admitted `CallPlan + StatePlan` covering its exits or remain hardware-isolated;
 unknown evidence fails closed. DMA receives only lent extents and therefore
 cannot address task/control storage it was not granted. An independent
 final-byte transfer certificate and CET, PAC, or shadow-stack hardening are
-future PCC/TCB-reduction layers, not prerequisites for v1 semantics.
+future PCC/TCB-reduction layers, not prerequisites for language semantics.
 
 Call/state admission does not make opaque in-process bytes memory-safe. Selected
 provider closure separately emits the executable TCB manifest: exact known

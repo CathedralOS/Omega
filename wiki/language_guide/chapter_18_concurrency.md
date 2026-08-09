@@ -481,7 +481,7 @@ no pool, mailbox, nursery, scope, or manager construct.
 
 ## Waitable Contracts: Retained Substrate Direction
 
-Deadlock checking requires visible wait contracts. The retained v1 direction
+Deadlock checking requires visible wait contracts. The retained direction
 uses one futex-shaped scheduler boundary (wait on a word/value condition and
 wake N waiters), with higher-level operations implemented as libraries where
 the target permits it:

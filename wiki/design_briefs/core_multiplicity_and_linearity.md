@@ -159,7 +159,7 @@ through checked control flow. The IR needs:
 - path-sensitive resource state for sums; and
 - explicit create, transfer, consume, and affine-drop events.
 
-Implementation status (CML4 migration, through 2026-07-28): these events now
+Current implementation: these events
 survive the full semantic pipeline with multiplicity, access, and
 transfer-stable provenance.
 Existing shared/exclusive borrow loans enter the same permission context at

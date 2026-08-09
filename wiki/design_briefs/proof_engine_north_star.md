@@ -346,7 +346,7 @@ within a compilation unit and written only at boundaries — chosen over
 whole-program context-sensitivity precisely so separate compilation survives,
 which is also the SPARK-rung architecture. ch16's recoverable-error model is the
 first concrete customer: a success case's `ensures` fact is inherited by the
-handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
+handling arm. Initial fact kinds: intervals (done), which-case, and slice-length.
 
 ## Remaining research questions for the Lean rung
 

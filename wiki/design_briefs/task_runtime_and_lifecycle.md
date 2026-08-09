@@ -92,7 +92,7 @@ The provider receives a generated descriptor plus the invocation's moved
 arguments. The source expression is not an implicit `as`: qualification is
 representation-identical, while activation planning creates a distinct
 compiler artifact. The concise `start(M, args)` form may be transparent future
-sugar, but v1 can use the already-honest `start<M>(args)` spelling.
+sugar, but the current surface uses the already-honest `start<M>(args)` spelling.
 
 The source truth is deliberately smaller than the current
 `omega-task-plans` prototype. One new activation receives one fixed, nonmoving
@@ -318,7 +318,7 @@ execution remain valid providers when their admitted contracts say so.
 
 ## Borrowing and sharing
 
-The v1-safe path is moved owned arguments, shared immutable values, and
+The conservative path is moved owned arguments, shared immutable values, and
 explicit synchronized capabilities. Starting a task that retains `&mut self`
 while the parent continues using `self` is rejected by ordinary exclusivity.
 Code should move independent work, split state into provably disjoint places,
@@ -327,7 +327,7 @@ or communicate through a mailbox/synchronized capability.
 The suspension amendment must later state which loans may cross a park:
 storage lifetime and pinning, aliasing, cancellation paths, and address
 stability are independently required. Borrow/wait-cycle detection is a
-valuable later theorem but not a prerequisite for the conservative task v1.
+valuable later theorem but not a prerequisite for the conservative task model.
 
 Carry policy itself is independent of that loan subset. Ordinary data derives a
 compiler-normalized four-axis policy from its fields and explicit type-wide

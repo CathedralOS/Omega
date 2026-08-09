@@ -154,156 +154,48 @@ fingerprint input. Index eligibility is structural and cannot be supplied by
 an ordinary conformance. Because indices and domains erase, neither field
 changes carrier layout or SIMD shape.
 
-Implementation status (PDI1–PDI3 complete, 2026-08-01): the pre-resolution
-generic pass canonicalizes eligible structured literal constants recursively
-and replaces their source reference with a reserved length-delimited value atom. The atom's
-type plus canonical structural encoding is generic/monomorphization identity;
-its canonical display is diagnostic data. Declaration-aware validation accepts
-the atom only at a matching `const` parameter, including generic shapes the
-record monomorphizer intentionally leaves structural. Field order normalizes to
-declaration order. Current structural `Rat` values additionally reject a zero
-denominator, uncancelled signed coordinates, or a non-unit gcd. Closed domain
-families now carry typed telescopes, canonical instance arguments, and
-per-instance semantic identities through typed snapshots and copying while
-preserving carrier ABI. Explicit qualification now selects a closed value or
-direct const binder and publishes that exact instance through checked evidence.
-Const-generic machine specialization infers canonical values from constrained
-parameter and result positions, refreshes exact identities after substitution,
-and runs distinct tuples in both engines. The shipped units module now closes
-PDI2 with named combinations, visible conversion policy, cross-module
-operators, and an imported cross-index rejection rail. Computed open indices
-now retain exact operation/algebra authority, canonical expressions, named
-compatibility conditions, and closed/normalization/local-fact discharge
-evidence. Exact active facts may prove compatibility without changing semantic
-identity; unresolved equality rejects without ambient theorem search.
-Quotient and default-domain-constrained value kinds fail closed until their
-canonical-representative/proof admission path exists.
+Current implementation canonicalizes structured const values before resolution
+and uses their type plus structural encoding as generic identity. Closed domain
+families preserve typed telescopes, canonical arguments, and per-instance
+semantic identity without changing carrier ABI; specialization refreshes that
+identity after substitution. Open indices retain their exact algebra authority,
+expression, compatibility conditions, and discharge evidence. Unresolved
+equality fails closed without ambient theorem search. Quotients and
+default-domain-constrained values remain blocked on canonical representative
+and proof admission.
 
-Implementation status (DOM1/STR2 semantic roles, 2026-07-31): core,
-symbol-resolved, and typed layers carry `DomainPredicateBody` and the closed
-`DomainSemanticRoles` record independently. An ordinary top-level operator's
-exact `Type::Domain::operation` name, or one unique declared-domain constraint
-across its operand tuple, supplies its domain operator home before symbol
-assignment. Nested operator declarations reject, and the association does not
-grant establishment authority. Downstream propagation and resolved/typed
-snapshots copy and publish the explicit role record. Qualification and trust
-publication consume the declaration's stable semantic identity, qualification
-consults predicate-body presence for proof, and operator selection consumes
-semantic roles. Domain conjunction validation permits contributions in
-different roles (`Degrees & Wrapping`) and rejects multiple distinct
-contributors to one role. Exact coercion consumes normalized semantic roles
-and proof obligations rather than a privileged qualification trait or name
-convention.
+Current domain representation keeps predicate bodies, semantic roles,
+establishment routes, aliases, and flow evidence independent. Operator homes
+come from an exact domain-qualified name or one unique declared-domain
+constraint across the operand tuple; operators do not grant establishment.
+Conjunction combines roles by axis and rejects competing contributors to the
+same role.
 
-Target representation (DOM1 establishment surface, 2026-07-30): domain
-propositions normalize from `requires`; exact requirement identities in the
-body normalize as alternative establishment routes. An empty declaration has
-no obligations and permits explicit qualification from its bare carrier.
-Syntax, symbol-resolved, typed, and checked trees must preserve predicates and
-routes independently rather than reconstructing either from body presence.
+Domain propositions normalize from `requires`; exact requirement identities in
+the body are the only authored establishment routes. Empty atomic domains may
+be qualified vacuously, while predicate-bearing domains require proof and
+routed domains require an exact authorized exit. No package ownership,
+attachment name, machine placement, or former privileged qualification trait
+confers establishment authority.
 
-Implementation status (P1a evidence origin, 2026-07-28): checked semantic facts
-now carry an establishment-evidence axis independent of their program-point
-origin. The normalized origin classes distinguish prover, checked validation,
-authorized-route establishment, checked transformation, admitted receipt,
-propagation, and vacuous qualification. No package receives ambient
-establishment privilege. Call-result binding and ordinary statement transfer
-preserve the evidence.
-Granted selected provider plans attach their normalized plan fingerprint to
-matching admitted facts, and checked artifacts publish
-`05_qualification_evidence.json` with origin, source, program point, and receipt
-identity. Exact owner-authorized admitted-subject matching is now live.
-Selected service methods additionally retain structured linear result claims.
-Those claims enter provider identity and the same artifact as `returns` rows;
-the external-root ledger can therefore bind a mask-transition receipt to the
-exact `Active` guard subject without parsing the normalized result type.
-Exact `as` uses retain the normalized domain and derivation before lowering.
+Checked facts retain an evidence class—proof, validation, authorized route,
+checked transformation, admitted receipt, propagation, or vacuous
+qualification—separately from program-point origin. Selected provider plans and
+linear result claims retain exact identities in checked artifacts, so resource
+receipts can match subjects without parsing result types.
 
-Implementation status (P1b vacuous qualification, 2026-07-30): an explicit
-`as` into an empty atomic domain is compiler-derived identity work and requires
-no user-authored satisfier. Transparent aliases qualify this way only when
-every expanded atom is empty. The former core
-`RepresentationQualification` trait and its privileged trait/conformance
-roles, satisfier selection, erased call lowering, and canonical-use artifact
-are gone. Checked artifacts retain the exact cast site and
-`vacuous_qualification` origin; predicate-bearing and routed atoms do not enter
-through this path.
+Transparent aliases expand recursively to atomic facts before identity,
+compatibility, admission, and route normalization. Empty, cyclic,
+cross-carrier, unknown, and public-to-private expansions reject. Generic
+binding constraints preserve the complete normalized domain records through
+substitution and snapshots.
 
-Implementation status (P1b authored route surface, 2026-07-31): syntax trees
-now retain predicate `requires` separately from exact requirement paths in the
-domain body. Resolved trees preserve the authored paths and normalize them
-once, after symbol assignment, to checked- or boundary-requirement identities;
-unknown, ambiguous, and exact-result-mismatched routes reject. Checked
-conformance exits consult those identities, prove every predicate on a mixed
-domain, and publish `authorized_route_establishment` rather than ambient owner
-evidence. `Extent::Granted` uses the authored route surface. Predicate-in-body
-syntax is now rejected with directed `requires` migration guidance, and the
-source, sample, canary, and embedded-test corpora use the independent predicate
-record. Domain operators have moved to ordinary top-level declarations with an
-exact or uniquely inferred semantic home; nested declarations reject, and
-operators no longer create establishment routes. Owner machines and boundary
-contract placement have no ambient establishment privilege: the normalizer
-retains only exact checked- or boundary-requirement identities authored by each
-domain.
-
-Implementation status (P1a establishment routes, 2026-07-28):
-`DomainEstablishmentRoute` records the exact trait-requirement identity
-authorized by a domain body. Syntax-to-resolved lowering normalizes those
-relationships once after symbol assignment, recursively expands aliases to
-their atomic domain facts, and deduplicates without losing declaration order.
-Resolved and typed domain definitions, typed binding-site constraints, and
-structural snapshots preserve the records. Checked qualification consumers
-consult only the normalized route identity instead of reconstructing
-permission from attachment names, package ownership, or contract placement.
-
-Implementation status (DOM alias expansion, 2026-07-28): transparent
-declared-domain aliases retain independent syntax, resolved, and typed records.
-Their constituent symbols resolve after the complete declaration set exists;
-uses expand recursively to atomic facts before constrained-type and contract
-identity, compatibility, admission, executable predicate lowering, and
-establishment-route normalization.
-Validation rejects empty, unknown, cross-carrier, cyclic, and public-to-private
-expansions, while call diagnostics name the unmet atom. Compiler-owned `Carry`
-atoms and `Carry::Portable` remain part of the separate per-claim carry
-migration.
-
-Implementation status (DOM1 generic propagation, 2026-07-23): typed
-`TypeConstraintNode::Domain` is a normalized binding-site record, not a bare
-name. A post-lowering pass resolves the short name only against declarations
-whose target matches the constraint's carrier, then stores the declaration
-symbol, semantic identity, predicate-body record, and semantic roles. Nested generic arguments and all
-type-table copy paths preserve the record. Validation checks the record against
-the carrier declaration; checked field/contract facts and byte predicates use
-the stored symbol directly instead of repeating a global short-name lookup.
-Typed snapshots publish the full record. Generic substitution is therefore no
-longer a domain-theory loss boundary.
-
-Implementation status (DOM1 per-axis composition, 2026-07-28): a constrained
-type's domain chain is no longer projected to its first member. Predicate
-theories compose conjunctively through implicit parameter requirements, checked
-writes and constructions, entry/read facts, return/parameter implication, and
-post-write re-establishment. Members without predicate bodies never enter that
-fact lattice; their normalized identities and role contributions remain on the
-type for qualification and operator consumers. Semantic roles compose by key,
-with same-role collisions rejected. Establishment routes copy independently
-onto every normalized domain constraint and do not enter the predicate-fact
-lattice.
-
-Implementation status (DOM2 binding activation, 2026-07-23): checked operator
-selection reads only static binding sources: normalized declared constraints,
-explicit qualifications, and signature `requires`. The selector has no flow/fact-plan
-input, so guards, call guarantees, or later prover improvements cannot change
-operator meaning. Operator `requires` clauses remain ordinary flow-sensitive
-proof obligations after selection. Candidate matching now consumes the complete
-operand tuple for binary, index, and range spellings, sharing one generic
-substitution across every known position; return types remain irrelevant.
-The old declaration-global same-carrier collision fence is gone: inactive
-domain theories coexist, while the checked selector admits only meanings owned
-by semantic domains selected on participating operand bindings and rejects
-multiple admitted meanings at that use. This realizes closed-family coherence
-without permitting unrelated imports to inject an eligible meaning. The
-language currently has no authored open-family/dispatch-owner-position surface;
-decision 19 defers general open-family linking.
+Operator selection reads only static binding qualification and signature
+requirements, never flow facts. Candidate matching uses the complete operand
+tuple with one generic substitution; return types do not select meaning.
+Inactive theories may coexist, but multiple active meanings at a use reject.
+The language still has no authored open-family or dispatch-owner-position
+surface.
 
 ### Carry policy
 
@@ -532,23 +424,12 @@ evidence agree. An opaque uncontained in-process provider forces
 not presented as exhaustive. This metadata is a selected-artifact property and
 does not enter source service-reach identity.
 
-Implementation status (2026-08-03): the selected-plan carrier derives checked
-and compiler-known entries and attributes every unadmitted opaque in-process
-row as incomplete. It now also accepts a sealed opaque admission only when its
-provider-plan, method, requirement, and binding exactly match that selected
-row. A stable pinned artifact identity then becomes a known entry with its
-independent implementation and containment evidence. Pinning alone never
-claims exhaustiveness: only a separate executable-closure receipt removes that
-row's incompleteness cause, and such receipts remain reported even when another
-opaque row keeps the overall scope incomplete. Loader paths, modules, symbols,
-and table slots remain binding locators rather than executable identities.
-The normalized profile gate consumes that manifest before installation. A
-profile may explicitly allow static checked bodies as a class; compiler-known
-and opaque entries require exact provider, plan, executable, implementation,
-origin, and scope matches, with independently required containment axes.
-Incomplete scopes either reject or return a sealed acceptance marked with the
-original attributed causes. The acceptance retains the exact profile and
-manifest, so it cannot be replayed after either input changes.
+The selected-plan carrier derives checked and compiler-known entries and marks
+unadmitted opaque in-process rows incomplete. Opaque admission requires an
+exact selected-row match and independent implementation/containment evidence;
+pinning does not imply closure. Before installation, the profile gate checks
+the exact manifest and retains attributed incompleteness. Paths, modules,
+symbols, and table slots remain locators rather than executable identities.
 
 The compiler's programmatic `ExecutableTcbBuildPolicy` keeps deployment trust
 inputs outside source syntax. It binds each opaque admission candidate only
@@ -616,20 +497,20 @@ proof-cache identity, diagnostics, and provider-local revalidation. Stable
 canonical defaults elaborate immediately to an explicit `ranking_view_id`;
 the checker never selects a noncanonical view heuristically.
 
-Implementation status (TPR3, 2026-07-17): termination legality and checked
+Current implementation: termination legality and checked
 view facts resolve ranked subjects and argumented-view bounds from the
 normalized `RankingWitness`; view and rank-range identity come from the same
 witness. The legacy typed-machine decreases/order/argument/range spans are
 compatibility output only and may be cleared without changing the judgment.
 
-Artifact status (2026-07-17): visual builds emit
+Current artifact: visual builds emit
 `05_machine_contracts.json`, with authored contract identity and private
 implementation evidence in separate nested objects. The contract object never
 contains ranking subjects, view, range, or other witness material.
 
 Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider
-admission but remain outside the ordinary proof-fact catalog in v1.
+admission but remain outside the initial ordinary proof-fact catalog.
 
 Task consumption needs a derived artifact rather than syntax booleans. TR1
 retired the former synchronous-spawn desugar and parser-erased `Join<T>`:
@@ -661,37 +542,13 @@ lease provenance until settlement or transfer. Provider-specific handles and
 physical frame locations are lowering details and must not be confused with
 machine-contract or result-type identity.
 
-Implementation status (TR2/TR4, 2026-08-01): core owns the source-visible
-`[linear] Task<T>` claim carrier plus `TaskOutcome<T>`,
-`StartOutcome<T, Arguments>`, and the generic `TaskRuntime::start` /
-`try_start` ordinary boundary-trait surface. Symbol-keyed generic substitution preserves
-conditional payload debt, with pass and scope-loss canaries covering returned
-linear results and rejected linear argument bundles.
-
-Concrete static-machine specializations retain their executable instance
-symbol. The compiler derives a validated `TaskActivationPlan` for each closed
-TaskRuntime start specialization and emits `05_task_activations.json`. The plan
-uses checked contract/entry/layout/calling identities, the normalized
-transitive suspension plan, canonical crossing liveness/carry facts, and
-concrete target layout. The artifact now carries `StackPlan`, canonical
-suspension-crossing identities, and demanded CPU/thread preservation; the
-retired continuation-size, preemption-mode, and all-instruction runtime-supply
-fields are gone. `StackPlan.bytes` is currently the local machine/park-frontier
-layout bridge. The provider-independent task planner now validates local frame
-summaries and seals the maximum aligned live chain across an acyclic same-stack
-call graph, including exact admitted opaque-leaf contributions. Compiler
-call-graph collection and binding that composition evidence into `StackPlan`
-remain part of fixed-stack lowering. Every activation requires the cancellation
-operation because
-cancellation-request authority is part of every `Task<T>` claim. Provider
-plans now bind each concrete activation to the exact selected `TaskRuntime`
-plan and exact `start`/`try_start` requirement; missing selection and provider
-machine-contract narrowing reject. A normalized dynamic invocation receipt now
-revalidates that static provider, requirement, operation, and activation-plan
-binding, retains the runtime instance plus exact preservation evidence, and is
-single-use beside its invocation identity in the lifecycle ledger. Dispatch,
-routed source-claim establishment, stack leases, and transactional argument
-custody remain later task-runtime rungs.
+Core owns the linear `Task<T>` claim and ordinary `TaskRuntime::start` /
+`try_start` boundary surface. Each closed specialization receives a validated
+`TaskActivationPlan` containing exact contract, entry, layout, suspension,
+carry, stack, and preservation identities. Provider selection and single-use
+invocation receipts bind that exact plan. Call-graph composition into fixed
+stacks, dispatch, routed claim establishment, stack leases, and transactional
+argument custody remain.
 
 ### Multiplicity and permission context
 
@@ -710,85 +567,19 @@ to multiplicity. Flow joins operate over permission entries with
 path-sensitive sum state. Borrow events remain permission operations, not
 linear obligations by fiat.
 
-Implementation status (CML4 migration, through 2026-07-28): checked flow retains
-normalized `Establish | Transfer | Consume | AffineDrop` events, including
-whether a conditional sum event carries live payload debt. CML3's second slice
-propagates the same typed events through state graph, control flow,
-abstract/target/assigned operations, machine instructions/program/bytes, and
-the backend report. The older move/drop arenas remain compatibility output only
-through control flow and are dropped at the abstract-operation boundary; no
-backend representation carries them, and no semantic producer or consumer may
-reconstruct permission kind from that lossy pair.
+Current implementation carries normalized `Establish | Transfer | Consume |
+AffineDrop` events, conditional payload debt, exact place/provenance identity,
+and backend realization evidence. Every event maps to selected instructions or
+a narrowly checked no-code reason; incomplete or foreign evidence publishes no
+ledger. Legacy move/drop arenas are nonsemantic compatibility output.
 
-CML4's backend-realization slice preserves the control-flow arena identity on
-each abstract event and normalizes selection-time candidates into exactly one
-realization row per event. A row is either a sorted unique set of selected
-instruction indices or a narrow checked no-code reason. The latter is admitted
-only for explicit zero-code terminal consumes, no-live-debt events, and trivial
-affine discard; an empty selection site alone cannot prove a live establishment
-or transfer. Folded storage
-materializations may realize several transfers in one provenance chain; this
-does not mint a new origin. Candidate validation is all-or-nothing: missing,
-foreign, out-of-plan, or invalid no-code evidence publishes no ledger, and the
-backend report marks every event `UNLINKED`. Runtime/direct operation sites and
-dispatch-edge and state-call handoffs into target-state entry establishments
-cover the complete current ownership pass corpus. State/host call sites retain
-exact call ordinals. Named transition targets reserve their canonical ordinal
-before nested argument calls, while edge joins use target symbol as well as
-statement and ordinal; a nested two-obligation transition now retains a complete
-ten-event ledger. A runtime canary also carries a live linear obligation across
-a dispatched call's synthesized continuation and consumes it afterward. The
-continuation does not mint a permission event: it preserves the caller's
-canonical place and provenance; the later consuming call remains the eventful
-boundary. Two same-symbol nested calls in one transition retain distinct
-ordinals and jointly realize the target state's shared canonical event.
-Program-entry establishments are joined to the normalized platform argument
-writes before either straight-line or dispatched selection begins. A later
-consume cannot retroactively realize StateEntry, and a missing inbound write
-leaves the ledger incomplete rather than treating zero storage as
-establishment. Linear obligations returned from direct state-local paths or
-record-constructor fields are joined to their caller receiving paths without
-minting caller-local identities or origins. Checked states now publish complete
-normalized output maps, and opaque n-ary calls consume those maps across
-expression calls and qualified tail transitions without treating argument
-order as authority evidence. Ambiguous routed targets still reject, while the
-checked artifact retains every output path and input-relative or established
-source. Nontrivial state-exit code actions now target the settled
-`EdgeCleanupPlan`: materialize outgoing values, commit the transfer map, clean
-the ordered dying affine places, and retain the exact conservation witness.
-Composite per-field debt uses the settled path-indexed frontier: explicit
-nominal linearity contributes one root, transparent aggregates contribute their
-contained child claims. The first implemented slice follows statically named
-transparent-record fields through local construction, whole-record transfer,
-and extraction; moving one field preserves sibling debt, duplicate moves
-reject, and backend permission realizations retain the field paths, independent
-source provenance, and transfer-stable claim identity. Carry policy now indexes
-that exact identity as a separate checked axis, so n-ary outcome maps preserve
-each child policy and suspension checks intersect the policies of every live
-claim below an aggregate place. The carry artifact retains each effective
-claim policy and its contributing-origin count. Literal-length fixed arrays now
-enumerate structured fixed-index paths through construction, literal-index
-extraction, partial moves, and n-ary output maps; runtime-indexed extraction
-remains fail-closed. Active sums likewise enumerate structured case-plus-field
-paths. Payload-field symbols are children of their variants; known construction
-activates only the selected case, same-case siblings remain independent, and
-checked output maps omit proven-inactive alternatives while propagating live
-case identities through opaque calls. Symbol-keyed substitutions already retain
-contained claims through nested generic transparent records.
-Content-bearing n-to-m transformations additionally retain the selected
-compiler-owned algebra, normalized claim projection, per-invocation geometry,
-admitted external supply, stable backing identity, fresh-issuance premise,
-custody/alias lineage, root-lineage mapping, and exact separated-conservation
-witness. Provider succession appends classified predecessor/successor custody
-edges rather than rewriting claim origins. The initial
-closed vocabulary contains canonical disjoint interval sets and counted
-quantities over proof-level natural arithmetic. Entry/current versions belong
-to structural-place terms; separated composition, derived residuals, sealed
-introduction, and custody-exit rows remain distinct proposition facts. A
-qualification with no owner-unique `Content<A>`
-conformance participates only in whole-claim frontier accounting.
-Correspondence-bearing symbolic mappings and runtime-indexed extraction remain
-fail-closed extensions.
+Permission debt is path-indexed through transparent records, fixed arrays, and
+active sum cases. Static projections preserve sibling debt and claim identity;
+runtime-indexed extraction and correspondence-bearing symbolic mappings remain
+fail-closed. N-to-m content transformations additionally retain their selected
+algebra, geometry, backing/custody lineage, external supply, and conservation
+witness. These are independent from carry policy and never inferred from
+argument order or storage contents.
 
 ### Service reach, synchronous invocation, and operational ceilings
 
@@ -819,9 +610,8 @@ BlockingPlan {
   checked_may_block: bool,
 }
 
-CrashCauseId = stable identity                     // initially Trap | Abort;
-                                                   // closed per semantic version,
-                                                   // append-only across versions
+CrashCauseId = stable identity                     // closed compiler-owned
+                                                   // vocabulary
 CrashPredicateId = canonical lowered proof-expression identity
 
 CrashRouteBucket {
@@ -964,54 +754,20 @@ to equal the statically known call envelope. The source order is fixed as
 check needed before continuation planning. Compiler-synthesized adapters record
 the same facts without pretending a source token existed.
 
-Implementation status (EFX symbol-resolved service plans, 2026-07-23): `omega-core` now owns
-distinct `ServiceReachId`/`ServiceReachRowId` identities, deterministic
-service-row set normalization, and independent service, suspension, and
-blocking plans. The operational interfaces distinguish private inference from
-published `false`, preserving omission as a negative public guarantee instead
-of treating it as “not computed.” Authored `suspends;` / `blocks;` clauses now
-parse independently, survive syntax/resolved/typed trees and snapshots, enter
-checked `MachineContractPlan` values and fingerprints, and drive task
-admission. Operational names are rejected in source `reaches` rows, normalized
-service rows filter every operational member, and the migrated task/carry
-fixtures use the split spelling. Boundary traits now mint canonical identities
-after symbol assignment; machine, requirement, and nested machine-parameter
-rows resolve through the symbol table and include boundary-parent closure. A
-separate recursive service fixed point drives checked ceilings, static-machine
-and checked-provider admission, provider schemas, contract fingerprints,
-snapshots, and manifests. Ordinary policy traits never mint service identity.
-Executable capability manifests now read the checked service, suspension, and
-blocking plans directly: they publish canonical service names and independent
-`may_suspend` / `may_block` values without a lowercase-name or numeric-bit
-projection. Boundary-provider approval is exact to the reached capability
-symbol, capability acquisition follows normalized call topology, primitive
-provider authority is categorical metadata, and reports never reconstruct
-authority from service names. Static-machine refinement compares normalized
-service rows directly. Checked trees now expose grouped `ServiceReachFacts` as
-a first-class root; their duplicate `EffectRowFacts` carrier and the legacy
-reach-row field/input in machine contract artifacts and fingerprints are
-deleted. The obsolete `EffectRowId`/`EffectRowTable` carrier is also gone from
-core, resolved trees, and typed trees; those stages retain only
-symbol-resolved `ServiceReachRowId` values. General validation consumes
-canonical service rows plus the operational plan directly.
-Normalized inference now retains machine/state/call structure as shared-row
-identities in grouped arenas. Checked-flow, state-graph, and control-flow
-records carry those identities alongside independent suspension/blocking
-summaries, and the persistent graph crates no longer depend on `omega-effects`.
-The typed-tree report joins those same normalized scopes with the independent
-operational fixed points. All semantic phase filters derive their sorted
-canonical service catalog from rendered node rows rather than the global
-lowercase effect-name table. Provider-plan method schemas and fingerprints
-likewise retain only canonical service names and independent
-`may_suspend`/`may_block` ceilings; the duplicate lowercase method surface and
-plan-wide compatibility bitset are gone. Dedicated may-axis fixed points never
-depend on service rows or numeric bits. The global lowercase service catalog
-and `u64` engine are deleted; std, canaries, and compiler fixtures author
-boundary-trait identities. Build-script admission consumes exact service reach
-and admits only the pinned canonical `FilesystemHost` and `Console` staging
-slots; a custom boundary wrapper remains a distinct, rejected service.
+Current implementation gives service reach, suspension, and blocking separate
+normalized plans and fixed points. Boundary traits mint canonical service
+identities after symbol assignment; checked trees, provider plans, contracts,
+snapshots, and manifests carry those identities directly. Public omission is a
+negative guarantee, not “unknown,” and authored `suspends;` / `blocks;` clauses
+remain independent of `reaches`.
 
-Implementation status (`invokes`, 2026-07-31): syntax, resolved, typed, and
+Capability admission matches exact service symbols and normalized call
+topology. Authority is never reconstructed from a service name. Grouped
+machine/state/call rows are shared by the analyses, while their semantic
+summaries remain distinct; no lowercase-name catalog, bitset projection, or
+duplicate effect-row carrier remains.
+
+Current implementation: syntax, resolved, typed, and
 checked contract records retain the independent direct-invocation axis.
 Bodyful inference follows local helpers and nested expression positions while
 keeping boundary calls modular; bodyless requirements and published machines
@@ -1029,7 +785,7 @@ outcomes, and mutation remain separate fields/analyses. Do not manufacture a
 single all-purpose effect record or reconstruct suspension/blocking from
 service reach.
 
-Implementation status (checked operational root, 2026-08-02): checked facts
+Checked facts
 name the grouped suspension/blocking/call-topology plan `operational`. The
 former `operations` field was an ambiguous internal umbrella name; this rename
 does not combine service reach, trust, mutation, termination, or any other

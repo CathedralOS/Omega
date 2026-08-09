@@ -336,7 +336,7 @@ current generated `compact_binary` realization, canonicality is guaranteed and
 unknown-member behavior is strict, so a `PreserveUnknown` demand fails until a
 preserving codec package is selected.
 
-## `compact_binary` v0
+## `compact_binary`
 
 `compact_binary` is the first implemented Omega-native codec policy. Its
 normalized tagged plan currently supports:

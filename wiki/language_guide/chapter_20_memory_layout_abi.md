@@ -562,7 +562,7 @@ intermediate:
 | `Stable` | adopt | existing contents are valid by structural total decoding or admitted provider evidence |
 | `Stable` | initialize | exclusive vacant storage, writable transfers, and an encodable initial value |
 | `Stable` | validate | a checked validator over contents that cannot change during validation |
-| `External` | adopt only | every readable field is total-decoding and single-transfer in v1 |
+| `External` | adopt only | every readable field is total-decoding and single-transfer |
 
 For example, low-level generic code may spell the two semantic steps while a
 driver wrapper normally returns only the finished view:

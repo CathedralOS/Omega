@@ -141,7 +141,7 @@ may touch the supplied range.
 Admission and content establishment are distinct. Admission proves that the
 backing supports the requested interpretation. Stable storage may then adopt,
 initialize vacant storage, or validate existing contents; External storage may
-only adopt in v1, with each readable field total-decoding in one admitted
+only adopt, with each readable field total-decoding in one admitted
 transfer. Encoding, decoding, representability, and legal transfer derivation
 are checked per field and operation. The compiler never invents a fitting
 domain, emits a generic External RMW, assembles an External field from several
@@ -298,61 +298,23 @@ The first placed-view slice therefore rejects view-to-view recast. Detached
 snapshot bits may still be recast as ordinary values, and a caller retaining
 the underlying extent loan may request another placement through admission.
 
-Implementation status (2026-07-24): shared scalar, bounded interior-byte, and
-nested plan-laid record reads are live. Fact-free mutable scalar views are live
-end to end over equal-width scalar places and bounded byte-region offsets.
-Mutable integer views may also retain constant range facts when both sides
-normalize to the exact same two's-complement bit-pattern set; this admits, for
-example, `i32 [0..=100]` and `u32 [0..=100]`, while shifted equal-cardinality
-ranges reject. Canonicalization merges adjacent or overlapping intervals, so
-`i8 [-128..=127]` is correctly equivalent to unconstrained `u8`.
-Range-refined reference binding stores a reference rather than re-establishing
-the referee and is checked through this recast judgment.
-Recursively fact-free mutable record views are also live over bounded byte
-regions: nested ordinary/plan-laid scalar projections preserve exact offsets
-and bit patterns in both native backends and the interpreter. Literal-length
-fixed-array fields, including arrays of nested records and runtime-indexed
-element projections, participate in the same live view. Typed record-to-record
-mutable aliases are also live when total size/alignment, leaf offsets/sizes, and
-every leaf representation set are equivalent. Both sides are already
-established values, so the alias retains facts rather than creating them; the
-live canary covers range-bearing signed/unsigned leaves and `bool` in native and
-interpreter execution. Raw bytes are different. `recast` never establishes
-record facts from unchecked storage; that path remains gated on validation or
-materialization establishing the typed value. Domain predicates over different
-carriers remain fenced until their representation sets can be proved rather
-than guessed. Float ranges compose by numeric interval inclusion on the same
-float carrier, with exact interval equality required for mutable aliases. The
-same leaf judgment composes through typed record views. A shared view may
-forget the interval into an unconstrained equal-width bit carrier; it never
-justifies cross-carrier mutable equivalence.
+Current recast implementation supports shared scalar, bounded byte-region,
+and recursively nested record/array views, plus mutable aliases whose complete
+representation sets are equal. Range-bearing integer leaves normalize to exact
+two's-complement bit sets; float ranges use same-carrier interval inclusion for
+shared views and equality for mutable views. Typed record aliases require equal
+layout geometry and equivalent leaf representations.
 
-Top-level structural targets are live on the same full-type-reference spine.
-Literal-length fixed arrays apply the recursive element judgment directly.
-Unsized slices consume the complete source representation and derive their
-descriptor length by exact tiling:
+Raw storage never establishes typed facts. Mutable raw-byte views require
+existing total-write or Psi-proved fit evidence, while established typed views
+may retain or weaken facts according to the recast judgment. `Placed<P, T>` is
+excluded because its access plan adds authority not captured by representation
+identity.
 
-```text
-element_count = source_byte_count / target_element_byte_size
-```
-
-A zero-sized element or nonzero remainder rejects. Raw storage may target only
-recursively fact-free elements; an already-typed shared view may weaken facts,
-and an already-typed mutable view requires implication in both directions.
-Native lowering and the interpreter preserve the backing address through
-indexed reads, writes, and state-parameter forwarding. No generated semantic
-name or second slice carrier participates. Aggregate elements use the same
-recursive leaf judgment: a typed fixed array may be viewed as an unsized slice
-of a differently named record when every repeated element preserves layout
-geometry and facts. Shared range weakening and mutable exact equivalence are
-live through padded element strides on both native targets and the interpreter;
-a single mismatched nested leaf representation set rejects. Interior unsized
-slices consume every byte after a proven start. A runtime offset may establish
-a byte-element tail, while multi-byte and aggregate elements require an exact
-offset so divisibility is static; an upper bound alone does not prove
-congruence. Native descriptors compute the dynamic tail length from the
-declared byte-region capacity and preserve mutable address identity through
-state forwarding.
+Unsized slices consume the complete source representation and derive length by
+exact tiling. Zero-sized elements, remainders, and runtime offsets without
+statically proved multi-byte congruence reject. Native and interpreter paths
+preserve backing-address identity through projection and state forwarding.
 
 ## Policy selection
 
@@ -394,144 +356,35 @@ cache is a different policy choice made at that boundary.
 9. Home-policy resolution and artifact reporting.
 10. Converge legacy repr/format paths on normalized policy plans.
 
-Implementation status: steps 1-3 are live for primitive record schemas. Step
-4's source shape is live as compiler-issued field keys copied into
-`FieldEntry` values; the compiler normalizes those keys back to field names,
-accepts repeated `Bits` placements, and rejects unknown/missing fields, mixed
-whole/fragment placement, destination overlap/out-of-bounds ranges, and source
-fragments that do not tile the logical field exactly. Ordinary plan-laid value
-types accept either one fixed `At` placement or a complete set of fixed `Bits`
-placements for each runtime-relevant primitive scalar field. `[erased]`
-bindings have no placement key or physical offset; their facts are established
-separately by the checked or admitted plan contract. Direct reads assemble the
-logical value from one or more fragments, and immediate writes use masked
-read-modify-write operations that preserve neighboring bits; both paths are
-live on x86-64 and AArch64. A target-neutral ordinary-scalar consumer takes
-only named values and this validated plan: there is no caller-supplied offset,
-every planned field must be supplied exactly once, widths and fragments are
-rechecked, padding/reserved bits start at zero, and the destination changes
-only after complete validation. A compiler-evaluated compact-bit policy pins
-this generic path without naming a target subsystem. Target and OS packages
-consume plans; the compiler does not own their table hierarchy, flags, or
-lifecycle. The inverse scalar decoder consumes compiler-materialized field
-widths and the same named geometry, reconstructs complete logical fields, and
-rejects incomplete or overlapping source fragments. Decoding establishes no
-domain, trust, or authority fact. Source establishment remains separate work.
-The `IntegerAt` source case and normalized report are also live: validation
-retains byte offset, whole-byte stored bit width, and signed/unsigned
-interpretation, rejects non-integer or non-total decode ranges, includes the
-encoding in plan identity and overlap checks, and exposes exact stored-width
-access geometry. That encoding now survives the typed plan-laid boundary and
-the concrete Omega layout as field-keyed stored-width metadata. Direct owned
-and reference-backed plan-laid projection now loads exactly that width and
-sign- or zero-extends according to the retained interpretation. Runtime-indexed
-projection keeps descriptor, inline-frame, machine-owned, or reference-backed
-address geometry while applying the same exact-width decode. Plan construction
-derives and retains total-write evidence when the field's complete admitted
-semantic range fits the stored encoding. Direct stable-owned mutation consumes
-that evidence to write exactly the physical width, and direct guards consume
-the decoded projection instead of comparing the semantic carrier width against
-raw storage. Read-only interpreter record views now perform the same exact-width
-signed/unsigned decode. The portable filesystem stat record uses wide semantic
-carriers while the Darwin, Linux x86-64, Linux AArch64, and Windows policies own
-their physical integer widths; both Linux kernel layouts cross-validate through
-their native fstat plans. Concrete proved-fit mutation now admits exact
-compile-time integers and runtime assignment values whose Psi-proved inclusive
-range wholly fits the stored encoding. Every resolvable assignment receives a
-range-analysis row without creating a new language obligation. The checked
-value fact retains its use-site type reference and BigInt discharge interval,
-including stable incoming guards and boundary witnesses; Omega consumes that
-fact and keeps unproved values fail-closed. Mutable raw-byte record recasts now
-retain `IntegerAt` metadata through validation,
-interpreter projection and write-back, native pointee lowering, and relocation.
-They write the exact physical bytes only when total-write evidence or a
-Psi-proved fitting value authorizes the assignment; unconstrained writes reject.
-Typed aggregate aliases still require identical representations. By-value
-boundary classification derives each stored-integer leaf's physical width and
-alignment from the validated encoding metadata, while semantic projection
-retains responsibility for sign or zero extension after landing. The
-target-neutral ordinary scalar materializer now accepts a concrete value only
-after checking signed or unsigned fit, writes the exact stored width in either
-byte order, and decodes with the retained extension rule. Rejection leaves the
-destination unchanged. A compiler/provider-resolved symbolic value uses the
-same fit check. An unresolved loader-consumed `IntegerAt` remains fail-closed
-because native relocation cannot prove the narrowed value. After Omega handoff,
-the generated writer instead retains the signed/unsigned source-width and
-stored-width constraint as invocation evidence, resolves the sealed target
-privately, and rejects a non-fitting value before publishing a context or
-changing any destination byte.
-The admitted `compact_binary` realization now derives bounded repeated framing
-from carrier semantics: `[T; N]` contributes exactly `N` elements and
-`FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired
-array-plus-synthetic-count convention is gone. Borrowed byte slices use the
-existing zero-copy length-delimited path. General borrowed scalar slices now
-encode through a normalized runtime obligation row: descriptor element count,
-two scalar passes per element, and exact packed-payload output capacity. The
-generated native operation measures before emitting and allocates no staging
-buffer. Packed scalar decode still needs owned or caller-provided mutable
-storage, and `Vec<T>` awaits its allocator contract.
-Step 8 now also has a normalized symbolic foundation: sealed
-`Data(DataSymbolId) | Entry(EntryStubId)` source
-identities derive resolved writes, native whole-pointer relocations, or
-post-handoff writer records from the same validated plan. Loader-consumed
-unresolved fragments reject, while fixed addresses may constant-fold through
-the identical write path. The plan now also carries normalized permitted-range,
-effective-alignment, build/load/post-handoff phase, machine-regime identity,
-and artifact-installation-scope constraints; the concrete-site validator checks
-all five and joins policy alignment with layout alignment. Source-level
-symbolic-value derivation and final artifact propagation remain.
-Post-handoff actions also derive a provider-consumable writer program. It
-validates the concrete placement, resolves repeated fragments of one target
-once, validates all writes before mutation, and writes directly into the
-exclusive unpublished destination. A failed fill produces no publication
-claim and the destination remains unpublishable; no full-table staging
-allocation is required. The same normalized program now derives one
-address-free reusable fragment shape plus separate invocation evidence. Dense
-private source slots are assigned by first symbolic-target occurrence, so
-repeated fragments resolve once without putting target identity or numeric
-content into fragment identity. Exact checked encoders are live on x86-64 and
-AArch64; each revalidates complete fragment/container/context geometry,
-publishes its exact register/state footprint, and fingerprints emitted bytes
-separately from the target-neutral fragment plan. Provider preparation now pairs
-an already-lowered AOT fragment and exact footprint with an opaque once-resolved
-invocation context, rejects target/installed-artifact drift, and checks that
-both halves bind the same normalized fragment. It never generates host code
-after installation. Context slots follow symbolic target identity, not numeric
-equality, so distinct admitted entries that select one address still retain
-the fragment's exact dense-slot ABI.
-The object/image substrate no longer assumes relocation sites are text:
-section-qualified generic `Absolute64` relocations can patch initialized data,
-including PE base-rebase records. Materialized-data origin/provenance must get
-an honest record rather than borrowing instruction-index sentinels; that
-tagged `Instruction | Materialization` origin and native-action lowering are
-now implemented. Selected-artifact entry integration now reaches canonical
-executable-container v2, which carries one required entry-set section. It
-validates unique compiler-issued entry identities and in-code offsets, binds
-the entry-set identity through artifact admission, and allows an admitted
-artifact to yield only a sealed target present in that set. Source-level data
-identity derivation and final artifact propagation remain. For entry targets,
-the exact `InstalledCode` state now supplies the private resolver while the
-normalized writer validates its destination and every source before mutation,
-resolves each target once, then writes the exclusive unpublished destination
-directly. Failure produces no publication claim; it does not promise
-transactional restoration after writes begin. The compiler does not synthesize
-a table-specific machine carrier or own a table lifecycle. Reusable
-post-handoff fragments now lower from generic writer geometry on both target
-families, with normalized plan identity and emitted-byte identity explicitly
-separate from invocation evidence such as exact placement, resolver, roots,
-and content. A single checked provider-preparation seam binds the fragment bytes,
-exact footprint, architecture, installed entry resolver, and opaque packed
-context without returning numeric entry or destination addresses from the
-preparation gate. Generated writer bytes are inline AOT fragments, not
-independently callable runtime helpers: they deliberately carry no return
-sequence, and provider preparation consumes rather than generates them.
-Carrying the immutable fragment, exact footprint, and symbolic invocation plan
-through final artifacts remains L6c work. Connecting that final placed fragment
-to source provider code then depends on P1's authority-value/provider-key
-evidence and L4/L5 materialization establishment. A consumer package may
-use this machinery to build an IDT or another hardware-consumed table, but its
-preparation, population, validation, and installation states remain consumer
-code rather than compiler types.
+Current implementation covers plan normalization, primitive record schemas,
+and named whole or fragmented scalar placement. Validation rejects incomplete,
+overlapping, out-of-bounds, or mixed placement before changing a destination;
+reads reconstruct logical values and writes preserve neighboring bits. Erased
+bindings remain outside physical placement, and decoding establishes no domain,
+trust, or authority fact. Target and OS packages consume plans; their table
+hierarchies and lifecycle remain outside the compiler.
+
+`IntegerAt` retains offset, stored width, and signedness through plan identity,
+typed projection, interpreter/native access, recast, relocation, and boundary
+classification. Reads extend from the stored width. Writes require either
+plan-wide fit evidence or a Psi-proved use-site range; unresolved or
+out-of-range values fail before publication or mutation. Target policies own
+physical integer widths while portable records keep their semantic carriers.
+
+`compact_binary` derives bounded repetition from `[T; N]`, `FixedVec<T, N>`,
+and borrowed-slice semantics. Scalar-slice encoding measures before emitting
+and uses no staging buffer. Packed scalar decode still needs owned or
+caller-provided mutable storage, and `Vec<T>` awaits its allocator contract.
+
+Symbolic materialization uses sealed `Data(DataSymbolId) |
+Entry(EntryStubId)` identities and validates range, alignment, phase, machine
+regime, and installation scope before mutation. Post-handoff writers separate
+an address-free AOT fragment from exact invocation evidence, resolve each
+symbolic target once, and publish nothing after failure. The same model covers
+initialized-data relocations and admitted executable entries on both target
+families. Final artifact propagation, source-level symbolic data derivation,
+and provider-key establishment remain; consumer table lifecycle is not a
+compiler type.
 
 ## Still open
 

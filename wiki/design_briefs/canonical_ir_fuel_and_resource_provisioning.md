@@ -235,7 +235,7 @@ vertical slices. For each operation class, specify together:
 3. generated obligations and authorized admissions;
 4. proof rule plus its soundness obligation;
 5. interpreter behavior and Omega lowering requirement; and
-6. fuel identity under a separately versioned schedule.
+6. fuel identity under the canonical schedule.
 
 Two operations require distinct static identities when their execution
 semantics or generated obligations differ. Proof-lemma choice is not an
