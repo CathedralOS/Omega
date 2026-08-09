@@ -25,7 +25,10 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalValueBinding,
 };
-use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_terminal_abstract_operations_to_target_operations::{
+    LoweringError as TerminalTargetLoweringError, lower_to_target_operations,
+};
+use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, build_terminal_installation_record, build_terminal_object_artifact,
     decode_terminal_installation_record, emit_terminal_executable_image,
@@ -5048,6 +5051,21 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
             expected
         );
     }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("guarded crash should remain represented at the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, TerminalAbstractOperation::Crash { .. }))
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert!(matches!(
+            lower_to_target_operations(&abstract_operations, target),
+            Err(TerminalTargetLoweringError::ConditionalControlFlowRequiresBlockLowering(_))
+        ));
+    }
 }
 
 #[test]
@@ -5355,6 +5373,74 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         charged,
         "resuming a crash must not replay its edge"
     );
+
+    for (source, expected_cause, expected_damage, expected_demand) in [
+        (
+            &wide_trap,
+            CrashCause::Trap,
+            "Activation",
+            "ExecutionDomain",
+        ),
+        (
+            &lowered,
+            CrashCause::Abort,
+            "ExecutionDomain",
+            "ExecutionDomain",
+        ),
+    ] {
+        let semantic =
+            encode_module(&source.semantic_module).expect("crash semantics should encode");
+        let proof = encode_proof_bundle(&source.proof_bundle).expect("crash proof should encode");
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("verified unconditional crash should cross the Omega boundary");
+        assert!(matches!(
+            abstract_operations.functions[0].operations.as_slice(),
+            [TerminalAbstractOperation::Crash {
+                cause,
+                damage_minimum,
+                containment_demand,
+                frontier_lower_bound,
+                ..
+            }] if *cause == expected_cause
+                && damage_minimum == expected_damage
+                && containment_demand == expected_demand
+                && frontier_lower_bound.is_empty()
+        ));
+
+        for (target, expected_bytes) in [
+            (NativeTarget::linux_x64(), &[0x0f, 0x0b][..]),
+            (NativeTarget::linux_arm64(), &[0x00, 0x00, 0x20, 0xd4][..]),
+        ] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .expect("unconditional crash should select");
+            assert!(matches!(
+                &target_operations.functions[0].operation,
+                TerminalTargetOperation::Crash {
+                    cause,
+                    damage_minimum,
+                    containment_demand,
+                    frontier_lower_bound,
+                    ..
+                } if *cause == expected_cause
+                    && damage_minimum == expected_damage
+                    && containment_demand == expected_demand
+                    && frontier_lower_bound.is_empty()
+            ));
+            let assigned = assign_registers(&target_operations)
+                .expect("unconditional crash should require no register homes");
+            assert!(matches!(
+                &assigned.functions[0].operation,
+                TerminalAssignedOperation::Crash { cause, .. } if *cause == expected_cause
+            ));
+            let emitted = emit_machine_code(&assigned).expect("unconditional crash should emit");
+            assert_eq!(emitted.functions[0].bytes, expected_bytes);
+            assert_eq!(
+                emitted.functions[0].provenance.edges,
+                vec![EdgeId::new(1).unwrap()]
+            );
+        }
+    }
 }
 
 #[cfg(unix)]

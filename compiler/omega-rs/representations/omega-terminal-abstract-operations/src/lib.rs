@@ -8,9 +8,10 @@
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
 use psi_core::{
-    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+    BlockId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
+    ValueId,
 };
-use psi_terminal::TerminalPsiIdentity;
+use psi_terminal::{CrashCause, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAbstractOperationPlan {
@@ -224,6 +225,16 @@ pub enum TerminalAbstractOperation {
         result: ValueId,
         value: ValueId,
         scalar_type: ScalarType,
+    },
+    /// A verified no-successor terminal. The audit-only frontier and legacy
+    /// containment fields remain attached at the Omega boundary even though
+    /// native realization only needs the closed cause and edge identity.
+    Crash {
+        psi_edge: EdgeId,
+        cause: CrashCause,
+        damage_minimum: String,
+        containment_demand: String,
+        frontier_lower_bound: Vec<ClaimId>,
     },
 }
 

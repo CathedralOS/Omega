@@ -908,6 +908,22 @@ fn lower_function(
                     function.machine,
                 ));
             }
+            TerminalAbstractOperation::Crash {
+                psi_edge,
+                cause,
+                damage_minimum,
+                containment_demand,
+                frontier_lower_bound,
+            } => {
+                provenance.edges.push(*psi_edge);
+                returned = Some(TerminalTargetOperation::Crash {
+                    psi_edge: *psi_edge,
+                    cause: *cause,
+                    damage_minimum: damage_minimum.clone(),
+                    containment_demand: containment_demand.clone(),
+                    frontier_lower_bound: frontier_lower_bound.clone(),
+                });
+            }
             TerminalAbstractOperation::Return {
                 psi_edge,
                 result,
@@ -2749,7 +2765,8 @@ fn conditional_provenance(
             }
             TerminalAbstractOperation::Jump { .. }
             | TerminalAbstractOperation::Conditional { .. }
-            | TerminalAbstractOperation::Return { .. } => None,
+            | TerminalAbstractOperation::Return { .. }
+            | TerminalAbstractOperation::Crash { .. } => None,
         };
         if let Some(psi_operation) = psi_operation
             && operations.remove(&psi_operation)
@@ -2758,7 +2775,8 @@ fn conditional_provenance(
         }
         match operation {
             TerminalAbstractOperation::Jump { psi_edge, .. }
-            | TerminalAbstractOperation::Return { psi_edge, .. } => {
+            | TerminalAbstractOperation::Return { psi_edge, .. }
+            | TerminalAbstractOperation::Crash { psi_edge, .. } => {
                 if edges.remove(psi_edge) {
                     provenance.edges.push(*psi_edge);
                 }

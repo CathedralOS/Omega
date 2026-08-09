@@ -442,8 +442,12 @@ Remaining:
   Generalize guarded source production beyond the live structural implication
   rules and current acyclic integer-control shape.
   Terminal Psi already carries the explicit no-successor terminator and its
-  canonical machine-local frontier lower bound; native lowering remains closed
-  until target `Trap` and `Abort` lowering exists.
+  canonical machine-local frontier lower bound. Unconditional crash-only
+  functions now carry the complete verified `Trap`/`Abort` row through the
+  artifact-root Omega boundary, target selection, assignment, and x86-64
+  `ud2`/AArch64 `brk #0` emission. Extend the recursive native control
+  vocabulary with crash leaves before enabling guarded mixed return/crash
+  graphs; those shapes still fail closed at target selection.
 - Re-root the reference interpreter and abstract-operation construction fully
   on decoded, verified terminal Psi. The terminal interpreter and
   terminal-Psi-to-abstract-operation builder now have parallel artifact-root

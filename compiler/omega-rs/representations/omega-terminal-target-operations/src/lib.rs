@@ -4,8 +4,8 @@
 //! requirements.
 
 use omega_target::NativeTarget;
-use psi_core::{EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
-use psi_terminal::TerminalPsiIdentity;
+use psi_core::{ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
+use psi_terminal::{CrashCause, TerminalPsiIdentity};
 
 pub use omega_calling_conventions::MachineRegister;
 
@@ -33,6 +33,14 @@ pub struct TerminalPsiProvenance {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetOperation {
+    /// End the execution domain at one verified terminal-Psi crash edge.
+    Crash {
+        psi_edge: EdgeId,
+        cause: CrashCause,
+        damage_minimum: String,
+        containment_demand: String,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
     /// Return one compile-time integer through the target's ordinary scalar
     /// function-result convention. Register and instruction encoding are
     /// chosen by machine emission.

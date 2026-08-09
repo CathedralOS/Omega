@@ -5,8 +5,8 @@
 
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{MachineRegister, TerminalPsiProvenance};
-use psi_core::{EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
-use psi_terminal::TerminalPsiIdentity;
+use psi_core::{ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
+use psi_terminal::{CrashCause, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAssignedOperationPlan {
@@ -25,6 +25,13 @@ pub struct TerminalAssignedFunction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedOperation {
+    Crash {
+        psi_edge: EdgeId,
+        cause: CrashCause,
+        damage_minimum: String,
+        containment_demand: String,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
     ReturnIntegerImmediate {
         psi_edge: EdgeId,
         source_value: ValueId,
