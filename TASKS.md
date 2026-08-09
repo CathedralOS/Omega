@@ -433,6 +433,13 @@ Remaining:
   reconstructs their conjunction for the addition. Earlier versions retain
   their prior surface. Existing proof terms, canonical artifacts, selected-path
   fuel, interpretation, and both native targets carry the signed slice.
+  Terminal Psi v48 adds the symmetric signed nonpositive-subtrahend form. A
+  preceding path proves `right <= 0`, making `MAX + right` Exact-safe; the
+  nested true edge proves `left <= MAX + right`. The verifier independently
+  requires both facts and reconstructs their conjunction for the subtraction.
+  Earlier versions retain their prior surface. Existing proof terms, canonical
+  artifacts, selected-path fuel, interpretation, and both native targets carry
+  the upper-bound slice.
   Terminal Psi v45 adds the symmetric signed nonpositive Exact-add form. A
   preceding path proves `right <= 0`, making `MIN - right` Exact-safe; the
   nested true edge proves `MIN - right <= left`. The verifier independently

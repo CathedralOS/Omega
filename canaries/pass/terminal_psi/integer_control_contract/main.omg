@@ -1046,6 +1046,27 @@ ensures 0i32 == 0i32
     }
 }
 
+machine terminal_exact_subtract_signed_nonpositive_bound(left: i32, right: i32) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+{
+    transition right <= 0i32 {
+        true -> prove_exact_subtract_signed_upper(left, right)
+        _ -> finish_exact_subtract_signed_upper(0i32)
+    }
+
+    state prove_exact_subtract_signed_upper(left: i32, right: i32) -> i32 {
+        transition left <= 2147483647i32 + right {
+            true -> finish_exact_subtract_signed_upper(left - right)
+            _ -> finish_exact_subtract_signed_upper(0i32)
+        }
+    }
+
+    state finish_exact_subtract_signed_upper(value: i32) -> i32 {
+        value
+    }
+}
+
 machine terminal_exact_multiply_known_right(value: u32, ignored: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

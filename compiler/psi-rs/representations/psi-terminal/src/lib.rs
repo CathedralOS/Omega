@@ -28,8 +28,9 @@
 //! evidence, v43 admits a guarded two-runtime unsigned Exact-add bound, v44
 //! extends that upper-bound form to signed nonnegative addends, v45 adds the
 //! symmetric lower-bound form for signed nonpositive addends, v46 admits a
-//! direct unsigned two-runtime Exact-subtract bound, and current v47 adds the
-//! signed lower-bound form for nonnegative runtime subtrahends.
+//! direct unsigned two-runtime Exact-subtract bound, v47 adds the signed
+//! lower-bound form for nonnegative runtime subtrahends, and current v48 adds
+//! the symmetric upper-bound form for nonpositive runtime subtrahends.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other

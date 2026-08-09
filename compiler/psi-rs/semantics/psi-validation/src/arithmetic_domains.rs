@@ -265,6 +265,11 @@ fn narrow_env_by_condition(
         {
             env.mark_signed_joint_subtract_lower_bound(left, right);
         }
+        if let Some((left, right)) =
+            signed_joint_subtract_upper_guard(program, machine, state, env, &comparison)
+        {
+            env.mark_signed_joint_subtract_upper_bound(left, right);
+        }
         if comparison.operator == BinaryOperator::Equal
             && let (Some(left), Some(right)) = (
                 place_path(program, comparison.left),
@@ -551,6 +556,55 @@ fn signed_joint_subtract_lower_guard(
         _ => return None,
     };
     if literal_i64(program, minimum) != Some(minimum_value) {
+        return None;
+    }
+    Some((place_path(program, left)?, right_path))
+}
+
+/// Recognize the signed guard `left <= MAX + right` (including its `>=`
+/// spelling) once the current path proves `right <= 0`. The sign fact makes
+/// the bound addition total, and the comparison is exactly the upper
+/// representability condition for `left - right`.
+fn signed_joint_subtract_upper_guard(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    env: &ValueEnv,
+    comparison: &psi_typed_trees::expression::TableBinaryExpression,
+) -> Option<(String, String)> {
+    let (left, bound) = match comparison.operator {
+        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
+        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
+        _ => return None,
+    };
+    let ExpressionNode::Binary(add) = program.expression_table.expression(bound) else {
+        return None;
+    };
+    if add.operator != BinaryOperator::Add {
+        return None;
+    }
+    let (maximum, right) = if literal_i64(program, add.left).is_some() {
+        (add.left, add.right)
+    } else {
+        (add.right, add.left)
+    };
+    let left_type = declared_place_type_raw(program, machine, state, left)?;
+    let right_type = declared_place_type_raw(program, machine, state, right)?;
+    let left_primitive = program.primitive_type_reference(left_type)?;
+    if program.primitive_type_reference(right_type) != Some(left_primitive)
+        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let right_path = place_path(program, right)?;
+    let maximum_value = match left_primitive {
+        PrimitiveType::I8 if env.get(&right_path)?.high? <= 0 => i8::MAX as i64,
+        PrimitiveType::I16 if env.get(&right_path)?.high? <= 0 => i16::MAX as i64,
+        PrimitiveType::I32 if env.get(&right_path)?.high? <= 0 => i32::MAX as i64,
+        _ => return None,
+    };
+    if literal_i64(program, maximum) != Some(maximum_value) {
         return None;
     }
     Some((place_path(program, left)?, right_path))
@@ -934,6 +988,7 @@ pub(crate) struct ValueEnv {
     joint_add_lower_bounds: BTreeSet<(String, String)>,
     joint_subtract_bounds: BTreeSet<(String, String)>,
     signed_joint_subtract_lower_bounds: BTreeSet<(String, String)>,
+    signed_joint_subtract_upper_bounds: BTreeSet<(String, String)>,
 }
 
 impl ValueEnv {
@@ -951,6 +1006,7 @@ impl ValueEnv {
         self.joint_add_lower_bounds.clear();
         self.joint_subtract_bounds.clear();
         self.signed_joint_subtract_lower_bounds.clear();
+        self.signed_joint_subtract_upper_bounds.clear();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.
@@ -972,6 +1028,8 @@ impl ValueEnv {
         self.joint_subtract_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
         self.signed_joint_subtract_lower_bounds
+            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
+        self.signed_joint_subtract_upper_bounds
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
     }
 
@@ -1022,6 +1080,11 @@ impl ValueEnv {
 
     fn mark_signed_joint_subtract_lower_bound(&mut self, left: String, right: String) {
         self.signed_joint_subtract_lower_bounds
+            .insert((left, right));
+    }
+
+    fn mark_signed_joint_subtract_upper_bound(&mut self, left: String, right: String) {
+        self.signed_joint_subtract_upper_bounds
             .insert((left, right));
     }
 
@@ -1088,6 +1151,22 @@ impl ValueEnv {
             .contains(&(left, right))
     }
 
+    fn proves_signed_joint_subtract_upper_bound(
+        &self,
+        program: &TypedTrees,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> bool {
+        let Some(left) = place_path(program, left) else {
+            return false;
+        };
+        let Some(right) = place_path(program, right) else {
+            return false;
+        };
+        self.signed_joint_subtract_upper_bounds
+            .contains(&(left, right))
+    }
+
     fn float_fact(&self, path: &str) -> (FloatInterval, bool) {
         (
             self.float_intervals
@@ -1139,6 +1218,11 @@ impl ValueEnv {
         joined.signed_joint_subtract_lower_bounds.extend(
             self.signed_joint_subtract_lower_bounds
                 .intersection(&other.signed_joint_subtract_lower_bounds)
+                .cloned(),
+        );
+        joined.signed_joint_subtract_upper_bounds.extend(
+            self.signed_joint_subtract_upper_bounds
+                .intersection(&other.signed_joint_subtract_upper_bounds)
                 .cloned(),
         );
         joined
@@ -1404,6 +1488,10 @@ pub(crate) fn record_assignment(
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
         env.signed_joint_subtract_lower_bounds
+            .retain(|(left, right)| {
+                !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
+            });
+        env.signed_joint_subtract_upper_bounds
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
@@ -2357,6 +2445,11 @@ fn analyze(
                 && operator == BinaryOperator::Subtract
                 && (env.proves_joint_subtract_bound(program, binary.left, binary.right)
                     || env.proves_signed_joint_subtract_lower_bound(
+                        program,
+                        binary.left,
+                        binary.right,
+                    )
+                    || env.proves_signed_joint_subtract_upper_bound(
                         program,
                         binary.left,
                         binary.right,
