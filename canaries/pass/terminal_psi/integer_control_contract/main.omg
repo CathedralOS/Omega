@@ -1123,6 +1123,27 @@ ensures 0i32 == 0i32
     }
 }
 
+machine terminal_exact_multiply_signed_negative_bound(left: i32, right: i32) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+{
+    transition right <= -2i32 {
+        true -> prove_exact_multiply_signed_negative_bounds(left, right)
+        _ -> finish_exact_multiply_signed_negative(0i32)
+    }
+
+    state prove_exact_multiply_signed_negative_bounds(left: i32, right: i32) -> i32 {
+        transition 2147483647i32 / right <= left && left <= -2147483648i32 / right {
+            true -> finish_exact_multiply_signed_negative(left * right)
+            _ -> finish_exact_multiply_signed_negative(0i32)
+        }
+    }
+
+    state finish_exact_multiply_signed_negative(value: i32) -> i32 {
+        value
+    }
+}
+
 machine terminal_exact_divide_known_right(value: u32, ignored: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32

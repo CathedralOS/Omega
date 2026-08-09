@@ -675,8 +675,9 @@ fn joint_multiply_guard(
     Some((place_path(program, left)?, right_path))
 }
 
-/// Recognize `MIN / right <= left` for signed multiplication once the current
-/// path proves `right >= 1`.
+/// Recognize the carrier-tight lower quotient bound for signed multiplication.
+/// A positive factor uses `MIN / right <= left`; a factor at most `-2` uses
+/// `MAX / right <= left` because dividing reverses the product inequalities.
 fn signed_joint_multiply_lower_guard(
     program: &TypedTrees,
     machine: &Machine,
@@ -692,8 +693,9 @@ fn signed_joint_multiply_lower_guard(
     signed_joint_multiply_quotient_guard(program, machine, state, env, left, bound, true)
 }
 
-/// Recognize `left <= MAX / right` for signed multiplication once the current
-/// path proves `right >= 1`.
+/// Recognize the carrier-tight upper quotient bound for signed multiplication.
+/// A positive factor uses `left <= MAX / right`; a factor at most `-2` uses
+/// `left <= MIN / right`.
 fn signed_joint_multiply_upper_guard(
     program: &TypedTrees,
     machine: &Machine,
@@ -716,7 +718,7 @@ fn signed_joint_multiply_quotient_guard(
     env: &ValueEnv,
     left: ExpressionHandle,
     bound: ExpressionHandle,
-    minimum: bool,
+    lower_bound: bool,
 ) -> Option<(String, String)> {
     let ExpressionNode::Binary(divide) = program.expression_table.expression(bound) else {
         return None;
@@ -734,10 +736,14 @@ fn signed_joint_multiply_quotient_guard(
         return None;
     }
     let right_path = place_path(program, divide.right)?;
-    if env.get(&right_path)?.low? < 1 {
+    let interval = env.get(&right_path)?;
+    let positive = interval.low.is_some_and(|low| low >= 1);
+    let negative = interval.high.is_some_and(|high| high <= -2);
+    if !positive && !negative {
         return None;
     }
-    let boundary = match (left_primitive, minimum) {
+    let use_minimum = if positive { lower_bound } else { !lower_bound };
+    let boundary = match (left_primitive, use_minimum) {
         (PrimitiveType::I8, true) => i8::MIN as i64,
         (PrimitiveType::I16, true) => i16::MIN as i64,
         (PrimitiveType::I32, true) => i32::MIN as i64,

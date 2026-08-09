@@ -78,7 +78,7 @@ certified. Unsupported relations fail closed.
 | Exact left shift | legal count plus carrier-tight no-overflow bounds |
 | Exact add | a known addend and its complementary carrier bound; unsigned `left <= MAX - right`; signed positive/negative variants with the sign fact that makes the bound operation total |
 | Exact subtract | a known right operand and its complementary carrier bound; unsigned `right <= left`; signed positive/negative variants with the sign fact that makes the bound operation total |
-| Exact multiply | a known factor and the carrier-tight interval; positive runtime factor plus `MIN / factor <= value <= MAX / factor` for signed carriers, or the upper bound for unsigned carriers |
+| Exact multiply | a known factor and the carrier-tight interval; a positive runtime factor plus `MIN / factor <= value <= MAX / factor` for signed carriers, or the upper bound for unsigned carriers; a signed factor at most `-2` plus `MAX / factor <= value <= MIN / factor` |
 | Exact divide/remainder | a known safe divisor; `1 <= divisor`; `divisor <= -2`; or `divisor <= -1` together with `MIN + 1 <= dividend` |
 | Wrapping/Saturating divide/remainder | a known nonzero divisor, `1 <= divisor`, `divisor <= -2`, or `divisor <= -1`; policy defines the signed `MIN`/`-1` result |
 
