@@ -440,6 +440,12 @@ Remaining:
   Earlier versions retain their prior surface. Existing proof terms, canonical
   artifacts, selected-path fuel, interpretation, and both native targets carry
   the lower-bound slice.
+  Terminal Psi v46 admits the first joint two-runtime Exact-subtract relation
+  for unsigned carriers. A checked true edge proving `right <= left` carries
+  the operation's complete no-underflow proposition directly. Earlier versions
+  and reversed or missing relations remain fail-closed. Existing proof terms,
+  canonical artifacts, selected-path fuel, interpretation, and both native
+  targets carry the relational subtraction slice.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,

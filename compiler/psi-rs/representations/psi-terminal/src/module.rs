@@ -76,6 +76,7 @@ use psi_core::{
 /// proves the bound expression's exact subtraction.
 /// Version 44 extends that bound to signed nonnegative runtime addends.
 /// Version 45 adds the symmetric signed nonpositive runtime-addend bound.
+/// Version 46 admits a direct unsigned runtime exact-subtract lower bound.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -126,7 +127,8 @@ impl SemanticVersion {
     pub const V43: Self = Self(NonZeroU16::new(43).expect("forty-three is nonzero"));
     pub const V44: Self = Self(NonZeroU16::new(44).expect("forty-four is nonzero"));
     pub const V45: Self = Self(NonZeroU16::new(45).expect("forty-five is nonzero"));
-    pub const CURRENT: Self = Self::V45;
+    pub const V46: Self = Self(NonZeroU16::new(46).expect("forty-six is nonzero"));
+    pub const CURRENT: Self = Self::V46;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
