@@ -63,8 +63,9 @@ integer addition; v32 adds proof-gated Exact integer subtraction; v33 adds
 proof-gated Exact integer multiplication; v34 adds proof-gated Exact integer
 division; v35 adds proof-gated Exact integer remainder; v36 adds proof-gated
 Wrapping integer division; v37 adds proof-gated Wrapping integer remainder; v38
-adds proof-gated Saturating integer division; and current v39 adds proof-gated
-Saturating integer remainder.
+adds proof-gated Saturating integer division; v39 adds proof-gated Saturating
+integer remainder; and current v40 adds path-proved positive runtime divisors
+to all six fixed division/remainder operations.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -129,6 +130,13 @@ the same divisor-definedness boundary. The first v37 reconstruction surface
 requires a terminal-known right operand. Any nonzero divisor reduces to truth,
 including signed negative one: `MIN % -1` is zero at the declared width. Zero
 and runtime-unknown divisors fail closed.
+Starting in v40, an otherwise unknown fixed-integer divisor can instead own the
+reconstructed proposition `1 <= divisor`. The existing true-edge comparison
+axiom and block-parameter substitution carry that fact into the selected arm;
+the false arm must bypass the operation. This first relational slice applies to
+Exact, Wrapping, and Saturating division and remainder. Divisors without that
+positive lower bound still fail closed, and older versions retain their
+constant-only reconstruction.
 A Saturating division retains two values of the same fixed integer type and
 owns a divisor-definedness obligation. The first v38 reconstruction surface
 requires a terminal-known right operand. Any nonzero divisor reduces to truth,
@@ -513,6 +521,12 @@ a terminal-known divisor and rejects zero or unknown values. Every known
 nonzero divisor is total, including signed negative one, whose result is zero.
 Once verified, Omega selects the same defined signed or unsigned fixed-width
 remainder instructions as Wrapping while retaining the distinct policy term.
+Terminal Psi v40 keeps those six operation encodings unchanged and expands
+their verifier reconstruction only for v40 modules. An otherwise unknown
+divisor reconstructs `1 <= right`; a selected true comparison edge can prove
+that proposition after block-parameter substitution. The unselected arm
+bypasses the arithmetic, so interpretation, fuel, and native execution never
+evaluate a zero divisor. v34-v39 modules retain constant-only reconstruction.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1155,8 +1169,9 @@ executable operation; version 28 adds exact integer casts; versions 29 and 30
 add exact right and left shifts; version 31 adds exact integer addition;
 version 32 adds exact integer subtraction; versions 33–35 add exact integer
 multiplication, division, and remainder; versions 36–37 add wrapping integer
-division and remainder; and versions 38–39 add saturating integer division and
-remainder with operation-owned obligations.
+division and remainder; versions 38–39 add saturating integer division and
+remainder with operation-owned obligations; and version 40 adds a relational
+positive-divisor reconstruction without adding an operation tag.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1168,10 +1183,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v39 modules under their original
+execution continue to accept valid v1 through v40 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v39 translation.
+`migrate_module_to_current` is an explicit validated older-to-v40 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1185,7 +1200,7 @@ the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
 exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
 fixture, the v36 wrapping-divide fixture, the v37 wrapping-remainder fixture,
 the v38 saturating-divide fixture, the v39 saturating-remainder fixture, and the
-current-vocabulary v39 identity, plus the
+current-vocabulary v40 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary

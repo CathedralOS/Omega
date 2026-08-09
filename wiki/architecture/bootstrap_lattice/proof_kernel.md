@@ -155,6 +155,13 @@ nonzero divisor reconstructs truth, including signed negative one because
 `MIN % -1` is zero. Zero and unknown divisors reconstruct falsehood. Native
 saturating remainder is authorized only after that proposition is checked.
 
+Terminal Psi v40 expands all six fixed-integer division/remainder obligation
+reconstructors with one path-local relational form. When the divisor is not
+terminal-known, `1 <= divisor` is the exact reconstructed proposition. A true
+control edge can establish and transport that fact into the selected arm; the
+other arm must bypass the arithmetic. Older semantic versions, zero, and an
+unbounded runtime divisor still reconstruct falsehood.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

@@ -21,7 +21,9 @@
 //! subtraction, and multiplication, v34 adds proof-gated exact division, and
 //! v35 adds proof-gated exact remainder, v36 adds proof-gated wrapping
 //! division, v37 adds proof-gated wrapping remainder, v38 adds proof-gated
-//! saturating division, and current v39 adds proof-gated saturating remainder.
+//! saturating division, v39 adds proof-gated saturating remainder, and current
+//! v40 admits path-proved positive runtime divisors for fixed division and
+//! remainder.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other

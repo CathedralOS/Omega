@@ -52,8 +52,9 @@ fixed-integer subtraction, v33 adds proof-gated Exact fixed-integer
 multiplication, v34 adds proof-gated Exact fixed-integer division, v35 adds
 proof-gated Exact fixed-integer remainder, v36 adds proof-gated Wrapping
 fixed-integer division, v37 adds proof-gated Wrapping fixed-integer remainder,
-v38 adds proof-gated Saturating fixed-integer division, and current v39 adds
-proof-gated Saturating fixed-integer remainder.
+v38 adds proof-gated Saturating fixed-integer division, v39 adds proof-gated
+Saturating fixed-integer remainder, and current v40 admits path-proved positive
+runtime divisors across all six fixed division/remainder operations.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -72,7 +73,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v39 row. Artifact-root native lowering
+validation, and fuel cover the complete v40 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -236,6 +237,13 @@ Proof format v30, canonical semantics, exact fuel, artifact interpretation, and
 both native targets carry the complete row. The native realization shares the
 defined remainder sequence with Wrapping while preserving the distinct policy
 through artifacts and lowering.
+Terminal Psi v40 expands divisor-definedness reconstruction without adding new
+operation or proof tags. An unknown fixed-integer divisor reconstructs the
+existing proposition `1 <= divisor`; selected-path comparison evidence carries
+it into Exact, Wrapping, or Saturating division/remainder, while the other arm
+bypasses the arithmetic. Older versions and divisors without that lower bound
+remain fail-closed. Canonical semantics, selected-path fuel, artifact
+interpretation, and both native targets carry the complete relational slice.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

@@ -7,7 +7,7 @@ use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
     verify_obligation,
 };
-use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
+use psi_terminal::{OperationKind, SemanticVersion, TerminalMachine, TerminalModule, Terminator};
 
 use crate::{ModuleError, ValidatedTerminalModule, validate_module};
 
@@ -71,7 +71,7 @@ pub fn verify_module<'module>(
         let context = validated
             .value_context(machine)
             .map_err(VerificationError::Module)?;
-        let semantics = reconstruct_machine_semantics(machine);
+        let semantics = reconstruct_machine_semantics(machine, module.semantic_version);
         for site in &semantics.operation_obligations {
             let route = evidence
                 .remove(&site.obligation.id)
@@ -134,7 +134,9 @@ pub fn reconstruct_operation_obligations(
     Ok(module
         .machines
         .iter()
-        .flat_map(|machine| reconstruct_machine_semantics(machine).operation_obligations)
+        .flat_map(|machine| {
+            reconstruct_machine_semantics(machine, module.semantic_version).operation_obligations
+        })
         .collect())
 }
 
@@ -142,7 +144,10 @@ pub fn reconstruct_operation_obligations(
 /// on every return path. A true conditional edge establishes the predicate
 /// computed by its condition operation; edge bindings rewrite those facts to
 /// successor parameters. Merge and return facts remain intersection-only.
-fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMachineSemantics {
+fn reconstruct_machine_semantics(
+    machine: &TerminalMachine,
+    semantic_version: SemanticVersion,
+) -> ReconstructedMachineSemantics {
     let reconstruct_path_facts = machine.blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
             matches!(
@@ -595,11 +600,12 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: exact_integer_divide_obligation(
+                            proposition: exact_integer_divide_obligation_at_version(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -624,11 +630,12 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: exact_integer_remainder_obligation(
+                            proposition: exact_integer_remainder_obligation_at_version(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -653,11 +660,12 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: wrapping_integer_divide_obligation(
+                            proposition: wrapping_integer_divide_obligation_at_version(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -682,11 +690,12 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: wrapping_integer_remainder_obligation(
+                            proposition: wrapping_integer_remainder_obligation_at_version(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -711,11 +720,12 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: saturating_integer_divide_obligation(
+                            proposition: saturating_integer_divide_obligation_at_version(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -740,11 +750,12 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     operation_obligations.push(ReconstructedOperationObligation {
                         obligation: Obligation {
                             id: obligation,
-                            proposition: saturating_integer_remainder_obligation(
+                            proposition: saturating_integer_remainder_obligation_at_version(
                                 integer_type,
                                 value_term(left),
                                 value_term(right),
                                 &axioms,
+                                semantic_version,
                             ),
                             class: ObligationClass::Derivable,
                         },
@@ -1333,11 +1344,12 @@ fn exact_integer_multiply_obligation(
     }
 }
 
-fn exact_integer_divide_obligation(
+fn exact_integer_divide_obligation_at_version(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1368,15 +1380,16 @@ fn exact_integer_divide_obligation(
             Proposition::LessOrEqual(boundary, left)
         }
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => Proposition::Falsehood,
+        _ => positive_divisor_obligation(integer_type, right, semantic_version),
     }
 }
 
-fn exact_integer_remainder_obligation(
+fn exact_integer_remainder_obligation_at_version(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1403,15 +1416,16 @@ fn exact_integer_remainder_obligation(
             Proposition::LessOrEqual(boundary, left)
         }
         (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => Proposition::Falsehood,
+        _ => positive_divisor_obligation(integer_type, right, semantic_version),
     }
 }
 
-fn wrapping_integer_divide_obligation(
+fn wrapping_integer_divide_obligation_at_version(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1427,15 +1441,16 @@ fn wrapping_integer_divide_obligation(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => Proposition::Falsehood,
+        _ => positive_divisor_obligation(integer_type, right, semantic_version),
     }
 }
 
-fn wrapping_integer_remainder_obligation(
+fn wrapping_integer_remainder_obligation_at_version(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1451,15 +1466,16 @@ fn wrapping_integer_remainder_obligation(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => Proposition::Falsehood,
+        _ => positive_divisor_obligation(integer_type, right, semantic_version),
     }
 }
 
-fn saturating_integer_divide_obligation(
+fn saturating_integer_divide_obligation_at_version(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1475,15 +1491,16 @@ fn saturating_integer_divide_obligation(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => Proposition::Falsehood,
+        _ => positive_divisor_obligation(integer_type, right, semantic_version),
     }
 }
 
-fn saturating_integer_remainder_obligation(
+fn saturating_integer_remainder_obligation_at_version(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
     semantic_axioms: &[Proposition],
+    semantic_version: SemanticVersion,
 ) -> Proposition {
     let known_left = known_integer_term_value(integer_type, &left, semantic_axioms);
     let known_right = known_integer_term_value(integer_type, &right, semantic_axioms);
@@ -1499,8 +1516,122 @@ fn saturating_integer_remainder_obligation(
         | (IntegerSign::Signed, Some(IntegerValue::Signed(0))) => Proposition::Falsehood,
         (IntegerSign::Unsigned, Some(IntegerValue::Unsigned(_)))
         | (IntegerSign::Signed, Some(IntegerValue::Signed(_))) => Proposition::Truth,
-        _ => Proposition::Falsehood,
+        _ => positive_divisor_obligation(integer_type, right, semantic_version),
     }
+}
+
+#[cfg(test)]
+fn exact_integer_divide_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    exact_integer_divide_obligation_at_version(
+        integer_type,
+        left,
+        right,
+        semantic_axioms,
+        SemanticVersion::V39,
+    )
+}
+
+#[cfg(test)]
+fn exact_integer_remainder_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    exact_integer_remainder_obligation_at_version(
+        integer_type,
+        left,
+        right,
+        semantic_axioms,
+        SemanticVersion::V39,
+    )
+}
+
+#[cfg(test)]
+fn wrapping_integer_divide_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    wrapping_integer_divide_obligation_at_version(
+        integer_type,
+        left,
+        right,
+        semantic_axioms,
+        SemanticVersion::V39,
+    )
+}
+
+#[cfg(test)]
+fn wrapping_integer_remainder_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    wrapping_integer_remainder_obligation_at_version(
+        integer_type,
+        left,
+        right,
+        semantic_axioms,
+        SemanticVersion::V39,
+    )
+}
+
+#[cfg(test)]
+fn saturating_integer_divide_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    saturating_integer_divide_obligation_at_version(
+        integer_type,
+        left,
+        right,
+        semantic_axioms,
+        SemanticVersion::V39,
+    )
+}
+
+#[cfg(test)]
+fn saturating_integer_remainder_obligation(
+    integer_type: psi_core::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Proposition {
+    saturating_integer_remainder_obligation_at_version(
+        integer_type,
+        left,
+        right,
+        semantic_axioms,
+        SemanticVersion::V39,
+    )
+}
+
+fn positive_divisor_obligation(
+    integer_type: psi_core::IntegerType,
+    right: ScalarTerm,
+    semantic_version: SemanticVersion,
+) -> Proposition {
+    if semantic_version < SemanticVersion::V40 {
+        return Proposition::Falsehood;
+    }
+    let one = match integer_type.sign() {
+        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+        IntegerSign::Signed => IntegerValue::Signed(1),
+    };
+    let Ok(boundary) = ScalarTerm::integer(integer_type, one) else {
+        return Proposition::Falsehood;
+    };
+    Proposition::LessOrEqual(boundary, right)
 }
 
 fn known_integer_term_value(
@@ -2308,6 +2439,74 @@ mod tests {
         assert_eq!(
             saturating_integer_remainder_obligation(i8_type, minimum, negative_one, &[]),
             Proposition::Truth
+        );
+    }
+
+    #[test]
+    fn v40_reconstructs_positive_runtime_divisor_bounds_for_every_policy() {
+        type Reconstruct =
+            fn(IntegerType, ScalarTerm, ScalarTerm, &[Proposition], SemanticVersion) -> Proposition;
+        let reconstructors: [Reconstruct; 6] = [
+            exact_integer_divide_obligation_at_version,
+            exact_integer_remainder_obligation_at_version,
+            wrapping_integer_divide_obligation_at_version,
+            wrapping_integer_remainder_obligation_at_version,
+            saturating_integer_divide_obligation_at_version,
+            saturating_integer_remainder_obligation_at_version,
+        ];
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let left = ScalarTerm::value(
+            ValueId::new(10).expect("left"),
+            ScalarType::Integer(integer_type),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(11).expect("right"),
+            ScalarType::Integer(integer_type),
+        );
+        let one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).expect("one");
+        let expected = Proposition::LessOrEqual(one, right.clone());
+
+        for reconstruct in reconstructors {
+            assert_eq!(
+                reconstruct(
+                    integer_type,
+                    left.clone(),
+                    right.clone(),
+                    &[],
+                    SemanticVersion::V40,
+                ),
+                expected
+            );
+            assert_eq!(
+                reconstruct(
+                    integer_type,
+                    left.clone(),
+                    right.clone(),
+                    &[],
+                    SemanticVersion::V39,
+                ),
+                Proposition::Falsehood
+            );
+        }
+
+        let signed_one_bit = IntegerType::new(IntegerSign::Signed, 1).expect("i1");
+        let left = ScalarTerm::value(
+            ValueId::new(12).expect("left"),
+            ScalarType::Integer(signed_one_bit),
+        );
+        let right = ScalarTerm::value(
+            ValueId::new(13).expect("right"),
+            ScalarType::Integer(signed_one_bit),
+        );
+        assert_eq!(
+            exact_integer_divide_obligation_at_version(
+                signed_one_bit,
+                left,
+                right,
+                &[],
+                SemanticVersion::V40,
+            ),
+            Proposition::Falsehood
         );
     }
 }
