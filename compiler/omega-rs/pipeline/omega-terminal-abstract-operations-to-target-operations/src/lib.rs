@@ -960,6 +960,32 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::WrappingIntegerRemainder {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            } => {
+                let value = lower_conditional_integer_binary(
+                    &values,
+                    *result,
+                    *scalar_type,
+                    *left,
+                    *right,
+                    IntegerBinaryKind::WrappingRemainder,
+                    *psi_operation,
+                )?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::Jump {
                 psi_edge, bindings, ..
             } => {
@@ -2125,6 +2151,26 @@ fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::WrappingRemainder,
+                *psi_operation,
+            )?,
+        ),
         TerminalAbstractOperation::IntegerBitwiseNot {
             psi_operation,
             result,
@@ -2373,6 +2419,7 @@ enum IntegerBinaryKind {
     ExactDivide,
     ExactRemainder,
     WrappingDivide,
+    WrappingRemainder,
 }
 
 #[derive(Clone, Copy)]
@@ -2556,6 +2603,7 @@ impl IntegerBinaryKind {
             Self::ExactDivide => LoweringError::ExactDivideOperandTypeMismatch(result),
             Self::ExactRemainder => LoweringError::ExactRemainderOperandTypeMismatch(result),
             Self::WrappingDivide => LoweringError::WrappingDivideOperandTypeMismatch(result),
+            Self::WrappingRemainder => LoweringError::WrappingRemainderOperandTypeMismatch(result),
         }
     }
 
@@ -2578,6 +2626,7 @@ impl IntegerBinaryKind {
             Self::ExactDivide => scalar_type.exact_div(left, right),
             Self::ExactRemainder => scalar_type.exact_rem(left, right),
             Self::WrappingDivide => scalar_type.wrapping_div(left, right),
+            Self::WrappingRemainder => scalar_type.wrapping_rem(left, right),
         }
     }
 
@@ -2646,6 +2695,11 @@ impl IntegerBinaryKind {
                 right,
             },
             Self::WrappingDivide => TerminalTargetIntegerExpression::WrappingDivide {
+                psi_operation,
+                left,
+                right,
+            },
+            Self::WrappingRemainder => TerminalTargetIntegerExpression::WrappingRemainder {
                 psi_operation,
                 left,
                 right,
@@ -2994,6 +3048,9 @@ fn conditional_provenance(
             TerminalAbstractOperation::WrappingIntegerDivide { psi_operation, .. } => {
                 Some(*psi_operation)
             }
+            TerminalAbstractOperation::WrappingIntegerRemainder { psi_operation, .. } => {
+                Some(*psi_operation)
+            }
             TerminalAbstractOperation::Jump { .. }
             | TerminalAbstractOperation::Conditional { .. }
             | TerminalAbstractOperation::Return { .. }
@@ -3060,6 +3117,7 @@ pub enum LoweringError {
     ExactDivideOperandTypeMismatch(ValueId),
     ExactRemainderOperandTypeMismatch(ValueId),
     WrappingDivideOperandTypeMismatch(ValueId),
+    WrappingRemainderOperandTypeMismatch(ValueId),
     ParameterWidthNotNativelySupported { value: ValueId, bits: u16 },
     UnsupportedScalarParameterPlacement(ValueId),
     AbiPlan(PlanDiagnostic),

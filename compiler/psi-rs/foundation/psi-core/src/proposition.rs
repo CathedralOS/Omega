@@ -398,6 +398,33 @@ impl IntegerType {
         }
     }
 
+    /// Compute a truncating remainder and reduce the sole signed quotient
+    /// overflow to the wrapping-policy result of zero.
+    pub fn wrapping_rem(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                let IntegerValue::Signed(minimum) = self.minimum_value() else {
+                    unreachable!("signed type has a signed minimum")
+                };
+                if left == minimum && right == -1 {
+                    Some(IntegerValue::Signed(0))
+                } else {
+                    let result = IntegerValue::Signed(left.checked_rem(right)?);
+                    self.admits(result).then_some(result)
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Subtract two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -856,6 +883,11 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    WrappingIntegerRemainder {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
     Integer {
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1207,6 +1239,19 @@ impl ScalarTerm {
         })
     }
 
+    pub fn wrapping_integer_remainder(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_integer_operands(scalar_type, &left, &right)?;
+        Ok(Self::WrappingIntegerRemainder {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn integer(
         scalar_type: IntegerType,
         value: IntegerValue,
@@ -1357,6 +1402,7 @@ impl ScalarTerm {
             | Self::ExactIntegerDivide { scalar_type, .. }
             | Self::ExactIntegerRemainder { scalar_type, .. }
             | Self::WrappingIntegerDivide { scalar_type, .. }
+            | Self::WrappingIntegerRemainder { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
             | Self::SaturatingIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerSubtract { scalar_type, .. }
@@ -1633,6 +1679,18 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.wrapping_div(left, right)?))
+            }
+            Self::WrappingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.wrapping_rem(left, right)?))
             }
             _ => None,
         }
@@ -1913,6 +1971,15 @@ impl ScalarTerm {
                 right.validate()?;
                 validate_integer_operands(*scalar_type, left, right)
             }
+            Self::WrappingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                validate_integer_operands(*scalar_type, left, right)
+            }
             Self::SaturatingIntegerAdd {
                 scalar_type,
                 left,
@@ -2184,6 +2251,7 @@ impl PropositionContext {
             | ScalarTerm::ExactIntegerDivide { left, right, .. }
             | ScalarTerm::ExactIntegerRemainder { left, right, .. }
             | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
             | ScalarTerm::WrappingIntegerAdd { left, right, .. }
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
@@ -2981,6 +3049,28 @@ mod tests {
         assert_eq!(
             i8_type.wrapping_div(IntegerValue::Signed(-128), IntegerValue::Signed(-1)),
             Some(IntegerValue::Signed(-128))
+        );
+    }
+
+    #[test]
+    fn wrapping_rem_reduces_the_signed_minimum_quotient_overflow_to_zero() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert_eq!(
+            u8_type.wrapping_rem(IntegerValue::Unsigned(255), IntegerValue::Unsigned(5)),
+            Some(IntegerValue::Unsigned(0))
+        );
+        assert_eq!(
+            u8_type.wrapping_rem(IntegerValue::Unsigned(255), IntegerValue::Unsigned(0)),
+            None
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        assert_eq!(
+            i8_type.wrapping_rem(IntegerValue::Signed(-127), IntegerValue::Signed(5)),
+            Some(IntegerValue::Signed(-2))
+        );
+        assert_eq!(
+            i8_type.wrapping_rem(IntegerValue::Signed(-128), IntegerValue::Signed(-1)),
+            Some(IntegerValue::Signed(0))
         );
     }
 

@@ -49,9 +49,10 @@ while retaining its current 64-bit representation, v28 adds proof-gated exact
 fixed-integer casts, v29 and v30 add proof-gated Exact right and left shifts,
 v31 adds proof-gated Exact fixed-integer addition, v32 adds proof-gated Exact
 fixed-integer subtraction, v33 adds proof-gated Exact fixed-integer
-multiplication, v34 adds proof-gated Exact fixed-integer division, and current
-v35 adds proof-gated Exact fixed-integer remainder, and current v36 adds
-proof-gated Wrapping fixed-integer division.
+multiplication, v34 adds proof-gated Exact fixed-integer division, v35 adds
+proof-gated Exact fixed-integer remainder, v36 adds proof-gated Wrapping
+fixed-integer division, and current v37 adds proof-gated Wrapping fixed-integer
+remainder.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -70,7 +71,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v36 row. Artifact-root native lowering
+validation, and fuel cover the complete v37 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -214,6 +215,13 @@ width. Zero and runtime-unknown divisors fail closed. Proof format v27,
 canonical semantics, exact fuel, artifact interpretation, and both native
 targets carry the complete row. The x86-64 realization guards the `-1` divisor
 before `idiv`; AArch64's `sdiv` already produces the required wrapped result.
+Terminal Psi v37 adds proof-gated Wrapping fixed-integer remainder. A
+terminal-known nonzero divisor reconstructs truth, including signed negative
+one because `MIN % -1` is zero. Zero and runtime-unknown divisors fail closed.
+Proof format v28, canonical semantics, exact fuel, artifact interpretation, and
+both native targets carry the complete row. The x86-64 realization returns zero
+before `idiv` for divisor `-1`; AArch64 derives the result with `sdiv` and
+`msub`.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

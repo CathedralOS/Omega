@@ -171,6 +171,7 @@ pub enum CheckedIntegerBinaryKind {
     ExactDivide,
     ExactRemainder,
     WrappingDivide,
+    WrappingRemainder,
     WrappingAdd,
     SaturatingAdd,
     WrappingSubtract,

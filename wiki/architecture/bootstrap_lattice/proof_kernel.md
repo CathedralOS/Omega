@@ -137,6 +137,12 @@ nonzero divisor reconstructs truth, including signed negative one because
 `MIN / -1` wraps to `MIN`. Zero and unknown divisors reconstruct falsehood.
 Native division is authorized only after that proposition is checked.
 
+Terminal Psi v37 applies the same boundary to Wrapping fixed-integer remainder.
+The operation owns a divisor-definedness obligation; a terminal-known nonzero
+divisor reconstructs truth, including signed negative one because
+`MIN % -1` is zero. Zero and unknown divisors reconstruct falsehood. Native
+remainder is authorized only after that proposition is checked.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

@@ -377,6 +377,13 @@ Remaining:
   Omega lowering, and x86-64/AArch64 native emission are live. AArch64 uses
   its defined signed divide result directly; x86-64 guards divisor `-1` and
   uses width-normalized negation so the wrapping corner cannot raise `#DE`.
+  Terminal Psi v37 now carries proof-gated Wrapping fixed-integer remainder.
+  The terminal verifier requires the same terminal-known nonzero divisor and
+  admits `MIN % -1 == 0` at the declared signed width. Zero and runtime-unknown
+  divisors fail closed. Proof format v28, canonical semantic v37 bytes,
+  one-unit fuel, artifact interpretation, Omega lowering, and x86-64/AArch64
+  native emission are live. x86-64 bypasses `idiv` for divisor `-1`; AArch64
+  derives the remainder with its defined `sdiv` plus `msub` behavior.
   Terminal Psi v27 now retains `addr` as a distinct unsigned
   address carrier with its current 64-bit representation rather than collapsing
   it into `u64`; canonical semantic bytes, proof format v18 terms, verification,
