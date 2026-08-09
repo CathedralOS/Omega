@@ -54,8 +54,9 @@ proof-gated Exact fixed-integer remainder, v36 adds proof-gated Wrapping
 fixed-integer division, v37 adds proof-gated Wrapping fixed-integer remainder,
 v38 adds proof-gated Saturating fixed-integer division, v39 adds proof-gated
 Saturating fixed-integer remainder, v40 admits path-proved positive runtime
-divisors, and current v41 admits signed runtime divisors proven at most negative
-two across all six fixed division/remainder operations.
+divisors, v41 admits signed runtime divisors proven at most negative two, and
+current v42 extends that range through negative one with Exact's additional
+dividend bound across all six fixed division/remainder operations.
 Shift counts retain their own integer type and reduce by Euclidean modulo of
 the shifted value's width. The verifier
 reconstructs operation, edge-binding, and return-binding axioms guaranteed on
@@ -74,7 +75,7 @@ and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
-validation, and fuel cover the complete v41 row. Artifact-root native lowering
+validation, and fuel cover the complete v42 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
 assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
 and integer-result target control carries the same crash leaf, allowing the
@@ -251,6 +252,13 @@ v40's positive fallback. The bound excludes zero and negative one, including
 Exact's signed quotient overflow. Existing proof vocabulary, canonical
 semantics, selected-path fuel, artifact interpretation, and both native targets
 carry the signed relational slice.
+Terminal Psi v42 extends that signed range with the path fact
+`divisor <= -1`. Wrapping and Saturating division/remainder select it directly
+because their negative-one results are policy-defined. Exact division/remainder
+also require `MIN + 1 <= dividend` and select the conjunction, excluding their
+sole signed overflow pair. Existing proof vocabulary, canonical semantics,
+selected-path fuel, artifact interpretation, and both native targets carry the
+complete guarded range.
 Declared semantic-domain casts remain rejected until their own executable
 vocabulary exists.
 Unary integer negation follows the parser's settled `0 - value` lowering. The

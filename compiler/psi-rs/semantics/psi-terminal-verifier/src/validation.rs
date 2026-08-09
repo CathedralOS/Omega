@@ -88,6 +88,7 @@ pub fn validate_module(
             | SemanticVersion::V39
             | SemanticVersion::V40
             | SemanticVersion::V41
+            | SemanticVersion::V42
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,

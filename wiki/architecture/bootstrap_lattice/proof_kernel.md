@@ -169,6 +169,14 @@ proposition. That bound excludes zero and negative one, so it discharges both
 definedness and Exact's sole signed quotient overflow. Earlier versions keep
 their prior reconstruction.
 
+Terminal Psi v42 extends that relational form through negative one. Wrapping
+and Saturating division/remainder select an exact path-local
+`divisor <= -1` axiom because their negative-one cases are policy-defined.
+Exact division/remainder additionally require the exact path-local axiom
+`MIN + 1 <= dividend`; their reconstructed proposition is the conjunction of
+both facts, excluding the sole signed overflow pair. Earlier versions keep
+their prior reconstruction.
+
 ## Trust and meaning
 
 Kernel acceptance defines certificate validity, not program behavior. A separate

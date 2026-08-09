@@ -64,9 +64,10 @@ proof-gated Exact integer multiplication; v34 adds proof-gated Exact integer
 division; v35 adds proof-gated Exact integer remainder; v36 adds proof-gated
 Wrapping integer division; v37 adds proof-gated Wrapping integer remainder; v38
 adds proof-gated Saturating integer division; v39 adds proof-gated Saturating
-integer remainder; v40 adds path-proved positive runtime divisors; and current
-v41 adds path-proved signed runtime divisors at most negative two to all six
-fixed division/remainder operations.
+integer remainder; v40 adds path-proved positive runtime divisors; v41 adds
+path-proved signed runtime divisors at most negative two; and current v42
+extends that range through negative one, with the additional dividend bound
+required by Exact division/remainder.
 A wrapping shift
 retains the shifted value's exact result type and the count operand's
 independent integer type;
@@ -142,6 +143,12 @@ Starting in v41, a signed runtime divisor on a path carrying the exact axiom
 `divisor <= -2` reconstructs that proposition instead. This excludes zero and
 negative one, including Exact's sole signed quotient-overflow divisor. The v40
 positive form remains the fallback when the negative bound is absent.
+Starting in v42, the directly carried axiom `divisor <= -1` is sufficient for
+Wrapping and Saturating division/remainder because their negative-one results
+are policy-defined. Exact division/remainder additionally require the directly
+carried axiom `MIN + 1 <= dividend`; the verifier reconstructs the conjunction
+of both facts, excluding the sole signed overflow pair. The v41 negative-two
+and v40 positive forms remain fallbacks when the new pair is absent.
 A Saturating division retains two values of the same fixed integer type and
 owns a divisor-definedness obligation. The first v38 reconstruction surface
 requires a terminal-known right operand. Any nonzero divisor reduces to truth,
@@ -536,6 +543,12 @@ Terminal Psi v41 additionally selects a directly carried signed
 `right <= -2` axiom before falling back to v40's positive-bound proposition.
 The operation encodings, proof terms, fuel, and native realization remain
 unchanged; the version gate preserves older reconstruction behavior.
+Terminal Psi v42 additionally selects a directly carried signed
+`right <= -1` axiom for Wrapping and Saturating division/remainder. Exact
+division/remainder select the conjunction of that axiom and a directly carried
+`MIN + 1 <= left` axiom. Operation encodings, proof terms, fuel, and native
+realization remain unchanged; earlier version gates preserve their original
+reconstruction behavior.
 Declared semantic-domain casts remain outside the slice as well.
 Source unary integer negation retains its parser-defined `0 - value` meaning.
 Because the generated zero has no authored suffix, checked retention lands that
@@ -1180,8 +1193,9 @@ version 32 adds exact integer subtraction; versions 33–35 add exact integer
 multiplication, division, and remainder; versions 36–37 add wrapping integer
 division and remainder; versions 38–39 add saturating integer division and
 remainder with operation-owned obligations; version 40 adds a relational
-positive-divisor reconstruction; and version 41 adds the complementary signed
-negative-divisor reconstruction without adding operation tags.
+positive-divisor reconstruction; version 41 adds the complementary signed
+negative-two reconstruction; and version 42 extends that reconstruction through
+negative one with an Exact-only dividend bound, without adding operation tags.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Boolean equality requires two already defined
@@ -1193,10 +1207,10 @@ aware relation. Bitwise operations require and return one exact integer type
 and reconstruct the exact representation-level result. Integer widening
 requires the target to contain the complete source range and reconstructs the
 unchanged mathematical value at the result type. Validation and
-execution continue to accept valid v1 through v41 modules under their original
+execution continue to accept valid v1 through v42 modules under their original
 meaning, while an older module
 cannot claim a later operation, control form, or evidence row.
-`migrate_module_to_current` is an explicit validated older-to-v41 translation.
+`migrate_module_to_current` is an explicit validated older-to-v42 translation.
 For v10-v13 content rows it derives the new entry bindings from the already
 validated reshuffles and remaps claim references into dense machine-local IDs;
 it otherwise preserves the graph and obligations. Migration creates new
@@ -1210,7 +1224,7 @@ the v31 exact-add fixture, the v32 exact-subtract fixture, the v33
 exact-multiply fixture, the v34 exact-divide fixture, the v35 exact-remainder
 fixture, the v36 wrapping-divide fixture, the v37 wrapping-remainder fixture,
 the v38 saturating-divide fixture, the v39 saturating-remainder fixture, and the
-current-vocabulary v41 identity, plus the
+current-vocabulary v42 identity, plus the
 v10 identity-reshuffle fixture, v11 sum-case
 fixture, v12 partition-composition fixture, v14
 entry-claim fixture, v15 Boolean-negation fixture, v16 proposition-vocabulary
