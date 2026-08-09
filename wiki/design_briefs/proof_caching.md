@@ -36,8 +36,8 @@ heavy/brute-force proof affordable in the steady-state edit-compile loop.
 
 Separate compilation supplies a distinct reuse path. A producer may perform an
 expensive witness search and publish carrierless selected-conformance evidence;
-consumers open the proposition contract and do not rerun the search. That is a
-published proof artifact under the
+consumers receive and project the retained proposition term without rerunning
+the search. That is a published proof artifact under the
 [law-bearing relation model](law_bearing_relations_and_quotients.md), not a
 consumer evaluator-cache hit. A cache substitutes for work still belonging to
 the current build graph and retains its recorded logical usage; published

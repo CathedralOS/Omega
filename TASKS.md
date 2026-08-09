@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-07.
+Last pruned: 2026-08-08.
 
 This file is the current execution queue, not a changelog. Commits, canaries,
 architecture pages, and design briefs retain completed implementation history.
@@ -630,11 +630,23 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **SELECTED-WITNESS-EVIDENCE:** bind a selected named
-  conformance block to one carrierless proof term that introduction and
-  elimination can reopen. Consume its complete normalized requirement map;
-  do not infer evidence from attached state names. Blocked on owner Q1 for the
-  proof-only introduction/elimination surface and retained term identity.
+- **SELECTED-WITNESS-EVIDENCE:** implement the settled
+  `proposition P(...) evidence Interface;` clause and migrate the transitional
+  brace-form terminal-Psi canary with a targeted diagnostic. Bind a privately
+  selected named conformance block to one carrierless proof term at a named
+  `ensures` assignment; consume its complete normalized requirement map.
+  Named `requires` clauses retain positional erased input terms and project
+  members through ordinary `term.member` syntax. Calls pass those terms
+  explicitly in clause order after the `;` lane separator. Do not infer a term,
+  conformance, carrier, or row from visible facts or attached state names.
+- Add named-ensures definite assignment per applicable outcome path and
+  inferred, source-unnameable, compiler-generated nominal output packages.
+  Reserve contextual `value` for the runtime result, erase evidence fields,
+  require complete destructuring or explicit multiplicity-valid `_`, and make
+  guarded evidence fields exist only in the matching outcome refinement. Keep
+  ordinary machine return syntax unchanged when no `ensures` clause is named.
+  Preserve separate normalized identities for the proposition application,
+  retained evidence term, and derivation provenance.
 - Replace the inherited-subject conformance header with the settled name-first
   satisfaction declaration and evidence-binder grammar:
   `Name<Telescope>: [Subject] satisfies Trait { ... }` declares one named
@@ -645,10 +657,11 @@ Remaining N6/N8 work:
   telescope, optional subject, instantiated trait, and normalized rows in
   semantic identity, and migrate existing `Type satisfies Trait as Name`
   source with a targeted diagnostic.
-- Add proof-only selected-conformance projection and by-value carrierless `dyn`
-  from the complete conformance-block map. The representation can follow the
-  settled two-stratum projection, but source selection/opening is blocked on
-  owner Q1.
+- Add carrierless evidence projection from the complete conformance-block map.
+  Repeated projection of one retained term yields the same opaque symbols;
+  forwarding preserves the term; separate introductions may retain different
+  witnesses. Keep the producer out of mathematical signatures and reject any
+  attempt to eliminate proof evidence into runtime computation.
 - Add `Respects` over compiler-derived parallel callable argument telescopes.
   Positions are semantic and source names are debug aliases. Derive the
   representative-dependent domain by semantic dependency, the pointwise input

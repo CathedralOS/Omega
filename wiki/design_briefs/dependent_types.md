@@ -149,8 +149,10 @@ proposition R<I, J>(left: C<I>, right: C<J>);
 ```
 
 `C` is a proof carrier family with a typed proof-static index telescope, and
-`I`/`J` are independently quantified index packs. Evidence is carrierless,
-erased selected-conformance projection. This is proposition-valued dependency only:
+`I`/`J` are independently quantified index packs. Evidence is a retained
+carrierless erased term produced by a privately selected conformance and
+projected through the proposition's declared interface. This is
+proposition-valued dependency only:
 it does not admit arbitrary value-to-runtime-`Type` computation, runtime proof
 fields, value-directed layout, or general Pi-type normalization.
 
@@ -598,9 +600,10 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   higher-kinded carrier-family binders for reusable relators,
   proposition-valued heterogeneous constructor lifts, and carrierless
   selected-conformance evidence. Establish one requirement projection with
-  runtime and proof strata; by-value `dyn` is legal only when the complete
-  normalized value has no runtime carrier. Derive parallel callable argument
-  telescopes and representative-dependent domains, then add dependency-ordered
+  runtime and proof strata; witness-bearing propositions retain exact erased
+  terms projected through their declared interfaces. Derive parallel callable
+  argument telescopes and representative-dependent domains, then add
+  dependency-ordered
   structural lifting, checked proposition transport, the decomposed
   relation-property hierarchy, and `Respects` domain/result laws. No global
   carrier-parameter role or ambient default relator participates.

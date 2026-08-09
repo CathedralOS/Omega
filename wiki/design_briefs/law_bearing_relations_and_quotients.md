@@ -1,6 +1,6 @@
 # Law-Bearing Relations, Evidence, And Quotients
 
-Current design as of 2026-08-07. This brief resolves the former law-bearing
+Current design as of 2026-08-08. This brief resolves the former law-bearing
 relations and quotients owner question. It
 supersedes the current quotient pilot's executable-`bool` relation and
 suffix-based discovery of `_reflexive`, `_symmetric`, `_transitive`, and
@@ -98,14 +98,13 @@ A nominal `converges_together<Left, Right>(left, right)` proposition publishes
 proposition converges_together<machine Left, machine Right>(
     left: CauchySeq<Left>,
     right: CauchySeq<Right>
-) {
-    ConvergenceEvidence<Left, Right>;
-}
+) evidence ConvergenceEvidence<Left, Right>;
 ```
 
-The braces are a non-executable owner-controlled evidence list, as on a
-route-bearing domain. A witness-bearing proposition contains exactly one
-entry. No separate evidence-clause word is introduced.
+The `evidence` clause is owner-controlled, fingerprinted signature content. A
+witness-bearing proposition contains exactly one interface. The clause states
+what an erased term of the proposition may project; it neither supplies a
+producer nor exposes the selected producer in mathematical APIs.
 
 Its truth is inhabitance by checked proof evidence, not the result of running
 a `bool` machine. An arbitrary pair of generator machines cannot in general
@@ -115,10 +114,10 @@ universal law.
 `proposition` is a proof-formula declaration and generic binder kind. It has
 no result, runtime value, layout, operation contract, lowering, or executable
 body. A primitive fact-only declaration ends with `;`. A witness-bearing
-declaration's brace entry is its one canonical carrierless evidence interface.
+declaration's `evidence` clause is its one canonical carrierless interface.
 The owner thereby fixes both introduction and elimination: every establishing
-conformance supplies that interface, and eliminating the proposition reopens
-the exact retained evidence term in the proof stratum.
+conformance supplies that interface, and a named binding projects the exact
+retained evidence term in the proof stratum.
 
 The proposition remains nominal rather than definitionally equal to its
 evidence package. Its interface is normalized, fingerprinted semantic content,
@@ -133,11 +132,20 @@ declared evidence. Relation-law contracts that already name the proposition
 establish their applications by ordinary entailment; they need no separate
 authorization route.
 
-The introduction/elimination spelling for that retained selected term is not
-yet settled. `OWNER_QUESTIONS.md` Q1 owns where the conformance selection is
-authored, how forwarded facts retain the same term, and how proof-only code
-opens its opaque members. Until that ruling, the compiler must not infer
-evidence from a bare proposition fact.
+Naming a `requires` clause binds its exact incoming evidence term. Naming an
+`ensures` clause declares an exact outgoing evidence term, definitely assigned
+once on every outcome path where that clause applies. Member projection uses
+ordinary `term.member` syntax; no `open` form exists. Producer conformance
+selection occurs privately when the proof body assigns the named output, while
+forwarding assigns an existing term and preserves its identity.
+
+Named requirements are positional erased inputs. Calls pass them explicitly in
+clause order after a `;` lane separator, never through visible-fact or
+conformance inference. Named guarantees are public fields of an inferred,
+source-unnameable, compiler-generated nominal output package. The package may
+be retained, projected, or completely destructured; evidence fields erase and
+remain subject to ordinary multiplicity. Outcome-specific evidence appears
+only in the matching outcome shape.
 
 A transparent logical definition uses `=`:
 
@@ -165,7 +173,7 @@ back a transparent proposition definition when its proof expression is total
 and otherwise fact-position eligible. Primitive propositions cover facts for
 which no decision procedure exists.
 
-The existential package reuses selected-conformance projection. One
+The existential package reuses the complete conformance-row projection. One
 requirement projection has two strata:
 
 - a carrier-bearing, dynamically eligible machine contributes a runtime table
@@ -182,9 +190,9 @@ ConvergenceEvidence<A, B>
 `- close_after(...)                    checked universal law
 ```
 
-Opening the same evidence term twice yields the same opaque symbol. Distinct
-evidence terms yield distinct proof symbols even when they establish the same
-proposition. Proof irrelevance applies to proposition identity and runtime
+Projecting the same evidence term twice yields the same opaque symbol. Distinct
+evidence terms may yield distinct proof symbols even when they establish the
+same proposition. Proof irrelevance applies to proposition identity and runtime
 representation; it does not make hidden witness terms definitionally equal
 inside a proof.
 
@@ -192,8 +200,9 @@ A selected dynamic value may be owned by value when its *entire normalized
 dynamic representation* has no runtime carrier. Absence of table slots alone
 is insufficient: a runtime instance with no eligible methods may still have
 unknown size and cleanup. Carrierless convergence evidence has neither an
-instance nor slots, so by-value `dyn` is proof-only and erases without
-allocation, size/alignment metadata, or cleanup.
+instance nor slots, so an erased evidence term can retain an opaque selected
+implementation without allocation, size/alignment metadata, cleanup, or a
+source-visible conformance name.
 
 Published mathematical APIs expose proposition names such as
 `ConvergesTogether(a, b)` and transparent conveniences such as `Cauchy(s)`.
@@ -453,13 +462,14 @@ transitivity.
 
 ## Separate compilation and resources
 
-The evidence producer checks the selected conformance. A consumer opens the
-published evidence to artifact-local opaque symbols characterized solely by
-the normalized contracts; witness implementation identity does not cross the
-boundary. Proof-only evaluation, when a transparent body is actually needed,
-uses the ordinary gated build-time evaluator: semantic eligibility requires
-the complete checked invocation contract and ordinary termination. Deterministic
-work metering supplies progress, caching/accounting evidence, warnings, and any
+The evidence producer checks the selected conformance. A consumer projects a
+named published evidence term to artifact-local opaque symbols characterized
+solely by the normalized contracts; witness implementation identity does not
+cross the boundary. Proof-only evaluation, when a transparent body is actually
+needed, uses the ordinary gated build-time evaluator: semantic eligibility
+requires the complete checked invocation contract and ordinary termination.
+Deterministic work metering supplies progress, caching/accounting evidence,
+warnings, and any
 optional root-selected ceiling; long or unlimited evaluation remains legal.
 
 ## Migration and acceptance
@@ -476,19 +486,25 @@ Acceptance requires:
 1. primitive and witness-bearing proposition declarations retain their exact
    binder telescopes and classification, while transparent definitions expand
    without acquiring an identity;
-2. carrierless evidence owns no runtime words and opens to stable opaque
-   symbols;
+2. carrierless evidence owns no runtime words and named terms project stable
+   opaque symbols;
 3. a proof of a witness-bearing proposition without its evidence rejects;
-4. a literally bodyless ordinary theorem machine rejects, an explicit boundary
+4. named proof inputs are passed explicitly in the erased call lane, named
+   outputs are definitely assigned per applicable outcome and retained in
+   inferred nominal packages, and no visible-fact or conformance inference
+   selects either;
+5. proposition, evidence-term, and derivation-provenance identities remain
+   distinct through forwarding, serialization, and checking;
+6. a literally bodyless ordinary theorem machine rejects, an explicit boundary
    axiom is reported as admitted, and an equivalence depending on it cannot
    license `%`;
-5. different family indices may relate, while a different carrier family
+7. different family indices may relate, while a different carrier family
    rejects;
-6. quotient formation requires explicit reflexive, symmetric, and transitive
+8. quotient formation requires explicit reflexive, symmetric, and transitive
    conformances through `Equivalence`;
-7. a total respecting operation lifts;
-8. a partial operation rejects unless equivalent representatives agree on its
+9. a total respecting operation lifts;
+10. a partial operation rejects unless equivalent representatives agree on its
    precondition;
-9. an operation whose result depends on representative choice rejects; and
-10. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
+11. an operation whose result depends on representative choice rejects; and
+12. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
    convergence.
