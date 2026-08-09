@@ -234,6 +234,18 @@ fn boolean_integer_cast_keeps_binary_range_for_exact_shift() {
 }
 
 #[test]
+fn exact_integer_widen_keeps_source_range_for_exact_shift() {
+    let source = r#"
+        machine stride(width: u32) -> i64 {
+            (width as i64) << 2
+        }
+    "#;
+
+    lower_typed_trees(typed_trees(source))
+        .expect("the exact widening retains u32 bounds before the exact shift");
+}
+
+#[test]
 fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
     let source = r#"
         machine shift(value: u64, count: u64) -> u64 {
