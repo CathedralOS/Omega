@@ -25,8 +25,9 @@
 //! path-proved positive runtime divisors for fixed division and remainder, v41
 //! admits signed runtime divisors proven at most negative two, v42 admits
 //! negative-one-inclusive signed ranges with policy-appropriate dividend
-//! evidence, v43 admits a guarded two-runtime unsigned Exact-add bound, and
-//! current v44 extends that upper-bound form to signed nonnegative addends.
+//! evidence, v43 admits a guarded two-runtime unsigned Exact-add bound, v44
+//! extends that upper-bound form to signed nonnegative addends, and current
+//! v45 adds the symmetric lower-bound form for signed nonpositive addends.
 //! This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy plus Boolean control without pretending that other
