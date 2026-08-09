@@ -242,6 +242,19 @@ fn assign_boolean_control(
     architecture: Architecture,
 ) -> Result<TerminalAssignedBooleanControl, AssignmentError> {
     Ok(match control {
+        TerminalTargetBooleanControl::Crash {
+            psi_crash_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => TerminalAssignedBooleanControl::Crash {
+            psi_crash_edge: *psi_crash_edge,
+            cause: *cause,
+            damage_minimum: damage_minimum.clone(),
+            containment_demand: containment_demand.clone(),
+            frontier_lower_bound: frontier_lower_bound.clone(),
+        },
         TerminalTargetBooleanControl::ReturnImmediate {
             psi_return_edge,
             source_value,
@@ -340,6 +353,19 @@ fn assign_integer_control(
     architecture: Architecture,
 ) -> Result<TerminalAssignedIntegerControl, AssignmentError> {
     Ok(match control {
+        TerminalTargetIntegerControl::Crash {
+            psi_crash_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => TerminalAssignedIntegerControl::Crash {
+            psi_crash_edge: *psi_crash_edge,
+            cause: *cause,
+            damage_minimum: damage_minimum.clone(),
+            containment_demand: containment_demand.clone(),
+            frontier_lower_bound: frontier_lower_bound.clone(),
+        },
         TerminalTargetIntegerControl::Return {
             psi_return_edge,
             source_value,

@@ -65,9 +65,10 @@ execution. Reaching a verified crash reports a distinct terminal outcome after
 charging the crash edge once; resumption cannot replay it. Canonical encoding,
 validation, and fuel cover the complete v27 row. Artifact-root native lowering
 now carries an unconditional crash-only row through Omega target selection and
-assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Guarded mixed
-return/crash control remains fail-closed until the recursive target-control
-representation gains crash leaves.
+assignment and emits `ud2` on x86-64 or `brk #0` on AArch64. Recursive Boolean-
+and integer-result target control carries the same crash leaf, allowing the
+current direct, computed, and short-circuit acyclic guarded graphs to preserve
+both their return and crash arms through native emission.
 Versions 22–24 record an earlier containment model; their scope and context
 fields remain part of those frozen encodings but do not prove survivor safety.
 The next crash-schema revision removes them from current production while

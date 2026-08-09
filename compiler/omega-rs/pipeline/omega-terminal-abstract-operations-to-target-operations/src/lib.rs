@@ -1280,6 +1280,23 @@ fn lower_boolean_block(
                 edges: vec![*psi_edge],
             })
         }
+        TerminalAbstractOperation::Crash {
+            psi_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => Ok(LoweredBooleanControl {
+            control: TerminalTargetBooleanControl::Crash {
+                psi_crash_edge: *psi_edge,
+                cause: *cause,
+                damage_minimum: damage_minimum.clone(),
+                containment_demand: containment_demand.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+            },
+            operations,
+            edges: vec![*psi_edge],
+        }),
         _ => Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
             function.machine,
         )),
@@ -1290,6 +1307,19 @@ fn target_operation_from_boolean_control(
     control: TerminalTargetBooleanControl,
 ) -> TerminalTargetOperation {
     match control {
+        TerminalTargetBooleanControl::Crash {
+            psi_crash_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => TerminalTargetOperation::Crash {
+            psi_edge: psi_crash_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        },
         TerminalTargetBooleanControl::ReturnImmediate {
             psi_return_edge,
             source_value,
@@ -1562,6 +1592,23 @@ fn lower_conditional_block(
                 edges: vec![*psi_edge],
             })
         }
+        TerminalAbstractOperation::Crash {
+            psi_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => Ok(LoweredIntegerControl {
+            control: TerminalTargetIntegerControl::Crash {
+                psi_crash_edge: *psi_edge,
+                cause: *cause,
+                damage_minimum: damage_minimum.clone(),
+                containment_demand: containment_demand.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+            },
+            operations,
+            edges: vec![*psi_edge],
+        }),
         _ => Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
             function.machine,
         )),
@@ -1600,6 +1647,19 @@ fn target_operation_from_integer_control(
     scalar_type: IntegerType,
 ) -> TerminalTargetOperation {
     match control {
+        TerminalTargetIntegerControl::Crash {
+            psi_crash_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        } => TerminalTargetOperation::Crash {
+            psi_edge: psi_crash_edge,
+            cause,
+            damage_minimum,
+            containment_demand,
+            frontier_lower_bound,
+        },
         TerminalTargetIntegerControl::Return {
             psi_return_edge,
             source_value,
