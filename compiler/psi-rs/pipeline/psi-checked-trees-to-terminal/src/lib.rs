@@ -2208,9 +2208,10 @@ fn staged_short_circuit_bindings_terminator(
                     .iter()
                     .any(direct_expression_contains_short_circuit)
         }
-        LoweredScalarBranchTerminator::Jump { .. } | LoweredScalarBranchTerminator::Crash(_) => {
-            false
-        }
+        LoweredScalarBranchTerminator::Jump { arguments, .. } => !arguments
+            .iter()
+            .any(direct_expression_contains_short_circuit),
+        LoweredScalarBranchTerminator::Crash(_) => false,
     };
     if !supported {
         return None;
@@ -3661,8 +3662,34 @@ fn build_scalar_graph_module(
                         },
                     }
                 }
-                LoweredScalarBranchTerminator::Jump { .. }
-                | LoweredScalarBranchTerminator::Crash(_) => {
+                LoweredScalarBranchTerminator::Jump { target, arguments } => {
+                    let arguments = arguments
+                        .iter()
+                        .map(|argument| {
+                            emit_direct_expression(
+                                argument,
+                                &stage_parameters,
+                                &mut next_value_identity,
+                                &mut all_operations,
+                            )
+                        })
+                        .collect();
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("staged local jump edge identity advances");
+                    Terminator::Jump {
+                        edge,
+                        target: block_id(
+                            u64::try_from(target)
+                                .expect("state index fits a semantic identity")
+                                .checked_add(1)
+                                .expect("block identity is nonzero"),
+                        ),
+                        arguments,
+                    }
+                }
+                LoweredScalarBranchTerminator::Crash(_) => {
                     unreachable!("carried Boolean helper filters unsupported terminators")
                 }
             };
