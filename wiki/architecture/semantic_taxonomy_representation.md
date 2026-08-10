@@ -671,54 +671,20 @@ disproved by available facts. Proofs may use a checked body only when that body
 belongs to the same fingerprinted verification unit. Imported evidence cites
 the published contract and certificate.
 
-Same-unit private bodies use a conservative monotone summary over the viable
-invocation graph. While typed expressions remain available, a temporary
-canonical predicate tree retains positional parameter references and composes
-the exact argument substitution through every nonrecursive private edge. The
-tree is not durable checked data: final `CheckedCrashCallSite` rows contain only
-the resulting source-independent predicate identities. An edge inside a
-recursive strongly connected component widens each propagated route to its
-unconditional cause bucket. That widening prevents
-argument-changing recursion from generating an infinite predicate family and
-is conservative for callers; acyclic wrappers retain their guards and concrete
-outer arguments may still disprove them.
+Same-unit private bodies use a conservative monotone summary. Nonrecursive
+edges substitute positional arguments exactly; recursive SCC edges widen to an
+unconditional cause bucket so the summary lattice remains finite. Durable
+checked-call rows retain only source-independent exact guards, sound derived
+consequences, surviving buckets, and the pinned target contract identity.
 
-Checked lowering first records each explicit body crash as a
-`CheckedCrashSite`. That row identifies the statement-handle-free state-local
-site and its cause. Checked ownership then retains the stable identities of
-every definitely-live, non-conditional linear claim at that exact site. The
-set is deliberately a lower bound: a conditionally live sum payload enters
-only after canonical symbol-rooted path evidence proves every active case on
-its nested claim path. Non-place or dynamic-index argument rebinding and a
-partial outer-case proof remain conservatively absent. Obligations outside the
-activation are not claimed to be edge-enumerable. Exhaustive crash paths
-abandon the retained claims; lowering does not synthesize a cleanup or consume
-event for them. Open invariant windows contribute their invariant-bearing data
-identities to the same lower bound.
-
-The row is still not a completed `CrashTerminatorPlan` until guard coverage and
-frontier reconstruction both succeed.
-Canonical route buckets receive dense plan-local identities, and an
-unconditional same-cause bucket enters `guard_covering_buckets` structurally
-because `true` covers every path guard. Exact retained incoming guards and
-their accumulated fallthrough negations join to identical canonical published
-predicates. The conservative structural entailment layer also decomposes
-positive conjunctions and negated disjunctions, including nested logical
-negation, and normalizes Boolean equality/inequality against a literal to the
-operand polarity it proves, without accepting their converses. It also records
-operand-reversed comparison equivalents and flips equality/inequality under
-negation. Ordered-comparison negation flips to the complement only for checked
-integer operands; unknown, user-defined, and float operands remain opaque so
-unordered values cannot make that rule unsound. Checked integer strict order
-also entails its non-strict bound and inequality; equality entails both
-non-strict bounds. Checked call
-rows retain the same source-independent consequence set for caller-ceiling
-coverage. Checked site and call rows retain both the canonical conjunction of
-exact incoming predicates and a separate canonical consequence set. A
-consequence can witness bucket coverage and cross the terminal boundary beside
-the exact guard, but never replaces or rewrites that guard. Richer logical
-entailment remains. Checked sites are implementation evidence and never enter
-the published contract fingerprint.
+Each explicit body crash becomes a statement-handle-free checked site. Its
+frontier contains only claims definitely live at that point; conditional claims
+enter only when canonical case evidence closes their path. Guard coverage may
+use an exact published predicate, an unconditional same-cause bucket, or a
+sound structural consequence, but a consequence never replaces the exact path
+guard. These site/call rows are implementation evidence and do not enter the
+published contract fingerprint. The terminal-Psi page owns detailed predicate
+rules and canonical lowering mechanics.
 
 `CrashTerminatorPlan` is a distinct no-successor terminal with no cleanup. Its
 frontier field is explicitly a lower bound: caller frames, external effects,
@@ -744,35 +710,12 @@ to equal the statically known call envelope. The source order is fixed as
 check needed before continuation planning. Compiler-synthesized adapters record
 the same facts without pretending a source token existed.
 
-Current implementation gives service reach, suspension, and blocking separate
-normalized plans and fixed points. Boundary traits mint canonical service
-identities after symbol assignment; checked trees, provider plans, contracts,
-snapshots, and manifests carry those identities directly. Public omission is a
-negative guarantee, not “unknown,” and authored `suspends;` / `blocks;` clauses
-remain independent of `reaches`.
-
-Capability admission matches exact service symbols and normalized call
-topology. Authority is never reconstructed from a service name. Grouped
-machine/state/call rows are shared by the analyses, while their semantic
-summaries remain distinct; no lowercase-name catalog, bitset projection, or
-duplicate effect-row carrier remains.
-
-Direct invocation is an independent contract axis from syntax through checked
-facts and artifacts. Bodyful inference follows local helpers and nested
-expressions; bodyless requirements publish their ceiling. Selected-provider
-composition substitutes exact boundary slots and rejects cycles in the realized
-component graph. Declared invocation targets contribute their boundary service
-to reach and their contract to operational inference; registration alone
-creates no call edge.
-
-Authority possession, provider trust receipts, resource bounds, failure
-outcomes, and mutation remain separate fields/analyses. Do not manufacture a
-single all-purpose effect record or reconstruct suspension/blocking from
-service reach.
-
-Checked facts name the grouped suspension/blocking/call-topology plan
-`operational`. Service reach, trust, mutation, and termination remain
-independent semantic axes.
+Service reach, direct invocation, suspension, blocking, crash routes, trust,
+mutation, resources, and termination remain separate normalized axes. The
+analyses may share grouped machine/state/call topology, but capability admission
+matches exact service symbols and never reconstructs authority from a service
+name. Public omission is a negative guarantee; private omission reaches a
+deterministic fixed point. Registration alone creates no invocation edge.
 
 ## Migration discipline
 
