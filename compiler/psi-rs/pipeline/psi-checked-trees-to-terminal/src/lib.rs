@@ -1788,10 +1788,10 @@ fn lower_scalar_graph_machine(
         if bindings
             .iter()
             .any(direct_expression_contains_short_circuit)
-            && carried_short_circuit_binding_return(&bindings, &terminator).is_none()
+            && carried_short_circuit_binding_terminator(&bindings, &terminator).is_none()
         {
             return unsupported(
-                "short-circuit scalar locals outside one carried return need terminal control",
+                "short-circuit scalar locals outside one carried terminator need terminal control",
             );
         }
         lowered_states.push(LoweredScalarBranchState {
@@ -2182,10 +2182,13 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
     )
 }
 
-fn carried_short_circuit_binding_return(
+fn carried_short_circuit_binding_terminator(
     bindings: &[LoweredDirectExpression],
     terminator: &LoweredScalarBranchTerminator,
-) -> Option<(LoweredBooleanReturnExpression, LoweredDirectExpression)> {
+) -> Option<(
+    LoweredBooleanReturnExpression,
+    LoweredScalarBranchTerminator,
+)> {
     let [binding] = bindings else {
         return None;
     };
@@ -2198,19 +2201,32 @@ fn carried_short_circuit_binding_return(
     if !contains_short_circuit(binding_expression) {
         return None;
     }
-    let LoweredScalarBranchTerminator::Return {
-        expression: returned_expression,
-    } = terminator
-    else {
-        return None;
+    let supported = match terminator {
+        LoweredScalarBranchTerminator::Return { expression } => {
+            !direct_expression_contains_short_circuit(expression)
+        }
+        LoweredScalarBranchTerminator::Conditional {
+            condition,
+            when_true_arguments,
+            when_false_arguments,
+            ..
+        } => {
+            !contains_short_circuit(condition)
+                && !when_true_arguments
+                    .iter()
+                    .any(direct_expression_contains_short_circuit)
+                && !when_false_arguments
+                    .iter()
+                    .any(direct_expression_contains_short_circuit)
+        }
+        LoweredScalarBranchTerminator::Jump { .. } | LoweredScalarBranchTerminator::Crash(_) => {
+            false
+        }
     };
-    if direct_expression_contains_short_circuit(returned_expression) {
+    if !supported {
         return None;
     }
-    Some((
-        binding_expression.as_ref().clone(),
-        returned_expression.clone(),
-    ))
+    Some((binding_expression.as_ref().clone(), terminator.clone()))
 }
 
 fn validate_short_circuit_expression(
@@ -3431,11 +3447,11 @@ fn build_scalar_graph_module(
         } else {
             current_parameters.clone()
         };
-        let carried_short_circuit_return =
-            carried_short_circuit_binding_return(&state.bindings, &state.terminator);
+        let carried_short_circuit_terminator =
+            carried_short_circuit_binding_terminator(&state.bindings, &state.terminator);
         let mut current_values = current_parameters.clone();
         let mut current_value_types = state.parameter_types.clone();
-        if let Some((binding_expression, returned_expression)) = carried_short_circuit_return {
+        if let Some((binding_expression, continuation_plan)) = carried_short_circuit_terminator {
             let decision = lower_boolean_value_decision(&binding_expression);
             let decision_block_count = boolean_decision_block_count(&decision);
             let first_synthetic_block = block_id(next_block_identity);
@@ -3454,7 +3470,8 @@ fn build_scalar_graph_module(
             let mut continuation_types = state.parameter_types.clone();
             continuation_types.push(ScalarType::Boolean);
             let continuation_parameters = continuation_types
-                .into_iter()
+                .iter()
+                .copied()
                 .map(|scalar_type| {
                     let parameter = ValueDeclaration {
                         id: value_id(next_value_identity),
@@ -3504,21 +3521,83 @@ fn build_scalar_graph_module(
             inlined_blocks.extend(decision_blocks);
 
             let operation_start = all_operations.len();
-            let value = emit_direct_expression(
-                &returned_expression,
-                &continuation_parameters,
-                &mut next_value_identity,
-                &mut all_operations,
-            );
-            let edge = edge_id(next_edge_identity);
-            next_edge_identity = next_edge_identity
-                .checked_add(1)
-                .expect("carried Boolean return edge identity advances");
+            let terminator = match continuation_plan {
+                LoweredScalarBranchTerminator::Return { expression } => {
+                    let value = emit_direct_expression(
+                        &expression,
+                        &continuation_parameters,
+                        &mut next_value_identity,
+                        &mut all_operations,
+                    );
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("carried Boolean return edge identity advances");
+                    Terminator::Return { edge, value }
+                }
+                LoweredScalarBranchTerminator::Conditional {
+                    condition,
+                    when_true_target,
+                    when_true_arguments,
+                    when_false_target,
+                    when_false_arguments,
+                } => {
+                    let condition = emit_boolean_expression(
+                        &condition,
+                        &continuation_parameters,
+                        &mut next_value_identity,
+                        &mut all_operations,
+                    );
+                    let when_true = build_scalar_conditional_target(
+                        when_true_target,
+                        &when_true_arguments,
+                        &continuation_parameters,
+                        &continuation_types,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
+                    let when_false = build_scalar_conditional_target(
+                        when_false_target,
+                        &when_false_arguments,
+                        &continuation_parameters,
+                        &continuation_types,
+                        &mut next_block_identity,
+                        &mut next_value_identity,
+                        &mut pending_blocks,
+                    );
+                    let when_true_edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("carried Boolean true edge identity advances");
+                    let when_false_edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("carried Boolean false edge identity advances");
+                    Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: when_true_edge,
+                            target: when_true.block,
+                            arguments: when_true.arguments,
+                        },
+                        when_false: SuccessorEdge {
+                            edge: when_false_edge,
+                            target: when_false.block,
+                            arguments: when_false.arguments,
+                        },
+                    }
+                }
+                LoweredScalarBranchTerminator::Jump { .. }
+                | LoweredScalarBranchTerminator::Crash(_) => {
+                    unreachable!("carried Boolean helper filters unsupported terminators")
+                }
+            };
             inlined_blocks.push(Block {
                 id: continuation,
                 parameters: continuation_parameters,
                 operations: all_operations[operation_start..].to_vec(),
-                terminator: Terminator::Return { edge, value },
+                terminator,
             });
             continue;
         }
