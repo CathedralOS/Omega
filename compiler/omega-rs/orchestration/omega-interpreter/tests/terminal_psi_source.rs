@@ -874,12 +874,62 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
 }
 
 #[test]
-fn checked_source_consumed_short_circuit_local_fails_closed_until_it_can_be_carried() {
+fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("consumed short-circuit Boolean-local source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_consumed_short_circuit_boolean_local")
+        .expect("a strictly consumed short-circuit local should lower as terminal control");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("consumed short-circuit-local terminal Psi should encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("consumed short-circuit-local proof should encode");
+    let semantic =
+        decode_module(&semantic).expect("consumed short-circuit-local terminal Psi should decode");
+    let proof =
+        decode_proof_bundle(&proof).expect("consumed short-circuit-local proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("consumed short-circuit-local terminal Psi should verify");
+    assert!(semantic.machines[0].blocks.len() > 1);
+
+    for (first, second, expected) in [
+        (false, false, true),
+        (false, true, true),
+        (true, false, true),
+        (true, true, false),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+        )
+        .expect("consumed short-circuit local should execute");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified consumed short-circuit local should lower without frontend state");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("consumed short-circuit local should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("consumed short-circuit local should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("consumed short-circuit local should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_reused_short_circuit_local_fails_closed_until_it_can_be_carried() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("reused short-circuit Boolean-local source canary should compile");
     assert_eq!(
-        lower_machine(&checked, "terminal_consumed_short_circuit_boolean_local")
-            .expect_err("a consumed short-circuit local needs carried terminal control"),
+        lower_machine(&checked, "terminal_reused_short_circuit_boolean_local")
+            .expect_err("a reused short-circuit local needs carried terminal control"),
         LoweringError::Unsupported(
             "short-circuit scalar locals outside direct return need carried terminal control"
         )

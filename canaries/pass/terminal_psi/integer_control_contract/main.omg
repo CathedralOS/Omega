@@ -159,6 +159,14 @@ ensures true == true
     !joined
 }
 
+machine terminal_reused_short_circuit_boolean_local(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let joined: bool = first && second;
+    joined == joined
+}
+
 machine terminal_saturating_add() -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

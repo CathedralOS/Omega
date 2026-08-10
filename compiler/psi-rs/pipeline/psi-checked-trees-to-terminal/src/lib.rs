@@ -1788,7 +1788,7 @@ fn lower_scalar_graph_machine(
         if bindings
             .iter()
             .any(direct_expression_contains_short_circuit)
-            && direct_short_circuit_binding_return(parameter_types.len(), &bindings, &terminator)
+            && strict_short_circuit_binding_return(parameter_types.len(), &bindings, &terminator)
                 .is_none()
         {
             return unsupported(
@@ -2183,11 +2183,11 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
     )
 }
 
-fn direct_short_circuit_binding_return<'a>(
+fn strict_short_circuit_binding_return(
     parameter_count: usize,
-    bindings: &'a [LoweredDirectExpression],
+    bindings: &[LoweredDirectExpression],
     terminator: &LoweredScalarBranchTerminator,
-) -> Option<&'a LoweredDirectExpression> {
+) -> Option<LoweredDirectExpression> {
     let [binding] = bindings else {
         return None;
     };
@@ -2209,11 +2209,35 @@ fn direct_short_circuit_binding_return<'a>(
     else {
         return None;
     };
-    matches!(
-        returned_expression.as_ref(),
-        LoweredBooleanReturnExpression::Local { position } if *position == parameter_count
-    )
-    .then_some(binding)
+    Some(LoweredDirectExpression::Boolean {
+        expression: Box::new(substitute_strict_boolean_local(
+            returned_expression,
+            parameter_count,
+            binding_expression,
+        )?),
+    })
+}
+
+fn substitute_strict_boolean_local(
+    expression: &LoweredBooleanReturnExpression,
+    position: usize,
+    replacement: &LoweredBooleanReturnExpression,
+) -> Option<LoweredBooleanReturnExpression> {
+    match expression {
+        LoweredBooleanReturnExpression::Local {
+            position: candidate,
+        } if *candidate == position => Some(replacement.clone()),
+        LoweredBooleanReturnExpression::Not { operand } => {
+            Some(LoweredBooleanReturnExpression::Not {
+                operand: Box::new(substitute_strict_boolean_local(
+                    operand,
+                    position,
+                    replacement,
+                )?),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn validate_short_circuit_expression(
@@ -3434,19 +3458,17 @@ fn build_scalar_graph_module(
         } else {
             current_parameters.clone()
         };
-        let direct_short_circuit_return = direct_short_circuit_binding_return(
+        let strict_short_circuit_return = strict_short_circuit_binding_return(
             state.parameter_types.len(),
             &state.bindings,
             &state.terminator,
         );
-        let direct_return_terminator =
-            direct_short_circuit_return.map(|binding| LoweredScalarBranchTerminator::Return {
-                expression: binding.clone(),
-            });
-        let terminator_plan = direct_return_terminator
+        let strict_return_terminator = strict_short_circuit_return
+            .map(|expression| LoweredScalarBranchTerminator::Return { expression });
+        let terminator_plan = strict_return_terminator
             .as_ref()
             .unwrap_or(&state.terminator);
-        let bindings = if direct_short_circuit_return.is_some() {
+        let bindings = if strict_return_terminator.is_some() {
             &[][..]
         } else {
             state.bindings.as_slice()
