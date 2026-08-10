@@ -61,8 +61,7 @@ The implementation should stay split by identity task:
 - `compiler/psi-rs/foundation/psi-language-semantics` owns the resolved
   semantic identities, service/domain tables, machine supply/termination
   plans, establishment routes, and byte-sequence predicate vocabulary carried
-  by this stage. `omega-core::semantics` and `omega-core::byte_predicates` are
-  temporary compatibility exports for unmigrated consumers.
+  by this stage.
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Integration
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.
