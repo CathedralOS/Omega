@@ -1924,6 +1924,75 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
 }
 
 #[test]
+fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("signed i64 runtime-bound add/subtract source canaries should compile");
+    let cases: [(&str, &[(i128, i128, i128)]); 2] = [
+        (
+            "terminal_exact_add_signed_i64_runtime_bounds",
+            &[
+                (i64::MAX as i128 - 5, 5, i64::MAX as i128),
+                (i64::MAX as i128 - 4, 5, 0),
+                (i64::MIN as i128 + 5, -5, i64::MIN as i128),
+                (i64::MIN as i128 + 4, -5, 0),
+                (i64::MIN as i128, 5, i64::MIN as i128 + 5),
+                (i64::MAX as i128, -5, i64::MAX as i128 - 5),
+                (i64::MAX as i128, 0, i64::MAX as i128),
+            ],
+        ),
+        (
+            "terminal_exact_subtract_signed_i64_runtime_bounds",
+            &[
+                (i64::MIN as i128 + 5, 5, i64::MIN as i128),
+                (i64::MIN as i128 + 4, 5, 0),
+                (i64::MAX as i128 - 5, -5, i64::MAX as i128),
+                (i64::MAX as i128 - 4, -5, 0),
+                (i64::MAX as i128, 5, i64::MAX as i128 - 5),
+                (i64::MIN as i128, -5, i64::MIN as i128 + 5),
+                (i64::MIN as i128, 0, i64::MIN as i128),
+            ],
+        ),
+    ];
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+
+    for (machine, machine_cases) in cases {
+        let lowered = lower_machine(&checked, machine)
+            .expect("signed i64 add/subtract should use its runtime-bound propositions");
+        assert_eq!(
+            lowered.semantic_module.vocabulary_marker,
+            VocabularyMarker::CURRENT
+        );
+        let semantic = encode_module(&lowered.semantic_module).expect("signed i64 semantics");
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed i64 proof");
+        for &(left, right, expected) in machine_cases {
+            let execution = interpret_terminal_artifact_measured(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                &[argument(left), argument(right)],
+            )
+            .expect("verified signed i64 add/subtract should interpret");
+            assert_eq!(execution.value(), argument(expected));
+        }
+
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("signed i64 add/subtract should cross Omega");
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .expect("signed i64 add/subtract should select");
+            let assigned = assign_registers(&target_operations)
+                .expect("signed i64 add/subtract homes should assign");
+            emit_machine_code(&assigned).expect("signed i64 add/subtract should emit");
+        }
+    }
+}
+
+#[test]
 fn checked_source_exact_multiply_uses_known_factor_bound() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-factor exact-multiply source canary should compile");
