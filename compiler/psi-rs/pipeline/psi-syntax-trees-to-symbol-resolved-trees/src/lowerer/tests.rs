@@ -977,6 +977,26 @@ fn rejects_ordinary_trait_in_machine_service_reach_before_resolved_trees() {
 }
 
 #[test]
+fn rejects_unknown_machine_parameter_service_reach_before_resolved_trees() {
+    let source = r#"
+        machine invoke<machine F>()
+        where machine F() reaches MissingService;
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("unknown machine-parameter reach must not enter resolved trees");
+
+    assert!(diagnostic.message.contains(
+        "machine-parameter requirement `F` state `F` declares unknown boundary service `MissingService`"
+    ));
+}
+
+#[test]
 fn rejects_authored_service_reach_on_external_realization_before_resolved_trees() {
     let source = r#"
         boundary trait Process {

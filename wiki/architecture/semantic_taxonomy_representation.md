@@ -76,11 +76,10 @@ machine/state/call topology, but service rows are interned canonical trait
 identities while operational summaries are independent booleans. Authority,
 trust, resources, failure, and mutation remain in their separate semantic
 homes. Typed machines and state signatures carry only their normalized service
-row. Root-machine authored names end during syntax-to-resolved normalization;
-symbol-resolved signatures temporarily retain their names until
-resolved-to-typed lowering for row construction and source-facing diagnostics.
-Removing that remaining signature staging span is an implementation cleanup,
-not a second semantic contract.
+row. Authored service names end during syntax-to-resolved normalization: a
+lowering-private sidecar retains them through symbol assignment, row
+construction, and source-facing diagnostics, then discards them. Published
+symbol-resolved and typed trees contain no parallel spelling contract.
 
 ## Target representations
 

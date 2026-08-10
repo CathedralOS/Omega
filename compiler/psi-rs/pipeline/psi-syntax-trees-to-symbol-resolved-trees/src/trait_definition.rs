@@ -32,8 +32,12 @@ pub(crate) fn lower_trait_definition(
         trait_definition.parents,
         trait_definition.requires,
     )?;
-    let machines =
-        lower_trait_machine_signatures(lowerer, syntax_trees, trait_definition.machines)?;
+    let machines = lower_trait_machine_signatures(
+        lowerer,
+        syntax_trees,
+        &trait_definition.name,
+        trait_definition.machines,
+    )?;
 
     Ok(TraitDefinition {
         symbol: SymbolHandle::invalid(),
@@ -116,22 +120,32 @@ fn lower_trait_requirements(
 fn lower_trait_machine_signatures(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
+    trait_name: &syntax::identifier::Identifier,
     machines: HandleSpan<syntax::item::StateSignatureHandle>,
 ) -> Result<HandleSpan<StateSignature>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for signature in syntax_trees.items.state_signatures(machines) {
-        let signature = lower_state_signature_node(
+        let lowered = lower_state_signature_node(
             lowerer,
             syntax_trees,
             syntax_trees.items.state_signature(*signature),
         )?;
-        lowerer
+        let handle = lowerer
             .symbol_resolved_trees
             .tables
             .declarations
             .trait_machine_signatures
-            .append_to_span(&mut span, signature);
+            .append_to_span(&mut span, lowered.signature);
+        lowerer.pending_signature_service_reaches.push(
+            crate::lowerer::PendingSignatureServiceReach {
+                location: crate::lowerer::PendingSignatureLocation::Trait(handle),
+                owner: crate::lowerer::PendingSignatureOwner::Trait(crate::name::lower_name(
+                    trait_name,
+                )),
+                authored: lowered.service_reaches,
+            },
+        );
     }
 
     Ok(span)

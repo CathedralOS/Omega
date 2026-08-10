@@ -155,15 +155,18 @@ pub(crate) fn lower_type_parameters(
 ) -> Result<HandleSpan<TypeParameter>, Diagnostic> {
     let mut lowered = Vec::new();
     for parameter in syntax_trees.items.type_parameters(type_parameters) {
-        let kind = match &parameter.kind {
-            syntax::item::TypeParameterKind::Type => TypeParameterKind::Type,
-            syntax::item::TypeParameterKind::Const { type_reference } => TypeParameterKind::Const {
-                type_reference: lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    *type_reference,
-                )?,
-            },
+        let (kind, pending_service_reaches) = match &parameter.kind {
+            syntax::item::TypeParameterKind::Type => (TypeParameterKind::Type, None),
+            syntax::item::TypeParameterKind::Const { type_reference } => (
+                TypeParameterKind::Const {
+                    type_reference: lower_type_reference_handle(
+                        lowerer,
+                        syntax_trees,
+                        *type_reference,
+                    )?,
+                },
+                None,
+            ),
             syntax::item::TypeParameterKind::Machine { contract } => {
                 let contract = contract.as_ref().ok_or_else(|| {
                     Diagnostic::error(format!(
@@ -171,24 +174,28 @@ pub(crate) fn lower_type_parameters(
                         parameter.name.as_str()
                     ))
                 })?;
-                TypeParameterKind::Machine {
-                    contract: crate::state::lower_state_signature_parts(
-                        lowerer,
-                        syntax_trees,
-                        &contract.name,
-                        &contract.lifetime_parameters,
-                        contract.type_parameters,
-                        contract.parameters,
-                        contract.return_type,
-                        contract.is_default,
-                        contract.service_reaches,
-                        contract.invokes,
-                        contract.suspends,
-                        contract.blocks,
-                        contract.contracts,
-                        contract.terminates_guarantee,
-                    )?,
-                }
+                let lowered_contract = crate::state::lower_state_signature_parts(
+                    lowerer,
+                    syntax_trees,
+                    &contract.name,
+                    &contract.lifetime_parameters,
+                    contract.type_parameters,
+                    contract.parameters,
+                    contract.return_type,
+                    contract.is_default,
+                    contract.service_reaches,
+                    contract.invokes,
+                    contract.suspends,
+                    contract.blocks,
+                    contract.contracts,
+                    contract.terminates_guarantee,
+                )?;
+                (
+                    TypeParameterKind::Machine {
+                        contract: lowered_contract.signature,
+                    },
+                    Some(lowered_contract.service_reaches),
+                )
             }
             syntax::item::TypeParameterKind::Proposition { contract } => {
                 let contract = contract.as_ref().ok_or_else(|| {
@@ -197,37 +204,74 @@ pub(crate) fn lower_type_parameters(
                         parameter.name.as_str()
                     ))
                 })?;
-                TypeParameterKind::Proposition {
-                    contract: psi_symbol_resolved_trees::data::PropositionParameterSignature {
-                        name: crate::name::lower_name(&contract.name),
-                        parameters: crate::state::lower_state_parameters(
-                            lowerer,
-                            syntax_trees,
-                            contract.parameters,
-                        )?,
+                (
+                    TypeParameterKind::Proposition {
+                        contract: psi_symbol_resolved_trees::data::PropositionParameterSignature {
+                            name: crate::name::lower_name(&contract.name),
+                            parameters: crate::state::lower_state_parameters(
+                                lowerer,
+                                syntax_trees,
+                                contract.parameters,
+                            )?,
+                        },
                     },
-                }
+                    None,
+                )
             }
         };
-        lowered.push(TypeParameter {
-            symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&parameter.name),
-            kind,
-            bounds: DataProperties {
-                copy: parameter.bounds.multiplicity
-                    == psi_language_semantics::Multiplicity::Unrestricted,
-                carry: parameter.bounds.carry,
-                multiplicity: parameter.bounds.multiplicity,
+        lowered.push((
+            TypeParameter {
+                symbol: SymbolHandle::invalid(),
+                name: crate::name::lower_name(&parameter.name),
+                kind,
+                bounds: DataProperties {
+                    copy: parameter.bounds.multiplicity
+                        == psi_language_semantics::Multiplicity::Unrestricted,
+                    carry: parameter.bounds.carry,
+                    multiplicity: parameter.bounds.multiplicity,
+                },
             },
-        });
+            pending_service_reaches,
+        ));
     }
 
-    Ok(lowerer
+    let (parameters, pending_service_reaches): (Vec<_>, Vec<_>) = lowered.into_iter().unzip();
+    let span = lowerer
         .symbol_resolved_trees
         .tables
         .declarations
         .data_type_parameters
-        .insert_many(lowered))
+        .insert_many(parameters);
+    if !span.is_empty() {
+        for (index, authored) in pending_service_reaches.into_iter().enumerate() {
+            let Some(authored) = authored else {
+                continue;
+            };
+            let arena_index = span
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(index).expect("type-parameter span fits u32"))
+                .expect("type-parameter arena index overflow");
+            let handle = psi_arena::Handle::from_parts(arena_index, span.start().generation());
+            let owner = lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .data_type_parameters
+                .get(handle)
+                .name
+                .clone();
+            lowerer.pending_signature_service_reaches.push(
+                crate::lowerer::PendingSignatureServiceReach {
+                    location: crate::lowerer::PendingSignatureLocation::MachineParameter(handle),
+                    owner: crate::lowerer::PendingSignatureOwner::Requirement(owner),
+                    authored,
+                },
+            );
+        }
+    }
+
+    Ok(span)
 }
 
 fn lower_data_members(

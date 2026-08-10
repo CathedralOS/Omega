@@ -1280,24 +1280,3 @@ fn typed_snapshots_publish_only_normalized_service_reach() {
     };
     assert_eq!(signature.service_reach, ["Console"]);
 }
-
-#[test]
-fn rejects_unknown_machine_parameter_service_reach_before_typed_trees() {
-    let source = r#"
-        machine invoke<machine F>()
-        where machine F() reaches MissingService;
-        {
-        }
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("unknown machine-parameter service reach must not enter typed trees");
-
-    assert!(diagnostic.message.contains(
-        "machine-parameter requirement `F` state `F` declares unknown boundary service `MissingService`"
-    ));
-}

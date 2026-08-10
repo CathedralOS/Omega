@@ -473,11 +473,10 @@ carry only normalized supply mode, not a parallel `boundary` compatibility
 bit. The obsolete
 `EffectRowId`/`EffectRowTable` carrier and global lowercase service-name/u64
 table are deleted. Typed machines and state signatures retain only
-symbol-resolved `ServiceReachRowId` values. Root-machine authored identifiers
-end in a syntax-to-resolved normalization sidecar; resolved signatures retain
-their authored identifiers temporarily through row construction and
-source-facing diagnostics. No semantic consumer treats that staging span as a
-second effect contract.
+symbol-resolved `ServiceReachRowId` values. Authored identifiers end in a
+syntax-to-resolved normalization sidecar after symbol assignment, row
+construction, and source-facing diagnostics; published resolved and typed
+records contain no parallel spelling contract.
 Build-script admission now consumes exact service reach and admits only the
 pinned canonical `FilesystemHost` and `Console` staging slots; custom boundary
 wrappers do not inherit admission from a category alias. Unknown service

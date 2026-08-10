@@ -376,9 +376,6 @@ fn count_type_parameter(
                 expression_table,
                 counts,
             );
-            for service in program.signature_service_reaches(contract.service_reaches) {
-                count_declaration_name(service, counts);
-            }
             for binding in program.signature_invokes(contract.invokes) {
                 count_declaration_name(binding, counts);
             }

@@ -85,7 +85,6 @@ pub struct SymbolResolvedDeclarationStorage {
     pub trait_requirements: Arena<crate::trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub decrease_orders: Arena<crate::name::DiagnosticName>,
-    pub signature_service_reaches: Arena<crate::name::DiagnosticName>,
     pub signature_invokes: Arena<crate::name::DiagnosticName>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub state_parameters: Arena<signature::StateParameter>,
@@ -230,16 +229,6 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .state_parameters
-            .span_or_empty(span)
-    }
-
-    pub fn signature_service_reaches(
-        &self,
-        span: HandleSpan<crate::name::DiagnosticName>,
-    ) -> &[crate::name::DiagnosticName] {
-        self.tables
-            .declarations
-            .signature_service_reaches
             .span_or_empty(span)
     }
 
@@ -448,29 +437,28 @@ mod tests {
     }
 
     #[test]
-    fn decrease_orders_and_service_reaches_use_independent_arenas() {
+    fn decrease_orders_and_signature_invokes_use_independent_arenas() {
         let mut trees = SymbolResolvedTrees::default();
         let mut decrease_order = HandleSpan::empty();
-        let mut service_reaches = HandleSpan::empty();
+        let mut signature_invokes = HandleSpan::empty();
 
         trees
             .tables
             .declarations
             .decrease_orders
             .append_to_span(&mut decrease_order, DiagnosticName::generated("remaining"));
-        trees
-            .tables
-            .declarations
-            .signature_service_reaches
-            .append_to_span(&mut service_reaches, DiagnosticName::generated("Console"));
+        trees.tables.declarations.signature_invokes.append_to_span(
+            &mut signature_invokes,
+            DiagnosticName::generated("Console.write"),
+        );
 
         assert_eq!(
             trees.machine_decrease_order(decrease_order)[0].as_str(),
             "remaining"
         );
         assert_eq!(
-            trees.signature_service_reaches(service_reaches)[0].as_str(),
-            "Console"
+            trees.signature_invokes(signature_invokes)[0].as_str(),
+            "Console.write"
         );
     }
 }

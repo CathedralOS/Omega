@@ -46,6 +46,7 @@ pub(crate) struct Lowerer {
     /// machine arena and never enters the published symbol-resolved trees.
     pub(crate) pending_machine_service_reaches:
         Vec<Vec<psi_symbol_resolved_trees::name::DiagnosticName>>,
+    pub(crate) pending_signature_service_reaches: Vec<PendingSignatureServiceReach>,
     sources: Option<Arc<SourceMap>>,
     /// Per-lowering counter that mints unique names for synthetic `let`
     /// temporaries hoisted out of operand-position indexed reads (see
@@ -144,6 +145,7 @@ impl Lowerer {
         Self {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             pending_machine_service_reaches: Vec::new(),
+            pending_signature_service_reaches: Vec::new(),
             sources,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
@@ -199,6 +201,35 @@ impl Lowerer {
             .zip(&self.pending_machine_service_reaches)
             .map(|(machine, reaches)| (machine.symbol, reaches.clone()))
             .collect::<Vec<_>>();
+        let pending_signature_service_reaches = self
+            .pending_signature_service_reaches
+            .iter()
+            .map(|pending| {
+                let symbol = match pending.location {
+                    PendingSignatureLocation::Trait(handle) => {
+                        self.symbol_resolved_trees
+                            .tables
+                            .declarations
+                            .trait_machine_signatures
+                            .get(handle)
+                            .symbol
+                    }
+                    PendingSignatureLocation::MachineParameter(handle) => {
+                        self.symbol_resolved_trees
+                            .tables
+                            .declarations
+                            .data_type_parameters
+                            .get(handle)
+                            .symbol
+                    }
+                };
+                crate::service_reaches::PendingSignatureServiceReach {
+                    symbol,
+                    owner: pending.owner.clone(),
+                    authored: pending.authored.clone(),
+                }
+            })
+            .collect::<Vec<_>>();
         crate::conformance_blocks::normalize_closed_conformance_blocks(
             &mut self.symbol_resolved_trees,
         )?;
@@ -208,6 +239,7 @@ impl Lowerer {
         crate::service_reaches::normalize_service_reaches(
             &mut self.symbol_resolved_trees,
             &pending_machine_service_reaches,
+            &pending_signature_service_reaches,
         )?;
         self.symbol_resolved_trees.rebuild_tables();
         crate::conformance_blocks::route_inline_member_calls(&mut self.symbol_resolved_trees);
@@ -230,6 +262,25 @@ impl Lowerer {
         trees.external_bindings = external_bindings;
         Ok(trees)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PendingSignatureLocation {
+    Trait(psi_arena::Handle<psi_symbol_resolved_trees::signature::StateSignature>),
+    MachineParameter(psi_arena::Handle<psi_symbol_resolved_trees::data::TypeParameter>),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum PendingSignatureOwner {
+    Trait(psi_symbol_resolved_trees::name::DiagnosticName),
+    Requirement(psi_symbol_resolved_trees::name::DiagnosticName),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PendingSignatureServiceReach {
+    pub(crate) location: PendingSignatureLocation,
+    pub(crate) owner: PendingSignatureOwner,
+    pub(crate) authored: Vec<psi_symbol_resolved_trees::name::DiagnosticName>,
 }
 
 #[cfg(test)]

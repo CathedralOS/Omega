@@ -4,16 +4,24 @@ use psi_language_semantics::{
 };
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbol_resolved_trees::name::DiagnosticName;
-use psi_symbols::{SymbolKind, SymbolTable};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use std::fmt;
+
+pub(crate) struct PendingSignatureServiceReach {
+    pub(crate) symbol: SymbolHandle,
+    pub(crate) owner: crate::lowerer::PendingSignatureOwner,
+    pub(crate) authored: Vec<DiagnosticName>,
+}
 
 /// Normalize service reach only after every declaration and trait-parent edge
-/// has a resolved symbol. Authored root-machine names live only in the
-/// lowering-private sidecar and are validated before the published resolved
-/// trees are returned; normalized rows therefore cannot contain an invalid
-/// member or retain a parallel spelling contract.
+/// has a resolved symbol. Authored names live only in lowering-private
+/// sidecars and are validated before the published resolved trees are
+/// returned; normalized rows therefore cannot contain an invalid member or
+/// retain a parallel spelling contract.
 pub(crate) fn normalize_service_reaches(
     program: &mut SymbolResolvedTrees,
     machine_service_reaches: &[(psi_symbols::SymbolHandle, Vec<DiagnosticName>)],
+    signature_service_reaches: &[PendingSignatureServiceReach],
 ) -> Result<(), Diagnostic> {
     let mut boundary_traits = program
         .traits
@@ -93,8 +101,11 @@ pub(crate) fn normalize_service_reaches(
         .iter()
         .flat_map(|definition| program.trait_machine_signatures(definition.machines))
         .map(|signature| {
-            let mut names = program
-                .signature_service_reaches(signature.service_reaches)
+            let pending =
+                pending_signature_service_reach(signature_service_reaches, signature.symbol);
+            validate_signature_service_reaches(program, &services, signature, pending)?;
+            let mut names = pending
+                .authored
                 .iter()
                 .map(|name| name.as_str().to_owned())
                 .collect::<Vec<_>>();
@@ -104,7 +115,7 @@ pub(crate) fn normalize_service_reaches(
                 program.signature_invokes(signature.invokes),
                 program.state_parameters(signature.parameters),
             ));
-            (
+            Ok((
                 signature.symbol,
                 row_for_names(
                     &program.symbols,
@@ -112,9 +123,9 @@ pub(crate) fn normalize_service_reaches(
                     &mut rows,
                     names.iter().map(String::as_str),
                 ),
-            )
+            ))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     program.machines.for_each_mut(|machine| {
         machine.service_reach_row = machine_rows
@@ -140,11 +151,54 @@ pub(crate) fn normalize_service_reaches(
         }
     }
 
-    normalize_machine_parameter_rows(program, &services, &mut rows);
+    normalize_machine_parameter_rows(program, &services, &mut rows, signature_service_reaches)?;
 
     program.service_reaches = services;
     program.service_reach_rows = rows;
     Ok(())
+}
+
+fn pending_signature_service_reach(
+    pending: &[PendingSignatureServiceReach],
+    symbol: SymbolHandle,
+) -> &PendingSignatureServiceReach {
+    pending
+        .iter()
+        .find(|entry| entry.symbol == symbol)
+        .expect("resolved state signature retains its pending authored service row")
+}
+
+fn validate_signature_service_reaches(
+    program: &SymbolResolvedTrees,
+    services: &ServiceReachTable,
+    signature: &psi_symbol_resolved_trees::signature::StateSignature,
+    pending: &PendingSignatureServiceReach,
+) -> Result<(), Diagnostic> {
+    for service in &pending.authored {
+        if service_for_name(&program.symbols, services, service.as_str()).is_none() {
+            return Err(Diagnostic::error(format!(
+                "{} state `{}` declares unknown boundary service `{service}`",
+                SignatureOwnerDisplay(&pending.owner),
+                signature.name,
+            )));
+        }
+    }
+    Ok(())
+}
+
+struct SignatureOwnerDisplay<'a>(&'a crate::lowerer::PendingSignatureOwner);
+
+impl fmt::Display for SignatureOwnerDisplay<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            crate::lowerer::PendingSignatureOwner::Trait(name) => {
+                write!(formatter, "trait `{name}`")
+            }
+            crate::lowerer::PendingSignatureOwner::Requirement(name) => {
+                write!(formatter, "machine-parameter requirement `{name}`")
+            }
+        }
+    }
 }
 
 fn validate_machine_service_reaches(
@@ -233,7 +287,8 @@ fn normalize_machine_parameter_rows(
     program: &mut SymbolResolvedTrees,
     services: &ServiceReachTable,
     rows: &mut ServiceReachRowTable,
-) {
+    signature_service_reaches: &[PendingSignatureServiceReach],
+) -> Result<(), Diagnostic> {
     use psi_symbol_resolved_trees::data::TypeParameterKind;
 
     let mut roots = program
@@ -268,27 +323,29 @@ fn normalize_machine_parameter_rows(
         collect_parameter_spans(type_parameters, root, &mut spans);
     }
 
-    let service_reach_names = spans
+    let mut service_reach_names = Vec::new();
+    for parameter in spans
         .iter()
         .flat_map(|span| type_parameters.span_or_empty(*span))
-        .filter_map(|parameter| match &parameter.kind {
-            TypeParameterKind::Machine { contract } => {
-                let mut names = program
-                    .signature_service_reaches(contract.service_reaches)
-                    .iter()
-                    .map(|name| name.as_str().to_owned())
-                    .collect::<Vec<_>>();
-                names.extend(invoked_service_names(
-                    program,
-                    services,
-                    program.signature_invokes(contract.invokes),
-                    program.state_parameters(contract.parameters),
-                ));
-                Some((parameter.symbol, names))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    {
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        let pending = pending_signature_service_reach(signature_service_reaches, contract.symbol);
+        validate_signature_service_reaches(program, services, contract, pending)?;
+        let mut names = pending
+            .authored
+            .iter()
+            .map(|name| name.as_str().to_owned())
+            .collect::<Vec<_>>();
+        names.extend(invoked_service_names(
+            program,
+            services,
+            program.signature_invokes(contract.invokes),
+            program.state_parameters(contract.parameters),
+        ));
+        service_reach_names.push((parameter.symbol, names));
+    }
 
     let type_parameters = &mut program.tables.declarations.data_type_parameters;
     for span in spans {
@@ -309,6 +366,7 @@ fn normalize_machine_parameter_rows(
             );
         }
     }
+    Ok(())
 }
 
 fn collect_parameter_spans(
