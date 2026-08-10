@@ -2044,8 +2044,8 @@ fn bind_successor_axioms(
         .map(|(parameter, argument)| (*argument, value_term(parameter.id)))
         .collect::<BTreeMap<_, _>>();
     let established = axioms.clone();
-    // Keep the pre-V28 edge-equality prefix stable so archived certificates
-    // retain their semantic-axiom indexes. Rewritten path facts are appended.
+    // Emit edge equalities before rewritten path facts so independently
+    // reconstructed axiom indexes are deterministic.
     for (parameter, argument) in target_block.parameters.iter().zip(arguments) {
         axioms.push(Proposition::Equal(
             value_term(parameter.id),

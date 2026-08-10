@@ -186,9 +186,8 @@ producer state are discarded; the verifier independently reconstructs every
 obligation and rejects missing/extra/mismatched evidence; interpretation and
 native execution consume that same verified artifact; proof replacement does
 not change semantic identity. Crash sites are never represented as ordinary
-terminal transitions or absent cleanup, concrete safe invocations can disprove
-all crash routes, and installation rejects fault plans that kill either too
-little damaged state or too much context-owned state.
+terminal transitions or absent cleanup, and concrete safe invocations can
+disprove all crash routes.
 
 ### P4 — Calling plans, final footprints, and callbacks
 

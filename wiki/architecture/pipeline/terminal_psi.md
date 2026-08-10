@@ -90,10 +90,9 @@ symbol. Transparent proposition definitions expand before terminal production,
 have no independent semantic identity, and retain their source names only in
 debug maps.
 
-The source pipeline accepts the contextual
-`proposition P(...) evidence Interface;` spelling for a witness-bearing
-declaration. The retired `{ Interface; }` body rejects with migration guidance;
-both spellings are therefore never competing routes to one terminal identity.
+Witness-bearing declarations use the contextual
+`proposition P(...) evidence Interface;` form. The normalized evidence
+interface enters terminal proposition identity.
 
 Witness-bearing facts additionally retain an evidence-term identity and a
 separate derivation-provenance identity. Named `requires` inputs refer to exact
