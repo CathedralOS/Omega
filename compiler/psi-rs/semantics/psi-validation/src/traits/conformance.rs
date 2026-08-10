@@ -1605,7 +1605,10 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     {
         match (&required.kind, &actual.kind) {
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
-                if (actual.bounds.copy && !required.bounds.copy)
+                if (actual.bounds.multiplicity
+                    == psi_language_semantics::Multiplicity::Unrestricted
+                    && required.bounds.multiplicity
+                        != psi_language_semantics::Multiplicity::Unrestricted)
                     || actual.bounds.carry.is_some()
                         && actual.bounds.carry != required.bounds.carry
                 {

@@ -44,7 +44,6 @@ pub(crate) fn lower_proposition_definition(
                 name: crate::name::lower_name(&binder.name),
                 kind,
                 bounds: typed::data::DataProperties {
-                    copy: binder.bounds.copy,
                     carry: binder.bounds.carry,
                     multiplicity: binder.bounds.multiplicity,
                 },

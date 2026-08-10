@@ -19,7 +19,6 @@ pub(crate) fn lower_data_definition(
             .collect(),
         type_parameters: psi_arena::HandleSpan::empty(),
         properties: typed::data::DataProperties {
-            copy: data_definition.properties.copy,
             carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,
         },
@@ -75,7 +74,6 @@ pub(crate) fn lower_type_parameter(
         name: crate::name::lower_name(&parameter.name),
         kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
         bounds: typed::data::DataProperties {
-            copy: parameter.bounds.copy,
             carry: parameter.bounds.carry,
             multiplicity: parameter.bounds.multiplicity,
         },

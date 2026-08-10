@@ -69,7 +69,7 @@ impl Default for PermissionEventSource {
 
 /// Stable origin of the semantic value/obligation carried by a permission
 /// event. Transfers preserve this value; they do not mint a fresh origin.
-/// `Unknown` is retained only while a legacy compatibility producer cannot
+/// `Unknown` is retained for permission events whose producer cannot yet
 /// identify where an affine value was established.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PermissionProvenance {

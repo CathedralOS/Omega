@@ -140,26 +140,21 @@ fn termination_plan_witness_swap_is_contract_invisible() {
     assert_eq!(descending.interface, swapped.interface);
 }
 
-/// LOSS 3 -- RE-PINNED (STR3 first slice, 2026-07-16): `DataProperties`
-/// now carries the first-class `Multiplicity` populated at the
+/// LOSS 3 -- RE-PINNED (STR/EFX normalization, 2026-08-10):
+/// `DataProperties` carries the first-class `Multiplicity` populated at the
 /// syntax->resolved lowering (`[copy]` -> Unrestricted, ordinary data ->
-/// Affine; `[linear]` maps to Linear) and COPIED (never re-derived)
-/// through resolved->typed. The named distinction survived: one explicit
-/// multiplicity per type and the normalized carry record orthogonal. `copy` remains
-/// the compatibility bool until STR7 retires it; the retirement updates
-/// this pin again.
+/// Affine; `[linear]` maps to Linear) and copied through resolved->typed. No
+/// parallel `copy` boolean survives normalization: one explicit multiplicity
+/// per type travels beside the orthogonal normalized carry record.
 #[test]
 fn data_properties_carries_first_class_multiplicity() {
     use psi_language_semantics::Multiplicity;
     let DataProperties {
-        copy,
         carry: _,
         multiplicity,
     } = DataProperties::default();
-    // The default (ZII) properties describe ordinary data: Affine, and the
-    // compatibility bool agrees with the multiplicity's mapping.
+    // The default (ZII) properties describe ordinary data: Affine.
     assert_eq!(multiplicity, Multiplicity::Affine);
-    assert!(!copy);
 }
 
 /// LOSS 4 -- RE-PINNED (EFX, 2026-07-24): machines carry only the
@@ -179,8 +174,8 @@ fn service_reach_rows_are_identity_sets_without_global_name_bits() {
 /// LOSS 5 (record §Multiplicity, ownership summaries): control-flow
 /// RE-PINNED (CML3, 2026-07-17): checked flow and every downstream semantic
 /// spine now retain Establish / Transfer / Consume / AffineDrop permission
-/// events (including conditional-payload debt). MOVE/DROP remain compatibility
-/// fields, not the source taxonomy. CML3 slice 3 added multiplicity, explicit
+/// events (including conditional-payload debt). No parallel move/drop fields
+/// remain. CML3 slice 3 added multiplicity, explicit
 /// owned/shared/exclusive access, transfer-stable root-lineage provenance, and
 /// an independent transfer-stable permission claim identity.
 /// Borrow activations/weakenings also enter this context, and the linear

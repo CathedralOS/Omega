@@ -1120,7 +1120,6 @@ fn preserves_linear_multiplicity_through_typed_lowering() {
             definition.properties.multiplicity,
             psi_language_semantics::Multiplicity::Linear
         );
-        assert!(!definition.properties.copy);
     }
     let holder = &typed_trees.data_definitions()[1];
     assert_eq!(

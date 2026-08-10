@@ -47,8 +47,7 @@ pub(crate) fn validate_proof_only_consumption(
     // values in memory); a proof-only carrier cannot honor them.
     for definition in program.data_definitions() {
         let properties = definition.properties;
-        if !(properties.copy
-            || properties.multiplicity == psi_language_semantics::Multiplicity::Linear
+        if !(properties.multiplicity != psi_language_semantics::Multiplicity::Affine
             || properties.carry.is_some())
         {
             continue;
