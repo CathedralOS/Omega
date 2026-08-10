@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES the full frame-presentation object graph natively (render fire 13): a
 // framebuffer becomes a CGImage, wrapped in an NSImage, shown by an NSImageView
 // set as an NSWindow's content view, ordered on-screen. This is the whole blit

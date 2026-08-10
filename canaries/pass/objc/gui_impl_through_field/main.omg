@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES the macOS Gui backend shape natively (render fire 17): a SEPARATE data
 // type `GuiImpl` (holding the objc boundary handle + scratch FIELDS) implements a
 // Gui op by composing objc calls, and is reached through a FIELD value-call

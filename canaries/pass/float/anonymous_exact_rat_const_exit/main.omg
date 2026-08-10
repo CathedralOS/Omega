@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 77, differential) -- F2e anonymous float const evaluation.
 // Anonymous decimal arithmetic stays exact Rat until its destination requests
 // a format, then rounds once. Three faces:

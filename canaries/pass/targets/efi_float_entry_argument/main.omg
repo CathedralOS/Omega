@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A scalar float entry parameter follows the selected boundary calling plan.
 // On MS x64 the value arrives in XMM0, not RCX; the source-to-object canary
 // pins the emitted movsd store so later lowering cannot regress to GPR-only

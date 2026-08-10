@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Runtime floating-point arithmetic on an f64 field. Each `+ - * /` lowers to an
 // SSE scalar-double op: the operand bit patterns (loaded from the field, or the
 // IEEE-754 immediate of a float literal) are moved into xmm0/xmm1, the op runs

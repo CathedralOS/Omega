@@ -1624,9 +1624,9 @@ pub(in crate::selection) fn resolve_binary_write_arithmetic_domain_in_table(
 }
 
 /// The arithmetic policy selected for one table-shaped binary/named float
-/// operation. Normalized checked operators consume the adapter carried through
-/// control flow; only an operation with no checked adapter evidence may use the
-/// legacy operand-type reconstruction during the bootstrap migration.
+/// operation. Normalized checked operators consume the exact provider identity
+/// and adapter carried through control flow. Neither fact may be reconstructed
+/// from operand types during lowering.
 ///
 /// `None` is a fail-closed result for contradictory evidence or a carried
 /// binary32/binary64 adapter whose format disagrees with the actual operation
@@ -1649,6 +1649,7 @@ pub(in crate::selection) fn resolve_binary_operation_arithmetic_domain_in_table(
             input,
             source_key,
             statement_index,
+            expressions,
             expression,
         ) {
             crate::selection::lookups::CarriedFloatProviderPlan::Invalid => return None,
@@ -1660,27 +1661,19 @@ pub(in crate::selection) fn resolve_binary_operation_arithmetic_domain_in_table(
                     return None;
                 }
             }
-            crate::selection::lookups::CarriedFloatProviderPlan::Missing => {}
+            crate::selection::lookups::CarriedFloatProviderPlan::Missing => return None,
         }
         return match crate::selection::lookups::carried_float_policy_domain(
             input,
             source_key,
             statement_index,
+            expressions,
             expression,
             byte_width,
         ) {
             crate::selection::lookups::CarriedFloatPolicyDomain::Resolved(domain) => Some(domain),
             crate::selection::lookups::CarriedFloatPolicyDomain::Invalid => None,
-            crate::selection::lookups::CarriedFloatPolicyDomain::Missing => {
-                Some(resolve_binary_write_arithmetic_domain_in_table(
-                    input,
-                    dispatch_index,
-                    source_key,
-                    expressions,
-                    left,
-                    right,
-                ))
-            }
+            crate::selection::lookups::CarriedFloatPolicyDomain::Missing => None,
         };
     }
     Some(resolve_binary_write_arithmetic_domain_in_table(

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A numeric `as` cast whose SOURCE is a compile-time constant folds to a LITERAL
 // (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`). A literal has no storage
 // place to resolve a primitive type from, so the convert selector used to bail and

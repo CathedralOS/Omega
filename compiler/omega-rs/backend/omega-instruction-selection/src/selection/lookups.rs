@@ -29,15 +29,27 @@ pub(super) enum CarriedFloatProviderPlan {
     Invalid,
 }
 
-/// Resolve the exact selected ProviderPlan identity carried for one migrated
-/// float operator. Compatibility operations legitimately remain `Missing`;
-/// contradictory identities are a hard lowering failure.
+/// Resolve the exact selected ProviderPlan identity carried for one checked
+/// float operator. Missing or contradictory identity is a hard lowering
+/// failure at the consumer.
 pub(super) fn carried_float_provider_plan(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
+    expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> CarriedFloatProviderPlan {
+    let expression = match canonical_checked_operator_expression(
+        input.program,
+        source_key,
+        statement_index,
+        expressions,
+        expression,
+    ) {
+        CanonicalOperatorExpression::Resolved(expression) => expression,
+        CanonicalOperatorExpression::Missing => return CarriedFloatProviderPlan::Missing,
+        CanonicalOperatorExpression::Invalid => return CarriedFloatProviderPlan::Invalid,
+    };
     let carried = carried_float_provider_plan_in_control_flow(
         input.control_flow,
         source_key,
@@ -51,6 +63,88 @@ pub(super) fn carried_float_provider_plan(
         expression,
     );
     reconcile_float_provider_plan_evidence(checked, carried)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CanonicalOperatorExpression {
+    Missing,
+    Resolved(ExpressionHandle),
+    Invalid,
+}
+
+/// Recover the canonical checked-tree identity of an operator after downstream
+/// planners have copied its expression into a private table. `copy_from`
+/// preserves the authored source span on every node, including the operator
+/// token span on binary expressions, so the span plus statement origin is the
+/// stable identity across those tables. Synthetic expressions have a default
+/// span and deliberately do not acquire checked evidence by resemblance.
+fn canonical_checked_operator_expression(
+    program: &psi_checked_trees::CheckedTrees,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> CanonicalOperatorExpression {
+    if !expression.is_valid() {
+        return CanonicalOperatorExpression::Missing;
+    }
+    let local_span = expressions.source_span(expression);
+    let canonical_table = &program.expression_table;
+    let table_is_canonical = std::ptr::eq(expressions, canonical_table);
+    let mut resolved = None;
+
+    for (candidate_expression, origin) in program
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(_, operator_use)| (operator_use.expression, operator_use.origin))
+        .chain(
+            program
+                .facts
+                .operators
+                .named_uses
+                .iter()
+                .map(|(_, operator_use)| (operator_use.expression, operator_use.origin)),
+        )
+    {
+        let psi_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index: candidate_statement,
+            ..
+        } = origin
+        else {
+            continue;
+        };
+        if machine_symbol != source_key.machine
+            || state_symbol != source_key.state
+            || candidate_statement != statement_index
+        {
+            continue;
+        }
+        let same_expression = if table_is_canonical {
+            candidate_expression == expression
+        } else {
+            local_span != Default::default()
+                && canonical_table.source_span(candidate_expression) == local_span
+        };
+        if !same_expression {
+            continue;
+        }
+        match resolved {
+            Some(existing) if existing != candidate_expression => {
+                return CanonicalOperatorExpression::Invalid;
+            }
+            None => resolved = Some(candidate_expression),
+            _ => {}
+        }
+    }
+
+    resolved.map_or(
+        CanonicalOperatorExpression::Missing,
+        CanonicalOperatorExpression::Resolved,
+    )
 }
 
 fn checked_float_provider_plan_for_statement(
@@ -258,15 +352,27 @@ mod float_provider_plan_tests {
 
 /// Resolve one float operation's already-checked result adapter from the
 /// control-flow value spine. This deliberately does not inspect operand types:
-/// format mismatch or contradictory carried facts fail closed, while `Missing`
-/// lets explicitly compatibility-only lowering retain its old bootstrap path.
+/// missing evidence, format mismatch, or contradictory carried facts fail
+/// closed at the consumer.
 pub(super) fn carried_float_policy_domain(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
+    expressions: &ExpressionTable,
     expression: ExpressionHandle,
     byte_width: usize,
 ) -> CarriedFloatPolicyDomain {
+    let expression = match canonical_checked_operator_expression(
+        input.program,
+        source_key,
+        statement_index,
+        expressions,
+        expression,
+    ) {
+        CanonicalOperatorExpression::Resolved(expression) => expression,
+        CanonicalOperatorExpression::Missing => return CarriedFloatPolicyDomain::Missing,
+        CanonicalOperatorExpression::Invalid => return CarriedFloatPolicyDomain::Invalid,
+    };
     let Some(state) = input.control_flow.state_by_key(source_key).or_else(|| {
         input
             .control_flow

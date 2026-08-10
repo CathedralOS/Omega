@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Floating-point comparison guards lower to `ucomisd`: the f64 operand bits are
 // moved into xmm registers and compared on the SSE unit, with the failure branch
 // using the unsigned-style conditions (jae/jbe/ja/jb for ordering, je/jne for

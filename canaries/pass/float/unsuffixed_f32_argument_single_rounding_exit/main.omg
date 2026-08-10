@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 77, differential) -- F2c: call arguments, transition
 // arguments, and return values are typed destinations too. An unsuffixed
 // double-rounding witness flowing directly into f32 must round once from its

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // The first shipped units package: closed named indices, explicit scaling and
 // truncation, and per-pair domain-selected operators execute in both engines.
 

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 77, differential) -- F2a: an f32-SUFFIXED literal is
 // rounded ONCE, correctly, from its decimal spelling -- never through an f64
 // intermediate. The spelling below is a DOUBLE-ROUNDING WITNESS:

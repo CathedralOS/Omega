@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Floating-point comparison between two f64 fields (place vs place) lowers to a
 // `ucomisd` of the two loaded operands, with the unsigned-style failure branch
 // (CF/ZF from ucomisd). Exercises ordering and equality between fields, plus a

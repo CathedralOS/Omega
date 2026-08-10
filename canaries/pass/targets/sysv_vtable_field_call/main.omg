@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Source-to-ELF pin for normalized SysV AMD64 indirect field dispatch. The
 // ordinary receiver is the first wire argument (rdi), while a MEMORY-class
 // result takes hidden rdi and shifts the receiver to rsi. Layout resolves the

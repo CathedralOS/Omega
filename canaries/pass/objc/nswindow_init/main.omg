@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES the MIXED HFA-plus-scalar objc_msgSend (render fire 11) — the window's
 // initWithContentRect:styleMask:backing:defer:. Builds an NSWindow by hand:
 //   [NSApplication sharedApplication]                     (init the app singleton)

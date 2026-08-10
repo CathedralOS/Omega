@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // F2c ARG face, reconciled with the exact-anonymous-constant law: a wholly
 // anonymous constant tree stays exact Rat until the transition parameter is
 // its first typed destination, then rounds ONCE to f32. Here x is just above

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Compact Mandelbrot renderer (40x18) -- a per-pixel f64 escape-time renderer over
 // a 1D carrier framebuffer, exercising floats, nested loops, runtime-indexed carrier
 // byte writes, and write_line together. Self-checks by counting in-set (non-escaped)

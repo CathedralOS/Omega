@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // F3a: `Finite` is a compiler-known core value domain, not a user-declared
 // carrier domain. A finite literal discharges it directly, while a float range
 // carries Finite implicitly into a bounded transition argument.

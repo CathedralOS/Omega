@@ -138,10 +138,10 @@ constructing and lowering checked `EdgeCleanupPlan` actions and their
 conservation witness for state exits, plus ownership forms not reached by
 current operation-site hooks.
 It preserves control-flow value summaries as abstract value summaries.
-Normalized float runtime-operand lowering consumes the carried checked policy
-adapter; compatibility operations without checked operator evidence retain a
-narrow legacy type-domain fallback. The summaries do not yet decide type-aware
-ownership kind or storage shape.
+Normalized float runtime-operand lowering consumes the carried checked provider
+identity and policy adapter and fails closed when either fact is absent or
+contradictory. The summaries do not yet decide type-aware ownership kind or
+storage shape.
 Boundary-edge summaries now preserve both source-level boundary trait edges,
 lowered host-operation edges, and first-pass links between those layers. The
 remaining gap is carrying enough call-ordinal/operation provenance to validate

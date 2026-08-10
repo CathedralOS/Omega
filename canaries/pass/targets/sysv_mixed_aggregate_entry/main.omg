@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // One scalar consumes rdi. The following INTEGER/SSE record consumes rsi and
 // xmm0 atomically; the trailing scalar float independently advances to xmm1.
 data MixedPair {

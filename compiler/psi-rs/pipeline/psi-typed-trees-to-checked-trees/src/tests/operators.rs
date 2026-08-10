@@ -446,8 +446,13 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
     let source = r#"
         boundary operator Float::add(left: f32, right: f32) -> f32 spelling +;
         boundary operator Float::add(left: f64, right: f64) -> f64 spelling +;
+        boundary operator Float::subtract(left: f64, right: f64) -> f64 spelling -;
+        boundary operator Float::multiply(left: f32, right: f32) -> f32 spelling *;
 
-        data Main {}
+        data Main {
+            saturated_field: f32 in Saturating;
+            trapped_field: f64 in Trapping;
+        }
 
         machine Main::combine(
             &self,
@@ -457,7 +462,12 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
         ) {
             let saturated_result: f32 = saturated + 1.0f32;
             let trapped_result: f64 = trapped + 1.0;
+            let reversed_trapped: f64 = 0.0 - trapped;
+            let nested_saturated: f32 = (saturated * saturated) + 1.0f32;
             let quiet_result: f32 = quiet + 1.0f32;
+            self.trapped_field = 0.0 - self.trapped_field;
+            self.saturated_field =
+                (self.saturated_field * self.saturated_field) + 1.0f32;
         }
 
         machine Main::main(&mut self) {}
@@ -468,7 +478,6 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
         .facts
         .operators
         .resolved_uses()
-        .filter(|operator_use| operator_use.spelling == OperatorSpelling::Add)
         .map(|operator_use| operator_use.policy_adapter)
         .collect::<Vec<_>>();
 
@@ -483,6 +492,32 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
         }
     ));
     assert!(adapters.contains(&psi_checked_trees::CheckedArithmeticPolicyAdapter::None));
+    assert_eq!(
+        adapters
+            .iter()
+            .filter(|adapter| matches!(
+                adapter,
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                    format: psi_numerics::float_semantics::FloatFormat::BINARY32,
+                }
+            ))
+            .count(),
+        5,
+        "parameter and attached-data nested arithmetic nodes retain saturation",
+    );
+    assert_eq!(
+        adapters
+            .iter()
+            .filter(|adapter| matches!(
+                adapter,
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                    format: psi_numerics::float_semantics::FloatFormat::BINARY64,
+                }
+            ))
+            .count(),
+        3,
+        "a contextual literal on the left retains parameter or attached-data policy",
+    );
 }
 
 #[test]

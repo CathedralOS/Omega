@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Portable measurement units over the erased indexed-domain machinery.
 //
 // Units are library data, not compiler vocabulary. `Quantity<U>` leaves the

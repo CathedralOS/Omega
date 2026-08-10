@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70). Guards the scalar-width-rederivation fix: a folded
 // f32 binary (`self.a + self.b`) feeding an `as i32` cast must compute in
 // single precision (`addss`), not the old hardcoded double width (`addsd` over

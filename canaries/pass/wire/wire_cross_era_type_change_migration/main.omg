@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Chapter 20 (Wire Protocols), frozen decision 10: a field number changing
 // type ACROSS eras is legitimate evolution, not a compile error. The era
 // discriminator lets the decoder pick the old era's table and migrate up the

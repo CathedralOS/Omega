@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70, differential) -- a FLOAT value-call RETURN delivers:
 // `passthru(3.5)` comes back 3.5. The frame-slot value writer was missing
 // its FLOAT arm entirely (a float value fell through the int/enum/string/

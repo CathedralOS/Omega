@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A RUNTIME float local passed to a value machine whose body does float
 // ARITHMETIC on the param delivers the RIGHT value -- is_zeroish(inf)
 // returns false (d = inf - inf = NaN, NaN != 0.0). FIXED 2026-07-14 after

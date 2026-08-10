@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Runtime float formats are explicit. Mathematical Real is the proof-only
 // carrier in omega::language::core::real, never a runtime literal format.
 data Main {

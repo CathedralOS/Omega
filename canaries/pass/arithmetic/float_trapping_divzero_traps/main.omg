@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS canary (F5), abort-style: Trapping float division by zero must trap.
 // exits: 7 = SAILED PAST the trap.
 use omega::language::std::console;

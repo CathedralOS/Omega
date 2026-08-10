@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS canary (F4, the float->int cast ruling), native + interpreter: a
 // TRAPPING float->int cast traps on an out-of-range value BEFORE converting
 // (FCVTZS would silently saturate -- that is the Saturating policy, not

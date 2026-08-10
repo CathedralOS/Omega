@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // The canonical isNaN idiom: `f != f` is TRUE exactly when f is NaN (IEEE),
 // and `f == f` is FALSE. This was silently miscompiled by the untyped
 // reflexive fold (`x != x -> false` structurally) until the fold was

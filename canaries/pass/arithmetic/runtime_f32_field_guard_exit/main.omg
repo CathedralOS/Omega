@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. A plain f32 FIELD
 // guard (`self.f > 3.14 && self.f < 3.15`) -- BROKEN program-wide until
 // 2026-07-09 (native 71 / interp 70): the guard compared the stored

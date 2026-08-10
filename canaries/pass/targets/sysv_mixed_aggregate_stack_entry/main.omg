@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Six scalars exhaust the SysV GPR bank. Although xmm0 remains free, the
 // INTEGER/SSE record rolls wholly to the stack; the trailing float keeps xmm0.
 data MixedPair {

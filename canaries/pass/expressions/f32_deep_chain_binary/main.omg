@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70). Guards the scalar-width-rederivation fix at depth: a
 // left-associative f32 chain `a + b + c + d` (parsed `((a+b)+c)+d`) used in a
 // guard comparison `s > 9.5`. Each nested binary now threads its resolved

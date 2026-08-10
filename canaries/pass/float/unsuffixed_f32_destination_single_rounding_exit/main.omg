@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 77, differential) -- F2b: an UNSUFFIXED float literal at a
 // declared f32 destination lands the format from the DESTINATION (ch5's
 // two-phase law: anonymous value, typed place), so it is rounded ONCE,

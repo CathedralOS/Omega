@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Single-precision (f32) arithmetic and comparison into LOCAL variables (frame
 // slots), the companion to runtime_f32_arithmetic_exit (which covers f32 fields).
 //

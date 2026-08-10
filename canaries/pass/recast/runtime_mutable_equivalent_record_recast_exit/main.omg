@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. A mutable alias between
 // established typed records may retain facts when both layouts have identical
 // geometry and each corresponding leaf admits the same stored bit patterns.

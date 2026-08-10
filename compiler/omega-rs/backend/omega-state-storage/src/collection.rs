@@ -226,14 +226,24 @@ fn build_machine_state_storage_plan(
                         plan.expressions
                             .copy_from(&program.expression_table, assignment.value)
                     } else {
+                        let authored_value = program.expression_table.to_tree(assignment.value);
                         let simplified_value = simplify_state_expression(
                             program,
                             machine,
                             state,
                             statement_index,
-                            &program.expression_table.to_tree(assignment.value),
+                            &authored_value,
                         );
-                        plan.expressions.insert_tree(&simplified_value)
+                        if simplified_value == authored_value {
+                            // Preserve the checked expression's source identity when
+                            // simplification is a no-op. Downstream operator evidence
+                            // is keyed to that exact authored node; rebuilding the same
+                            // tree with `insert_tree` would discard every source span.
+                            plan.expressions
+                                .copy_from(&program.expression_table, assignment.value)
+                        } else {
+                            plan.expressions.insert_tree(&simplified_value)
+                        }
                     };
                     let mutation_kind = mutation_kind(
                         program,
