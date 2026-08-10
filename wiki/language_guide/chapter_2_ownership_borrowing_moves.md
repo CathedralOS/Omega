@@ -350,7 +350,7 @@ for placement and access semantics.
 Ownership decides who must clean up a value. The cleanup machinery itself is
 covered later in [Drops And Cleanup](chapter_17_drops_and_cleanup.md).
 
-The compiler's current move/drop summaries predate first-class multiplicity
-and do not yet represent establishment or linear consumption. The migration is
-tracked in
+The compiler records first-class `Establish`, `Transfer`, `Consume`, and
+`AffineDrop` permission events. The older parallel move/drop summaries have
+been deleted; cleanup-plan completion is tracked in
 [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).
