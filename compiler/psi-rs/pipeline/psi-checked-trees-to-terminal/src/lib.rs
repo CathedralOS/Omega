@@ -1788,10 +1788,10 @@ fn lower_scalar_graph_machine(
         if bindings
             .iter()
             .any(direct_expression_contains_short_circuit)
-            && carried_short_circuit_binding_terminator(&bindings, &terminator).is_none()
+            && staged_short_circuit_bindings_terminator(&bindings, &terminator).is_none()
         {
             return unsupported(
-                "short-circuit scalar locals outside one carried terminator need terminal control",
+                "short-circuit scalar locals outside a staged terminator need terminal control",
             );
         }
         lowered_states.push(LoweredScalarBranchState {
@@ -2182,23 +2182,14 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
     )
 }
 
-fn carried_short_circuit_binding_terminator(
+fn staged_short_circuit_bindings_terminator(
     bindings: &[LoweredDirectExpression],
     terminator: &LoweredScalarBranchTerminator,
-) -> Option<(
-    LoweredBooleanReturnExpression,
-    LoweredScalarBranchTerminator,
-)> {
-    let [binding] = bindings else {
-        return None;
-    };
-    let LoweredDirectExpression::Boolean {
-        expression: binding_expression,
-    } = binding
-    else {
-        return None;
-    };
-    if !contains_short_circuit(binding_expression) {
+) -> Option<(Vec<LoweredDirectExpression>, LoweredScalarBranchTerminator)> {
+    if !bindings
+        .iter()
+        .any(direct_expression_contains_short_circuit)
+    {
         return None;
     }
     let supported = match terminator {
@@ -2226,7 +2217,7 @@ fn carried_short_circuit_binding_terminator(
     if !supported {
         return None;
     }
-    Some((binding_expression.as_ref().clone(), terminator.clone()))
+    Some((bindings.to_vec(), terminator.clone()))
 }
 
 fn validate_short_circuit_expression(
@@ -3447,85 +3438,139 @@ fn build_scalar_graph_module(
         } else {
             current_parameters.clone()
         };
-        let carried_short_circuit_terminator =
-            carried_short_circuit_binding_terminator(&state.bindings, &state.terminator);
+        let staged_short_circuit_terminator =
+            staged_short_circuit_bindings_terminator(&state.bindings, &state.terminator);
         let mut current_values = current_parameters.clone();
         let mut current_value_types = state.parameter_types.clone();
-        if let Some((binding_expression, continuation_plan)) = carried_short_circuit_terminator {
-            let decision = lower_boolean_value_decision(&binding_expression);
-            let decision_block_count = boolean_decision_block_count(&decision);
-            let first_synthetic_block = block_id(next_block_identity);
-            let continuation = block_id(
-                next_block_identity
-                    .checked_add(
-                        u64::try_from(decision_block_count - 1)
-                            .expect("carried Boolean child count fits a semantic identity"),
-                    )
-                    .expect("carried Boolean continuation identity advances"),
-            );
-            next_block_identity = continuation
-                .get()
-                .checked_add(1)
-                .expect("carried Boolean block identities advance");
-            let mut continuation_types = state.parameter_types.clone();
-            continuation_types.push(ScalarType::Boolean);
-            let continuation_parameters = continuation_types
-                .iter()
-                .copied()
-                .map(|scalar_type| {
-                    let parameter = ValueDeclaration {
-                        id: value_id(next_value_identity),
-                        scalar_type,
-                    };
-                    next_value_identity = next_value_identity
+        if let Some((binding_plans, continuation_plan)) = staged_short_circuit_terminator {
+            let mut stage_block = source_block;
+            let mut stage_parameters = current_parameters.clone();
+            let mut stage_parameter_types = state.parameter_types.clone();
+            let mut stage_block_parameters = source_block_parameters;
+            for (binding_index, binding) in binding_plans.iter().enumerate() {
+                let mut next_stage_types = stage_parameter_types.clone();
+                next_stage_types.push(binding.scalar_type());
+                let next_stage_parameters = next_stage_types
+                    .iter()
+                    .copied()
+                    .map(|scalar_type| {
+                        let parameter = ValueDeclaration {
+                            id: value_id(next_value_identity),
+                            scalar_type,
+                        };
+                        next_value_identity = next_value_identity
+                            .checked_add(1)
+                            .expect("staged local parameter identities advance");
+                        parameter
+                    })
+                    .collect::<Vec<_>>();
+                let next_stage = if let LoweredDirectExpression::Boolean { expression } = binding
+                    && contains_short_circuit(expression)
+                {
+                    let decision = lower_boolean_value_decision(expression);
+                    let decision_block_count = boolean_decision_block_count(&decision);
+                    let first_child_identity = next_block_identity;
+                    let next_stage = block_id(
+                        next_block_identity
+                            .checked_add(
+                                u64::try_from(decision_block_count - 1)
+                                    .expect("staged Boolean child count fits a semantic identity"),
+                            )
+                            .expect("staged Boolean continuation identity advances"),
+                    );
+                    next_block_identity = next_stage
+                        .get()
                         .checked_add(1)
-                        .expect("carried Boolean parameter identities advance");
-                    parameter
-                })
-                .collect::<Vec<_>>();
-            let carried_arguments = current_parameters
-                .iter()
-                .map(|parameter| parameter.id)
-                .collect::<Vec<_>>();
-            let mut decision_blocks = Vec::with_capacity(decision_block_count);
-            let entry = emit_reserved_boolean_tuple_stage_blocks(
-                &decision,
-                current_parameters,
-                source_block_parameters,
-                continuation,
-                &carried_arguments,
-                first_synthetic_block
-                    .get()
-                    .checked_sub(1)
-                    .expect("carried Boolean blocks follow source blocks"),
-                &mut next_value_identity,
-                &mut next_edge_identity,
-                &mut all_operations,
-                &mut decision_blocks,
-            );
-            assert_eq!(
-                entry.get(),
-                first_synthetic_block
-                    .get()
-                    .checked_sub(1)
-                    .expect("carried Boolean blocks follow source blocks")
-            );
-            let mut decision_blocks = decision_blocks
-                .into_iter()
-                .map(|block| block.expect("every carried Boolean block is finalized"));
-            let mut root = decision_blocks
-                .next()
-                .expect("carried short-circuit Boolean has a decision root");
-            root.id = source_block;
-            blocks.push(root);
-            inlined_blocks.extend(decision_blocks);
+                        .expect("staged Boolean block identities advance");
+                    let carried_arguments = stage_parameters
+                        .iter()
+                        .map(|parameter| parameter.id)
+                        .collect::<Vec<_>>();
+                    let first_reserved_identity = if binding_index == 0 {
+                        first_child_identity
+                            .checked_sub(1)
+                            .expect("staged Boolean blocks follow source blocks")
+                    } else {
+                        stage_block.get()
+                    };
+                    let mut decision_blocks = Vec::with_capacity(decision_block_count);
+                    let entry = emit_reserved_boolean_tuple_stage_blocks(
+                        &decision,
+                        &stage_parameters,
+                        stage_block_parameters,
+                        next_stage,
+                        &carried_arguments,
+                        first_reserved_identity,
+                        &mut next_value_identity,
+                        &mut next_edge_identity,
+                        &mut all_operations,
+                        &mut decision_blocks,
+                    );
+                    assert_eq!(entry.get(), first_reserved_identity);
+                    let mut decision_blocks = decision_blocks
+                        .into_iter()
+                        .map(|block| block.expect("every staged Boolean block is finalized"));
+                    let mut root = decision_blocks
+                        .next()
+                        .expect("staged short-circuit Boolean has a decision root");
+                    if binding_index == 0 {
+                        root.id = source_block;
+                        blocks.push(root);
+                    } else {
+                        inlined_blocks.push(root);
+                    }
+                    inlined_blocks.extend(decision_blocks);
+                    next_stage
+                } else {
+                    let next_stage = block_id(next_block_identity);
+                    next_block_identity = next_block_identity
+                        .checked_add(1)
+                        .expect("staged direct-local block identities advance");
+                    let stage_operation_start = all_operations.len();
+                    let value = emit_direct_expression(
+                        binding,
+                        &stage_parameters,
+                        &mut next_value_identity,
+                        &mut all_operations,
+                    );
+                    let mut arguments = stage_parameters
+                        .iter()
+                        .map(|parameter| parameter.id)
+                        .collect::<Vec<_>>();
+                    arguments.push(value);
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("staged direct-local edge identity advances");
+                    let block = Block {
+                        id: stage_block,
+                        parameters: stage_block_parameters,
+                        operations: all_operations[stage_operation_start..].to_vec(),
+                        terminator: Terminator::Jump {
+                            edge,
+                            target: next_stage,
+                            arguments,
+                        },
+                    };
+                    if binding_index == 0 {
+                        blocks.push(block);
+                    } else {
+                        inlined_blocks.push(block);
+                    }
+                    next_stage
+                };
+                stage_block = next_stage;
+                stage_parameters = next_stage_parameters;
+                stage_parameter_types = next_stage_types;
+                stage_block_parameters = stage_parameters.clone();
+            }
 
             let operation_start = all_operations.len();
             let terminator = match continuation_plan {
                 LoweredScalarBranchTerminator::Return { expression } => {
                     let value = emit_direct_expression(
                         &expression,
-                        &continuation_parameters,
+                        &stage_parameters,
                         &mut next_value_identity,
                         &mut all_operations,
                     );
@@ -3544,15 +3589,15 @@ fn build_scalar_graph_module(
                 } => {
                     let condition = emit_boolean_expression(
                         &condition,
-                        &continuation_parameters,
+                        &stage_parameters,
                         &mut next_value_identity,
                         &mut all_operations,
                     );
                     let when_true = build_scalar_conditional_target(
                         when_true_target,
                         &when_true_arguments,
-                        &continuation_parameters,
-                        &continuation_types,
+                        &stage_parameters,
+                        &stage_parameter_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
@@ -3560,8 +3605,8 @@ fn build_scalar_graph_module(
                     let when_false = build_scalar_conditional_target(
                         when_false_target,
                         &when_false_arguments,
-                        &continuation_parameters,
-                        &continuation_types,
+                        &stage_parameters,
+                        &stage_parameter_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
@@ -3594,8 +3639,8 @@ fn build_scalar_graph_module(
                 }
             };
             inlined_blocks.push(Block {
-                id: continuation,
-                parameters: continuation_parameters,
+                id: stage_block,
+                parameters: stage_parameters,
                 operations: all_operations[operation_start..].to_vec(),
                 terminator,
             });

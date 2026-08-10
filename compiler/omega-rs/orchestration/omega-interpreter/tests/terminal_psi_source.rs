@@ -1051,14 +1051,84 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
 }
 
 #[test]
-fn checked_source_multiple_short_circuit_locals_fail_closed_until_they_can_be_staged() {
+fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("multiple short-circuit Boolean-local source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_two_short_circuit_boolean_locals")
+        .expect("multiple short-circuit locals should stage through terminal block values");
+    drop(checked);
+
+    let machine = &lowered.semantic_module.machines[0];
+    assert!(machine.blocks.iter().any(|block| {
+        block.parameters.len() == 4
+            && block.parameters[2..]
+                .iter()
+                .all(|parameter| parameter.scalar_type == ScalarType::Boolean)
+    }));
     assert_eq!(
-        lower_machine(&checked, "terminal_two_short_circuit_boolean_locals")
-            .expect_err("multiple short-circuit locals need staged terminal control"),
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::BooleanEqual { .. }))
+            .count(),
+        1
+    );
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("multiple short-circuit-local terminal Psi should encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("multiple short-circuit-local proof should encode");
+    let semantic =
+        decode_module(&semantic).expect("multiple short-circuit-local terminal Psi should decode");
+    let proof =
+        decode_proof_bundle(&proof).expect("multiple short-circuit-local proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("multiple short-circuit-local terminal Psi should verify");
+
+    for (first, second, expected) in [
+        (false, false, true),
+        (false, true, false),
+        (true, false, false),
+        (true, true, true),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+        )
+        .expect("multiple short-circuit locals should execute");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), 9);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified multiple short-circuit locals should lower without frontend state");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("multiple short-circuit locals should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("multiple short-circuit locals should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("multiple short-circuit locals should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_staged_local_with_short_circuit_return_fails_closed() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("staged-local short-circuit-return source canary should compile");
+    assert_eq!(
+        lower_machine(
+            &checked,
+            "terminal_short_circuit_local_then_short_circuit_return"
+        )
+        .expect_err("a staged local plus short-circuit return needs nested terminal control"),
         LoweringError::Unsupported(
-            "short-circuit scalar locals outside one carried terminator need terminal control"
+            "short-circuit scalar locals outside a staged terminator need terminal control"
         )
     );
 }
