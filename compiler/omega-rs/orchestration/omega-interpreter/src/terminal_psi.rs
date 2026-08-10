@@ -71,54 +71,8 @@ impl TerminalScalarValue {
     }
 }
 
-/// Execute the verified terminal-Psi entry machine directly.
-///
-/// The executable vocabulary is a deterministic chain of scalar constants and
-/// explicit jump/return edges. Taking a
-/// [`VerifiedTerminalModule`] makes verification and execution refer to the
-/// same semantic module object.
-pub fn interpret_terminal(
-    verified: &VerifiedTerminalModule<'_>,
-    arguments: &[TerminalScalarValue],
-) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    interpret_terminal_measured(verified, arguments).map(MeasuredTerminalExecution::into_value)
-}
-
-/// Execute terminal Psi and return deterministic logical usage under the
-/// current canonical schedule.
-pub fn interpret_terminal_measured(
-    verified: &VerifiedTerminalModule<'_>,
-    arguments: &[TerminalScalarValue],
-) -> Result<MeasuredTerminalExecution, TerminalInterpretError> {
-    let mut meter = TerminalFuelMeter::unbounded();
-    let value = interpret_terminal_with_meter(verified, arguments, &mut meter)?;
-    Ok(MeasuredTerminalExecution {
-        value,
-        usage: meter.into_usage(),
-    })
-}
-
-/// Execute terminal Psi against a sponsor-owned logical-fuel meter.
-///
-/// A finite meter reports exhaustion through this host API before the unpaid
-/// semantic operation or edge executes. Terminal Psi has no instruction for
-/// observing the allowance or catching exhaustion as a machine result.
-pub fn interpret_terminal_with_meter(
-    verified: &VerifiedTerminalModule<'_>,
-    arguments: &[TerminalScalarValue],
-    meter: &mut TerminalFuelMeter,
-) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    let mut execution = TerminalExecution::start(verified, arguments)?;
-    match execution.resume(meter)? {
-        TerminalExecutionStatus::Complete(value) => Ok(value),
-        TerminalExecutionStatus::SponsorExhausted(exhaustion) => Err(TerminalInterpretError::Fuel(
-            FuelMeterError::Exhausted(exhaustion),
-        )),
-        TerminalExecutionStatus::Crashed(crash) => Err(TerminalInterpretError::Crash(crash)),
-    }
-}
-
-/// Resumable execution state for one already-verified terminal-Psi entry.
+/// Resumable execution state created from canonical terminal-Psi artifact
+/// sections.
 ///
 /// Fuel exhaustion never advances `next_operation` or the current terminator,
 /// so a sponsor can replenish the same meter and resume without replaying
@@ -151,10 +105,7 @@ impl TerminalExecution {
         Self::start(&verified, arguments).map_err(TerminalArtifactInterpretError::Execution)
     }
 
-    /// Direct verified-stage harness retained while integration tests migrate
-    /// to [`Self::start_artifact`]. Production execution starts from artifact
-    /// sections so canonical decoding cannot be bypassed.
-    pub fn start(
+    fn start(
         verified: &VerifiedTerminalModule<'_>,
         arguments: &[TerminalScalarValue],
     ) -> Result<Self, TerminalInterpretError> {

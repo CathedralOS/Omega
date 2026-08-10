@@ -37,6 +37,7 @@ struct ReconstructedMachineSemantics {
 #[derive(Debug)]
 pub struct VerifiedTerminalModule<'module> {
     validated: ValidatedTerminalModule<'module>,
+    proof_bundle: ProofBundle,
     accepted_facts: Vec<AcceptedFact>,
 }
 
@@ -47,6 +48,13 @@ impl<'module> VerifiedTerminalModule<'module> {
 
     pub fn accepted_facts(&self) -> &[AcceptedFact] {
         &self.accepted_facts
+    }
+
+    /// Exact artifact evidence accepted for this module. Retaining the bundle
+    /// lets artifact consumers re-encode the verified semantic/proof pair
+    /// without consulting producer state.
+    pub const fn proof_bundle(&self) -> &ProofBundle {
+        &self.proof_bundle
     }
 }
 
@@ -119,6 +127,7 @@ pub fn verify_module<'module>(
     }
     Ok(VerifiedTerminalModule {
         validated,
+        proof_bundle: proof_bundle.clone(),
         accepted_facts,
     })
 }
