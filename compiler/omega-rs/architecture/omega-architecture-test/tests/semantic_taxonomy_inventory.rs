@@ -63,16 +63,15 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
     let _ = witness;
 }
 
-/// LOSS 2 -- PARTIALLY RE-PINNED (TPR2, 2026-07-16): the machine record now
-/// carries the normalized `MachineTerminationPlan` -- decision 23's split of
+/// LOSS 2 -- CLOSED: the machine record carries the normalized
+/// `MachineTerminationPlan` -- decision 23's split of
 /// the PUBLIC termination guarantee (authored by bare `terminates;`,
 /// contract identity) from the PRIVATE `RankingWitness` (subjects + explicit
 /// view, never contract identity) -- populated ONCE at the syntax->resolved
 /// lowering and COPIED downstream. The distinction the old pin named is
-/// representable; the invariant test below witnesses the firewall. STILL
-/// LOST here: no single normalized `MachineSemanticContract`, and the
-/// `terminates`/`decreases`/`decrease_order` compatibility shape remains the
-/// checker's input until TPR3 migrates it onto the plan (TPR6 retires it).
+/// representable; the invariant test below witnesses the firewall. Authored
+/// ranking spans stop before typed trees; downstream consumers resolve only
+/// the private normalized witness.
 #[test]
 fn machine_record_carries_one_public_termination_interface() {
     fn witness(machine: Machine) {
@@ -94,16 +93,9 @@ fn machine_record_carries_one_public_termination_interface() {
             owned_data: _,
             satisfies: _,
             conformance_bounds: _,
-            // The normalized plan above is the sole downstream carrier for
-            // the public termination interface. These fields are private
-            // witness material only.
-            decreases: _,
-            decrease_order: _,
-            decrease_view_arguments: _, // TPR3: argumented-view arguments
-            decrease_range: _,          // TPR3: the rank-range constraint
-            invokes: _,                 // authored synchronous-invocation ceiling
-            suspends: _,                // EFX: independent authored suspension ceiling
-            blocks: _,                  // EFX: independent authored blocking ceiling
+            invokes: _,  // authored synchronous-invocation ceiling
+            suspends: _, // EFX: independent authored suspension ceiling
+            blocks: _,   // EFX: independent authored blocking ceiling
             contracts: _,
             states: _,
         } = machine;

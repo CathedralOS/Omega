@@ -182,10 +182,6 @@ fn dfs_report_cycles(
                     .filter(|&&member| {
                         let machine = &machines[member];
                         machine.termination_plan.implementation_witness.is_none()
-                            && program
-                                .expression_table
-                                .expression_handles(machine.decreases)
-                                .is_empty()
                     })
                     .map(|&member| format!("`{}`", machines[member].name))
                     .collect();

@@ -587,10 +587,10 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let machine = typed
-        .machines_mut()
-        .iter_mut()
+        .machines()
+        .iter()
         .find(|machine| machine.name.as_str() == "Main::walk")
         .expect("walk machine");
     assert_eq!(
@@ -602,10 +602,6 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
             .subjects,
         ["limit - index"]
     );
-    machine.decreases = Default::default();
-    machine.decrease_order = Default::default();
-    machine.decrease_view_arguments = Default::default();
-    machine.decrease_range = psi_typed_trees::expression::ExpressionHandle::invalid();
     let diagnostics =
         lower_typed_trees(typed).expect_err("the subtraction spelling is retired surface");
 
@@ -1232,11 +1228,10 @@ fn rank_range_on_increasing_to_is_consumed_and_recorded() {
 }
 
 /// TPR3 completion: checker legality resolves subjects, view arguments, view
-/// identity, and rank range from the normalized witness. The old typed-machine
-/// spans are compatibility output only and can be cleared without changing the
-/// judgment.
+/// identity, and rank range from the normalized witness. No parallel authored
+/// spans survive on the typed machine.
 #[test]
-fn termination_checker_uses_witness_not_compatibility_spans() {
+fn termination_checker_uses_normalized_witness_without_parallel_spans() {
     let source = r#"
     data Main {}
 
@@ -1260,17 +1255,22 @@ fn termination_checker_uses_witness_not_compatibility_spans() {
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
     let machine = typed
-        .machines_mut()
-        .iter_mut()
+        .machines()
+        .iter()
         .find(|machine| machine.name.as_str() == "Main::climb")
         .expect("climb machine");
-    machine.decreases = Default::default();
-    machine.decrease_order = Default::default();
-    machine.decrease_view_arguments = Default::default();
-    machine.decrease_range = psi_typed_trees::expression::ExpressionHandle::invalid();
+    assert_eq!(
+        machine
+            .termination_plan
+            .implementation_witness
+            .as_ref()
+            .expect("ranking witness")
+            .view_path,
+        "Nat::IncreasingTo"
+    );
 
     lower_typed_trees(typed)
         .expect("normalized witness should independently prove the bounded climb");

@@ -3192,10 +3192,19 @@ pub(crate) fn validate_proof_machine_recursion(
         return;
     }
 
-    let subjects = program
-        .expression_table
-        .expression_handles(machine.decreases);
-    let [subject] = subjects else {
+    let Some(subjects) =
+        psi_typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "recursive proof machine `{}` needs a single structural measure: declare \
+             `terminates by <param>;` naming one proof-data parameter -- a \
+             cycle without a measure is an unproven termination claim (measured \
+             recursion, both strata)",
+            machine.name,
+        )));
+        return;
+    };
+    let [subject] = subjects.as_slice() else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}` needs a single structural measure: declare \
              `terminates by <param>;` naming one proof-data parameter -- a \

@@ -1280,3 +1280,32 @@ fn typed_snapshots_publish_only_normalized_service_reach() {
     };
     assert_eq!(signature.service_reach, ["Console"]);
 }
+
+#[test]
+fn typed_snapshot_publishes_normalized_termination_witness() {
+    let source = r#"
+        machine countdown(remaining: u64)
+        terminates by remaining -> Nat::Descending;
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let snapshot = typed.snapshot();
+    let [machine] = snapshot.roots.machines.as_slice() else {
+        panic!("one typed machine snapshot");
+    };
+    let witness = machine
+        .termination_witness
+        .as_ref()
+        .expect("normalized ranking witness");
+
+    assert_eq!(witness.subjects, ["remaining"]);
+    assert_eq!(witness.view_path, "Nat::Descending");
+    assert!(witness.view_arguments.is_empty());
+    assert!(witness.rank_range.is_none());
+}

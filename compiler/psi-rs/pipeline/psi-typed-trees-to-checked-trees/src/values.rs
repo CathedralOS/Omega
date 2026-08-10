@@ -25,20 +25,18 @@ pub(crate) fn build_value_facts(
     };
 
     for machine in program.machines() {
-        for (ordinal, expression) in program
-            .expression_table
-            .expression_handles(machine.decreases)
-            .iter()
-            .copied()
-            .enumerate()
+        if let Some(subjects) =
+            psi_typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
         {
-            builder.collect_expression(
-                expression,
-                CheckedValueOrigin::MachineDecrease {
-                    machine_symbol: machine.symbol,
-                    ordinal,
-                },
-            );
+            for (ordinal, expression) in subjects.into_iter().enumerate() {
+                builder.collect_expression(
+                    expression,
+                    CheckedValueOrigin::MachineDecrease {
+                        machine_symbol: machine.symbol,
+                        ordinal,
+                    },
+                );
+            }
         }
 
         for owned_data in program.machine_owned_data(machine) {

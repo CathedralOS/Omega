@@ -1,5 +1,5 @@
 use psi_typed_trees::data::DataMember;
-use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::measure::MeasureDefinition;
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
@@ -295,29 +295,7 @@ pub(super) fn decreasing_value_text(
     program: &psi_typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> String {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal.text().to_string(),
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("."),
-        ExpressionNode::Member(member) => format!(
-            "{}.{}",
-            decreasing_value_text(program, member.receiver),
-            member.member.as_str()
-        ),
-        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
-            format!(
-                "{} - {}",
-                decreasing_value_text(program, binary.left),
-                decreasing_value_text(program, binary.right)
-            )
-        }
-        _ => "value".to_string(),
-    }
+    psi_typed_trees::ranking::witness_expression_text(program, expression)
 }
 
 /// A type whose `value - 1` step is not well-founded without a positivity

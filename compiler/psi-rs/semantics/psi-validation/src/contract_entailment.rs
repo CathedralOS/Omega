@@ -1045,34 +1045,39 @@ fn discharges_strict_decrease(
     engine: &mut Engine<'_>,
     argument_map: &BTreeMap<String, Polynomial>,
 ) -> bool {
-    // TPR3 slice 1: the hypothesis gate keys on the WITNESS (a measured
-    // body), read from the normalized plan (decision 23); the compatibility
-    // bools agree by construction until TPR6 retires them.
-    if machine.termination_plan.implementation_witness.is_none() {
+    // The hypothesis gate keys exclusively on the normalized private witness.
+    let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return false;
-    }
-    let decreases = program
-        .expression_table
-        .expression_handles(machine.decreases);
-    let order = program.machine_decrease_order(machine.decrease_order);
+    };
+    let Some(decreases) =
+        psi_typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
+    else {
+        return false;
+    };
+    let order = witness
+        .view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
     // TPR3: the argumented `Nat::IncreasingTo(limit)` is polynomial too --
     // its measure is the distance `limit - subject` with the bound taken
     // from the view's argument.
-    let increasing_to =
-        order.len() == 2 && order[0].as_str() == "Nat" && order[1].as_str() == "IncreasingTo";
+    let increasing_to = order.as_slice() == ["Nat", "IncreasingTo"];
     let polynomial_order = increasing_to
         || order.is_empty()
         || (order.len() == 2
-            && order[0].as_str() == "Nat"
-            && matches!(order[1].as_str(), "Descending" | "BoundedDistance"));
+            && order[0] == "Nat"
+            && matches!(order[1], "Descending" | "BoundedDistance"));
     if !polynomial_order {
         return false;
     }
     let measure = if increasing_to {
-        let arguments = program
-            .expression_table
-            .expression_handles(machine.decrease_view_arguments);
-        match (decreases, arguments) {
+        let Some(arguments) =
+            psi_typed_trees::ranking::resolve_machine_witness_view_arguments(program, machine)
+        else {
+            return false;
+        };
+        match (decreases.as_slice(), arguments.as_slice()) {
             ([subject], [limit]) => engine
                 .normalize(*limit)
                 .zip(engine.normalize(*subject))
@@ -1080,7 +1085,7 @@ fn discharges_strict_decrease(
             _ => None,
         }
     } else {
-        match decreases {
+        match decreases.as_slice() {
             [single] => engine.normalize(*single),
             // The two-subject bounded distance: the subjects bind in order to the
             // view's (lower, upper) parameters and the measure polynomial is the

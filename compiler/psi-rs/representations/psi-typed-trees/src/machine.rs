@@ -16,9 +16,7 @@ pub struct Machine {
     pub supply_mode: psi_language_semantics::MachineSupplyMode,
     /// TPR2 (decision 23): the normalized termination plan (published
     /// guarantee vs private ranking witness), populated ONCE at the
-    /// syntax->resolved lowering and COPIED here -- never re-derived. Ranking
-    /// subjects below are implementation witnesses, not compatibility
-    /// contract flags.
+    /// syntax->resolved lowering and COPIED here -- never re-derived.
     pub termination_plan: psi_language_semantics::MachineTerminationPlan,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
@@ -27,13 +25,6 @@ pub struct Machine {
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
-    pub decreases: HandleSpan<ExpressionHandle>,
-    pub decrease_order: HandleSpan<Identifier>,
-    /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
-    pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
-    /// TPR3: the optional `in <range>` rank constraint (a Range expression;
-    /// invalid = absent). The checker verifies it structurally.
-    pub decrease_range: ExpressionHandle,
     pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
@@ -55,10 +46,6 @@ impl Default for Machine {
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             conformance_bounds: Vec::new(),
-            decreases: HandleSpan::empty(),
-            decrease_order: HandleSpan::empty(),
-            decrease_view_arguments: HandleSpan::empty(),
-            decrease_range: ExpressionHandle::invalid(),
             invokes: HandleSpan::empty(),
             suspends: false,
             blocks: false,
