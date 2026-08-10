@@ -17,4 +17,7 @@ pub use evidence::{
     Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
-pub use proof::{ProofError, ProofNode, ProofRule, check_certificate};
+pub use proof::{
+    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
+    accept_certificate, check_certificate,
+};

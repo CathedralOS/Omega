@@ -36,6 +36,74 @@ pub enum ProofRule {
     },
 }
 
+/// Proof-rule families exercised by one accepted certificate. The set is a
+/// deterministic review projection, not a second proof checker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AcceptedProofRule {
+    Primitive,
+    SemanticAxiom,
+    Assumption,
+    ConjunctionIntroduction,
+    ConjunctionElimination,
+    ImplicationIntroduction,
+    ImplicationElimination,
+    EqualityTransitivity,
+}
+
+/// One premise that materially participates in an accepted derivation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptedPremise {
+    pub index: usize,
+    pub proposition: Proposition,
+}
+
+/// Auditable closure produced by the same traversal that accepts a
+/// certificate. Consumers must not reconstruct this information by walking
+/// the source or guessing from the conclusion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CertificateAcceptance {
+    pub rules: Vec<AcceptedProofRule>,
+    pub assumptions: Vec<AcceptedPremise>,
+    pub semantic_axioms: Vec<AcceptedPremise>,
+}
+
+#[derive(Default)]
+struct AcceptanceBuilder {
+    rules: std::collections::BTreeSet<AcceptedProofRule>,
+    assumptions: Vec<AcceptedPremise>,
+    semantic_axioms: Vec<AcceptedPremise>,
+}
+
+impl AcceptanceBuilder {
+    fn record_assumption(&mut self, index: usize, proposition: &Proposition) {
+        record_premise(&mut self.assumptions, index, proposition);
+    }
+
+    fn record_semantic_axiom(&mut self, index: usize, proposition: &Proposition) {
+        record_premise(&mut self.semantic_axioms, index, proposition);
+    }
+
+    fn finish(self) -> CertificateAcceptance {
+        CertificateAcceptance {
+            rules: self.rules.into_iter().collect(),
+            assumptions: self.assumptions,
+            semantic_axioms: self.semantic_axioms,
+        }
+    }
+}
+
+fn record_premise(premises: &mut Vec<AcceptedPremise>, index: usize, proposition: &Proposition) {
+    if !premises
+        .iter()
+        .any(|premise| premise.index == index && premise.proposition == *proposition)
+    {
+        premises.push(AcceptedPremise {
+            index,
+            proposition: proposition.clone(),
+        });
+    }
+}
+
 pub fn check_certificate(
     context: &PropositionContext,
     goal: &Proposition,
@@ -43,6 +111,17 @@ pub fn check_certificate(
     semantic_axioms: &[Proposition],
     proof: &ProofNode,
 ) -> Result<(), ProofError> {
+    accept_certificate(context, goal, assumptions, semantic_axioms, proof).map(|_| ())
+}
+
+/// Check a certificate and return its exact premise/rule trust closure.
+pub fn accept_certificate(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    proof: &ProofNode,
+) -> Result<CertificateAcceptance, ProofError> {
     context
         .validate(goal)
         .map_err(ProofError::MalformedProposition)?;
@@ -56,11 +135,18 @@ pub fn check_certificate(
             .validate(axiom)
             .map_err(ProofError::MalformedProposition)?;
     }
-    check_node(context, assumptions, semantic_axioms, proof)?;
+    let mut acceptance = AcceptanceBuilder::default();
+    check_node(
+        context,
+        assumptions,
+        semantic_axioms,
+        proof,
+        &mut acceptance,
+    )?;
     if &proof.conclusion != goal {
         return Err(ProofError::CertificateConclusionMismatch);
     }
-    Ok(())
+    Ok(acceptance.finish())
 }
 
 fn check_node(
@@ -68,30 +154,43 @@ fn check_node(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     proof: &ProofNode,
+    acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
     context
         .validate(&proof.conclusion)
         .map_err(ProofError::MalformedProposition)?;
     match &proof.rule {
-        ProofRule::Primitive(judgment) => decide_primitive(context, &proof.conclusion, *judgment)
-            .map_err(ProofError::PrimitiveJudgment),
+        ProofRule::Primitive(judgment) => {
+            acceptance.rules.insert(AcceptedProofRule::Primitive);
+            decide_primitive(context, &proof.conclusion, *judgment)
+                .map_err(ProofError::PrimitiveJudgment)
+        }
         ProofRule::SemanticAxiom { index } => {
+            acceptance.rules.insert(AcceptedProofRule::SemanticAxiom);
             let axiom = semantic_axioms
                 .get(*index)
                 .ok_or(ProofError::UnknownSemanticAxiom(*index))?;
-            (axiom == &proof.conclusion)
-                .then_some(())
-                .ok_or(ProofError::SemanticAxiomConclusionMismatch(*index))
+            if axiom != &proof.conclusion {
+                return Err(ProofError::SemanticAxiomConclusionMismatch(*index));
+            }
+            acceptance.record_semantic_axiom(*index, axiom);
+            Ok(())
         }
         ProofRule::Assumption { index } => {
+            acceptance.rules.insert(AcceptedProofRule::Assumption);
             let assumption = assumptions
                 .get(*index)
                 .ok_or(ProofError::UnknownAssumption(*index))?;
-            (assumption == &proof.conclusion)
-                .then_some(())
-                .ok_or(ProofError::AssumptionConclusionMismatch(*index))
+            if assumption != &proof.conclusion {
+                return Err(ProofError::AssumptionConclusionMismatch(*index));
+            }
+            acceptance.record_assumption(*index, assumption);
+            Ok(())
         }
         ProofRule::ConjunctionIntroduction(conjuncts) => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::ConjunctionIntroduction);
             let Proposition::Conjunction(expected) = &proof.conclusion else {
                 return Err(ProofError::RuleConclusionMismatch(
                     "conjunction introduction",
@@ -101,7 +200,7 @@ fn check_node(
                 return Err(ProofError::ConjunctionArityMismatch);
             }
             for (expected, conjunct) in expected.iter().zip(conjuncts) {
-                check_node(context, assumptions, semantic_axioms, conjunct)?;
+                check_node(context, assumptions, semantic_axioms, conjunct, acceptance)?;
                 if &conjunct.conclusion != expected {
                     return Err(ProofError::ConjunctConclusionMismatch);
                 }
@@ -112,7 +211,16 @@ fn check_node(
             conjunction,
             conjunct,
         } => {
-            check_node(context, assumptions, semantic_axioms, conjunction)?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::ConjunctionElimination);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                conjunction,
+                acceptance,
+            )?;
             let Proposition::Conjunction(conjuncts) = &conjunction.conclusion else {
                 return Err(ProofError::RulePremiseMismatch("conjunction elimination"));
             };
@@ -124,6 +232,9 @@ fn check_node(
                 .ok_or(ProofError::ConjunctConclusionMismatch)
         }
         ProofRule::ImplicationIntroduction { body } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::ImplicationIntroduction);
             let Proposition::Implication {
                 premise,
                 conclusion,
@@ -135,7 +246,13 @@ fn check_node(
             };
             let mut nested_assumptions = assumptions.to_vec();
             nested_assumptions.push((**premise).clone());
-            check_node(context, &nested_assumptions, semantic_axioms, body)?;
+            check_node(
+                context,
+                &nested_assumptions,
+                semantic_axioms,
+                body,
+                acceptance,
+            )?;
             (&body.conclusion == conclusion.as_ref())
                 .then_some(())
                 .ok_or(ProofError::ImplicationConclusionMismatch)
@@ -144,8 +261,17 @@ fn check_node(
             implication,
             premise,
         } => {
-            check_node(context, assumptions, semantic_axioms, implication)?;
-            check_node(context, assumptions, semantic_axioms, premise)?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::ImplicationElimination);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                implication,
+                acceptance,
+            )?;
+            check_node(context, assumptions, semantic_axioms, premise, acceptance)?;
             let Proposition::Implication {
                 premise: required,
                 conclusion,
@@ -164,8 +290,23 @@ fn check_node(
             left_equals_middle,
             middle_equals_right,
         } => {
-            check_node(context, assumptions, semantic_axioms, left_equals_middle)?;
-            check_node(context, assumptions, semantic_axioms, middle_equals_right)?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::EqualityTransitivity);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                left_equals_middle,
+                acceptance,
+            )?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                middle_equals_right,
+                acceptance,
+            )?;
             match (
                 &left_equals_middle.conclusion,
                 &middle_equals_right.conclusion,
@@ -275,8 +416,99 @@ mod tests {
                 }),
             },
         };
-        check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+        let accepted = accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
             .expect("P implies P");
+        assert_eq!(
+            accepted.rules,
+            vec![
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::ImplicationIntroduction,
+            ]
+        );
+        assert_eq!(
+            accepted.assumptions,
+            vec![AcceptedPremise {
+                index: 0,
+                proposition: match &goal {
+                    Proposition::Implication { premise, .. } => (**premise).clone(),
+                    _ => unreachable!("test goal is an implication"),
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn accepted_trust_closure_binds_the_exact_cited_premise() {
+        let cited = Proposition::Atom(PropositionId::new(1).expect("cited atom"));
+        let replacement = Proposition::Atom(PropositionId::new(2).expect("replacement atom"));
+        let proof = ProofNode {
+            conclusion: cited.clone(),
+            rule: ProofRule::Assumption { index: 0 },
+        };
+        let accepted = accept_certificate(
+            &PropositionContext::default(),
+            &cited,
+            std::slice::from_ref(&cited),
+            &[],
+            &proof,
+        )
+        .expect("exact cited premise");
+        assert_eq!(
+            accepted.assumptions,
+            vec![AcceptedPremise {
+                index: 0,
+                proposition: cited.clone(),
+            }]
+        );
+        assert_eq!(
+            accept_certificate(
+                &PropositionContext::default(),
+                &cited,
+                &[replacement],
+                &[],
+                &proof,
+            ),
+            Err(ProofError::AssumptionConclusionMismatch(0))
+        );
+    }
+
+    #[test]
+    fn nested_scopes_do_not_collapse_distinct_same_index_premises() {
+        let first = Proposition::Atom(PropositionId::new(1).expect("first atom"));
+        let second = Proposition::Atom(PropositionId::new(2).expect("second atom"));
+        let implication = |proposition: &Proposition| Proposition::Implication {
+            premise: Box::new(proposition.clone()),
+            conclusion: Box::new(proposition.clone()),
+        };
+        let branch = |proposition: &Proposition| ProofNode {
+            conclusion: implication(proposition),
+            rule: ProofRule::ImplicationIntroduction {
+                body: Box::new(ProofNode {
+                    conclusion: proposition.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        let goal = Proposition::Conjunction(vec![implication(&first), implication(&second)]);
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ConjunctionIntroduction(vec![branch(&first), branch(&second)]),
+        };
+        let accepted = accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+            .expect("both nested implication premises");
+        assert_eq!(
+            accepted.assumptions,
+            vec![
+                AcceptedPremise {
+                    index: 0,
+                    proposition: first,
+                },
+                AcceptedPremise {
+                    index: 0,
+                    proposition: second,
+                },
+            ]
+        );
     }
 
     #[test]
@@ -310,7 +542,21 @@ mod tests {
             (ValueId::new(2).expect("b"), ScalarType::Integer(integer)),
         ])
         .expect("context");
-        check_certificate(&context, &goal, &[], &axioms, &proof).expect("transitive equality");
+        let accepted =
+            accept_certificate(&context, &goal, &[], &axioms, &proof).expect("transitive equality");
+        assert_eq!(
+            accepted.semantic_axioms,
+            vec![
+                AcceptedPremise {
+                    index: 0,
+                    proposition: axioms[0].clone(),
+                },
+                AcceptedPremise {
+                    index: 1,
+                    proposition: axioms[1].clone(),
+                },
+            ]
+        );
     }
 
     #[test]

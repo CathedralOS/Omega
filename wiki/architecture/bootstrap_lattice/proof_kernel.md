@@ -146,6 +146,14 @@ renders its recursive components, closure rules, cited laws, and trust closure.
 Source attribution may decorate certificate nodes, but cannot substitute for a
 certified derivation.
 
+The live tree-certificate kernel records the exact rule families and cited
+assumption/semantic-axiom propositions during the accepting traversal. The
+terminal artifact layer fingerprints the exact accepted proof bundle and
+renders its review synopsis only from a `VerifiedTerminalModule`; changing a
+valid proof route therefore changes both the fingerprint and rendered trust
+record. Recursive-component and normalization nodes will extend this same
+record rather than adding a second explanation path.
+
 ## Scope discipline
 
 - The kernel contains proof rules and deterministic certificate checking.
@@ -161,9 +169,8 @@ certified derivation.
 - Finish the formal soundness bridge to the canonical execution semantics.
 - Stabilize the certificate vocabulary consumed by terminal Psi.
 - Extend that vocabulary with the settled recursive-component and
-  law-normalization rules, transitive premise provenance, and deterministic
-  certificate synopsis rendering when the source automation bridge reaches
-  those proof families.
+  law-normalization rules and transitive law provenance when the source
+  automation bridge reaches those proof families.
 - Connect `psi-terminal-verifier` to the low-rung kernel format and decide the
   final trust placement of terminal-Psi obligation reconstruction: low reference
   verifier, checked derivation of reconstruction, or explicit trusted component.

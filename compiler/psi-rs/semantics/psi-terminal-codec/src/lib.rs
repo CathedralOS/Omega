@@ -21,7 +21,7 @@ pub use debug_map::{
 };
 pub use proof_bundle::{
     ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,
-    proof_bundle_fingerprint,
+    proof_bundle_fingerprint, render_verified_proof_synopsis,
 };
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 

@@ -155,15 +155,13 @@ Remaining:
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
   ordinary calls remain contract applications. Normalization cites exact
-  conformance/law evidence and preserves transitive trust. Render the human
-  synopsis deterministically from the accepted certificate and fingerprint.
+  conformance/law evidence and preserves transitive trust.
 
   Acceptance: perturbing any recursive edge decrease, component
   well-foundedness reference, normalized-law identity, or cited premise
   rejects or changes the recorded trust closure; measured mutual proof
   recursion checks while an unmeasured cycle rejects; an admitted law makes
-  every dependent normalization admission-dependent; and every synopsis names
-  and renders the exact certificate the kernel accepted.
+  every dependent normalization admission-dependent.
 - **PCC verifier closure.** The artifact determines obligations; bundles only
   discharge them. Connect `psi-terminal-verifier` to the low-rung kernel and
   record one auditable closure: low reference verifier, checked reconstruction

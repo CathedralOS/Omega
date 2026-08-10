@@ -15,7 +15,8 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{
     ArtifactManifestError, ProofCodecError, build_artifact_manifest, decode_proof_bundle,
-    encode_proof_bundle, terminal_psi_identity, validate_artifact_manifest,
+    encode_proof_bundle, render_verified_proof_synopsis, terminal_psi_identity,
+    validate_artifact_manifest,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
@@ -47,6 +48,46 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
         decode_proof_bundle(&stale),
         Err(ProofCodecError::UnsupportedFormatMarker(2))
     );
+}
+
+#[test]
+fn synopsis_is_projected_from_the_exact_accepted_certificate() {
+    let module = semantic_module();
+    let primitive_bundle = certificate_bundle();
+    let primitive_verified =
+        verify_module(&module, &primitive_bundle, &AdmissionProfile::default())
+            .expect("primitive certificate");
+    let first = render_verified_proof_synopsis(&primitive_verified).expect("primitive synopsis");
+    assert_eq!(
+        first,
+        render_verified_proof_synopsis(&primitive_verified).expect("deterministic synopsis")
+    );
+    assert!(first.starts_with("proof-bundle "));
+    assert!(first.contains("obligation 1 goal "));
+    assert!(first.contains("certificate 9 proof-system 1"));
+    assert!(first.contains("rule Primitive"));
+
+    let goal = module.machines[0].contract.ensures[0].proposition.clone();
+    let assumption_bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(9),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+    };
+    let assumption_verified =
+        verify_module(&module, &assumption_bundle, &AdmissionProfile::default())
+            .expect("assumption certificate");
+    let second = render_verified_proof_synopsis(&assumption_verified).expect("assumption synopsis");
+    assert_ne!(first.lines().next(), second.lines().next());
+    assert!(second.contains("rule Assumption"));
+    assert!(second.contains("assumption[0]"));
 }
 
 #[test]
