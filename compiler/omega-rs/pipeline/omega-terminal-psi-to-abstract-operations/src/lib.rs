@@ -29,13 +29,23 @@ pub fn lower_artifact_sections(
         .map_err(ArtifactLoweringError::ProofDecode)?;
     let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
-    lower_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+    lower_verified_module_inner(&verified).map_err(ArtifactLoweringError::Lowering)
 }
 
-/// Consume the complete verified module without consulting source or producer
-/// state. The initial terminal vocabulary has one unconditional executable
-/// chain per machine, so its Omega requirement stream is flat and ordered.
+/// In-memory bypass for integration tests that exercise individual verified
+/// stages. Default production builds expose only [`lower_artifact_sections`].
+#[cfg(feature = "in-memory-test-support")]
 pub fn lower_verified_module(
+    verified: &VerifiedTerminalModule<'_>,
+) -> Result<TerminalAbstractOperationPlan, LoweringError> {
+    lower_verified_module_inner(verified)
+}
+
+/// Consume the complete verified module after the artifact entry has decoded
+/// and verified it. The initial terminal vocabulary has one unconditional
+/// executable chain per machine, so its Omega requirement stream is flat and
+/// ordered.
+fn lower_verified_module_inner(
     verified: &VerifiedTerminalModule<'_>,
 ) -> Result<TerminalAbstractOperationPlan, LoweringError> {
     let module = verified.module();

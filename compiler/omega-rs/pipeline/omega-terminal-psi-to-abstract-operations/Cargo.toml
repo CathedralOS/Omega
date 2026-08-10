@@ -8,6 +8,9 @@ version.workspace = true
 name = "omega_terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
+[features]
+in-memory-test-support = []
+
 [dependencies]
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
