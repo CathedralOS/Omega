@@ -5,7 +5,9 @@ use psi_core::{
     PropositionContext,
 };
 
-use crate::{PrimitiveJudgment, ProofNode, check_certificate, decide_primitive};
+use crate::{
+    CertificateAcceptance, PrimitiveJudgment, ProofNode, accept_certificate, decide_primitive,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AdmissionKind {
@@ -110,6 +112,7 @@ pub enum AcceptedFactRoute {
     CertificateDerived {
         identity: EvidenceIdentity,
         proof_system_marker: ProofSystemMarker,
+        acceptance: CertificateAcceptance,
     },
     Admitted(AdmissionEvidence),
 }
@@ -139,7 +142,7 @@ pub fn verify_obligation(
             AcceptedFactRoute::KernelDerived(judgment)
         }
         EvidenceRoute::CertificateDerived(certificate) => {
-            check_certificate(
+            let acceptance = accept_certificate(
                 context,
                 &obligation.proposition,
                 assumptions,
@@ -150,6 +153,7 @@ pub fn verify_obligation(
             AcceptedFactRoute::CertificateDerived {
                 identity: certificate.identity,
                 proof_system_marker: certificate.proof_system_marker,
+                acceptance,
             }
         }
         EvidenceRoute::Admitted(evidence) => {
