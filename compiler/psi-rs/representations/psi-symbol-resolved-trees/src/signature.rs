@@ -18,7 +18,6 @@ pub struct StateSignatureStorage {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
-    pub service_reaches: HandleSpan<DiagnosticName>,
     pub invokes: HandleSpan<DiagnosticName>,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,

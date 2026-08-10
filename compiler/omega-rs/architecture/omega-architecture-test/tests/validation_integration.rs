@@ -3769,9 +3769,8 @@ fn rejects_unknown_trait_machine_service_reaches() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("unknown service reach must not enter typed trees");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("unknown service reach must not enter resolved trees");
     assert!(
         diagnostic
             .message

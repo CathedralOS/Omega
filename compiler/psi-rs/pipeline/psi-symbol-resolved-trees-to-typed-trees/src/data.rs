@@ -73,7 +73,7 @@ pub(crate) fn lower_type_parameter(
     Ok(typed::data::TypeParameter {
         symbol: parameter.symbol,
         name: crate::name::lower_name(&parameter.name),
-        kind: lower_type_parameter_kind(lowerer, &parameter.name, &parameter.kind)?,
+        kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
         bounds: typed::data::DataProperties {
             copy: parameter.bounds.copy,
             carry: parameter.bounds.carry,
@@ -84,7 +84,6 @@ pub(crate) fn lower_type_parameter(
 
 pub(crate) fn lower_type_parameter_kind(
     lowerer: &mut Lowerer,
-    parameter_name: &resolved::name::DiagnosticName,
     kind: &resolved::data::TypeParameterKind,
 ) -> Result<typed::data::TypeParameterKind, Diagnostic> {
     match kind {
@@ -96,11 +95,7 @@ pub(crate) fn lower_type_parameter_kind(
         }
         resolved::data::TypeParameterKind::Machine { contract } => {
             Ok(typed::data::TypeParameterKind::Machine {
-                contract: crate::state::lower_state_signature(
-                    lowerer,
-                    contract,
-                    crate::state::StateSignatureReachOwner::Requirement(parameter_name),
-                )?,
+                contract: crate::state::lower_state_signature(lowerer, contract)?,
             })
         }
         resolved::data::TypeParameterKind::Proposition { contract } => {

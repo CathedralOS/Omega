@@ -113,7 +113,7 @@ pub(crate) fn lower_state_signature_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     signature: &syntax::item::StateSignatureNode,
-) -> Result<StateSignature, Diagnostic> {
+) -> Result<LoweredStateSignature, Diagnostic> {
     lower_state_signature_parts(
         lowerer,
         syntax_trees,
@@ -148,7 +148,7 @@ pub(crate) fn lower_state_signature_parts(
     blocks: bool,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
     terminates_guarantee: bool,
-) -> Result<StateSignature, Diagnostic> {
+) -> Result<LoweredStateSignature, Diagnostic> {
     let type_parameters =
         crate::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
@@ -156,31 +156,38 @@ pub(crate) fn lower_state_signature_parts(
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
-    let service_reaches = lower_signature_service_reaches(lowerer, syntax_trees, service_reaches);
+    let service_reaches = lower_service_reach_names(syntax_trees, service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
-    Ok(StateSignature {
-        symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(name),
-        storage: StateSignatureStorage {
-            lifetime_parameters: lifetime_parameters
-                .iter()
-                .map(crate::name::lower_name)
-                .collect(),
-            type_parameters,
-            is_default,
-            parameters,
-            return_type,
-            service_reaches,
-            invokes,
-            service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
-            suspends,
-            blocks,
-            contracts,
-            terminates_guarantee,
+    Ok(LoweredStateSignature {
+        signature: StateSignature {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(name),
+            storage: StateSignatureStorage {
+                lifetime_parameters: lifetime_parameters
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
+                type_parameters,
+                is_default,
+                parameters,
+                return_type,
+                invokes,
+                service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
+                suspends,
+                blocks,
+                contracts,
+                terminates_guarantee,
+            },
         },
+        service_reaches,
     })
+}
+
+pub(crate) struct LoweredStateSignature {
+    pub(crate) signature: StateSignature,
+    pub(crate) service_reaches: Vec<DiagnosticName>,
 }
 
 pub(crate) fn lower_signature_invokes(
@@ -197,25 +204,6 @@ pub(crate) fn lower_signature_invokes(
             .signature_invokes
             .append_to_span(&mut span, crate::name::lower_name(binding));
     }
-    span
-}
-
-pub(crate) fn lower_signature_service_reaches(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    service_reaches: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<psi_symbol_resolved_trees::name::DiagnosticName> {
-    let mut span = HandleSpan::empty();
-
-    for service in lower_service_reach_names(syntax_trees, service_reaches) {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .signature_service_reaches
-            .append_to_span(&mut span, service);
-    }
-
     span
 }
 
