@@ -54,12 +54,13 @@ Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Complete physical entry bridges and the remaining
   typed root slots around the live target-owned `ProgramEntry` schema carrier
-  and exact binding. Validate the exact visible root types and calling policy;
-  `build.omg` names one machine and performs no discovery. Provision a receiver
-  only for a ZII-valid `&mut self` entry, under admitted storage and for one
-  activation. Record image/runtime placement, derive image subextents, migrate
-  the corpus, and delete `main`/`Main::run` fallback discovery. No ambient
-  `static` storage.
+  and exact binding. The UEFI source-visible roots now match the canonical
+  typed `ProgramStorageEntry::enter` positions; retain and validate the target
+  calling policy. `build.omg` names one machine and performs no discovery.
+  Provision a receiver only for a ZII-valid `&mut self` entry, under admitted
+  storage and for one activation. Record image/runtime placement, derive image
+  subextents, migrate the corpus, and delete `main`/`Main::run` fallback
+  discovery. No ambient `static` storage.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless

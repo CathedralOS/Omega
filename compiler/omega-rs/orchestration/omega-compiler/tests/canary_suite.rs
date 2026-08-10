@@ -42717,6 +42717,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("build/explicit_program_entry_binding", "windows_x64"),
     ("build/receiver_bound_program_entry", "windows_x64"),
+    ("build/uefi_program_entry_storage_roots", "uefi_x64"),
     ("inline_asm/asm_fences_compile", "linux_x64"),
     ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
     ("inline_asm/asm_flags_compile", "linux_x64"),
@@ -42765,6 +42766,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("build/program_entry_returns_value", "windows_x64"),
     ("build/unknown_program_entry_binding", "windows_x64"),
     ("build/uefi_program_entry_missing_storage_roots", "uefi_x64"),
+    ("build/uefi_program_entry_unqualified_image", "uefi_x64"),
 ];
 
 #[test]
@@ -48355,6 +48357,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/program_entry_receiver_not_zii",
     "build/unknown_program_entry_binding",
     "build/uefi_program_entry_missing_storage_roots",
+    "build/uefi_program_entry_unqualified_image",
     "build/static_machine_parameter_contract_mismatch",
     "build/accept_boundary_outside_build",
     "platform/platform_block_retired",

@@ -150,8 +150,8 @@ pub(crate) fn selected_program_entry_machine<'config>(
 /// Validate the source half of the currently implemented `ProgramEntry`
 /// schema. Hosted targets expose no arrival parameters: the selected machine
 /// is either free or has exactly one mutable `self` receiver for later bridge
-/// provisioning. Freestanding arrival parameters remain target-schema work,
-/// but the common result/generic/receiver rules already apply.
+/// provisioning. Freestanding parameters must exactly match the canonical
+/// typed positions on the target-selected arrival requirement.
 pub(crate) fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
@@ -218,13 +218,16 @@ pub(crate) fn validate_selected_program_entry_shape(
     let visible = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| parameter.name.as_str())
         .collect::<Vec<_>>();
     match selected.slot.visible_parameters {
         omega_target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
             diagnostics.push(Diagnostic::error(format!(
                 "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
-                visible.join("`, `")
+                visible
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join("`, `")
             )));
         }
         omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
@@ -240,11 +243,94 @@ pub(crate) fn validate_selected_program_entry_shape(
         _ => {}
     }
 
+    if selected.slot.visible_parameters
+        == omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+        && visible.len() == 2
+    {
+        match arrival_requirement_parameter_types(typed, selected.slot.arrival_requirement) {
+            Ok(required) if required.len() == visible.len() => {
+                for (index, (actual, required)) in
+                    visible.iter().zip(required.iter()).enumerate()
+                {
+                    if typed.normalized_type_identity(actual.type_reference) != required.identity {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "target root slot `{}::{}` requires visible parameter {index} ({}) to have exact type `{}`, but entry machine `{machine_name}` declares `{}`",
+                            selected.slot.owner.root_slot_owner_name(),
+                            selected.slot.slot_name,
+                            ["image", "initial storage"][index],
+                            required.display,
+                            typed.display_type_reference_with_constraints(actual.type_reference),
+                        )));
+                    }
+                }
+            }
+            Ok(required) => diagnostics.push(Diagnostic::error(format!(
+                "target root slot `{}::{}` selects arrival requirement `{}` with {} visible parameters, but its target schema declares {}",
+                selected.slot.owner.root_slot_owner_name(),
+                selected.slot.slot_name,
+                selected.slot.arrival_requirement,
+                required.len(),
+                visible.len(),
+            ))),
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
     }
+}
+
+struct ArrivalRequirementParameterType {
+    identity: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    display: String,
+}
+
+/// Resolve the target declaration back to its core-owned typed requirement.
+/// The result is deliberately taken from Psi's normalized identities rather
+/// than reconstructed from display strings in the Omega orchestrator.
+fn arrival_requirement_parameter_types(
+    typed: &TypedTrees,
+    requirement: &str,
+) -> Result<Vec<ArrivalRequirementParameterType>, Diagnostic> {
+    let Some((owner, method)) = requirement.split_once("::") else {
+        return Err(Diagnostic::error(format!(
+            "target entry arrival requirement `{requirement}` is not an exact `Trait::machine` identity"
+        )));
+    };
+    let definitions = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary && definition.name.as_str() == owner)
+        .collect::<Vec<_>>();
+    let [definition] = definitions.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "target entry arrival requirement `{requirement}` resolves to {} boundary trait declarations instead of exactly one",
+            definitions.len()
+        )));
+    };
+    let signatures = typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.name.as_str() == method)
+        .collect::<Vec<_>>();
+    let [signature] = signatures.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "target entry arrival requirement `{requirement}` resolves to {} machine declarations instead of exactly one",
+            signatures.len()
+        )));
+    };
+    Ok(typed
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| ArrivalRequirementParameterType {
+            identity: typed.normalized_type_identity(parameter.type_reference),
+            display: typed.display_type_reference_with_constraints(parameter.type_reference),
+        })
+        .collect())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
