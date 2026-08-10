@@ -2179,52 +2179,52 @@ fn contract_plans_fingerprint_published_halves() {
 }
 
 #[test]
-fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
+fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let source = r#"
     machine baseline() {}
     machine trap_activation(flag: bool)
-    crashes Trap Activation
+    crashes Trap
         flag
     {}
     machine trap_domain(flag: bool)
-    crashes Trap ExecutionDomain
+    crashes Trap
         flag
     {}
     machine abort_activation(flag: bool)
-    crashes Abort Activation
+    crashes Abort
         flag
     {}
     machine unconditional_abort()
     crashes Abort
     {}
     machine explicit_true_abort()
-    crashes Abort ExecutionDomain
+    crashes Abort
         true
     {}
     machine grouped(first: bool, second: bool)
-    crashes Trap Activation
+    crashes Trap
         first
         second
     {}
     machine split(first: bool, second: bool)
-    crashes Trap Activation
+    crashes Trap
         first
-    crashes Trap Activation
+    crashes Trap
         second
     {}
     machine reordered(first: bool, second: bool)
-    crashes Trap Activation
+    crashes Trap
         second
         first
     {}
     machine duplicated(first: bool, second: bool)
-    crashes Trap Activation
+    crashes Trap
         first
         second
         first
     {}
     machine unconditional_with_guard(flag: bool)
-    crashes Abort ExecutionDomain
+    crashes Abort
         flag
     crashes Abort
     {}
@@ -2255,7 +2255,7 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
         fingerprint("unconditional_abort"),
         fingerprint("explicit_true_abort")
     );
-    assert_ne!(fingerprint("trap_activation"), fingerprint("trap_domain"));
+    assert_eq!(fingerprint("trap_activation"), fingerprint("trap_domain"));
     assert_ne!(
         fingerprint("trap_activation"),
         fingerprint("abort_activation")
@@ -2291,7 +2291,6 @@ fn crash_bucket_identity_includes_cause_scope_and_unconditional_presence() {
         grouped.published()[0].cause(),
         psi_checked_trees::CrashCause::Trap
     );
-    assert_eq!(grouped.published()[0].containment_demand(), "Activation");
     assert_eq!(grouped.published()[0].alternative_guards().len(), 2);
     assert!(!grouped.published()[0].is_unconditional());
 }
@@ -2310,14 +2309,14 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine guarded_body(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         crash Trap;
     }
 
     machine path_guarded_body(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -2331,7 +2330,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine fallthrough_guarded_body(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         !flag
     {
         transition {
@@ -2345,7 +2344,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine conjunct_guarded_body(flag: bool, other: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -2359,7 +2358,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine demorgan_guarded_body(flag: bool, other: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         !flag
     {
         transition {
@@ -2373,7 +2372,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine disjunction_does_not_cover(flag: bool, other: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -2387,7 +2386,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine negated_conjunction_does_not_cover(flag: bool, other: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         !flag
     {
         transition {
@@ -2401,7 +2400,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
 
     machine narrow_abort() -> i32
-    crashes Abort Activation
+    crashes Abort
     {
         crash Abort;
     }
@@ -2510,6 +2509,10 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
             "the exact derived guard remains separate from its consequences"
         );
         assert!(
+            !site.path_guard_consequences().is_empty(),
+            "the implication witness remains available to terminal lowering"
+        );
+        assert!(
             plan(name)
                 .crash
                 .published_bucket(*bucket)
@@ -2532,18 +2535,14 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let [narrow_abort_site] = plan("narrow_abort").crash.checked_sites() else {
         panic!("the narrow abort should retain its explicit crash site")
     };
-    assert_eq!(
-        narrow_abort_site.damage_minimum(),
-        psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE
-    );
     assert_eq!(narrow_abort_site.guard_covering_buckets().len(), 1);
     assert_eq!(
         plan("narrow_abort")
             .crash
             .covering_buckets_for_site(narrow_abort_site)
             .count(),
-        0,
-        "an Activation demand cannot cover Abort's ExecutionDomain minimum"
+        1,
+        "a same-cause unconditional route covers the crash site"
     );
 }
 
@@ -2551,11 +2550,11 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
 fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     let source = r#"
     machine risky() -> i32
-    crashes Trap Activation
+    crashes Trap
     { 1 }
 
     machine equal_true(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -2566,7 +2565,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     }
 
     machine equal_false(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         !flag
     {
         transition {
@@ -2577,7 +2576,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     }
 
     machine not_equal_true(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         !flag
     {
         transition {
@@ -2588,7 +2587,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     }
 
     machine not_equal_false(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -2599,7 +2598,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     }
 
     machine fallthrough_equal_true(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         !flag
     {
         transition {
@@ -2610,7 +2609,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     }
 
     machine guarded_call(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -2669,11 +2668,11 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
 fn crash_guard_entailment_normalizes_comparison_equivalences() {
     let source = r#"
     machine risky() -> i32
-    crashes Trap Activation
+    crashes Trap
     { 1 }
 
     machine reversed_order(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         right > left
     {
         transition {
@@ -2684,7 +2683,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine strict_order_weakens(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left <= right
     {
         transition {
@@ -2695,7 +2694,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine strict_order_is_distinct(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left != right
     {
         transition {
@@ -2706,7 +2705,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine integer_equality_bounds(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         right >= left
     {
         transition {
@@ -2717,7 +2716,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine integer_order_fallthrough(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left >= right
     {
         transition {
@@ -2728,7 +2727,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine float_order_fallthrough_stays_opaque(left: f32, right: f32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left >= right
     {
         transition {
@@ -2739,7 +2738,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine negated_equality(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left != right
     {
         transition {
@@ -2750,7 +2749,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine reversed_equality(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         right == left
     {
         transition {
@@ -2761,7 +2760,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine transitive_integer_order(left: i32, middle: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2772,7 +2771,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine nontransitive_integer_order(left: i32, middle: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2783,7 +2782,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine transitive_nonstrict_order(left: i32, middle: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left <= right
     {
         transition {
@@ -2794,7 +2793,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine integer_order_antisymmetry(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left == right
     {
         transition {
@@ -2805,7 +2804,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine integer_nonstrict_plus_disequality(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2816,7 +2815,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine one_sided_order_does_not_prove_equality(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left == right
     {
         transition {
@@ -2827,7 +2826,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine float_order_antisymmetry_stays_opaque(left: f32, right: f32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left == right
     {
         transition {
@@ -2838,7 +2837,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine float_nonstrict_plus_disequality_stays_opaque(left: f32, right: f32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2849,7 +2848,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine transitive_order_across_states(left: i32, middle: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2870,7 +2869,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
         middle: i32,
         right: i32
     ) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2881,7 +2880,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine guarded_call(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left != right
     {
         transition {
@@ -2892,7 +2891,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine transitive_guarded_call(left: i32, middle: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -2903,7 +2902,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
 
     machine antisymmetric_guarded_call(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left == right
     {
         transition {
@@ -2915,7 +2914,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
 
 
     machine strict_refined_guarded_call(left: i32, right: i32) -> i32
-    crashes Trap Activation
+    crashes Trap
         left < right
     {
         transition {
@@ -3034,99 +3033,26 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
 }
 
 #[test]
-fn open_default_domain_window_widens_crash_damage_minimum() {
-    let source = r#"
-    data MemoryMap
-    where
-        count <= len,
-    {
-        len: u32;
-        count: u32;
-    }
-
-    data Holder { map: MemoryMap; }
-
-    machine Holder::fail(&mut self) -> i32
-    crashes Trap ExecutionDomain
-    {
-        self.map.len = 8;
-        self.map.count = 3;
-        self.map.len = 2;
-        crash Trap;
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
-        .expect("a wide crash ceiling may abandon an open invariant window");
-    let plan = checked
-        .facts
-        .contract_plans
-        .for_machine(symbol_of_checked(&checked, "Holder::fail"))
-        .expect("fail contract plan");
-    let [site] = plan.crash.checked_sites() else {
-        panic!("fail should retain one crash site")
-    };
-    assert_eq!(
-        site.damage_minimum(),
-        psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE
-    );
-    assert_eq!(site.open_invariant_data().len(), 1);
-
-    let narrow = source.replace("crashes Trap ExecutionDomain", "crashes Trap Activation");
-    let tokens = Lexer::new(&narrow)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let narrow_checked = lower_typed_trees(typed)
-        .expect("checked evidence should retain the uncovered narrow ceiling for diagnostics");
-    let narrow_plan = narrow_checked
-        .facts
-        .contract_plans
-        .for_machine(symbol_of_checked(&narrow_checked, "Holder::fail"))
-        .expect("narrow fail contract plan");
-    let [narrow_site] = narrow_plan.crash.checked_sites() else {
-        panic!("narrow fail should retain one crash site")
-    };
-    assert_eq!(narrow_site.damage_minimum(), "ExecutionDomain");
-    assert_eq!(
-        narrow_plan
-            .crash
-            .covering_buckets_for_site(narrow_site)
-            .count(),
-        0,
-        "Activation containment must not cover the widened damage minimum"
-    );
-}
-
-#[test]
 fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let source = r#"
     machine risky(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     { 1 }
 
     machine safe() -> i32 { risky(false) }
 
     machine certain() -> i32
-    crashes Trap Activation
+    crashes Trap
     { risky(true) }
 
     machine forwarded(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     { risky(flag) }
 
     machine conditioned(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     {
         transition {
@@ -3179,7 +3105,6 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     };
     assert!(certain_bucket.is_unconditional());
     assert_eq!(certain_bucket.cause(), psi_checked_trees::CrashCause::Trap);
-    assert_eq!(certain_bucket.containment_demand(), "Activation");
 
     let [forwarded_call] = plan("forwarded").crash.checked_calls() else {
         panic!("the unresolved invocation should retain one checked call row")
@@ -3222,7 +3147,7 @@ fn published_caller_must_cover_every_surviving_call_crash_route() {
     }
 
     machine wrong_cause() -> i32
-    crashes Trap Activation
+    crashes Trap
     {
         risky()
     }
@@ -3241,40 +3166,6 @@ fn published_caller_must_cover_every_surviving_call_crash_route() {
             .message
             .contains("call from `wrong_cause` to `risky`")
             && diagnostic.message.contains("uncovered Abort crash route")
-    }));
-}
-
-#[test]
-fn published_caller_crash_route_must_cover_the_selected_containment_demand() {
-    let source = r#"
-    machine risky() -> i32
-    crashes Trap ExecutionDomain
-    {
-        crash Trap;
-    }
-
-    machine too_narrow() -> i32
-    crashes Trap Activation
-    {
-        risky()
-    }
-    "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
-        .expect_err("an Activation ceiling cannot cover an ExecutionDomain demand");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("call from `too_narrow` to `risky`")
-            && diagnostic
-                .message
-                .contains("requiring `ExecutionDomain` containment")
     }));
 }
 
@@ -3322,10 +3213,6 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
     };
     assert!(abort_bucket.is_unconditional());
     assert_eq!(abort_bucket.cause(), psi_checked_trees::CrashCause::Abort);
-    assert_eq!(
-        abort_bucket.containment_demand(),
-        psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE
-    );
 
     let [safe_call] = plan("call_safe").crash.checked_calls() else {
         panic!("a call to a private crash-free leaf should retain positive empty evidence")
@@ -3347,7 +3234,7 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
 fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     let source = r#"
     machine risky(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     { 1 }
 
@@ -3355,7 +3242,7 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     machine outer(flag: bool) -> i32 { inner(flag) }
 
     machine covered(flag: bool) -> i32
-    crashes Trap Activation
+    crashes Trap
         flag
     { outer(flag) }
 
@@ -3423,9 +3310,9 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
     let source = r#"
     machine apply<machine Selected>(flag: bool)
     where machine Selected(value: bool)
-        crashes Abort Activation
+        crashes Abort
             value;
-    crashes Abort Activation
+    crashes Abort
         flag
     {
         Selected(flag);
@@ -3465,7 +3352,6 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
         panic!("the unknown flag should retain the guarded Abort bucket");
     };
     assert_eq!(bucket.cause(), psi_checked_trees::CrashCause::Abort);
-    assert_eq!(bucket.containment_demand(), "Activation");
     assert!(matches!(
         bucket.alternative_guards(),
         [psi_checked_trees::CrashRouteGuard::Predicate(_)]

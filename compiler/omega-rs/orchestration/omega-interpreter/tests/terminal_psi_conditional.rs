@@ -33,7 +33,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "16912280ab61d4359d90fd2a27e3d593e40ce9119f7de9b4cf3284c9f86af877"
+        "0866a26b9d24f09b77e584270448daab0fa42d145304eddf8c2569e6c5f3f3f8"
     );
     let bytes = encode_module(&module).expect("canonical bytes");
     let decoded = decode_module(&bytes).expect("decode canonical module");
@@ -752,7 +752,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -857,7 +857,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -975,7 +975,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1073,7 +1073,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).unwrap(),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },

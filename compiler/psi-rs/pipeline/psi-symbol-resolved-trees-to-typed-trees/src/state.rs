@@ -67,7 +67,7 @@ pub(crate) fn lower_state(
                     resolved::signature::SignatureContractKind::Boundary => {
                         typed::signature::SignatureContractKind::Boundary
                     }
-                    resolved::signature::SignatureContractKind::Crashes { cause, scope } => {
+                    resolved::signature::SignatureContractKind::Crashes { cause } => {
                         typed::signature::SignatureContractKind::Crashes {
                             cause: match cause {
                                 resolved::signature::CrashCause::Trap => {
@@ -77,7 +77,6 @@ pub(crate) fn lower_state(
                                     typed::signature::CrashCause::Abort
                                 }
                             },
-                            scope: crate::name::lower_name(scope),
                         }
                     }
                 },
@@ -221,7 +220,7 @@ pub(crate) fn lower_state_signature(
                     resolved::signature::SignatureContractKind::Boundary => {
                         typed::signature::SignatureContractKind::Boundary
                     }
-                    resolved::signature::SignatureContractKind::Crashes { cause, scope } => {
+                    resolved::signature::SignatureContractKind::Crashes { cause } => {
                         typed::signature::SignatureContractKind::Crashes {
                             cause: match cause {
                                 resolved::signature::CrashCause::Trap => {
@@ -231,7 +230,6 @@ pub(crate) fn lower_state_signature(
                                     typed::signature::CrashCause::Abort
                                 }
                             },
-                            scope: crate::name::lower_name(scope),
                         }
                     }
                 },

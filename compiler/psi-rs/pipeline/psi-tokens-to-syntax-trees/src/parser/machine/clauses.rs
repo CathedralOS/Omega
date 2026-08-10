@@ -189,7 +189,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("crashes") {
-            let ((cause, scope, header_token_count), after_header) = parse_crash_header(input)?;
+            let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
             let ((facts, fact_token_count), rest) =
                 crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
                     syntax_trees,
@@ -219,7 +219,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_capability_contract(CapabilityContract {
-                    kind: CapabilityContractKind::Crashes { cause, scope },
+                    kind: CapabilityContractKind::Crashes { cause },
                     facts,
                     token_count: fact_token_count
                         .checked_add(header_token_count)
@@ -353,7 +353,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             "`invokes <binding>;`",
             "`suspends;`",
             "`blocks;`",
-            "`crashes <Cause> <Scope>`",
+            "`crashes <Cause>`",
             "`boundary`",
             "`requires`",
             "`ensures`",
@@ -495,7 +495,7 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
 
 fn parse_crash_header<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (CrashCause, Identifier, usize)> {
+) -> ParseResult<'tokens, 'source, (CrashCause, usize)> {
     let input = input.take_contextual("crashes")?;
     let (cause, input) = input.take_identifier()?;
     let cause = match cause.as_str() {
@@ -508,28 +508,7 @@ fn parse_crash_header<'tokens, 'source>(
             )));
         }
     };
-    if input.at_punctuation(PunctuationKind::LeftBrace)
-        || input.at_keyword(KeywordKind::Machine)
-        || input.at_keyword(KeywordKind::Data)
-        || input.at_keyword(KeywordKind::Use)
-        || input.at_contextual("requires")
-        || input.at_contextual("ensures")
-        || input.at_contextual("terminates")
-        || input.at_contextual("decreases")
-        || input.at_contextual("reaches")
-        || input.at_contextual("invokes")
-        || input.at_contextual("suspends")
-        || input.at_contextual("blocks")
-        || input.at_contextual("crashes")
-        || input.at_contextual("boundary")
-        || input.at_contextual("where")
-        || input.at_contextual("satisfies")
-        || input.tokens.is_empty()
-    {
-        return Ok(((cause, Identifier::generated("ExecutionDomain"), 2), input));
-    }
-    let (scope, input) = input.take_identifier()?;
-    Ok(((cause, scope, 3), input))
+    Ok(((cause, 2), input))
 }
 
 fn parse_boundary_clause<'tokens, 'source>(

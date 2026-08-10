@@ -50,14 +50,12 @@ fn assign_function(
         TerminalTargetOperation::Crash {
             psi_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => TerminalAssignedOperation::Crash {
             psi_edge: *psi_edge,
             cause: *cause,
-            damage_minimum: damage_minimum.clone(),
-            containment_demand: containment_demand.clone(),
+            site_guard: site_guard.clone(),
             frontier_lower_bound: frontier_lower_bound.clone(),
         },
         TerminalTargetOperation::ReturnIntegerImmediate {
@@ -245,14 +243,12 @@ fn assign_boolean_control(
         TerminalTargetBooleanControl::Crash {
             psi_crash_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => TerminalAssignedBooleanControl::Crash {
             psi_crash_edge: *psi_crash_edge,
             cause: *cause,
-            damage_minimum: damage_minimum.clone(),
-            containment_demand: containment_demand.clone(),
+            site_guard: site_guard.clone(),
             frontier_lower_bound: frontier_lower_bound.clone(),
         },
         TerminalTargetBooleanControl::ReturnImmediate {
@@ -356,14 +352,12 @@ fn assign_integer_control(
         TerminalTargetIntegerControl::Crash {
             psi_crash_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => TerminalAssignedIntegerControl::Crash {
             psi_crash_edge: *psi_crash_edge,
             cause: *cause,
-            damage_minimum: damage_minimum.clone(),
-            containment_demand: containment_demand.clone(),
+            site_guard: site_guard.clone(),
             frontier_lower_bound: frontier_lower_bound.clone(),
         },
         TerminalTargetIntegerControl::Return {

@@ -303,13 +303,12 @@ fn lower_contract_kind(
         resolved::signature::SignatureContractKind::Boundary => {
             typed::signature::SignatureContractKind::Boundary
         }
-        resolved::signature::SignatureContractKind::Crashes { cause, scope } => {
+        resolved::signature::SignatureContractKind::Crashes { cause } => {
             typed::signature::SignatureContractKind::Crashes {
                 cause: match cause {
                     resolved::signature::CrashCause::Trap => typed::signature::CrashCause::Trap,
                     resolved::signature::CrashCause::Abort => typed::signature::CrashCause::Abort,
                 },
-                scope: crate::name::lower_name(scope),
             }
         }
     }

@@ -82,7 +82,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(20).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -245,7 +245,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(30).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -416,7 +416,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(40).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -576,7 +576,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
             }],
             contract: MachineContract {
                 id: ContractId::new(120).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -712,7 +712,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(100).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -855,7 +855,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(110).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -998,7 +998,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(130).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1151,7 +1151,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
             }],
             contract: MachineContract {
                 id: ContractId::new(60).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1272,7 +1272,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
             }],
             contract: MachineContract {
                 id: ContractId::new(80).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1374,7 +1374,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
             }],
             contract: MachineContract {
                 id: ContractId::new(50).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },

@@ -42,9 +42,7 @@ use omega_terminal_target_operations::{
     TerminalTargetIntegerExpression, TerminalTargetOperation,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
-use psi_checked_trees_to_terminal::{
-    LoweringError, lower_machine, lower_machine_with_crash_context,
-};
+use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
 use psi_core::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
@@ -57,7 +55,9 @@ use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use psi_proof_kernel::AdmissionProfile;
-use psi_terminal::{CrashCause, CrashContextMaximum, OperationKind, Terminator, VocabularyMarker};
+use psi_terminal::{
+    CrashCause, CrashRouteGuard, OperationKind, TerminalModule, Terminator, VocabularyMarker,
+};
 use psi_terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -85,6 +85,28 @@ fn source_canary() -> PathBuf {
         .nth(4)
         .expect("omega-interpreter lives under compiler/omega-rs/orchestration")
         .join("canaries/pass/terminal_psi/integer_control_contract/main.omg")
+}
+
+fn expected_crash(module: &TerminalModule) -> TerminalExecutionStatus {
+    let crash = module.machines[0]
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            Terminator::Crash {
+                edge,
+                cause,
+                site_guard,
+                frontier_lower_bound,
+            } => Some(omega_interpreter::TerminalCrash {
+                edge: *edge,
+                cause: *cause,
+                site_guard: site_guard.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+            }),
+            _ => None,
+        })
+        .expect("test module should contain a crash terminator");
+    TerminalExecutionStatus::Crashed(crash)
 }
 
 fn assert_guarded_crash_emits(verified: &VerifiedTerminalModule<'_>) {
@@ -7825,7 +7847,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             lower_machine(&checked, machine)
                 .expect_err("a crash without a uniquely covering bucket must fail"),
             LoweringError::Unsupported(
-                "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering bucket"
+                "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket"
             )
         );
     }
@@ -7878,7 +7900,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         lower_machine(&missing_coverage, "terminal_abort")
             .expect_err("terminal production must consume checked guard coverage"),
         LoweringError::Unsupported(
-            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering bucket"
+            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket"
         )
     );
 
@@ -7949,15 +7971,7 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
     ));
 
     for (flag, expected) in [
-        (
-            true,
-            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
-                cause: CrashCause::Trap,
-                damage_minimum: "Activation".to_owned(),
-                containment_demand: "ExecutionDomain".to_owned(),
-                frontier_lower_bound: Vec::new(),
-            }),
-        ),
+        (true, expected_crash(&semantic_module)),
         (
             false,
             TerminalExecutionStatus::Complete(TerminalScalarValue::Boolean(true)),
@@ -7997,12 +8011,10 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
             when_true.control.as_ref(),
             TerminalTargetBooleanControl::Crash {
                 cause: CrashCause::Trap,
-                damage_minimum,
-                containment_demand,
+                site_guard,
                 frontier_lower_bound,
                 ..
-            } if damage_minimum == "Activation"
-                && containment_demand == "ExecutionDomain"
+            } if !site_guard.is_empty()
                 && frontier_lower_bound.is_empty()
         ));
         assert!(matches!(
@@ -8048,41 +8060,26 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
     let wide_trap = lower_machine(&checked, "terminal_wide_trap")
-        .expect("a wider published trap demand should lower");
-    assert_eq!(
-        wide_trap.semantic_module.machines[0].contract.crash_context,
-        CrashContextMaximum::portable_root()
-    );
+        .expect("an unconditional published trap route should lower");
+    let [wide_route] = wide_trap.semantic_module.machines[0]
+        .contract
+        .crash_routes
+        .as_slice()
+    else {
+        panic!("unconditional trap should publish exactly one crash route");
+    };
+    assert_eq!(wide_route.cause, CrashCause::Trap);
     assert!(matches!(
-        lower_machine_with_crash_context(
-            &checked,
-            "terminal_wide_trap",
-            vec![CrashContextMaximum {
-                cause: CrashCause::Trap,
-                maximum_scope: "Activation".to_owned(),
-            }],
-        ),
-        Err(LoweringError::InvalidTerminalModule(
-            psi_terminal_verifier::ModuleError::CrashContextMaximumTooNarrow { .. }
-        ))
-    ));
-    assert!(matches!(
-        lower_machine_with_crash_context(&checked, "terminal_wide_trap", Vec::new()),
-        Err(LoweringError::InvalidTerminalModule(
-            psi_terminal_verifier::ModuleError::MissingCrashContextMaximum {
-                cause: CrashCause::Trap,
-                ..
-            }
-        ))
+        wide_route.alternatives.as_slice(),
+        [CrashRouteGuard::Truth]
     ));
     assert!(matches!(
         &wide_trap.semantic_module.machines[0].blocks[0].terminator,
         Terminator::Crash {
             cause: CrashCause::Trap,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             ..
-        } if damage_minimum == "Activation" && containment_demand == "ExecutionDomain"
+        } if site_guard.is_empty()
     ));
     let guarded_trap = lower_machine(&checked, "terminal_path_guarded_trap")
         .expect("checked incoming guard coverage should open a guarded crash branch");
@@ -8090,10 +8087,9 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         &guarded_trap.semantic_module.machines[0].blocks[1].terminator,
         Terminator::Crash {
             cause: CrashCause::Trap,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             ..
-        } if damage_minimum == "Activation" && containment_demand == "ExecutionDomain"
+        } if !site_guard.is_empty()
     ));
     let guarded_semantic_bytes =
         encode_module(&guarded_trap.semantic_module).expect("guarded crash should encode");
@@ -8117,15 +8113,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     );
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     for (flag, expected) in [
-        (
-            true,
-            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
-                cause: CrashCause::Trap,
-                damage_minimum: "Activation".to_owned(),
-                containment_demand: "ExecutionDomain".to_owned(),
-                frontier_lower_bound: Vec::new(),
-            }),
-        ),
+        (true, expected_crash(&guarded_semantic_module)),
         (
             false,
             TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
@@ -8157,12 +8145,10 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             when_true.control.as_ref(),
             TerminalTargetIntegerControl::Crash {
                 cause: CrashCause::Trap,
-                damage_minimum,
-                containment_demand,
+                site_guard,
                 frontier_lower_bound,
                 ..
-            } if damage_minimum == "Activation"
-                && containment_demand == "ExecutionDomain"
+            } if !site_guard.is_empty()
                 && frontier_lower_bound.is_empty()
         ));
         assert!(matches!(
@@ -8239,16 +8225,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         6
     );
     for (value, limit, expected) in [
-        (
-            1,
-            2,
-            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
-                cause: CrashCause::Trap,
-                damage_minimum: "Activation".to_owned(),
-                containment_demand: "ExecutionDomain".to_owned(),
-                frontier_lower_bound: Vec::new(),
-            }),
-        ),
+        (1, 2, expected_crash(&integer_guarded_semantic_module)),
         (
             1,
             3,
@@ -8310,18 +8287,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     for (left, middle, right, expected, expected_units) in [
         (5, 3, 10, TerminalExecutionStatus::Complete(signed(0)), 4),
         (1, 5, 3, TerminalExecutionStatus::Complete(signed(0)), 6),
-        (
-            1,
-            2,
-            3,
-            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
-                cause: CrashCause::Trap,
-                damage_minimum: "Activation".to_owned(),
-                containment_demand: "ExecutionDomain".to_owned(),
-                frontier_lower_bound: Vec::new(),
-            }),
-            5,
-        ),
+        (1, 2, 3, expected_crash(&transitive_semantic_module), 5),
     ] {
         let mut execution = TerminalExecution::start(
             &transitive_verified,
@@ -8374,8 +8340,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         Terminator::Crash {
             edge: EdgeId::new(1).unwrap(),
             cause: CrashCause::Abort,
-            damage_minimum: "ExecutionDomain".to_owned(),
-            containment_demand: "ExecutionDomain".to_owned(),
+            site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
         }
     );
@@ -8389,12 +8354,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     let mut execution =
         TerminalExecution::start(&verified, &[]).expect("verified crash terminal should start");
     let mut meter = TerminalFuelMeter::with_allowance(1);
-    let expected = TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
-        cause: CrashCause::Abort,
-        damage_minimum: "ExecutionDomain".to_owned(),
-        containment_demand: "ExecutionDomain".to_owned(),
-        frontier_lower_bound: Vec::new(),
-    });
+    let expected = expected_crash(&lowered.semantic_module);
     assert_eq!(execution.resume(&mut meter).unwrap(), expected);
     let charged = meter.usage().total_units();
     assert_eq!(
@@ -8408,19 +8368,9 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         "resuming a crash must not replay its edge"
     );
 
-    for (source, expected_cause, expected_damage, expected_demand) in [
-        (
-            &wide_trap,
-            CrashCause::Trap,
-            "Activation",
-            "ExecutionDomain",
-        ),
-        (
-            &lowered,
-            CrashCause::Abort,
-            "ExecutionDomain",
-            "ExecutionDomain",
-        ),
+    for (source, expected_cause) in [
+        (&wide_trap, CrashCause::Trap),
+        (&lowered, CrashCause::Abort),
     ] {
         let semantic =
             encode_module(&source.semantic_module).expect("crash semantics should encode");
@@ -8432,13 +8382,11 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             abstract_operations.functions[0].operations.as_slice(),
             [TerminalAbstractOperation::Crash {
                 cause,
-                damage_minimum,
-                containment_demand,
+                site_guard,
                 frontier_lower_bound,
                 ..
             }] if *cause == expected_cause
-                && damage_minimum == expected_damage
-                && containment_demand == expected_demand
+                && site_guard.is_empty()
                 && frontier_lower_bound.is_empty()
         ));
 
@@ -8452,13 +8400,11 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
                 &target_operations.functions[0].operation,
                 TerminalTargetOperation::Crash {
                     cause,
-                    damage_minimum,
-                    containment_demand,
+                    site_guard,
                     frontier_lower_bound,
                     ..
                 } if *cause == expected_cause
-                    && damage_minimum == expected_damage
-                    && containment_demand == expected_demand
+                    && site_guard.is_empty()
                     && frontier_lower_bound.is_empty()
             ));
             let assigned = assign_registers(&target_operations)

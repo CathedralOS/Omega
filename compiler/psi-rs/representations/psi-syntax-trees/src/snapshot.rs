@@ -327,13 +327,8 @@ pub struct CapabilityContractSnapshot {
 pub enum CapabilityContractKindSnapshot {
     Ensures,
     Requires,
-    Boundary {
-        boundary: BoundaryLevelSnapshot,
-    },
-    Crashes {
-        cause: &'static str,
-        scope: IdentifierSnapshot,
-    },
+    Boundary { boundary: BoundaryLevelSnapshot },
+    Crashes { cause: &'static str },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1264,15 +1259,12 @@ fn snapshot_capability_contract(
             CapabilityContractKind::Boundary(level) => CapabilityContractKindSnapshot::Boundary {
                 boundary: snapshot_boundary_level(level),
             },
-            CapabilityContractKind::Crashes { cause, scope } => {
-                CapabilityContractKindSnapshot::Crashes {
-                    cause: match cause {
-                        crate::item::CrashCause::Trap => "Trap",
-                        crate::item::CrashCause::Abort => "Abort",
-                    },
-                    scope: snapshot_identifier(scope),
-                }
-            }
+            CapabilityContractKind::Crashes { cause } => CapabilityContractKindSnapshot::Crashes {
+                cause: match cause {
+                    crate::item::CrashCause::Trap => "Trap",
+                    crate::item::CrashCause::Abort => "Abort",
+                },
+            },
         },
         facts: snapshot_proof_facts(syntax_trees, contract.facts),
         token_count: contract.token_count,

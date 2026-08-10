@@ -109,6 +109,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts:
 
                 site.clone()
                     .with_path_guard_conjuncts(path_guard_conjuncts)
+                    .with_path_guard_consequences(path_predicates)
                     .with_guard_covering_buckets(covering)
             })
             .collect();
@@ -189,10 +190,6 @@ pub(crate) fn check_call_ceiling_coverage(
                 let covered = surviving.alternative_guards().iter().all(|route| {
                     caller.crash.published().iter().any(|published| {
                         published.cause() == surviving.cause()
-                            && psi_checked_trees::crash_scope_covers_minimum(
-                                surviving.containment_demand(),
-                                published.containment_demand(),
-                            )
                             && published.alternative_guards().iter().any(|cover| {
                                 call_route_guard_covers(
                                     cover,
@@ -218,11 +215,10 @@ pub(crate) fn check_call_ceiling_coverage(
                     .map(|machine| machine.name.as_str())
                     .unwrap_or("<unknown>");
                 diagnostics.push(Diagnostic::error(format!(
-                    "call from `{caller_name}` to `{target_name}` at statement {} call {} has an uncovered {:?} crash route requiring `{}` containment; publish a same-cause route whose guard and containment demand cover this invocation",
+                    "call from `{caller_name}` to `{target_name}` at statement {} call {} has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
                     call.location().statement_ordinal(),
                     call.location().call_ordinal(),
                     surviving.cause(),
-                    surviving.containment_demand(),
                 )));
             }
         }

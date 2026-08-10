@@ -784,9 +784,9 @@ impl<'module> TerminalExecution<'module> {
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
                 Terminator::Crash {
+                    edge,
                     cause,
-                    damage_minimum,
-                    containment_demand,
+                    site_guard,
                     frontier_lower_bound,
                     ..
                 } => {
@@ -794,9 +794,9 @@ impl<'module> TerminalExecution<'module> {
                         return meter_status(error);
                     }
                     let crash = TerminalCrash {
+                        edge: *edge,
                         cause: *cause,
-                        damage_minimum: damage_minimum.clone(),
-                        containment_demand: containment_demand.clone(),
+                        site_guard: site_guard.clone(),
                         frontier_lower_bound: frontier_lower_bound.clone(),
                     };
                     self.crash = Some(crash.clone());
@@ -829,9 +829,9 @@ pub enum TerminalExecutionStatus {
 /// artifact. It is not an assertion that no wider runtime state was abandoned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCrash {
+    pub edge: psi_core::EdgeId,
     pub cause: CrashCause,
-    pub damage_minimum: String,
-    pub containment_demand: String,
+    pub site_guard: Vec<psi_terminal::CrashPredicateIdentity>,
     pub frontier_lower_bound: Vec<ClaimId>,
 }
 

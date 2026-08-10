@@ -246,7 +246,7 @@ pub(crate) fn lower_signature_contracts(
                         syntax::item::CapabilityContractKind::Boundary(_) => {
                             SignatureContractKind::Boundary
                         }
-                        syntax::item::CapabilityContractKind::Crashes { cause, scope } => {
+                        syntax::item::CapabilityContractKind::Crashes { cause } => {
                             SignatureContractKind::Crashes {
                                 cause: match cause {
                                     syntax::item::CrashCause::Trap => {
@@ -256,7 +256,6 @@ pub(crate) fn lower_signature_contracts(
                                         psi_symbol_resolved_trees::signature::CrashCause::Abort
                                     }
                                 },
-                                scope: crate::name::lower_name(scope),
                             }
                         }
                     },

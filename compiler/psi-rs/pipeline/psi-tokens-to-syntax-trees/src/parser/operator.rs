@@ -4,7 +4,6 @@ use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
-use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CrashCause, OperatorDefinition,
 };
@@ -158,22 +157,13 @@ fn parse_operator_contract<'tokens, 'source>(
                 )));
             }
         };
-        let (scope, after_header, header_token_count) = if operator_contract_terminator(after_cause)
-        {
-            (
-                Identifier::generated("ExecutionDomain"),
-                after_cause,
-                2usize,
-            )
-        } else {
-            let (scope, after_header) = after_cause.take_identifier()?;
-            (scope, after_header, 3usize)
-        };
+        let after_header = after_cause;
+        let header_token_count = 2usize;
         *input = after_header;
         let mut contract = parse_operator_fact_contract(
             syntax_trees,
             input,
-            CapabilityContractKind::Crashes { cause, scope },
+            CapabilityContractKind::Crashes { cause },
         )?;
         contract.token_count = contract
             .token_count

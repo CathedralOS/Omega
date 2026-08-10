@@ -1067,16 +1067,14 @@ fn lower_function(
             TerminalAbstractOperation::Crash {
                 psi_edge,
                 cause,
-                damage_minimum,
-                containment_demand,
+                site_guard,
                 frontier_lower_bound,
             } => {
                 provenance.edges.push(*psi_edge);
                 returned = Some(TerminalTargetOperation::Crash {
                     psi_edge: *psi_edge,
                     cause: *cause,
-                    damage_minimum: damage_minimum.clone(),
-                    containment_demand: containment_demand.clone(),
+                    site_guard: site_guard.clone(),
                     frontier_lower_bound: frontier_lower_bound.clone(),
                 });
             }
@@ -1439,15 +1437,13 @@ fn lower_boolean_block(
         TerminalAbstractOperation::Crash {
             psi_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => Ok(LoweredBooleanControl {
             control: TerminalTargetBooleanControl::Crash {
                 psi_crash_edge: *psi_edge,
                 cause: *cause,
-                damage_minimum: damage_minimum.clone(),
-                containment_demand: containment_demand.clone(),
+                site_guard: site_guard.clone(),
                 frontier_lower_bound: frontier_lower_bound.clone(),
             },
             operations,
@@ -1466,14 +1462,12 @@ fn target_operation_from_boolean_control(
         TerminalTargetBooleanControl::Crash {
             psi_crash_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => TerminalTargetOperation::Crash {
             psi_edge: psi_crash_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         },
         TerminalTargetBooleanControl::ReturnImmediate {
@@ -1751,15 +1745,13 @@ fn lower_conditional_block(
         TerminalAbstractOperation::Crash {
             psi_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => Ok(LoweredIntegerControl {
             control: TerminalTargetIntegerControl::Crash {
                 psi_crash_edge: *psi_edge,
                 cause: *cause,
-                damage_minimum: damage_minimum.clone(),
-                containment_demand: containment_demand.clone(),
+                site_guard: site_guard.clone(),
                 frontier_lower_bound: frontier_lower_bound.clone(),
             },
             operations,
@@ -1806,14 +1798,12 @@ fn target_operation_from_integer_control(
         TerminalTargetIntegerControl::Crash {
             psi_crash_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => TerminalTargetOperation::Crash {
             psi_edge: psi_crash_edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         },
         TerminalTargetIntegerControl::Return {

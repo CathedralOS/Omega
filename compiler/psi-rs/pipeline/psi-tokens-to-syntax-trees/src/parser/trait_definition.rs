@@ -485,28 +485,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                     )));
                 }
             };
-            let (scope, after_header, header_token_count) = if after_cause
-                .at_punctuation(PunctuationKind::Semicolon)
-                || after_cause.at_punctuation(PunctuationKind::LeftBrace)
-                || after_cause.at_contextual("requires")
-                || after_cause.at_contextual("ensures")
-                || after_cause.at_contextual("reaches")
-                || after_cause.at_contextual("invokes")
-                || after_cause.at_contextual("suspends")
-                || after_cause.at_contextual("blocks")
-                || after_cause.at_contextual("crashes")
-                || after_cause.at_contextual("where")
-                || after_cause.tokens.is_empty()
-            {
-                (
-                    Identifier::generated("ExecutionDomain"),
-                    after_cause,
-                    2usize,
-                )
-            } else {
-                let (scope, after_header) = after_cause.take_identifier()?;
-                (scope, after_header, 3usize)
-            };
+            let after_header = after_cause;
+            let header_token_count = 2usize;
             let ((facts, fact_token_count), rest) =
                 parse_proof_facts_until(syntax_trees, after_header, |input| {
                     input.at_punctuation(PunctuationKind::Semicolon)
@@ -525,7 +505,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_capability_contract(CapabilityContract {
-                    kind: CapabilityContractKind::Crashes { cause, scope },
+                    kind: CapabilityContractKind::Crashes { cause },
                     facts,
                     token_count: fact_token_count
                         .checked_add(header_token_count)
