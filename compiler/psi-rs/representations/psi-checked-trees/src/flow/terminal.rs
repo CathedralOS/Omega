@@ -74,8 +74,18 @@ pub struct CheckedScalarMachineGraph {
 pub struct CheckedScalarStateGraph {
     pub state: SymbolHandle,
     pub parameter_types: Vec<PrimitiveType>,
+    pub bindings: Vec<CheckedScalarBinding>,
     pub result_type: PrimitiveType,
     pub terminator: CheckedScalarStateTerminator,
+}
+
+/// One immutable primitive local evaluated in source order before the state
+/// terminator. Its ordinal is its stable state-local identity; source symbols
+/// and expression handles do not cross the checked plan boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarBinding {
+    pub statement_ordinal: u32,
+    pub primitive_type: PrimitiveType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

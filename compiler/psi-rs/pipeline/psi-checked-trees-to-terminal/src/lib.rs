@@ -71,6 +71,10 @@ enum LoweredDirectExpression {
         position: usize,
         scalar_type: ScalarType,
     },
+    Local {
+        position: usize,
+        scalar_type: ScalarType,
+    },
     IntegerLiteral {
         value: IntegerValue,
         scalar_type: ScalarType,
@@ -102,6 +106,7 @@ impl LoweredDirectExpression {
     const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Parameter { scalar_type, .. }
+            | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
             | Self::IntegerBitwiseNot { scalar_type, .. }
@@ -118,6 +123,9 @@ enum LoweredBooleanReturnExpression {
         value: bool,
     },
     Parameter {
+        position: usize,
+    },
+    Local {
         position: usize,
     },
     Not {
@@ -231,6 +239,7 @@ struct LoweredCrashExit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredScalarBranchState {
     parameter_types: Vec<ScalarType>,
+    bindings: Vec<LoweredDirectExpression>,
     terminator: LoweredScalarBranchTerminator,
 }
 
@@ -1581,13 +1590,17 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
     let mut return_values = Vec::new();
     let mut reachable_crash = false;
     for state_index in topological_order {
-        let Some(parameters) = known_parameters[state_index].clone() else {
+        let Some(mut values) = known_parameters[state_index].clone() else {
             continue;
         };
+        for binding in &states[state_index].bindings {
+            let value = evaluate_direct_expression(binding, &values);
+            values.push(value);
+        }
         let evaluate_arguments = |arguments: &[LoweredDirectExpression]| {
             arguments
                 .iter()
-                .map(|argument| evaluate_direct_expression(argument, &parameters))
+                .map(|argument| evaluate_direct_expression(argument, &values))
                 .collect::<Vec<_>>()
         };
         match &states[state_index].terminator {
@@ -1603,7 +1616,7 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
                 when_true_arguments,
                 when_false_target,
                 when_false_arguments,
-            } => match evaluate_compile_known_boolean_expression(condition, &parameters) {
+            } => match evaluate_compile_known_boolean_expression(condition, &values) {
                 Some(true) => merge_known_parameters(
                     &mut known_parameters[*when_true_target],
                     evaluate_arguments(when_true_arguments),
@@ -1624,7 +1637,7 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
                 }
             },
             LoweredScalarBranchTerminator::Return { expression } => {
-                return_values.push(evaluate_direct_expression(expression, &parameters));
+                return_values.push(evaluate_direct_expression(expression, &values));
             }
             LoweredScalarBranchTerminator::Crash(_) => reachable_crash = true,
         }
@@ -1666,6 +1679,30 @@ fn lower_scalar_graph_machine(
             .copied()
             .map(terminal_scalar_type)
             .collect::<Result<Vec<_>, _>>()?;
+        let mut value_types = parameter_types.clone();
+        let mut bindings = Vec::with_capacity(state.bindings.len());
+        for (binding_index, binding) in state.bindings.iter().enumerate() {
+            let binding_ordinal = u32::try_from(binding_index)
+                .map_err(|_| LoweringError::Unsupported("scalar local count exceeds u32"))?;
+            let expression = lower_checked_scalar_expression_at(
+                checked,
+                state.state,
+                binding.statement_ordinal,
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+            )?;
+            let binding_type = terminal_scalar_type(binding.primitive_type)?;
+            if expression.scalar_type() != binding_type {
+                return unsupported("checked scalar local initializer type must match its binding");
+            }
+            validate_direct_parameter_types(&expression, &value_types)?;
+            if direct_expression_contains_short_circuit(&expression) {
+                return unsupported(
+                    "short-circuit Boolean local initialization needs explicit terminal control",
+                );
+            }
+            bindings.push(expression);
+            value_types.push(binding_type);
+        }
         let terminator = match &state.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
                 let expression = lower_checked_scalar_expression_at(
@@ -1677,6 +1714,7 @@ fn lower_scalar_graph_machine(
                 if expression.scalar_type() != result_type {
                     return unsupported("checked scalar return type must match the machine result");
                 }
+                validate_direct_parameter_types(&expression, &value_types)?;
                 LoweredScalarBranchTerminator::Return { expression }
             }
             CheckedScalarStateTerminator::Crash { statement_ordinal } => {
@@ -1706,12 +1744,22 @@ fn lower_scalar_graph_machine(
                 };
                 let condition = *condition;
                 validate_short_circuit_expression(&condition)?;
-                validate_boolean_parameter_types(&condition, &parameter_types)?;
+                validate_boolean_parameter_types(&condition, &value_types)?;
 
-                let (when_true_target, when_true_arguments) =
-                    lower_scalar_graph_successor(checked, states, state.state, when_true)?;
-                let (when_false_target, when_false_arguments) =
-                    lower_scalar_graph_successor(checked, states, state.state, when_false)?;
+                let (when_true_target, when_true_arguments) = lower_scalar_graph_successor(
+                    checked,
+                    states,
+                    state.state,
+                    &value_types,
+                    when_true,
+                )?;
+                let (when_false_target, when_false_arguments) = lower_scalar_graph_successor(
+                    checked,
+                    states,
+                    state.state,
+                    &value_types,
+                    when_false,
+                )?;
                 successors[state_index] = vec![when_true_target, when_false_target];
                 indegree[when_true_target] = indegree[when_true_target]
                     .checked_add(1)
@@ -1728,8 +1776,13 @@ fn lower_scalar_graph_machine(
                 }
             }
             CheckedScalarStateTerminator::Jump(successor) => {
-                let (target, arguments) =
-                    lower_scalar_graph_successor(checked, states, state.state, successor)?;
+                let (target, arguments) = lower_scalar_graph_successor(
+                    checked,
+                    states,
+                    state.state,
+                    &value_types,
+                    successor,
+                )?;
                 successors[state_index] = vec![target];
                 indegree[target] = indegree[target]
                     .checked_add(1)
@@ -1739,6 +1792,7 @@ fn lower_scalar_graph_machine(
         };
         lowered_states.push(LoweredScalarBranchState {
             parameter_types,
+            bindings,
             terminator,
         });
     }
@@ -1796,6 +1850,7 @@ fn lower_scalar_graph_successor(
     checked: &CheckedTrees,
     states: &[psi_checked_trees::CheckedScalarStateGraph],
     source_state: psi_symbols::SymbolHandle,
+    source_value_types: &[ScalarType],
     successor: &CheckedScalarSuccessor,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     let target = states
@@ -1820,6 +1875,7 @@ fn lower_scalar_graph_successor(
                 successor.statement_ordinal,
                 CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
             )?;
+            validate_direct_parameter_types(&expression, source_value_types)?;
             (expression.scalar_type() == target_type)
                 .then_some(expression)
                 .ok_or(LoweringError::Unsupported(
@@ -1855,6 +1911,13 @@ fn lower_checked_scalar_expression(
             position,
             primitive_type,
         } => Ok(LoweredDirectExpression::Parameter {
+            position: *position,
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+        }),
+        CheckedScalarExpression::Local {
+            position,
+            primitive_type,
+        } => Ok(LoweredDirectExpression::Local {
             position: *position,
             scalar_type: terminal_scalar_type(*primitive_type)?,
         }),
@@ -1965,6 +2028,9 @@ fn lower_checked_boolean_expression(
                 position: *position,
             }
         }
+        CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {
+            position: *position,
+        },
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(lower_checked_boolean_expression(operand)?),
         },
@@ -2004,7 +2070,8 @@ fn validate_boolean_parameter_types(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
-        LoweredBooleanReturnExpression::Parameter { position } => {
+        LoweredBooleanReturnExpression::Parameter { position }
+        | LoweredBooleanReturnExpression::Local { position } => {
             if parameter_types.get(*position) == Some(&ScalarType::Boolean) {
                 Ok(())
             } else {
@@ -2033,6 +2100,10 @@ fn validate_direct_parameter_types(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredDirectExpression::Parameter {
+            position,
+            scalar_type,
+        }
+        | LoweredDirectExpression::Local {
             position,
             scalar_type,
         } => {
@@ -2087,6 +2158,7 @@ fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => false,
         LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
         LoweredBooleanReturnExpression::Equal { left, right } => {
@@ -2112,6 +2184,7 @@ fn validate_short_circuit_expression(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => Ok(()),
         LoweredBooleanReturnExpression::Not { operand } => {
             validate_short_circuit_expression(operand)
@@ -2139,7 +2212,8 @@ fn evaluate_direct_expression(
     parameters: &[Option<KnownDirectScalar>],
 ) -> Option<KnownDirectScalar> {
     match expression {
-        LoweredDirectExpression::Parameter { position, .. } => {
+        LoweredDirectExpression::Parameter { position, .. }
+        | LoweredDirectExpression::Local { position, .. } => {
             parameters.get(*position).copied().flatten()
         }
         LoweredDirectExpression::IntegerLiteral { value, .. } => {
@@ -2297,7 +2371,8 @@ fn evaluate_compile_known_boolean_expression(
 ) -> Option<bool> {
     match expression {
         LoweredBooleanReturnExpression::Constant { value } => Some(*value),
-        LoweredBooleanReturnExpression::Parameter { position } => {
+        LoweredBooleanReturnExpression::Parameter { position }
+        | LoweredBooleanReturnExpression::Local { position } => {
             let KnownDirectScalar::Boolean(value) = parameters.get(*position).copied().flatten()?
             else {
                 return None;
@@ -2661,6 +2736,7 @@ fn lower_boolean_value_decision(
         }
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => {
             unreachable!("non-short-circuit expressions return above")
         }
@@ -3116,11 +3192,13 @@ fn build_scalar_conditional_target(
     let direct_arguments = arguments
         .iter()
         .map(|argument| match argument {
-            LoweredDirectExpression::Parameter { position, .. } => {
+            LoweredDirectExpression::Parameter { position, .. }
+            | LoweredDirectExpression::Local { position, .. } => {
                 Some(current_parameters[*position].id)
             }
             LoweredDirectExpression::Boolean { expression } => match expression.as_ref() {
-                LoweredBooleanReturnExpression::Parameter { position } => {
+                LoweredBooleanReturnExpression::Parameter { position }
+                | LoweredBooleanReturnExpression::Local { position } => {
                     Some(current_parameters[*position].id)
                 }
                 _ => None,
@@ -3318,6 +3396,22 @@ fn build_scalar_graph_module(
         } else {
             current_parameters.clone()
         };
+        let mut current_values = current_parameters.clone();
+        let mut current_value_types = state.parameter_types.clone();
+        for binding in &state.bindings {
+            let id = emit_direct_expression(
+                binding,
+                &current_values,
+                &mut next_value_identity,
+                &mut all_operations,
+            );
+            current_values.push(ValueDeclaration {
+                id,
+                scalar_type: binding.scalar_type(),
+            });
+            current_value_types.push(binding.scalar_type());
+        }
+        let terminator_operation_start = all_operations.len();
         let terminator = match &state.terminator {
             LoweredScalarBranchTerminator::Jump { target, arguments } => {
                 if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
@@ -3340,7 +3434,7 @@ fn build_scalar_graph_module(
                     );
                     let (root, children) = emit_inlined_boolean_value_blocks(
                         &decision,
-                        current_parameters,
+                        &current_values,
                         source_block_parameters,
                         LoweredBooleanDecisionExit::Jump { target },
                         source_block,
@@ -3348,6 +3442,13 @@ fn build_scalar_graph_module(
                         &mut next_value_identity,
                         &mut next_edge_identity,
                         &mut all_operations,
+                    );
+                    let mut root = root;
+                    root.operations.splice(
+                        0..0,
+                        all_operations[operation_start..terminator_operation_start]
+                            .iter()
+                            .cloned(),
                     );
                     blocks.push(root);
                     inlined_blocks.extend(children);
@@ -3359,8 +3460,8 @@ fn build_scalar_graph_module(
                     let target = build_scalar_conditional_target(
                         *target,
                         arguments,
-                        current_parameters,
-                        &state.parameter_types,
+                        &current_values,
+                        &current_value_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
@@ -3380,7 +3481,7 @@ fn build_scalar_graph_module(
                         .map(|argument| {
                             emit_direct_expression(
                                 argument,
-                                current_parameters,
+                                &current_values,
                                 &mut next_value_identity,
                                 &mut all_operations,
                             )
@@ -3431,8 +3532,8 @@ fn build_scalar_graph_module(
                     let when_true = build_scalar_conditional_target(
                         *when_true_target,
                         when_true_arguments,
-                        current_parameters,
-                        &state.parameter_types,
+                        &current_values,
+                        &current_value_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
@@ -3440,15 +3541,15 @@ fn build_scalar_graph_module(
                     let when_false = build_scalar_conditional_target(
                         *when_false_target,
                         when_false_arguments,
-                        current_parameters,
-                        &state.parameter_types,
+                        &current_values,
+                        &current_value_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
                     );
                     let (root, children) = emit_inlined_boolean_guard_blocks(
                         &decision,
-                        current_parameters,
+                        &current_values,
                         source_block_parameters,
                         &when_true,
                         &when_false,
@@ -3458,13 +3559,20 @@ fn build_scalar_graph_module(
                         &mut next_edge_identity,
                         &mut all_operations,
                     );
+                    let mut root = root;
+                    root.operations.splice(
+                        0..0,
+                        all_operations[operation_start..terminator_operation_start]
+                            .iter()
+                            .cloned(),
+                    );
                     blocks.push(root);
                     inlined_blocks.extend(children);
                     continue;
                 } else {
                     let condition = emit_boolean_expression(
                         condition,
-                        current_parameters,
+                        &current_values,
                         &mut next_value_identity,
                         &mut all_operations,
                     );
@@ -3479,8 +3587,8 @@ fn build_scalar_graph_module(
                     let when_true = build_scalar_conditional_target(
                         *when_true_target,
                         when_true_arguments,
-                        current_parameters,
-                        &state.parameter_types,
+                        &current_values,
+                        &current_value_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
@@ -3488,8 +3596,8 @@ fn build_scalar_graph_module(
                     let when_false = build_scalar_conditional_target(
                         *when_false_target,
                         when_false_arguments,
-                        current_parameters,
-                        &state.parameter_types,
+                        &current_values,
+                        &current_value_types,
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
@@ -3524,7 +3632,7 @@ fn build_scalar_graph_module(
                         .expect("scalar return block identities advance");
                     let (root, children) = emit_inlined_boolean_value_blocks(
                         &decision,
-                        current_parameters,
+                        &current_values,
                         source_block_parameters,
                         LoweredBooleanDecisionExit::Return,
                         source_block,
@@ -3533,13 +3641,20 @@ fn build_scalar_graph_module(
                         &mut next_edge_identity,
                         &mut all_operations,
                     );
+                    let mut root = root;
+                    root.operations.splice(
+                        0..0,
+                        all_operations[operation_start..terminator_operation_start]
+                            .iter()
+                            .cloned(),
+                    );
                     blocks.push(root);
                     inlined_blocks.extend(children);
                     continue;
                 } else {
                     let value = emit_direct_expression(
                         expression,
-                        current_parameters,
+                        &current_values,
                         &mut next_value_identity,
                         &mut all_operations,
                     );
@@ -3891,7 +4006,8 @@ fn emit_boolean_expression(
             });
             id
         }
-        LoweredBooleanReturnExpression::Parameter { position } => parameters[*position].id,
+        LoweredBooleanReturnExpression::Parameter { position }
+        | LoweredBooleanReturnExpression::Local { position } => parameters[*position].id,
         LoweredBooleanReturnExpression::Not { operand } => {
             let operand =
                 emit_boolean_expression(operand, parameters, next_value_identity, operations);
@@ -3949,7 +4065,8 @@ fn emit_direct_expression(
     operations: &mut Vec<Operation>,
 ) -> ValueId {
     match expression {
-        LoweredDirectExpression::Parameter { position, .. } => parameters[*position].id,
+        LoweredDirectExpression::Parameter { position, .. }
+        | LoweredDirectExpression::Local { position, .. } => parameters[*position].id,
         LoweredDirectExpression::IntegerLiteral { value, scalar_type } => {
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity

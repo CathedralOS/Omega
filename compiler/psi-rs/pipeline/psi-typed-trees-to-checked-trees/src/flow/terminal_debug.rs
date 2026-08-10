@@ -123,6 +123,9 @@ fn source_operation_spans(
             StatementNode::Expression(expression) => {
                 collect_source_operation_spans(program, *expression, &mut spans);
             }
+            StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                collect_source_operation_spans(program, local.initial_value, &mut spans);
+            }
             StatementNode::Transition(transition) => {
                 if let TransitionGuardNode::When(guard) = transition.guard {
                     collect_source_operation_spans(program, guard, &mut spans);

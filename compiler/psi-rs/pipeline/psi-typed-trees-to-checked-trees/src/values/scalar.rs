@@ -16,6 +16,14 @@ use psi_typed_trees::{
     types::PrimitiveType,
 };
 
+#[derive(Debug, Clone)]
+struct ScalarLocal {
+    symbol: psi_symbols::SymbolHandle,
+    name: String,
+    primitive_type: PrimitiveType,
+    arithmetic_domain: ArithmeticDomain,
+}
+
 pub(crate) fn build_checked_scalar_expression_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -25,6 +33,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
+            let mut locals = Vec::new();
             let parameters = program.state_parameters(state);
             let Some(parameter_types) = parameters
                 .iter()
@@ -46,6 +55,46 @@ pub(crate) fn build_checked_scalar_expression_plans(
                     continue;
                 };
                 match statement {
+                    StatementNode::LocalData(local)
+                        if !local.is_mutable && local.initial_value.is_valid() =>
+                    {
+                        let Some(primitive_type) =
+                            program.primitive_type_reference(local.type_reference)
+                        else {
+                            continue;
+                        };
+                        let binding_ordinal = u32::try_from(locals.len()).ok();
+                        let initializer = lower_return_expression(
+                            program,
+                            operators,
+                            local.initial_value,
+                            parameters,
+                            &parameter_types,
+                            &locals,
+                            primitive_type,
+                            exact_integer_casts,
+                        );
+                        if let (Some(binding_ordinal), Some(initializer)) =
+                            (binding_ordinal, initializer)
+                            && !direct_expression_contains_short_circuit(&initializer)
+                        {
+                            expressions.push(CheckedLocatedScalarExpression {
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::LocalInitializer {
+                                    binding_ordinal,
+                                },
+                                expression: initializer,
+                            });
+                        }
+                        locals.push(ScalarLocal {
+                            symbol: local.symbol,
+                            name: local.name.as_str().to_owned(),
+                            primitive_type,
+                            arithmetic_domain: program
+                                .arithmetic_domain_for_type_reference(local.type_reference),
+                        });
+                    }
                     StatementNode::Expression(expression) => {
                         if let Some(expression) = lower_return_expression(
                             program,
@@ -53,6 +102,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             *expression,
                             parameters,
                             &parameter_types,
+                            &locals,
                             result_type,
                             exact_integer_casts,
                         ) {
@@ -72,6 +122,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 guard,
                                 parameters,
                                 &parameter_types,
+                                &locals,
                                 exact_integer_casts,
                             )
                         {
@@ -112,6 +163,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 *argument,
                                 parameters,
                                 &parameter_types,
+                                &locals,
                                 target_type,
                                 exact_integer_casts,
                             ) else {
@@ -144,6 +196,7 @@ fn lower_return_expression(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
     result_type: PrimitiveType,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
@@ -154,6 +207,7 @@ fn lower_return_expression(
             expression,
             parameters,
             parameter_types,
+            locals,
             exact_integer_casts,
         )
         .map(|expression| CheckedScalarExpression::Boolean(Box::new(expression)));
@@ -164,6 +218,7 @@ fn lower_return_expression(
         expression,
         parameters,
         parameter_types,
+        locals,
         exact_integer_casts,
     )?;
     (scalar_expression_type(&expression)? == result_type).then_some(expression)
@@ -175,17 +230,29 @@ fn lower_scalar_expression(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            let position = parameter_position(program, path, parameters)?;
+            if let Some(position) = parameter_position(program, path, parameters) {
+                return Some((
+                    CheckedScalarExpression::Parameter {
+                        position,
+                        primitive_type: parameter_types[position],
+                    },
+                    program
+                        .arithmetic_domain_for_type_reference(parameters[position].type_reference),
+                ));
+            }
+            let local_position = local_position(program, expression, path, locals)?;
+            let position = parameters.len().checked_add(local_position)?;
             Some((
-                CheckedScalarExpression::Parameter {
+                CheckedScalarExpression::Local {
                     position,
-                    primitive_type: parameter_types[position],
+                    primitive_type: locals[local_position].primitive_type,
                 },
-                program.arithmetic_domain_for_type_reference(parameters[position].type_reference),
+                locals[local_position].arithmetic_domain,
             ))
         }
         ExpressionNode::Integer(literal) => Some((
@@ -208,6 +275,7 @@ fn lower_scalar_expression(
                 cast.value,
                 parameters,
                 parameter_types,
+                locals,
                 exact_integer_casts,
             )?;
             let source_type = scalar_expression_type(&operand)?;
@@ -273,6 +341,7 @@ fn lower_scalar_expression(
                 unary.operand,
                 parameters,
                 parameter_types,
+                locals,
                 exact_integer_casts,
             )?;
             let primitive_type = scalar_expression_type(&operand)?;
@@ -291,6 +360,7 @@ fn lower_scalar_expression(
                 binary.left,
                 parameters,
                 parameter_types,
+                locals,
                 exact_integer_casts,
             )?;
             let (right, right_domain) = lower_scalar_expression(
@@ -299,6 +369,7 @@ fn lower_scalar_expression(
                 binary.right,
                 parameters,
                 parameter_types,
+                locals,
                 exact_integer_casts,
             )?;
             let shift = matches!(
@@ -428,14 +499,20 @@ fn lower_boolean_expression(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
         ExpressionNode::Name(path) => {
-            let position = parameter_position(program, path, parameters)?;
-            (parameter_types[position] == PrimitiveType::Bool)
-                .then_some(CheckedBooleanExpression::Parameter { position })
+            if let Some(position) = parameter_position(program, path, parameters) {
+                return (parameter_types[position] == PrimitiveType::Bool)
+                    .then_some(CheckedBooleanExpression::Parameter { position });
+            }
+            let local_position = local_position(program, expression, path, locals)?;
+            let position = parameters.len().checked_add(local_position)?;
+            (locals[local_position].primitive_type == PrimitiveType::Bool)
+                .then_some(CheckedBooleanExpression::Local { position })
         }
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::LogicalNot
@@ -448,6 +525,7 @@ fn lower_boolean_expression(
                     unary.operand,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 )?,
             )))
@@ -470,6 +548,7 @@ fn lower_boolean_expression(
                     binary.left,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 )?;
                 let (right, _) = lower_scalar_expression(
@@ -478,6 +557,7 @@ fn lower_boolean_expression(
                     binary.right,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 )?;
                 let left_type = scalar_expression_type(&left)?;
@@ -525,6 +605,7 @@ fn lower_boolean_expression(
                     binary.left,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 )?),
                 right: Box::new(lower_boolean_expression(
@@ -533,6 +614,7 @@ fn lower_boolean_expression(
                     binary.right,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 )?),
             };
@@ -552,6 +634,7 @@ fn lower_boolean_expression(
                 binary.left,
                 parameters,
                 parameter_types,
+                locals,
                 exact_integer_casts,
             )?);
             let right = Box::new(lower_boolean_expression(
@@ -560,6 +643,7 @@ fn lower_boolean_expression(
                 binary.right,
                 parameters,
                 parameter_types,
+                locals,
                 exact_integer_casts,
             )?);
             Some(if binary.operator == BinaryOperator::And {
@@ -578,6 +662,7 @@ fn lower_positive_boolean_guard(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -587,6 +672,7 @@ fn lower_positive_boolean_guard(
             expression,
             parameters,
             parameter_types,
+            locals,
             exact_integer_casts,
         );
     };
@@ -602,6 +688,7 @@ fn lower_positive_boolean_guard(
                     binary.right,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 );
             }
@@ -612,6 +699,7 @@ fn lower_positive_boolean_guard(
                     binary.left,
                     parameters,
                     parameter_types,
+                    locals,
                     exact_integer_casts,
                 );
             }
@@ -624,6 +712,7 @@ fn lower_positive_boolean_guard(
         expression,
         parameters,
         parameter_types,
+        locals,
         exact_integer_casts,
     )?;
     (is_integer_comparison(&guard) || contains_short_circuit(&guard)).then_some(guard)
@@ -647,9 +736,31 @@ fn parameter_position(
         .flatten()
 }
 
+fn local_position(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    path: &psi_typed_trees::expression::TableNamePath,
+    locals: &[ScalarLocal],
+) -> Option<usize> {
+    (program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        == 1)
+        .then(|| {
+            locals.iter().rposition(|local| {
+                (path.symbol.is_valid() && local.symbol == path.symbol)
+                    || (path.head_symbol.is_valid() && local.symbol == path.head_symbol)
+                    || local.name == program.expression_table.display_name(expression)
+            })
+        })
+        .flatten()
+}
+
 fn scalar_expression_type(expression: &CheckedScalarExpression) -> Option<PrimitiveType> {
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
+        | CheckedScalarExpression::Local { primitive_type, .. }
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
         | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
         | CheckedScalarExpression::IntegerWiden { primitive_type, .. }
@@ -800,6 +911,7 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
     match expression {
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::IntegerComparison { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {
@@ -807,6 +919,13 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => true,
     }
+}
+
+fn direct_expression_contains_short_circuit(expression: &CheckedScalarExpression) -> bool {
+    matches!(
+        expression,
+        CheckedScalarExpression::Boolean(expression) if contains_short_circuit(expression)
+    )
 }
 
 fn is_integer_comparison(expression: &CheckedBooleanExpression) -> bool {
