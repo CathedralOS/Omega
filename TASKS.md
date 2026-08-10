@@ -155,7 +155,8 @@ Remaining:
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
   ordinary calls remain contract applications. Normalization cites exact
-  conformance/law evidence and preserves transitive trust.
+  conformance/law evidence and preserves transitive trust. Thread recursive
+  components and cited laws through the accepted trust record and synopsis.
 
   Acceptance: perturbing any recursive edge decrease, component
   well-foundedness reference, normalized-law identity, or cited premise
