@@ -1364,12 +1364,62 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
 }
 
 #[test]
-fn checked_source_staged_local_short_circuit_guard_fails_closed() {
+fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("staged-local short-circuit-guard source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_short_circuit_local_guard")
+        .expect("a staged local should compose with short-circuit terminal guard control");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("staged-local short-circuit-guard terminal Psi should encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("staged-local short-circuit-guard proof should encode");
+    let semantic = decode_module(&semantic)
+        .expect("staged-local short-circuit-guard terminal Psi should decode");
+    let proof =
+        decode_proof_bundle(&proof).expect("staged-local short-circuit-guard proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("staged-local short-circuit-guard terminal Psi should verify");
+
+    for (first, second, expected, expected_units) in [
+        (false, false, false, 8_u64),
+        (false, true, false, 8),
+        (true, false, true, 9),
+        (true, true, true, 8),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+        )
+        .expect("staged-local short-circuit guard should execute");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified staged-local short-circuit guard should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("staged-local short-circuit guard should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("staged-local short-circuit guard should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("staged-local short-circuit guard should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_staged_local_crash_fails_closed() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("staged-local crash source canary should compile");
     assert_eq!(
-        lower_machine(&checked, "terminal_short_circuit_local_guard")
-            .expect_err("a staged local plus short-circuit guard needs nested control"),
+        lower_machine(&checked, "terminal_short_circuit_local_crash")
+            .expect_err("a staged local before a crash needs terminal sequencing"),
         LoweringError::Unsupported(
             "short-circuit scalar locals outside a staged terminator need terminal control"
         )
