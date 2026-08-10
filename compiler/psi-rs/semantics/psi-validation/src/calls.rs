@@ -1529,11 +1529,12 @@ fn summarize_transition_target_written_paths(
 }
 
 /// A named edge closing a state cycle is frame-equivalent to a bare `self`
-/// edge only when every target parameter is fed by the source parameter at
-/// that same ordinal. Parameter symbols are state-local, so a multi-state
-/// cycle deliberately compares the argument to the source namespace rather
-/// than requiring the target's distinct symbol. Any projection, computation,
-/// omission, reordering, or rebinding keeps the cycle opaque.
+/// edge when every parameter capable of carrying caller-visible writes is fed
+/// by the source parameter at that same ordinal. Reordering primitive values
+/// and shared references cannot redirect a write and therefore does not make
+/// an otherwise finite frame opaque. Parameter symbols are state-local, so a
+/// multi-state cycle compares each write-capable argument to the source
+/// namespace rather than requiring the target's distinct symbol.
 fn named_transition_preserves_state_namespace(
     program: &TypedTrees,
     source_state: &State,
@@ -1554,10 +1555,41 @@ fn named_transition_preserves_state_namespace(
         && target_parameters.len() == arguments.len()
         && source_parameters
             .into_iter()
+            .zip(target_parameters)
             .zip(arguments.iter().copied())
-            .all(|(parameter, argument)| {
-                expression_forwards_exact_symbol(program, argument, parameter.symbol)
+            .all(|((source, target), argument)| {
+                !(parameter_may_carry_write(program, source)
+                    || parameter_may_carry_write(program, target))
+                    || expression_forwards_exact_symbol(program, argument, source.symbol)
             })
+}
+
+fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateParameter) -> bool {
+    fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+        if program.primitive_type_reference(handle).is_some() {
+            return false;
+        }
+
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference {
+                is_mutable: false, ..
+            } => false,
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                type_may_carry_write(program, *base_type)
+            }
+            TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
+            TypeReferenceNode::Reference {
+                is_mutable: true, ..
+            }
+            | TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::DynamicTrait { .. } => true,
+        }
+    }
+
+    type_may_carry_write(program, parameter.type_reference)
 }
 
 fn expression_forwards_exact_symbol(

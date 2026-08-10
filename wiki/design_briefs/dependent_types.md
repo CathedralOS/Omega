@@ -311,8 +311,10 @@ ceiling formed by the receiver and every place-shaped argument that could be
 exclusive; a place that cannot be represented still makes the frame opaque.
 Body-derived frames remain
 implementation evidence outside public contract/specialization identity.
-Rebinding cycles retain only that coarse ownership ceiling; `TASKS.md` R5 owns
-broader relational candidates and frame precision.
+Cycles may freely reorder primitive values and shared references because those
+parameters cannot redirect caller-visible writes. Rebinding a write-capable
+parameter retains only the coarse ownership ceiling; `TASKS.md` R5 owns broader
+relational candidates and frame precision.
 
 ## 6. Dynamic lowering — the runtime half
 
