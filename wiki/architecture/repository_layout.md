@@ -47,8 +47,8 @@ current packages.
 > operator-spelling, and inline-assembly aliases are retired; consumers use
 > their Psi owners directly. The unused generic trust grant/receipt carrier is
 > also retired; concrete semantic commitments keep their identities and
-> receipts with their admission consumers. Remaining high-fanout `omega-core` module
-> re-exports are a separate incremental foundation migration. The
+> receipts with their admission consumers. `omega-core` now contains only
+> Omega execution/build utilities. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
 > `compiler/` also holds the bootstrap lattice rungs documented in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
@@ -99,7 +99,7 @@ Omega/
 |   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |
 |   |-- foundation/
-|   |   `-- [CRATE] omega-core/                         # Omega execution/build utilities plus transitional high-fanout aliases.
+|   |   `-- [CRATE] omega-core/                         # Omega execution/build utilities.
 |   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings, selection, and admission.
@@ -229,9 +229,9 @@ Omega/
 ### Source And Packages
 
 - `foundation/` stays dependency-light. If it needs semantic or target details,
-  it is in the wrong layer. `omega-core` now retains Omega execution/build
-  utilities plus transitional high-fanout aliases; source/span and the retired
-  low-fanout semantic aliases live only in their Psi owners.
+  it is in the wrong layer. `omega-core` retains only Omega execution/build
+  utilities; source/span and target-neutral semantic foundations live in their
+  Psi owners.
 - Source-preserving syntax data belongs in `representations/`; source-to-syntax
   transforms belong in `pipeline/`.
 - Package manifests, package graphs, and loading are placement intent for a
