@@ -2554,7 +2554,7 @@ pub(super) fn select_entry_argument_register_writes(
         .machines()
         .iter()
         .find(|machine| machine.symbol == input.entry_key.machine)
-        .is_some_and(|machine| machine.boundary);
+        .is_some_and(|machine| machine.supply_mode.is_boundary_declaration());
     if entry_is_boundary
         && CallingPolicy::native_for_target(input.target) == CallingPolicy::MicrosoftX64
         && let [(byte_offset, byte_size, shape)] = parameter_slots.as_slice()
@@ -2990,7 +2990,7 @@ fn entry_slot_value_shape(
         .machines()
         .iter()
         .find(|machine| machine.symbol == input.entry_key.machine)
-        .is_some_and(|machine| machine.boundary);
+        .is_some_and(|machine| machine.supply_mode.is_boundary_declaration());
     if byte_size <= 8
         || policy == CallingPolicy::Aapcs64
         || policy == CallingPolicy::MicrosoftX64

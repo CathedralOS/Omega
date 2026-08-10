@@ -12,12 +12,9 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub attached_data: Option<DiagnosticName>,
-    pub boundary: bool,
-    /// STR3: the first-class supply mode (`boundary: bool` is the
-    /// compatibility flag until STR7 retires it). Populated at the
-    /// syntax->resolved lowering, copied -- never re-derived -- downstream.
-    /// Requirement/Accepted gain their own sources when their spellings
-    /// reach this record.
+    /// Populated once at syntax-to-resolved lowering and copied downstream;
+    /// semantic consumers must not reconstruct supply from source spelling or
+    /// body presence.
     pub supply_mode: psi_language_semantics::MachineSupplyMode,
     /// TPR2 (decision 23): the normalized termination plan -- the authored
     /// PUBLIC guarantee and the PRIVATE ranking witness as separate fields.

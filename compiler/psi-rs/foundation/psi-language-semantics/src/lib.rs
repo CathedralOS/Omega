@@ -102,10 +102,9 @@ pub enum PermissionClaimIdentity {
     },
 }
 
-/// How a machine is supplied to its consumers (record §Machines). The old
-/// `boundary: bool` conflates all four; provider admission, proof
-/// artifacts, manifests, and lowering must consume THIS, not re-derive
-/// supply from syntax and lookup context.
+/// How a machine is supplied to its consumers (record §Machines). Provider
+/// admission, proof artifacts, manifests, and lowering consume this directly;
+/// resolved and typed trees do not retain a parallel source-spelling flag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MachineSupplyMode {
     /// An ordinary checked body compiled in this program (the ZII default).
@@ -126,6 +125,19 @@ pub enum MachineSupplyMode {
     /// realization the lowering consumes. Composite lowerings are ordinary
     /// CheckedBody machines and never carry a binding.
     ExternalRealization { binding: ExternalBindingId },
+}
+
+impl MachineSupplyMode {
+    pub const fn is_checked_body(self) -> bool {
+        matches!(self, Self::CheckedBody)
+    }
+
+    /// Whether the source declaration uses the boundary seam. Accepted
+    /// declarations are a distinct trust tier but share that source-facing
+    /// entry/storage shape.
+    pub const fn is_boundary_declaration(self) -> bool {
+        matches!(self, Self::Boundary | Self::Accepted)
+    }
 }
 
 /// Decision 23's PUBLIC half: the termination guarantee that
@@ -842,6 +854,26 @@ mod tests {
         // Ordinary data defaults to Affine (the record's mapping); `[copy]`
         // opts into Unrestricted, `[linear]` into Linear.
         assert_eq!(Multiplicity::default(), Multiplicity::Affine);
+    }
+
+    #[test]
+    fn machine_supply_queries_keep_checked_and_boundary_tiers_distinct() {
+        assert!(MachineSupplyMode::CheckedBody.is_checked_body());
+        assert!(!MachineSupplyMode::CheckedBody.is_boundary_declaration());
+
+        assert!(MachineSupplyMode::Boundary.is_boundary_declaration());
+        assert!(MachineSupplyMode::Accepted.is_boundary_declaration());
+        assert!(!MachineSupplyMode::Accepted.is_checked_body());
+
+        for mode in [
+            MachineSupplyMode::Requirement,
+            MachineSupplyMode::ExternalRealization {
+                binding: ExternalBindingId(1),
+            },
+        ] {
+            assert!(!mode.is_checked_body());
+            assert!(!mode.is_boundary_declaration());
+        }
     }
 
     #[test]

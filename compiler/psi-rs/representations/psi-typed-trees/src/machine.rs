@@ -11,12 +11,8 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
-    pub boundary: bool,
-    /// STR3: the first-class supply mode (`boundary: bool` is the
-    /// compatibility flag until STR7 retires it). Populated at the
-    /// syntax->resolved lowering, copied -- never re-derived -- downstream.
-    /// Requirement/Accepted gain their own sources when their spellings
-    /// reach this record.
+    /// Copied from symbol-resolved trees; semantic consumers must not
+    /// reconstruct supply from source spelling or body presence.
     pub supply_mode: psi_language_semantics::MachineSupplyMode,
     /// TPR2 (decision 23): the normalized termination plan (published
     /// guarantee vs private ranking witness), populated ONCE at the
@@ -52,7 +48,6 @@ impl Default for Machine {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             attached_data: None,
-            boundary: false,
             supply_mode: psi_language_semantics::MachineSupplyMode::CheckedBody,
             termination_plan: psi_language_semantics::MachineTerminationPlan::default(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,

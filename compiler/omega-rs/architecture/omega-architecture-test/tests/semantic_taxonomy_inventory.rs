@@ -80,11 +80,9 @@ fn machine_record_carries_one_public_termination_interface() {
             symbol: _,
             name: _,
             attached_data: _,
-            boundary: _, // the compatibility bool (STR7 retires it)
-            // STR3 slice 2 (2026-07-16): the first-class supply mode landed,
-            // populated once at the syntax->resolved lowering (Boundary |
-            // CheckedBody today; Requirement/Accepted when their spellings
-            // reach the record) and copied downstream.
+            // STR7: the first-class supply mode is populated once at the
+            // syntax-to-resolved boundary and copied downstream. There is no
+            // parallel source-spelling boolean on semantic machine records.
             supply_mode: _,
             // TPR2 (2026-07-16): the normalized guarantee/witness split.
             termination_plan: _,

@@ -2473,11 +2473,9 @@ fn resolve_runtime_pointee_indexed_target_from_path(
         pointee_descriptor,
         omega_layout::TypeLayoutDescriptor::Named { .. }
     ) && pointee_layout.size <= input.runtime_abi.pointer_size
-        && !input
-            .program
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == source_key.machine && machine.boundary);
+        && !input.program.machines().iter().any(|machine| {
+            machine.symbol == source_key.machine && machine.supply_mode.is_boundary_declaration()
+        });
     if shared_small_content_spill {
         return None;
     }
@@ -2566,20 +2564,19 @@ fn resolve_runtime_pointee_indexed_stored_integer_projection_in_table(
     if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
         return None;
     }
-    let shared_small_content_spill =
-        matches!(
-            &slot.type_descriptor,
-            TypeLayoutDescriptor::Reference {
-                is_mutable: false,
-                ..
-            }
-        ) && matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
-            && pointee_layout.size <= input.runtime_abi.pointer_size
-            && !input
-                .program
-                .machines()
-                .iter()
-                .any(|machine| machine.symbol == source_key.machine && machine.boundary);
+    let shared_small_content_spill = matches!(
+        &slot.type_descriptor,
+        TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    ) && matches!(
+        pointee_descriptor,
+        TypeLayoutDescriptor::Named { .. }
+    ) && pointee_layout.size <= input.runtime_abi.pointer_size
+        && !input.program.machines().iter().any(|machine| {
+            machine.symbol == source_key.machine && machine.supply_mode.is_boundary_declaration()
+        });
     if shared_small_content_spill {
         return None;
     }
@@ -3587,11 +3584,9 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
             omega_layout::TypeLayoutDescriptor::Named { .. }
         )
         && pointee_layout.size <= input.runtime_abi.pointer_size
-        && !input
-            .program
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == source_key.machine && machine.boundary)
+        && !input.program.machines().iter().any(|machine| {
+            machine.symbol == source_key.machine && machine.supply_mode.is_boundary_declaration()
+        })
     {
         return None;
     }
@@ -3660,11 +3655,9 @@ fn resolve_runtime_pointee_stored_integer_projection_in_table(
     if slot_is_shared_reference
         && matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
         && pointee_layout.size <= input.runtime_abi.pointer_size
-        && !input
-            .program
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == source_key.machine && machine.boundary)
+        && !input.program.machines().iter().any(|machine| {
+            machine.symbol == source_key.machine && machine.supply_mode.is_boundary_declaration()
+        })
     {
         return None;
     }

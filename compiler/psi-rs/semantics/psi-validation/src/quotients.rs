@@ -77,7 +77,7 @@ pub(crate) fn validate_quotients(
         };
         let parameters = program.state_parameters(entry);
         let signature_matches = relation.attached_data.is_none()
-            && !relation.boundary
+            && relation.supply_mode.is_checked_body()
             && parameters.len() == 2
             && parameters.iter().all(|parameter| {
                 base_data_symbol(program, parameter.type_reference) == Some(carrier_symbol)
@@ -164,7 +164,7 @@ fn discover_equivalence_laws(
     let mut laws = EquivalenceLaws::default();
     for proof in program.machines() {
         if proof.symbol == relation.symbol
-            || proof.boundary
+            || !proof.supply_mode.is_checked_body()
             || !authored_behavior_is_empty(program, proof)
         {
             continue;
@@ -361,7 +361,7 @@ pub(crate) fn quotient_lift_candidate<'program>(
         }
     }
 
-    let certified = !operation.boundary
+    let certified = operation.supply_mode.is_checked_body()
         && authored_behavior_is_empty(program, operation)
         && operation_respects_quotient(program, operation, state, quotient);
     Some(QuotientLiftCandidate {
@@ -424,7 +424,7 @@ fn operation_respects_quotient(
         .expect("quotient lift candidate has quotient metadata");
     for proof in program.machines() {
         if proof.symbol == operation.symbol
-            || proof.boundary
+            || !proof.supply_mode.is_checked_body()
             || !authored_behavior_is_empty(program, proof)
         {
             continue;

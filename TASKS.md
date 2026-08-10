@@ -276,9 +276,10 @@ customer-shaped compiler concept is introduced.
   and transitive boundary-wrapper coverage. Preserve facts outside complete
   frames and treat opaque or unrepresentable frames as conservative fences. Do
   not restore an authored `stores` clause.
-- **STR/EFX:** finish independent normalization/publication of service reach,
-  suspension, blocking, termination, mutation, and trust; retire remaining
-  legacy umbrella names after consumers migrate.
+- **STR/EFX:** finish independent normalization/publication beyond the live
+  machine-supply, service-reach, suspension, blocking, termination, mutation,
+  and trust carriers; retire remaining legacy umbrella names after consumers
+  migrate.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows.
