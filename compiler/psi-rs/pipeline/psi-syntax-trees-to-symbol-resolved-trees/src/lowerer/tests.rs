@@ -859,7 +859,7 @@ fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
     trait Policy {
     }
 
-    machine backup() reaches Filesystem + Policy {
+    machine backup() reaches Filesystem {
     }
     "#;
 
@@ -926,6 +926,80 @@ fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
             .service_reach_rows
             .services(inspect.service_reach_row),
         &[readable_id],
+    );
+}
+
+#[test]
+fn rejects_unknown_machine_service_reach_before_resolved_trees() {
+    let source = r#"
+        machine work()
+        reaches MissingService
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("unknown machine service reach must not enter resolved trees");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("machine `work` declares unknown boundary service `MissingService`")
+    );
+}
+
+#[test]
+fn rejects_ordinary_trait_in_machine_service_reach_before_resolved_trees() {
+    let source = r#"
+        trait Policy {
+        }
+
+        machine work()
+        reaches Policy
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("ordinary traits must not enter a service row");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("machine `work` declares unknown boundary service `Policy`")
+    );
+}
+
+#[test]
+fn rejects_authored_service_reach_on_external_realization_before_resolved_trees() {
+    let source = r#"
+        boundary trait Process {
+            machine exit(code: i32)
+            reaches Process;
+        }
+
+        machine exit_leaf(code: i32)
+        satisfies Process::exit
+        via Binding::Syscall(60)
+        reaches Process;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("external realization must derive rather than repeat service reach");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("repeats an authored `reaches` row")
     );
 }
 

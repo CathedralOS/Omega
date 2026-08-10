@@ -510,13 +510,23 @@ fn machine_label(
         attached_data,
         machine.satisfies.len(),
     );
-    let service_reaches = program.machine_service_reaches(machine);
+    let service_reaches = program
+        .service_reach_rows
+        .services(machine.service_reach_row)
+        .iter()
+        .map(|service| {
+            program
+                .service_reaches
+                .definition(*service)
+                .expect("normalized machine service row references a registered service")
+        })
+        .collect::<Vec<_>>();
     if !service_reaches.is_empty() {
         label.push_str("\nreaches: ");
         label.push_str(
             &service_reaches
                 .iter()
-                .map(|service| service.as_str())
+                .map(|service| service.name.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
         );

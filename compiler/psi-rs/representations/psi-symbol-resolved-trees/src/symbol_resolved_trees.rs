@@ -263,13 +263,6 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn machine_service_reaches(
-        &self,
-        machine: &crate::machine::Machine,
-    ) -> &[crate::name::DiagnosticName] {
-        self.signature_service_reaches(machine.service_reaches)
-    }
-
     pub fn machine_invokes(
         &self,
         machine: &crate::machine::Machine,

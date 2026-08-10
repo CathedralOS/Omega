@@ -12,8 +12,6 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
-    validate_machine_service_reaches(lowerer.source_trees, machine)?;
-
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
@@ -213,42 +211,6 @@ pub(crate) fn lower_machine(
     // at CALL sites, which is robust.
 
     Ok(typed_machine)
-}
-
-fn validate_machine_service_reaches(
-    program: &resolved::SymbolResolvedTrees,
-    machine: &resolved::machine::Machine,
-) -> Result<(), Diagnostic> {
-    let authored = program.machine_service_reaches(machine);
-    for service in authored {
-        let resolved = program.symbols.find_child_by_name_and_kind(
-            program.symbols.root(),
-            service.as_str(),
-            psi_symbols::SymbolKind::Trait,
-        );
-        if resolved
-            .and_then(|symbol| program.service_reaches.id_for_symbol(symbol))
-            .is_none()
-        {
-            return Err(Diagnostic::error(format!(
-                "machine `{}` declares unknown boundary service `{service}`",
-                machine.name,
-            )));
-        }
-    }
-
-    if matches!(
-        machine.supply_mode,
-        psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
-    ) && !authored.is_empty()
-    {
-        return Err(Diagnostic::error(format!(
-            "external leaf `{}` repeats an authored `reaches` row, but `via` derives behavior from the satisfied requirement and admitted binding; remove the leaf's `reaches` clause",
-            machine.name,
-        )));
-    }
-
-    Ok(())
 }
 
 /// TPR4 slice 3 (decision 23): "an implementation satisfying a requirement
