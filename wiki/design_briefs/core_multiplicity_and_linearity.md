@@ -188,14 +188,11 @@ permission event. Repeated same-symbol nested transition calls retain distinct
 ordinals and join both materializations to their shared target-state event.
 Normalized platform-entry parameter writes now realize program StateEntry
 events directly; missing inbound code fails closed, and later consumes cannot
-launder zero storage into establishment. Nontrivial state-exit cleanup lowers
-through a checked per-edge plan: outgoing values materialize first, their
-ownership mapping commits, and the remaining affine places clean in reverse
-declaration order. The plan retains the exact conservation witness that every
-incoming obligation transfers, is explicitly consumed, is automatically
-cleaned, or receives a validated no-code affine discard exactly once. Nominal
-whole-value cleanup forbids partial extraction; purely structural aggregates
-clean only their remaining live field places. Composite field extraction uses
+launder zero storage into establishment. Affine exit events are ordered in
+reverse declaration order and backend realization fails closed, but the
+explicit per-edge cleanup plan, contextual cleanup-contract checking, cycle
+composition, and retained whole-edge conservation witness remain CML4 work.
+Composite field extraction uses
 one path-indexed frontier: an explicit `[linear]` declaration contributes one
 nominal root, while a transparent aggregate derives contained child claims
 without adding another root. The first live slice covers statically named
@@ -242,10 +239,9 @@ type-argument substitution. Consequently `TaskOutcome<LinearT>::Returned` and
 payload-free or affine cases do not; generic template parameters cannot launder
 a concrete linear substitution.
 
-A backend may erase multiplicity after it has received a checked ownership and
-cleanup plan, but proof/debug artifacts must retain the conservation witness.
-Compatibility move/drop summaries alone are not sufficient; see
-`architecture/semantic_taxonomy_representation.md`.
+A backend may erase multiplicity only after checked ownership and cleanup
+evidence is complete. Proof/debug artifacts must retain the conservation
+witness; see `architecture/semantic_taxonomy_representation.md`.
 
 ## Acceptance register
 

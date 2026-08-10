@@ -65,8 +65,9 @@ Checked flow records `Establish`, `Transfer`, `Consume`, and `AffineDrop` with
 explicit access, stable establishment provenance, and conditional-payload debt.
 Borrow activations and weakenings feed the same permission context. Linearity
 consumes these qualified events; move/drop summaries cannot invent semantic
-provenance. The remaining gap is the multi-resource and nested-obligation
-algebra.
+provenance. Parallel move/drop summaries are deleted. The remaining cleanup
+gap is an explicit per-edge plan with ordered actions, contextual contract
+checks, cycle composition, and a retained conservation witness.
 
 ### Service reach and operational behavior
 

@@ -134,11 +134,9 @@ shared target-state event. Program-entry StateEntry events join the normalized
 platform argument writes before either selection path begins; missing inbound
 code stays unlinked, and a later consume cannot stand in for establishment. The
 complete current ownership pass corpus is covered. Remaining gaps include
-lowering the settled checked `EdgeCleanupPlan` actions and conservation witness
-for state exits, plus ownership forms not reached by current operation-site
-hooks.
-Compatibility move/drop rows remain upstream only and are deliberately ignored
-at this boundary.
+constructing and lowering checked `EdgeCleanupPlan` actions and their
+conservation witness for state exits, plus ownership forms not reached by
+current operation-site hooks.
 It preserves control-flow value summaries as abstract value summaries.
 Normalized float runtime-operand lowering consumes the carried checked policy
 adapter; compatibility operations without checked operator evidence retain a
