@@ -2335,6 +2335,21 @@ fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
     }
 }
 
+fn u64_exact_shift_left_fits(value: Interval, count: Interval) -> bool {
+    let (Some(value_low), Some(value_high), Some(count_low), Some(count_high)) =
+        (value.low, value.high, count.low, count.high)
+    else {
+        return false;
+    };
+    if value_low < 0 || count_low < 0 || count_high >= 64 {
+        return false;
+    }
+    u128::try_from(value_high)
+        .ok()
+        .and_then(|value| value.checked_shl(count_high as u32))
+        .is_some_and(|maximum| maximum <= u128::from(u64::MAX))
+}
+
 /// The float value of a literal operand (through a `Mutable` wrapper), read at
 /// its landed format, or `None` when the operand is not a plain float literal.
 /// The F4 Exact cast obligation's fold-visible proof source.
@@ -2825,6 +2840,14 @@ fn analyze(
                         binary.right,
                     ))
                 && let Some(range) = primitive.and_then(primitive_range)
+            {
+                interval = range;
+            }
+            if effective_domain == ArithmeticDomain::Exact
+                && operator == BinaryOperator::ShiftLeft
+                && primitive == Some(PrimitiveType::U64)
+                && u64_exact_shift_left_fits(left.interval, right.interval)
+                && let Some(range) = primitive_range(PrimitiveType::U64)
             {
                 interval = range;
             }
@@ -3889,7 +3912,10 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{Interval, float_interval_fits_integer, integer_interval_fits_primitive};
+    use super::{
+        Interval, float_interval_fits_integer, integer_interval_fits_primitive,
+        u64_exact_shift_left_fits,
+    };
     use psi_typed_trees::types::PrimitiveType;
 
     fn iv(low: i64, high: i64) -> Interval {
@@ -3960,6 +3986,20 @@ mod tests {
         assert_eq!(iv(1, 1).shift_left(iv(127, 128)), Interval::UNBOUNDED);
         assert_eq!(iv(0, 2).shift_left(iv(127, 127)), Interval::UNBOUNDED);
         assert_eq!(iv(2, 2).shift_left(iv(62, 62)), Interval::UNBOUNDED);
+    }
+
+    #[test]
+    fn u64_exact_left_shift_checks_beyond_the_i64_interval_ceiling() {
+        assert!(u64_exact_shift_left_fits(
+            iv(0, 2_305_843_009_213_693_951),
+            iv(0, 3),
+        ));
+        assert!(u64_exact_shift_left_fits(iv(0, 1), iv(0, 63)));
+        assert!(!u64_exact_shift_left_fits(
+            iv(0, 2_305_843_009_213_693_952),
+            iv(0, 3),
+        ));
+        assert!(!u64_exact_shift_left_fits(iv(0, 1), iv(0, 64)));
     }
 
     #[test]
