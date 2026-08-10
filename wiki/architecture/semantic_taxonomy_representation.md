@@ -1,7 +1,5 @@
 # Semantic Taxonomy Representation Rework
 
-Status: **high-priority compiler architecture task**, loaded 2026-07-18.
-
 The domain-facet, machine-taxonomy, core-multiplicity, service/operational, and
 termination/ranking settlements are not documentation-only classifications. They make distinctions that affect
 resolution, interface identity, admissibility, ownership, diagnostics, and
@@ -9,12 +7,11 @@ lowering. If the compiler stores only the old undifferentiated shapes and
 reconstructs the distinctions later, it loses a clean representation and will
 eventually encode policy in scattered conditionals.
 
-This record audits the current loss and defines the migration target. Decision
-22 supplies the reach algebra and decision 23 supplies the termination
-guarantee/ranking-witness firewall. The compiler must represent both directly
-rather than extending old booleans and bitsets by convention.
+This record defines the durable representation target and the remaining gaps.
+The compiler represents reach and the termination guarantee/ranking-witness
+firewall directly rather than extending undifferentiated booleans and bitsets.
 
-## Current representation loss
+## Representation gaps
 
 ### Domains
 
@@ -63,25 +60,17 @@ identity.
 ### Multiplicity and permissions
 
 `Multiplicity` is first-class from source properties through typed trees.
-Checked flow records `Establish`, `Transfer`, `Consume`, and `AffineDrop`, and
-those events survive through machine bytes and backend reports with
-multiplicity, explicit `Owned | Shared | Exclusive` access, transfer-stable
-establishment provenance, and conditional-payload debt. Legacy-derived affine
-cleanup is deliberately `Unknown` provenance rather than fabricated evidence.
-Borrow activations/weakenings now feed the same context as
-`Unrestricted + Shared` and `Affine + Exclusive` entries, respectively. The
-linearity judgment now consumes only the qualified permission events. Affine
-cleanup derives directly from typed state ownership, so the legacy drop arena
-is compatibility output only. Semantic transfers and consumes run canonical
-typed move discovery through an independent event sink, so the legacy move
-arena is also compatibility output only. The deliberately deferred work is the
-multi-resource/nested obligation algebra, not reconstruction from lossy
-move/drop summaries.
+Checked flow records `Establish`, `Transfer`, `Consume`, and `AffineDrop` with
+explicit access, stable establishment provenance, and conditional-payload debt.
+Borrow activations and weakenings feed the same permission context. Linearity
+consumes these qualified events; move/drop summaries cannot invent semantic
+provenance. The remaining gap is the multi-resource and nested-obligation
+algebra.
 
 ### Service reach and operational behavior
 
-`omega-effects` now keeps symbol-resolved service reach separate from recursive
-suspension/blocking inference. Both plans retain the same grouped
+Symbol-resolved service reach remains separate from recursive
+suspension/blocking inference. Both plans share the grouped
 machine/state/call topology, but service rows are interned canonical trait
 identities while operational summaries are independent booleans. Authority,
 trust, resources, failure, and mutation remain in their separate semantic
@@ -767,18 +756,13 @@ machine/state/call rows are shared by the analyses, while their semantic
 summaries remain distinct; no lowercase-name catalog, bitset projection, or
 duplicate effect-row carrier remains.
 
-Current implementation: syntax, resolved, typed, and
-checked contract records retain the independent direct-invocation axis.
-Bodyful inference follows local helpers and nested expression positions while
-keeping boundary calls modular; bodyless requirements and published machines
-enforce omission as an empty ceiling. Checked-provider composition removes the
-selected plan's self-forwarded receiver, substitutes remaining binding paths
-against selected boundary slots, and rejects cycles only in the realized
-component-boundary graph. Provider schemas, plan and machine-contract
-fingerprints, snapshots, and JSON manifests retain normalized direct targets
-without replacing them with service-reach closure. Declared invocation targets
-also contribute their boundary service to normalized reach and their boundary
-contract to call operational inference. Registration alone creates no edge.
+Direct invocation is an independent contract axis from syntax through checked
+facts and artifacts. Bodyful inference follows local helpers and nested
+expressions; bodyless requirements publish their ceiling. Selected-provider
+composition substitutes exact boundary slots and rejects cycles in the realized
+component graph. Declared invocation targets contribute their boundary service
+to reach and their contract to operational inference; registration alone
+creates no call edge.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a

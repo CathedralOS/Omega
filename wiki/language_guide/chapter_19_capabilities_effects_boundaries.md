@@ -1,18 +1,16 @@
 # Chapter 19: Capabilities, Reach, And Boundaries
 
-Omega should model host and compiler boundaries explicitly.
+Omega models host and compiler boundaries explicitly.
 
-> **Current service and operational contract model
+> **Service and operational contract model
 > ([effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
 > `reaches` contains boundary-service reach only. Independent `suspends`,
 > `blocks`, and guarded `crashes` clauses publish operational may-ceilings;
 > `terminates` remains a
 > separate positive progress guarantee. Authority remains capability values,
 > trust remains provider receipts, recoverable failure remains sums, mutation
-> remains ownership, and resource bounds remain dependent contracts. The
-> lowercase fixed vocabulary
-> documented later in this chapter is the current compiler compatibility layer,
-> not the end-state language model.
+> remains ownership, and resource bounds remain dependent contracts. Lowercase
+> implementation vocabulary does not collapse these semantic axes.
 
 The outside world is not one thing. Linux may expose raw syscall numbers,
 Darwin normally routes process IO through `libSystem`, Windows imports APIs
@@ -71,10 +69,8 @@ Working interpretation:
   `BoundaryProvider` (see "Boundary Primitive Registry"). Ordinary application
   code cannot mint new host/compiler providers as a proof escape hatch.
 
-This is the current boundary between browsable core semantics and private
-compiler machinery. Users should be able to inspect `Slice::index` and see the
-proof contract. They should not need to inspect the private descriptor, pointer,
-or codegen mechanism used after the contract is proved.
+Users can inspect `Slice::index` and its proof contract without depending on the
+private descriptor, pointer, or code-generation mechanism used after proof.
 
 ## Boundary Traits
 
@@ -1127,43 +1123,16 @@ compiler never infers one from a private carrier.
 Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
 extra invariant parameters.
 
-## Boundary
+## Boundary evidence and authority values
 
-Boundary is the authority for accepting a guarantee that Omega cannot prove from
-Omega code.
+`boundary` records why a guarantee that cannot be proved from Omega code is
+accepted. Callers still prove input refinements and invariants; the selected
+provider is accountable for declared result guarantees. Core primitives and
+foreign surfaces use the same registered-provider discipline, so acceptance is
+auditable rather than a user-authored proof escape.
 
-For an imported function:
-
-- Omega proves the caller satisfies the parameter and state invariants.
-- The imported implementation is accepted to satisfy the declared guarantees.
-- Omega may use those boundary guarantees as facts after the call.
-
-In proof vocabulary:
-
-- Input refinements and invariant parameters are caller requirements.
-- Return refinements and boundary clauses are callee guarantees.
-- The call creates obligations for the caller.
-- `boundary` explains why unproved imported guarantees are accepted.
-
-For ordinary Omega code, the compiler should know the contracts for
-assignments, arithmetic, borrows, transitions, calls, and field access. For
-imported libraries and syscall surfaces, the contract must be declared or
-imported from an audited package.
-
-Core primitives use the same discipline. A public declaration such as a slice
-indexing operator states the visible contract. The implementation then binds to
-a registered boundary provider such as slice indexing, descriptor construction,
-pointer offset, allocation, or target ABI lowering. The provider name is not a
-general-purpose user escape hatch: it must come from the toolchain, core
-package, target configuration, or an explicitly whitelisted audited provider,
-and it appears in the build boundary report.
-
-`omega::language::core::ptr` is the natural home for pointer-level primitive
-boundary providers. Safe source should generally work through owners and views, but the
-language still needs a browsable place to audit names such as pointer offset,
-read/write, and pointer-range construction.
-
-### Boundary evidence and authority values
+Pointer-level providers live under `omega::language::core::ptr`; safe source
+normally reaches them through owners and views.
 
 Runtime authority values are ordinary data with compiler-tracked domain facts.
 Their fields carry runtime geometry, saved state, or provider keys. Domain
@@ -1211,12 +1180,12 @@ it. Terminal Psi carries each exact preserved-claim mapping, reconstructs its
 projection equality, and retains active sum payloads as distinct case-plus-field
 paths. It never infers separated composition across independent claims.
 
-The current compiler accepts this surface only in `ensures`, resolves every
-projection call to the exact owner-unique `Content<A>::project` machine, and
-retains one normalized equation per callable outcome and algebra. `entry`
-cannot select `result` or an arbitrary expression; projection subjects must be
-shared borrows of qualified structural places; mixed algebras, duplicate
-equations, and executable uses reject.
+Content equations resolve every projection to the exact owner-unique
+`Content<A>::project` machine and normalize once per callable outcome and
+algebra. `entry` cannot select `result` or an arbitrary expression; projection
+subjects are shared borrows of qualified structural places. Mixed algebras,
+duplicate equations, and executable uses reject. `TASKS.md` owns expansion
+beyond the source positions accepted by the compiler.
 
 For example, an admitted platform provider may return an
 `Extent::Granted & Physical`; its ordinary linear runtime carrier is
@@ -1268,9 +1237,7 @@ Decided rules:
 - The emitted boundary build report lists the registered providers actually
   used, as the audit artifact.
 
-This replaces the earlier state where `boundary operator` names and `boundary
-<name>` host clauses floated free without validation. A bound provider name now
-resolves to a registered record or the build is rejected.
+A bound provider name resolves to a registered record or the build rejects.
 
 ## Blocking Boundaries
 
@@ -1432,92 +1399,29 @@ manifest marks those entries as runtime-origin. A runtime executable without a
 separate closure receipt is reported as known while making the scope
 attributed-incomplete; the ledger does not claim code loaded outside its
 mediation boundary.
-The compiler currently receives these deployment-owned admissions and profile
-rules through a programmatic build-policy input. It validates them only after
-exact provider selection and carries a successful, manifest-bound acceptance
-to output installation. This is build/deployment policy, not a new source
-language construct; named `Build` API surface remains to be designed.
+Deployment supplies admissions and profile rules. Validation follows exact
+provider selection and binds acceptance to the output manifest and
+installation. This is build policy, not a new language construct; `TASKS.md`
+owns the remaining named `Build` API.
 
 ## Build Artifacts
 
-Compiler artifacts should list imported libraries, syscall surfaces, the
-registered boundary providers used, inferred authority flow, direct/transitive
-host calls, accepted policies, domain-evidence origins, and the transitive
-executable TCB manifest. The TCB section keeps known entries separate from its
-scope-relative completeness result and reports memory-isolation,
-forcible-termination, fault-containment, and bounded-resource guarantees
-independently.
-
-Example shape:
-
-```text
-authority flow:
-  accepts:
-    Folder where Folder::Writable
-  uses:
-    Folder::Writable
-  derives:
-    File::Writable from Folder::Writable
-  stores:
-    none
-  acquires:
-    none
-  returns:
-    none
-  releases:
-    none
-
-service reach:
-  declared: Writable
-  reached: Writable
-
-trust receipts:
-  omega_windows_kernel32_read_file -> accepted HostAbiCall contract
-  omega_darwin_libsystem_write -> accepted HostAbiCall contract
-
-imported libraries:
-  Kernel32 -> Kernel32.dll calling_convention winapi
-  DarwinLibSystem -> libSystem.B.dylib calling_convention c
-
-direct boundary calls:
-  none
-
-transitive boundary calls:
-  omega::language::std::Filesystem::open
-  omega::language::std::FilesystemHost::open_file
-  omega::language::std::FilesystemHost::write_file
-
-registered boundary providers used:
-  omega_windows_kernel32_read_file  category HostAbiCall  -> Kernel32.ReadFile
-  omega_darwin_libsystem_write      category HostAbiCall  -> DarwinLibSystem.write
-  omega_core_slice_index            category SliceIndexing -> Slice::index
-
-domain evidence:
-  Extent::Granted
-    subject Extent
-    origin accepted
-    provider omega::platform::boot::memory_map
-    receipt firmware_memory_handoff
-
-resource transformations:
-  Extent::split
-    consumes parent origin
-    produces left/right descendants
-
-target image imports:
-  Kernel32.dll!ReadFile
-  libSystem.B.dylib!_write
-```
+The machine-readable manifest keeps separate rows for authority flow, service
+reach, trust receipts, imported libraries, direct and transitive boundary
+calls, registered providers, domain-evidence origins, resource transformations,
+target imports, and executable TCB scope. Each row retains stable provider,
+contract, origin, and receipt identities rather than a rendered source name
+alone. TCB entries remain separate from scope completeness and its independent
+isolation, termination, fault-containment, and resource guarantees.
 
 The "registered boundary providers used" list is the audit artifact for the
 boundary registry: every entry resolves to a `BoundaryProvider` record, and a
 binding that names no registered provider is rejected before this report is
 emitted.
 
-The complete manifest is machine-readable. Human package diffs collapse
-low-severity checked tokens and elevate transitive changes in authority,
-admitted providers, boundary-evidence permission, or revocation/generation
-machinery. Admission compares the final artifact's
+Human package diffs collapse low-severity checked tokens and elevate transitive
+changes in authority, admitted providers, boundary-evidence permission, or
+revocation/generation machinery. Admission compares the final artifact's
 transitive reachable-authority set, not only direct dependencies.
 
 A build with proofs or contracts disabled should be stamped loudly rather than
