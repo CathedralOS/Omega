@@ -12,6 +12,8 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
+    validate_machine_service_reaches(lowerer.source_trees, machine)?;
+
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
@@ -37,7 +39,6 @@ pub(crate) fn lower_machine(
         decrease_order: psi_arena::HandleSpan::empty(),
         decrease_view_arguments: psi_arena::HandleSpan::empty(),
         decrease_range: typed::expression::ExpressionHandle::invalid(),
-        service_reaches: psi_arena::HandleSpan::empty(),
         invokes: psi_arena::HandleSpan::empty(),
         suspends: machine.suspends,
         blocks: machine.blocks,
@@ -167,13 +168,6 @@ pub(crate) fn lower_machine(
         );
     }
 
-    for service in lowerer.source_trees.machine_service_reaches(machine) {
-        let service = crate::name::lower_name(service);
-        lowerer
-            .typed_trees
-            .push_machine_service_reach(&mut typed_machine, service);
-    }
-
     for binding in lowerer.source_trees.machine_invokes(machine) {
         lowerer
             .typed_trees
@@ -219,6 +213,42 @@ pub(crate) fn lower_machine(
     // at CALL sites, which is robust.
 
     Ok(typed_machine)
+}
+
+fn validate_machine_service_reaches(
+    program: &resolved::SymbolResolvedTrees,
+    machine: &resolved::machine::Machine,
+) -> Result<(), Diagnostic> {
+    let authored = program.machine_service_reaches(machine);
+    for service in authored {
+        let resolved = program.symbols.find_child_by_name_and_kind(
+            program.symbols.root(),
+            service.as_str(),
+            psi_symbols::SymbolKind::Trait,
+        );
+        if resolved
+            .and_then(|symbol| program.service_reaches.id_for_symbol(symbol))
+            .is_none()
+        {
+            return Err(Diagnostic::error(format!(
+                "machine `{}` declares unknown boundary service `{service}`",
+                machine.name,
+            )));
+        }
+    }
+
+    if matches!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
+    ) && !authored.is_empty()
+    {
+        return Err(Diagnostic::error(format!(
+            "external leaf `{}` repeats an authored `reaches` row, but `via` derives behavior from the satisfied requirement and admitted binding; remove the leaf's `reaches` clause",
+            machine.name,
+        )));
+    }
+
+    Ok(())
 }
 
 /// TPR4 slice 3 (decision 23): "an implementation satisfying a requirement

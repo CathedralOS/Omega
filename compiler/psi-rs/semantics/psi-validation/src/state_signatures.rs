@@ -328,21 +328,6 @@ fn validate_state_signature_contracts(
     }
 }
 
-pub(crate) fn validate_machine_service_reaches(
-    program: &TypedTrees,
-    machine: &Machine,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for service in program.machine_service_reaches(machine) {
-        if !is_resolved_service_name(program, service.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` declares unknown boundary service `{}`",
-                machine.name, service
-            )));
-        }
-    }
-}
-
 fn is_resolved_service_name(program: &TypedTrees, name: &str) -> bool {
     program
         .symbols

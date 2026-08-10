@@ -23,7 +23,10 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     || !machine.decreases.is_empty()
                     || !machine.decrease_view_arguments.is_empty()
                     || machine.decrease_range.is_valid()
-                    || !machine.service_reaches.is_empty()
+                    || !program
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                        .is_empty()
                     || !machine.invokes.is_empty()
                     || machine.suspends
                     || machine.blocks
