@@ -1788,11 +1788,10 @@ fn lower_scalar_graph_machine(
         if bindings
             .iter()
             .any(direct_expression_contains_short_circuit)
-            && strict_short_circuit_binding_return(parameter_types.len(), &bindings, &terminator)
-                .is_none()
+            && carried_short_circuit_binding_return(&bindings, &terminator).is_none()
         {
             return unsupported(
-                "short-circuit scalar locals outside direct return need carried terminal control",
+                "short-circuit scalar locals outside one carried return need terminal control",
             );
         }
         lowered_states.push(LoweredScalarBranchState {
@@ -2183,11 +2182,10 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
     )
 }
 
-fn strict_short_circuit_binding_return(
-    parameter_count: usize,
+fn carried_short_circuit_binding_return(
     bindings: &[LoweredDirectExpression],
     terminator: &LoweredScalarBranchTerminator,
-) -> Option<LoweredDirectExpression> {
+) -> Option<(LoweredBooleanReturnExpression, LoweredDirectExpression)> {
     let [binding] = bindings else {
         return None;
     };
@@ -2201,43 +2199,18 @@ fn strict_short_circuit_binding_return(
         return None;
     }
     let LoweredScalarBranchTerminator::Return {
-        expression:
-            LoweredDirectExpression::Boolean {
-                expression: returned_expression,
-            },
+        expression: returned_expression,
     } = terminator
     else {
         return None;
     };
-    Some(LoweredDirectExpression::Boolean {
-        expression: Box::new(substitute_strict_boolean_local(
-            returned_expression,
-            parameter_count,
-            binding_expression,
-        )?),
-    })
-}
-
-fn substitute_strict_boolean_local(
-    expression: &LoweredBooleanReturnExpression,
-    position: usize,
-    replacement: &LoweredBooleanReturnExpression,
-) -> Option<LoweredBooleanReturnExpression> {
-    match expression {
-        LoweredBooleanReturnExpression::Local {
-            position: candidate,
-        } if *candidate == position => Some(replacement.clone()),
-        LoweredBooleanReturnExpression::Not { operand } => {
-            Some(LoweredBooleanReturnExpression::Not {
-                operand: Box::new(substitute_strict_boolean_local(
-                    operand,
-                    position,
-                    replacement,
-                )?),
-            })
-        }
-        _ => None,
+    if direct_expression_contains_short_circuit(returned_expression) {
+        return None;
     }
+    Some((
+        binding_expression.as_ref().clone(),
+        returned_expression.clone(),
+    ))
 }
 
 fn validate_short_circuit_expression(
@@ -3458,24 +3431,98 @@ fn build_scalar_graph_module(
         } else {
             current_parameters.clone()
         };
-        let strict_short_circuit_return = strict_short_circuit_binding_return(
-            state.parameter_types.len(),
-            &state.bindings,
-            &state.terminator,
-        );
-        let strict_return_terminator = strict_short_circuit_return
-            .map(|expression| LoweredScalarBranchTerminator::Return { expression });
-        let terminator_plan = strict_return_terminator
-            .as_ref()
-            .unwrap_or(&state.terminator);
-        let bindings = if strict_return_terminator.is_some() {
-            &[][..]
-        } else {
-            state.bindings.as_slice()
-        };
+        let carried_short_circuit_return =
+            carried_short_circuit_binding_return(&state.bindings, &state.terminator);
         let mut current_values = current_parameters.clone();
         let mut current_value_types = state.parameter_types.clone();
-        for binding in bindings {
+        if let Some((binding_expression, returned_expression)) = carried_short_circuit_return {
+            let decision = lower_boolean_value_decision(&binding_expression);
+            let decision_block_count = boolean_decision_block_count(&decision);
+            let first_synthetic_block = block_id(next_block_identity);
+            let continuation = block_id(
+                next_block_identity
+                    .checked_add(
+                        u64::try_from(decision_block_count - 1)
+                            .expect("carried Boolean child count fits a semantic identity"),
+                    )
+                    .expect("carried Boolean continuation identity advances"),
+            );
+            next_block_identity = continuation
+                .get()
+                .checked_add(1)
+                .expect("carried Boolean block identities advance");
+            let mut continuation_types = state.parameter_types.clone();
+            continuation_types.push(ScalarType::Boolean);
+            let continuation_parameters = continuation_types
+                .into_iter()
+                .map(|scalar_type| {
+                    let parameter = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type,
+                    };
+                    next_value_identity = next_value_identity
+                        .checked_add(1)
+                        .expect("carried Boolean parameter identities advance");
+                    parameter
+                })
+                .collect::<Vec<_>>();
+            let carried_arguments = current_parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect::<Vec<_>>();
+            let mut decision_blocks = Vec::with_capacity(decision_block_count);
+            let entry = emit_reserved_boolean_tuple_stage_blocks(
+                &decision,
+                current_parameters,
+                source_block_parameters,
+                continuation,
+                &carried_arguments,
+                first_synthetic_block
+                    .get()
+                    .checked_sub(1)
+                    .expect("carried Boolean blocks follow source blocks"),
+                &mut next_value_identity,
+                &mut next_edge_identity,
+                &mut all_operations,
+                &mut decision_blocks,
+            );
+            assert_eq!(
+                entry.get(),
+                first_synthetic_block
+                    .get()
+                    .checked_sub(1)
+                    .expect("carried Boolean blocks follow source blocks")
+            );
+            let mut decision_blocks = decision_blocks
+                .into_iter()
+                .map(|block| block.expect("every carried Boolean block is finalized"));
+            let mut root = decision_blocks
+                .next()
+                .expect("carried short-circuit Boolean has a decision root");
+            root.id = source_block;
+            blocks.push(root);
+            inlined_blocks.extend(decision_blocks);
+
+            let operation_start = all_operations.len();
+            let value = emit_direct_expression(
+                &returned_expression,
+                &continuation_parameters,
+                &mut next_value_identity,
+                &mut all_operations,
+            );
+            let edge = edge_id(next_edge_identity);
+            next_edge_identity = next_edge_identity
+                .checked_add(1)
+                .expect("carried Boolean return edge identity advances");
+            inlined_blocks.push(Block {
+                id: continuation,
+                parameters: continuation_parameters,
+                operations: all_operations[operation_start..].to_vec(),
+                terminator: Terminator::Return { edge, value },
+            });
+            continue;
+        }
+        for binding in &state.bindings {
             let id = emit_direct_expression(
                 binding,
                 &current_values,
@@ -3489,7 +3536,7 @@ fn build_scalar_graph_module(
             current_value_types.push(binding.scalar_type());
         }
         let terminator_operation_start = all_operations.len();
-        let terminator = match terminator_plan {
+        let terminator = match &state.terminator {
             LoweredScalarBranchTerminator::Jump { target, arguments } => {
                 if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                     && contains_short_circuit(expression)
