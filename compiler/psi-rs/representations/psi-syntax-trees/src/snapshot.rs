@@ -150,7 +150,7 @@ pub enum ItemSnapshot {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
-        terminates: bool,
+        terminates_guarantee: bool,
         decreases: Vec<ExpressionSnapshot>,
         decrease_order: Vec<IdentifierSnapshot>,
         service_reaches: Vec<IdentifierSnapshot>,
@@ -955,7 +955,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
-            terminates: value.terminates,
+            terminates_guarantee: value.terminates_guarantee,
             decreases: syntax_trees
                 .expressions
                 .expression_handles(value.decreases)

@@ -25,9 +25,7 @@ pub(crate) fn check_machine_termination(
     for machine in program.machines().iter().filter(|machine| {
         // TPR3 slice 1: the checker gates on the NORMALIZED plan (decision
         // 23) -- a machine claims termination when it authored the public
-        // guarantee or supplied a ranking witness. The `terminates`
-        // compatibility bool is populated from the same authorship and
-        // agrees by construction until TPR6 retires it.
+        // guarantee or supplied a ranking witness.
         let plan = &machine.termination_plan;
         matches!(
             &plan.interface,
