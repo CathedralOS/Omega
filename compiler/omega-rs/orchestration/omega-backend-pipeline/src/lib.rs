@@ -14,9 +14,9 @@ mod timing;
 pub use builder::render_frame_slot_table;
 pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 
-/// `freestanding`: the selected target is no-host (`subsystem efi_application`)
-/// -- build against an EMPTY host ABI plan (no bindings/lowerings, so no import
-/// thunks; boundary calls fail with the ordinary missing-lowering diagnostic).
+/// `freestanding`: the selected build trusts no ambient host packages, so use
+/// an empty host ABI baseline (no implicit bindings/lowerings or import
+/// thunks). This policy is independent of image subsystem metadata.
 pub fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
