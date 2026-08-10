@@ -1481,14 +1481,14 @@ fn parses_machine_termination_clauses() {
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.decreases)
+            .expression_handles(machine.ranking_subjects)
             .len(),
         1
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.decrease_order)
+            .identifier_path_members(machine.ranking_view)
             .len(),
         2
     );
@@ -1520,14 +1520,14 @@ fn parses_machine_termination_tuple_subjects() {
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.decreases)
+            .expression_handles(machine.ranking_subjects)
             .len(),
         2
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.decrease_order)
+            .identifier_path_members(machine.ranking_view)
             .len(),
         2
     );
@@ -1562,21 +1562,21 @@ fn parses_machine_termination_argumented_view() {
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.decreases)
+            .expression_handles(machine.ranking_subjects)
             .len(),
         1
     );
     assert_eq!(
         parsed
             .items
-            .identifier_path_members(machine.decrease_order)
+            .identifier_path_members(machine.ranking_view)
             .len(),
         2
     );
     assert_eq!(
         parsed
             .expressions
-            .expression_handles(machine.decrease_view_arguments)
+            .expression_handles(machine.ranking_view_arguments)
             .len(),
         1
     );

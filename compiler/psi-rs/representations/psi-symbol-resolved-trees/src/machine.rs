@@ -39,13 +39,13 @@ pub struct MachineStorage {
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
-    pub decreases: HandleSpan<ExpressionHandle>,
-    pub decrease_order: HandleSpan<DiagnosticName>,
+    pub ranking_subjects: HandleSpan<ExpressionHandle>,
+    pub ranking_view: HandleSpan<DiagnosticName>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
-    pub decrease_view_arguments: HandleSpan<ExpressionHandle>,
+    pub ranking_view_arguments: HandleSpan<ExpressionHandle>,
     /// TPR3: the optional `in <range>` rank constraint (a Range expression;
     /// invalid = absent). The checker verifies it structurally.
-    pub decrease_range: ExpressionHandle,
+    pub ranking_range: ExpressionHandle,
     pub invokes: HandleSpan<DiagnosticName>,
     /// Authored operational ceilings, independent from the service row.
     pub suspends: bool,

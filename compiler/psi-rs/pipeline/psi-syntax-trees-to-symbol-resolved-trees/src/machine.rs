@@ -25,18 +25,18 @@ pub(crate) fn lower_machine_into(
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
-    let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
-    let decrease_order =
-        lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
+    let ranking_subjects =
+        lower_ranking_expressions(lowerer, syntax_trees, machine.ranking_subjects)?;
+    let ranking_view = lower_machine_ranking_view(lowerer, syntax_trees, machine.ranking_view);
     // TPR3: argumented-view arguments lower exactly like the subjects.
-    let decrease_view_arguments =
-        lower_machine_decreases(lowerer, syntax_trees, machine.decrease_view_arguments)?;
+    let ranking_view_arguments =
+        lower_ranking_expressions(lowerer, syntax_trees, machine.ranking_view_arguments)?;
     // TPR3 slice 3: the `in <range>` rank constraint lowers as an ordinary
     // expression; the CHECKER verifies it structurally (v1: floor 0 +
     // ceiling equal to the argumented view's own bound) and fails
     // compilation otherwise -- consumed, never silently dropped.
-    let decrease_range = if machine.decrease_range.is_valid() {
-        lower_expression_into_table(lowerer, syntax_trees, machine.decrease_range)?
+    let ranking_range = if machine.ranking_range.is_valid() {
+        lower_expression_into_table(lowerer, syntax_trees, machine.ranking_range)?
     } else {
         psi_symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
@@ -115,10 +115,10 @@ pub(crate) fn lower_machine_into(
             owned_data: HandleSpan::empty(),
             satisfies,
             conformance_bounds,
-            decreases,
-            decrease_order,
-            decrease_view_arguments,
-            decrease_range,
+            ranking_subjects,
+            ranking_view,
+            ranking_view_arguments,
+            ranking_range,
             invokes,
             suspends: machine.suspends,
             blocks: machine.blocks,
@@ -192,7 +192,7 @@ fn build_termination_plan(
 
     let subjects = syntax_trees
         .expressions
-        .expression_handles(machine.decreases);
+        .expression_handles(machine.ranking_subjects);
     let implementation_witness = (!subjects.is_empty()).then(|| {
         let (ranking_view, view_path) =
             elaborate_ranking_view(lowerer, syntax_trees, machine, states, subjects);
@@ -207,16 +207,16 @@ fn build_termination_plan(
             // order (`Nat::IncreasingTo(limit)` carries `["limit"]`).
             view_arguments: syntax_trees
                 .expressions
-                .expression_handles(machine.decrease_view_arguments)
+                .expression_handles(machine.ranking_view_arguments)
                 .iter()
                 .map(|argument| render_ranked_subject(syntax_trees, *argument))
                 .collect(),
             // TPR3 slice 3: the authored rank-range fact, rendered
             // source-like; the checker verifies it structurally and fails
             // compilation otherwise.
-            rank_range: machine.decrease_range.is_valid().then(|| {
+            rank_range: machine.ranking_range.is_valid().then(|| {
                 let syntax::expression::ExpressionNode::Range(range) =
-                    syntax_trees.expressions.expression(machine.decrease_range)
+                    syntax_trees.expressions.expression(machine.ranking_range)
                 else {
                     return psi_language_semantics::RankRange::default();
                 };
@@ -292,7 +292,7 @@ fn elaborate_ranking_view(
 
     let order = syntax_trees
         .items
-        .identifier_path_members(machine.decrease_order);
+        .identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
         let path = order
             .iter()
@@ -393,7 +393,7 @@ fn elaborate_single_subject_default(
     }
 }
 
-fn lower_machine_decrease_order(
+fn lower_machine_ranking_view(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     order: HandleSpan<syntax::identifier::Identifier>,
@@ -405,23 +405,26 @@ fn lower_machine_decrease_order(
             .symbol_resolved_trees
             .tables
             .declarations
-            .decrease_orders
+            .ranking_views
             .append_to_span(&mut lowered, crate::name::lower_name(member));
     }
 
     lowered
 }
 
-fn lower_machine_decreases(
+fn lower_ranking_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    decreases: HandleSpan<syntax::expression::ExpressionHandle>,
+    source_expressions: HandleSpan<syntax::expression::ExpressionHandle>,
 ) -> Result<HandleSpan<psi_symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
-    let mut expressions = Vec::new();
+    let mut lowered = Vec::new();
 
-    for expression in syntax_trees.expressions.expression_handles(decreases) {
+    for expression in syntax_trees
+        .expressions
+        .expression_handles(source_expressions)
+    {
         let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
-        expressions.push(expression);
+        lowered.push(expression);
     }
 
     Ok(lowerer
@@ -429,7 +432,7 @@ fn lower_machine_decreases(
         .tables
         .bodies
         .expressions
-        .insert_expression_handles(expressions))
+        .insert_expression_handles(lowered))
 }
 
 fn lower_machine_trait_conformances(

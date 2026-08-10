@@ -94,7 +94,7 @@ pub(super) fn machine_decrease_outcome(
                 .to_string(),
         );
     };
-    let decrease_order = witness
+    let ranking_view = witness
         .view_path
         .split("::")
         .filter(|member| !member.is_empty())
@@ -103,7 +103,7 @@ pub(super) fn machine_decrease_outcome(
         program,
         root_state,
         &subjects,
-        &decrease_order,
+        &ranking_view,
         &view_arguments,
     ) {
         OrderResolution::Resolved(order) => order,
@@ -278,7 +278,7 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
     else {
         return String::new();
     };
-    let decrease_order = witness
+    let ranking_view = witness
         .view_path
         .split("::")
         .filter(|member| !member.is_empty())
@@ -287,7 +287,7 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
         program,
         root_state,
         &subjects,
-        &decrease_order,
+        &ranking_view,
         &view_arguments,
     ) {
         OrderResolution::Resolved(order) => canonical_order_path(&order)

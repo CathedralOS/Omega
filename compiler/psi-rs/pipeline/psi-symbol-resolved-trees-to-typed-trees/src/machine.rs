@@ -122,7 +122,7 @@ pub(crate) fn lower_machine(
         .tables
         .bodies
         .expressions
-        .expression_handles(machine.decreases)
+        .expression_handles(machine.ranking_subjects)
     {
         let _ = lower_expression_handle(lowerer, *decrease)?;
     }
@@ -133,12 +133,12 @@ pub(crate) fn lower_machine(
         .tables
         .bodies
         .expressions
-        .expression_handles(machine.decrease_view_arguments)
+        .expression_handles(machine.ranking_view_arguments)
     {
         let _ = lower_expression_handle(lowerer, *argument)?;
     }
-    if machine.decrease_range.is_valid() {
-        let _ = lower_expression_handle(lowerer, machine.decrease_range)?;
+    if machine.ranking_range.is_valid() {
+        let _ = lower_expression_handle(lowerer, machine.ranking_range)?;
     }
 
     for binding in lowerer.source_trees.machine_invokes(machine) {
