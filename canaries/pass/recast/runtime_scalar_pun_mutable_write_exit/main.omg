@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. A fact-free equal-width
 // mutable scalar recast keeps address identity: writing the u32 IEEE-754 bit
 // pattern 0x3F800000 through the view makes the f32 source read as 1.0, and a

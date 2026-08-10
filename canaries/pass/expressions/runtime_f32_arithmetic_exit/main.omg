@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Single-precision (f32) storage, copy, comparison, and arithmetic. The float SSE
 // path was f64-only: comparisons hardcoded `ucomisd` + `movq` (8-byte) and the
 // is_float detection only recognized F64, so an f32 field was compared/operated as

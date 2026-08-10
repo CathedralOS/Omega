@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // ENT2c: one by-value flat f64 record is one AAPCS64 HFA parameter. The
 // compiler test verifies that its two fragments reach v0/v1 from the same
 // storage place instead of selection degrading the record to a pointer.

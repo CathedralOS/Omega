@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // F2c width witness (2026-07-16): an f32 arithmetic CHAIN rounds at f32
 // per OP, natively and in the interpreter alike. 2^24 is the f32
 // precision cliff: per-op f32 rounding collapses each +1.0 back to

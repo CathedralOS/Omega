@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // NaN comparison: IEEE says every comparison with NaN is false EXCEPT `!=` (true).
 // Native `ucomis*` reports NaN via the parity flag; the guard's failure jcc must honor
 // it (a `jp` parity branch), else 4 of the 6 operators take the wrong arm. Each check

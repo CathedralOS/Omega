@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS canary (F5, float brief §8), both native backends + interpreter, abort-style:
 // `Trapping` float arithmetic traps on overflow (and invalid/div-by-zero)
 // -- the backend guard traps when the result is non-finite from finite,

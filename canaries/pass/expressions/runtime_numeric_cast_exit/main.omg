@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Numeric `as` casts lower to a converting store: the source is loaded into a
 // register and converted between integer and floating-point representations
 // (cvttsd2si for float->int, cvtsi2sd for int->float, movsxd for signed integer

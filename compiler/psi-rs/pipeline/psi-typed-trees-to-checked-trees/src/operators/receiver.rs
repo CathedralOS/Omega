@@ -69,9 +69,19 @@ fn expression_type_reference_in_state(
         )
         .and_then(|collection| indexed_element_type_reference(program, collection)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Binary(binary) => {
+            expression_type_reference_in_state(program, state_symbol, statement_index, binary.left)
+                .or_else(|| {
+                    expression_type_reference_in_state(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        binary.right,
+                    )
+                })
+        }
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)

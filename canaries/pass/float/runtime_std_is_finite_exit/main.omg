@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // std math is_finite, natively (2026-07-14): the portable spelling
 // `is_finite(x) = (x - x == 0.0)` runs through the real dispatch pipeline
 // on all three legs -- a finite runtime value (true), a runtime infinity

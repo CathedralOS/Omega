@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS canary: an f64 value that fits the wider conversion register but not
 // the actual u8 target must trap before the truncating store. Exit 7 means the
 // guard used u32/i32 bounds and sailed past; 71 means the in-range leg broke.

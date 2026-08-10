@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Value-CALL TERMINALS (2026-07-11): a free value-machine call as a
 // transition's terminal value (`-> (sin(x + k))`) or a trailing implicit
 // return hoists into the let-bound spelling at syntax->symbol-resolved

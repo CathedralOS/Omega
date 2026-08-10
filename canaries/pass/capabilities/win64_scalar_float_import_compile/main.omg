@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Microsoft x64 uses one positional register bank: these f64 arguments occupy
 // XMM1 and XMM3 around integer RCX/R8 arguments, then the fifth argument uses
 // stack slot 32. The f64 result returns in XMM0.

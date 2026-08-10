@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES the SAMPLES' whole behavior runs natively (render fire 16): a bounded
 // windowed app that opens a window with an image view, then for a few frames
 // blits a framebuffer and drains the event queue non-blocking, then closes. This

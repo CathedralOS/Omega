@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 77, differential) -- F2d per-operation binary32 rounding.
 // At 2^24, adding 1.0f32 rounds back to 2^24. Rounding EACH addition therefore
 // plateaus at 16777216; computing the whole tree in f64 and narrowing once

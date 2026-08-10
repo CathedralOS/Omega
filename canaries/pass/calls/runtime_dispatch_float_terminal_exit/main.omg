@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) -- a dispatched value call whose terminal is a FLOAT
 // place (`-> acc`, acc: f64). DISCOVERED SERVING 2026-07-10s while pinning
 // the fence's delivery-place granularity: the matrix's "float terminals

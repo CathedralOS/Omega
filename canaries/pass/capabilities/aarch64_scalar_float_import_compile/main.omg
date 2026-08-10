@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // An authored scalar-float signature must retain its float class through
 // selection: the argument travels in d0 and the result returns in d0.
 boundary trait ScalarFloatImport {

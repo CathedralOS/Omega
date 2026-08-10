@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Newton's method for a square root -- an iterative NUMERICAL algorithm, distinct from the
 // arithmetic-focused float canaries (which test the operators in isolation; this one runs
 // a method to convergence). The recurrence x <- (x + S/x) / 2 halves the error each step;

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70), both native backends + interpreter.
 // F5 (float brief §8): `Saturating` clamps MAGNITUDE OVERFLOW to
 // +-MAX_FINITE and nothing else. Legs: 1e160 * 1e160 overflows f64 and

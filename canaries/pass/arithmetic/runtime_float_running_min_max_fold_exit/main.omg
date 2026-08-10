@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN canary: a RUNNING float min/max fold across state edges. The existing
 // `runtime_float_min_max_abs_clamp_exit` drives min/max with CONSTANT operands
 // (max(3.0, 7.0)); this one drives `self.lo = min(self.lo, self.cur)` where an

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70, differential) -- a FLOAT-typed local guarded inside
 // an INLINED value machine (`let d: f64 = x - x; transition d == 0.0`)
 // lowers: the expansion guard path gained the float-literal arm (IEEE bits

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES the arm64 float-RETURN calling convention (render fire 6). A boundary
 // method returning f64, bound to libm `sqrt`: the result comes back in `d0` and
 // must be moved to x0 (`fmov x0,d0`) before the result store. To verify the

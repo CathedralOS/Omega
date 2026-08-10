@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES the SAMPLE-SHAPED window_create through the macOS Gui backend (render
 // fire 18): the sample calls `self.gui.window_create(cls, title, style, x, y, w,
 // h)` with i32 x/y/w/h, but Cocoa's initWithContentRect: needs an NSRect of f64s

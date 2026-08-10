@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A source integer may land in binary64 and participate in ordinary runtime
 // arithmetic without passing through mathematical Real. This compile canary
 // retains the generic unit-ratio helper independently of any bounded-float

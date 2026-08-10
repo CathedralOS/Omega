@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Floating-point arithmetic whose result is a `let`-bound LOCAL (not a field)
 // must still lower to an SSE scalar-double op (addsd/subsd/mulsd/divsd), NOT an
 // integer add over the f64 bit patterns. The local-target binary write used to

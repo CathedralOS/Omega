@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. Float COMPARISONS in
 // value/write position (bool let + bool field store): before the FCMP/CSET-
 // pattern arms landed, the aarch64 float write path received the TARGET

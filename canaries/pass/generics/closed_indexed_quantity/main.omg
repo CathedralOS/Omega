@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PDI2: one erased domain family spans carriers and distinguishes canonical
 // closed proof-static indices without changing either carrier's layout.
 

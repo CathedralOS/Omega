@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PROVES multiple f64 ARGUMENTS marshalled into consecutive float registers
 // (v0, v1) alongside a float RETURN (render fire 6). A boundary method with two
 // f64 params bound to libm `hypot`: x -> v0, y -> v1 (sequenced by the vreg

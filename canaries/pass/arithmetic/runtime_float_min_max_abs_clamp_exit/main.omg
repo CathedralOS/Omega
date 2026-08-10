@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Float min / max / abs / clamp on the SSE unit (maxsd 0x5F / minsd 0x5D):
 // abs and clamp desugar to float min/max, which the encoder gained here (they
 // previously errored "float Max not implemented"). The native maxsd/minsd

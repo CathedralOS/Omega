@@ -107,22 +107,22 @@ fn collect_expression_operator_use(
             }
         }
         ExpressionNode::Binary(binary) => {
-            // A spelled binary use participates in operator resolution only
-            // when the left operand type is known and at least one spelled
-            // candidate matches it: builtin-only arithmetic stays unrecorded
-            // (and untouched), exactly as before spelled binary dispatch.
+            // Resolve from the complete recoverable operand tuple. A
+            // contextual literal or nested binary may not expose an
+            // independent left-hand type, while the companion operand still
+            // fixes the exact overload and arithmetic policy.
             if let Some(spelling) = binary_operator_spelling(binary.operator)
-                && let Some(receiver_type) =
-                    expression_type_reference_for_origin(program, binary.left, origin)
-                && let right_type =
-                    expression_type_reference_for_origin(program, binary.right, origin)
+                && let operand_types = [
+                    expression_type_reference_for_origin(program, binary.left, origin),
+                    expression_type_reference_for_origin(program, binary.right, origin),
+                ]
+                && operand_types.iter().any(Option::is_some)
                 && let Some(fact) = binary_operator_use_fact(
                     program,
                     expression,
                     origin,
                     spelling,
-                    receiver_type,
-                    right_type,
+                    &operand_types,
                     candidates,
                 )
             {
@@ -354,12 +354,10 @@ fn binary_operator_use_fact(
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
-    receiver_type: TypeReferenceHandle,
-    right_type: Option<TypeReferenceHandle>,
+    operand_types: &[Option<TypeReferenceHandle>],
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> Option<CheckedOperatorUseFact> {
-    let candidates =
-        resolve_spelling_for_operands(program, spelling, &[Some(receiver_type), right_type]);
+    let candidates = resolve_spelling_for_operands(program, spelling, operand_types);
     if candidates.is_empty() {
         return None;
     }
@@ -394,7 +392,7 @@ fn binary_operator_use_fact(
         expression,
         origin,
         spelling,
-        policy_adapter: arithmetic_policy_adapter(program, spelling, receiver_type),
+        policy_adapter: arithmetic_policy_adapter(program, spelling, operand_types),
         provider_plan_identity: 0,
         selected_operator_symbol,
         candidates: candidate_span,
@@ -505,7 +503,7 @@ fn operator_use_fact(
 fn arithmetic_policy_adapter(
     program: &TypedTrees,
     spelling: OperatorSpelling,
-    receiver_type: TypeReferenceHandle,
+    operand_types: &[Option<TypeReferenceHandle>],
 ) -> CheckedArithmeticPolicyAdapter {
     if !matches!(
         spelling,
@@ -517,17 +515,36 @@ fn arithmetic_policy_adapter(
         return CheckedArithmeticPolicyAdapter::None;
     }
 
-    let format = match program.primitive_type_reference(receiver_type) {
-        Some(PrimitiveType::F32) => FloatFormat::BINARY32,
-        Some(PrimitiveType::F64) => FloatFormat::BINARY64,
-        _ => return CheckedArithmeticPolicyAdapter::None,
-    };
-    float_policy_adapter(
-        format,
-        program
+    let mut format = None;
+    let mut selected_domain = ArithmeticDomain::Exact;
+    for type_reference in operand_types.iter().flatten().copied() {
+        let candidate_format = match program.primitive_type_reference(type_reference) {
+            Some(PrimitiveType::F32) => Some(FloatFormat::BINARY32),
+            Some(PrimitiveType::F64) => Some(FloatFormat::BINARY64),
+            _ => None,
+        };
+        if let Some(candidate_format) = candidate_format {
+            if format.is_some_and(|format| format != candidate_format) {
+                return CheckedArithmeticPolicyAdapter::None;
+            }
+            format = Some(candidate_format);
+        }
+
+        let candidate_domain = program
             .type_reference_table
-            .arithmetic_domain(receiver_type),
-    )
+            .arithmetic_domain(type_reference);
+        if candidate_domain == ArithmeticDomain::Exact {
+            continue;
+        }
+        if selected_domain != ArithmeticDomain::Exact && selected_domain != candidate_domain {
+            return CheckedArithmeticPolicyAdapter::None;
+        }
+        selected_domain = candidate_domain;
+    }
+    let Some(format) = format else {
+        return CheckedArithmeticPolicyAdapter::None;
+    };
+    float_policy_adapter(format, selected_domain)
 }
 
 fn float_policy_adapter(

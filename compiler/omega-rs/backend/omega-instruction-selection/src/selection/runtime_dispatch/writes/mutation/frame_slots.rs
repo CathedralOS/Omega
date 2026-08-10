@@ -681,9 +681,8 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
         return Some(kind);
     }
 
-    // Decision 17 (operand-driven): arithmetic domain and signedness come from
-    // the operands. Typed local-alias capture retains constant landings through
-    // transition-argument materialization, so no destination fallback is needed.
+    // Integer domain and signedness come from the operands. Float domain and
+    // provider identity come from checked evidence carried through control flow.
     super::select_runtime_storage_binary_write_in_table_with_call_ordinal(
         input,
         dispatch_index,

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS canary (F5), abort-style: Trapping 0.0/0.0 must trap as an invalid
 // float operation rather than silently carrying NaN.
 // exits: 7 = SAILED PAST the trap.

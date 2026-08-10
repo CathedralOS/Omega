@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A floating-point constant assigned to a float field lowers to a plain scalar
 // store of the value's IEEE-754 bit pattern: an `f64` field receives the 8-byte
 // `f64` bits, an `f32` field the narrowed 4-byte `f32` bits. No SSE register

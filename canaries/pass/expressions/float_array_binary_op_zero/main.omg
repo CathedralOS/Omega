@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS CANARY -- float f64 array element binary arithmetic.
 //
 // `self.vals[0] + self.vals[1]` where both operands are fixed-array elements of

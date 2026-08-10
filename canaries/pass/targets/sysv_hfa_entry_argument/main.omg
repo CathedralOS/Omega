@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A flat f64 pair occupies two SysV SSE eightbytes and arrives packed through
 // xmm0/xmm1; the source-to-object test pins both runtime-frame stores.
 data FloatPair {

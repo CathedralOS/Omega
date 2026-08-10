@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // ENT2c: fixed arrays are by-value aggregate shapes. They never decay to a
 // pointer merely because a native external leaf consumes them. The explicit
 // `&[u8; 16]` parameter is the distinct pointer form. Its ordinary shared loan

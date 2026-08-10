@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. F6's f32/f64 named total
 // orders are ordinary satisfier machines selected through a compile-time
 // machine parameter. Raw recasts pin the IEEE edge order without using float

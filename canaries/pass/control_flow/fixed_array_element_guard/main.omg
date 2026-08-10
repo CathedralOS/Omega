@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A dispatch guard comparing a FIXED-ARRAY ELEMENT to a constant -- `self.cells[2]
 // == 7.0`, cells `[f64; 4]` -- must resolve the operand to one element (8 bytes at
 // index*elem), not the whole 32-byte array. Previously the guard-operand layout

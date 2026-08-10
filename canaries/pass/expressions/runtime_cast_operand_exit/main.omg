@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // A numeric `as` cast used as a binary OPERAND (`self.a + (self.b as f64)`), not as
 // the whole assignment RHS. Casts assigned directly to a place already lowered via
 // WriteRuntimeStorageConvert; in operand position the cast was dropped (the resolver

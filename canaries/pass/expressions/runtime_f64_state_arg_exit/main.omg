@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // PASS CANARY -- exit 70.
 //
 // Verifies that f64 values forwarded through a transition arm state argument

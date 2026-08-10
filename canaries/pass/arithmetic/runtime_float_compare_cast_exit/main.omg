@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Breadth guard for floating-point: comparisons with NEGATIVES (the `ucomisd` sets
 // UNSIGNED flags while F64.is_signed is true -- a wrong branch choice would flip
 // negative-float comparisons), f64 and f32 arithmetic, int<->float and f32<->f64

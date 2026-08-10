@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. Numeric range inclusion is
 // representation implication when both views use the same IEEE carrier. A
 // shared view may also forget the numeric fact into an unconstrained

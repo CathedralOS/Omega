@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70). Guards the nested-cast width fix (same width axis as
 // the f32 binary fixes). `let wide: f64 = self.src as f64; let n: i32 = wide
 // as i32` folds `wide` into the outer cast, giving `(self.src as f64) as i32`

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. NESTED float arithmetic in
 // operand position: `(self.a + self.b) * self.c` as a field-store value and
 // as a TRANSITION ARGUMENT. The two non-guard value-operand resolvers carry

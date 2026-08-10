@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Canary for a value-called macOS window composer. `open_window` sequences the
 // Objective-C class lookup/allocation/initialization calls and returns a usable
 // handle through an ordinary same-data-type value call. A non-null handle exits

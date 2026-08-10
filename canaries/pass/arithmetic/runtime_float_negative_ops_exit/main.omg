@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Float operations with NEGATIVE values -- the subtle, rendering-critical cases. Float
 // comparisons compile to `ucomisd` + an UNSIGNED setcc (the flags are unsigned even
 // though f64 is signed), so a negative operand is the case most likely to mis-lower; this

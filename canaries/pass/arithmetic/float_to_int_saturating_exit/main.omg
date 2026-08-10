@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70), native + interpreter. F4 (the float->int cast ruling):
 // `in Saturating` is the defined clamp policy -- NaN -> 0 (cast-specific,
 // per the float brief), out-of-range clamps to the target bounds, in-range

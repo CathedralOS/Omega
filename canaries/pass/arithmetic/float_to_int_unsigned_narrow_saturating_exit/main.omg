@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70): F4 native/interpreter coverage for the target shapes
 // that require target signedness and actual narrow bounds. Saturating maps
 // unsigned negatives to zero, clamps u8/i8 at their own bounds, and preserves

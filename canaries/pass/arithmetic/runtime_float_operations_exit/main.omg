@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // Float (f64 + f32) arithmetic, comparison, casts, LOCAL float arith, and
 // NESTED-field float arith -- all computed at runtime and checked against exact
 // (integer-valued) constants so equality is precise. Locks float codegen as a

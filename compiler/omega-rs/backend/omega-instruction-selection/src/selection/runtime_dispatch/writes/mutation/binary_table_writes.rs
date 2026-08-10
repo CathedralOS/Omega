@@ -824,9 +824,9 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     }
 
     let target_place = target_place?;
-    // Normalized float operations consume checked adapter evidence carried
-    // through control flow. Integer operations and compatibility-only float
-    // spellings retain the operand-domain path during the bootstrap migration.
+    // Float operations consume exact checked provider and adapter evidence
+    // carried through control flow. Only integer operations use the ordinary
+    // operand-domain path inside the shared resolver.
     let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,

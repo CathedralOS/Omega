@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // RUN CANARY (exit 70) + interpreter differential. An f32 passed through a
 // TRANSITION ARGUMENT rounds to f32 at the param binding (not just at stores):
 // accumulating via inline `+ 1.0` args past 2^24 plateaus at 16777216, matching

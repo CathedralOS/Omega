@@ -3133,8 +3133,12 @@ fn select_runtime_binary_mutation_write(
         Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
 
-    // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
-    // types (Exact neutral); signedness from whichever operand is an integer place.
+    // Owned expression trees have no canonical checked-node identity. Never
+    // reconstruct float semantics from their operand storage types; authored
+    // float operations must lower through the provenance-preserving table path.
+    if is_float {
+        return None;
+    }
     let domain = resolve_binary_write_arithmetic_domain(
         input,
         dispatch_index,

@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 // THREE f64 arguments reach v2 and the result remains genuinely FUSED.
 // With a = b = 1 + 2^-52 and c = -(1 + 2^-51), exact a*b+c is 2^-104.
 // FMA therefore returns a positive subnormal-sized value, while a separately
