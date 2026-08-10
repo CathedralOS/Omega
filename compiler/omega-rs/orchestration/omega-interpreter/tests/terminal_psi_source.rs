@@ -1399,6 +1399,52 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
 }
 
 #[test]
+fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("u64 bounded-count exact left-shift source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_shift_left_u64_bounded_count")
+        .expect("u64 bounded-count exact left shift should use its value and count bounds");
+    let semantic =
+        encode_module(&lowered.semantic_module).expect("u64 bounded-count shift semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("u64 bounded-count shift proof");
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u64_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let execute = |value, count| {
+        interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(value), argument(count)],
+        )
+        .expect("verified u64 bounded-count exact left shift should interpret")
+    };
+    assert_eq!(
+        execute(2_305_843_009_213_693_951, 3).value(),
+        argument(u64::MAX as u128 - 7)
+    );
+    assert_eq!(
+        execute(2_305_843_009_213_693_951, 2).value(),
+        argument(9_223_372_036_854_775_804)
+    );
+    assert_eq!(execute(2_305_843_009_213_693_952, 3).value(), argument(0));
+    assert_eq!(execute(1, 4).value(), argument(0));
+
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("u64 bounded-count exact left shift should cross Omega");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("u64 bounded-count exact left shift should select");
+        let assigned = assign_registers(&target_operations)
+            .expect("u64 bounded-count exact left-shift homes should assign");
+        emit_machine_code(&assigned).expect("u64 bounded-count exact left shift should emit");
+    }
+}
+
+#[test]
 fn checked_source_exact_add_uses_known_addend_bound() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-addend exact-add source canary should compile");
