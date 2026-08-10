@@ -272,9 +272,10 @@ customer-shaped compiler concept is introduced.
 ### Frames, reach, and trust
 
 - **R5:** extend exact inferred may-write summaries and relational candidates
-  beyond the live acyclic/cycle-safe statement/value-call coverage. Preserve
-  facts outside complete frames and treat opaque or unresolved frames as
-  conservative fences. Do not restore an authored `stores` clause.
+  beyond the live acyclic/cycle-safe statement/value-call and transitive
+  boundary-wrapper coverage. Preserve facts outside complete frames and treat
+  opaque or unrepresentable frames as conservative fences. Do not restore an
+  authored `stores` clause.
 - **STR/EFX:** finish independent normalization/publication of service reach,
   suspension, blocking, termination, mutation, and trust; retire remaining
   legacy umbrella names after consumers migrate.

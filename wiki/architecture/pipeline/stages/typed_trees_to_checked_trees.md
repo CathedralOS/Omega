@@ -132,11 +132,13 @@ Current ownership is:
   mutation. Overlap, a dynamic index, a missing predecessor fact, or an opaque
   statement call clears the affected shortcut. Complete R5 statement- and
   value-call frames preserve stable paths when their may-write sets are empty
-  or disjoint and invalidate only overlapping paths; unresolved frames remain
-  all-facts fences. Other writes into attached or machine-owned persistent
-  storage remain fail-closed until parameter-backed loan propagation,
-  runtime-indexed transport, broader exact R5 summaries, and general
-  state-parameter loan-root rebasing are implemented.
+  or disjoint and invalidate only overlapping paths. Internal wrappers compose
+  nested boundary receiver/out-argument frames; an unsummarized body falls back
+  to its receiver plus every potentially exclusive place argument. Frames whose
+  places cannot be represented remain all-facts fences. Other writes into
+  attached or machine-owned persistent storage remain fail-closed until
+  parameter-backed loan propagation, runtime-indexed transport, broader exact
+  R5 summaries, and general state-parameter loan-root rebasing are implemented.
 - `checks/carry.rs` joins canonical place liveness with direct/transitive
   possible suspension. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state

@@ -304,11 +304,15 @@ The compiler retains explicit state `requires` through checking and
 specialization, discharges them on every named incoming edge, and assumes them
 only after arrival. Statement invalidation prevents a back-edge assumption from
 proving itself after mutation. Inferred frames use one sorted complete-or-opaque
-representation, compose across resolved calls and acyclic state graphs, and
-substitute state parameters positionally. Body-derived frames remain
+representation, compose across resolved internal calls, nested boundary calls,
+and acyclic state graphs, and substitute state parameters positionally. When a
+body cannot be summarized more narrowly, the caller retains the ownership
+ceiling formed by the receiver and every place-shaped argument that could be
+exclusive; a place that cannot be represented still makes the frame opaque.
+Body-derived frames remain
 implementation evidence outside public contract/specialization identity.
-Rebinding cycles and unresolved calls stay opaque; `TASKS.md` R5 owns broader
-relational candidates and frame precision.
+Rebinding cycles retain only that coarse ownership ceiling; `TASKS.md` R5 owns
+broader relational candidates and frame precision.
 
 ## 6. Dynamic lowering — the runtime half
 

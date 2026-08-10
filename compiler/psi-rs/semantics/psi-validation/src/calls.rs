@@ -76,7 +76,8 @@ impl<'program> CallFrameResolver<'program> {
         )
         .or_else(|| {
             known_boundary_call_written_paths(self.program, &machine_symbols, &self.symbols, call)
-        });
+        })
+        .or_else(|| conservative_call_written_paths(self.program, call));
         paths.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 
@@ -415,15 +416,42 @@ fn syntactic_call_written_paths(
         receiver_members.join(".")
     }];
     for argument in arguments {
-        let ExpressionNode::Mutable(place) = program.expression_table.expression(*argument) else {
-            continue;
+        let place = match program.expression_table.expression(*argument) {
+            ExpressionNode::Mutable(place) => *place,
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                *argument
+            }
+            _ => continue,
         };
-        let path = coarse_place_path(program, *place)?;
+        let path = coarse_place_path(program, place)?;
         if !written.contains(&path) {
             written.push(path);
         }
     }
     Some(written)
+}
+
+/// Ownership-derived caller-visible ceiling used when body inference or a
+/// boundary signature cannot provide a narrower complete frame. The receiver
+/// and every place-shaped argument conservatively cover the caller places the
+/// call could mutate; without a resolved signature, even a by-value place is
+/// retained rather than guessed immutable. A malformed place remains opaque so
+/// validation still fails closed rather than treating a write as absent.
+pub(crate) fn conservative_call_written_paths(
+    program: &TypedTrees,
+    call: &TableCall,
+) -> Option<Vec<String>> {
+    let receiver_members = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect::<Vec<_>>();
+    syntactic_call_written_paths(
+        program,
+        &receiver_members,
+        program.statement_table.expression_handles(call.arguments),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1356,19 +1384,33 @@ fn summarize_state_written_paths(
                     .iter()
                     .map(|member| member.as_str().to_owned())
                     .collect::<Vec<_>>();
+                let arguments = program
+                    .statement_table
+                    .expression_handles(nested_call.arguments);
                 let nested_writes = known_call_written_paths_for_parts(
                     program,
                     nested_call.target_symbol,
                     nested_call.target.as_str(),
                     &nested_receiver_members,
-                    program
-                        .statement_table
-                        .expression_handles(nested_call.arguments),
+                    arguments,
                     machine,
                     &machine_symbols,
                     symbols,
                     active_states,
-                )?;
+                )
+                .or_else(|| {
+                    known_boundary_call_written_paths_for_parts(
+                        program,
+                        &machine_symbols,
+                        symbols,
+                        &nested_receiver_members,
+                        nested_call.target.as_str(),
+                        arguments,
+                    )
+                })
+                .or_else(|| {
+                    syntactic_call_written_paths(program, &nested_receiver_members, arguments)
+                })?;
                 for relative in nested_writes {
                     if relative_state_path_is_visible(&relative, parameters, &locals)?
                         && !written.contains(&relative)

@@ -4188,6 +4188,70 @@ fn boundary_ensures_witness_dies_when_internal_call_writes_place() {
 }
 
 #[test]
+fn boundary_witness_survives_transitive_disjoint_boundary_frame() {
+    validate_contract_source(
+        r#"
+    boundary trait Sensor {
+        machine sample(value: &mut u32)
+        ensures value <= 8;
+    }
+    boundary trait Device {
+        machine ping();
+    }
+    data Worker { device: Device; }
+    machine Worker::touch_device(&mut self) {
+        self.device.ping();
+    }
+    data Main { sensor: Sensor; worker: Worker; n: u32; buf: [u8; 12]; }
+    machine Main::main(&mut self) {
+        self.sensor.sample(&mut self.n);
+        self.worker.touch_device();
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let value: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    "#,
+    )
+    .expect("an internal wrapper's exact nested boundary frame must preserve a disjoint witness");
+}
+
+#[test]
+fn boundary_witness_dies_through_transitive_boundary_out_argument() {
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Sensor {
+        machine sample(value: &mut u32)
+        ensures value <= 8;
+    }
+    boundary trait Device {
+        machine overwrite(value: &mut u32);
+    }
+    data Worker { device: Device; }
+    machine Worker::overwrite_external(&mut self, value: &mut u32) {
+        self.device.overwrite(value);
+    }
+    data Main { sensor: Sensor; worker: Worker; n: u32; buf: [u8; 12]; }
+    machine Main::main(&mut self) {
+        self.sensor.sample(&mut self.n);
+        self.worker.overwrite_external(&mut self.n);
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let value: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    "#,
+    )
+    .expect_err("a transitive boundary out-argument must invalidate the overlapping witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("recast")),
+        "expected the recast refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn dependent_entry_fact_survives_unrelated_internal_call() {
     validate_contract_source(
         r#"
