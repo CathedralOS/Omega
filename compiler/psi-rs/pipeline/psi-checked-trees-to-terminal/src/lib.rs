@@ -2194,19 +2194,8 @@ fn staged_short_circuit_bindings_terminator(
     }
     let supported = match terminator {
         LoweredScalarBranchTerminator::Return { .. } => true,
-        LoweredScalarBranchTerminator::Conditional {
-            condition,
-            when_true_arguments,
-            when_false_arguments,
-            ..
-        } => {
+        LoweredScalarBranchTerminator::Conditional { condition, .. } => {
             !contains_short_circuit(condition)
-                && !when_true_arguments
-                    .iter()
-                    .any(direct_expression_contains_short_circuit)
-                && !when_false_arguments
-                    .iter()
-                    .any(direct_expression_contains_short_circuit)
         }
         LoweredScalarBranchTerminator::Jump { .. } => true,
         LoweredScalarBranchTerminator::Crash(_) => false,

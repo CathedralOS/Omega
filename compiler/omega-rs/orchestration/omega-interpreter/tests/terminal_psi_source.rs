@@ -1314,12 +1314,62 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
 }
 
 #[test]
-fn checked_source_staged_local_conditional_edge_fails_closed() {
+fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("staged-local conditional-edge source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_short_circuit_local_conditional_edge")
+        .expect("staged locals should compose with selected conditional-edge staging");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("staged-local conditional-edge terminal Psi should encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("staged-local conditional-edge proof should encode");
+    let semantic =
+        decode_module(&semantic).expect("staged-local conditional-edge terminal Psi should decode");
+    let proof =
+        decode_proof_bundle(&proof).expect("staged-local conditional-edge proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("staged-local conditional-edge terminal Psi should verify");
+
+    for (first, second, expected, expected_units) in [
+        (false, false, false, 9_u64),
+        (false, true, false, 9),
+        (true, false, true, 11),
+        (true, true, true, 10),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+        )
+        .expect("staged-local conditional edge should execute");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified staged-local conditional edge should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("staged-local conditional edge should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("staged-local conditional edge should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("staged-local conditional edge should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_staged_local_short_circuit_guard_fails_closed() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("staged-local short-circuit-guard source canary should compile");
     assert_eq!(
-        lower_machine(&checked, "terminal_short_circuit_local_conditional_edge")
-            .expect_err("short-circuit conditional-edge arguments need staged terminal control"),
+        lower_machine(&checked, "terminal_short_circuit_local_guard")
+            .expect_err("a staged local plus short-circuit guard needs nested control"),
         LoweringError::Unsupported(
             "short-circuit scalar locals outside a staged terminator need terminal control"
         )
