@@ -42715,6 +42715,8 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 /// (PE32+/subsystem 10 from build.omg); target-specific instruction canaries
 /// use the smallest registered architecture target that proves their gate.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
+    ("build/explicit_program_entry_binding", "windows_x64"),
+    ("build/receiver_bound_program_entry", "windows_x64"),
     ("inline_asm/asm_fences_compile", "linux_x64"),
     ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
     ("inline_asm/asm_flags_compile", "linux_x64"),
@@ -42751,6 +42753,18 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/sysv_hfa_result_entry", "linux_x64"),
     ("targets/sysv_mixed_result_entry", "linux_x64"),
     ("targets/sysv_wrapped_float_entry", "linux_x64"),
+];
+
+const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
+    ("build/duplicate_program_entry_binding", "windows_x64"),
+    (
+        "build/hosted_program_entry_visible_parameter",
+        "windows_x64",
+    ),
+    ("build/program_entry_receiver_not_zii", "windows_x64"),
+    ("build/program_entry_returns_value", "windows_x64"),
+    ("build/unknown_program_entry_binding", "windows_x64"),
+    ("build/uefi_program_entry_missing_storage_roots", "uefi_x64"),
 ];
 
 #[test]
@@ -44737,7 +44751,14 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             .trim()
             .to_owned();
 
-        let diagnostics = match compile_canary_without_output(&canary) {
+        let cross_target = CROSS_TARGET_FAIL_CANARIES
+            .iter()
+            .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
+        let result = match cross_target {
+            Some(target) => compile_canary_without_output_for_target(&canary, target),
+            None => compile_canary_without_output(&canary),
+        };
+        let diagnostics = match result {
             Ok(report) => {
                 failures.push(format!(
                     "{} compiled successfully (expected a rejection): {}",
@@ -47692,8 +47713,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/higher_order_machine_schema_compile",
     "proofs/runtime_core_roster_ops_exit",
     "proofs/machine_parameterized_data_compile",
-    "build/explicit_program_entry_binding",
-    "build/receiver_bound_program_entry",
     "build/runtime_depend_mapping_exit",
     "build/static_machine_parameter_config_compile",
     "recast/runtime_record_view_exit",
@@ -48335,6 +48354,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/program_entry_returns_value",
     "build/program_entry_receiver_not_zii",
     "build/unknown_program_entry_binding",
+    "build/uefi_program_entry_missing_storage_roots",
     "build/static_machine_parameter_contract_mismatch",
     "build/accept_boundary_outside_build",
     "platform/platform_block_retired",

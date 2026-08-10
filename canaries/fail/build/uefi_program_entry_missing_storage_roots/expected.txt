@@ -1,0 +1,1 @@
+exposes exactly image and initial-storage roots

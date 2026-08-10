@@ -135,11 +135,12 @@ source signature states whether it needs a receiver or visible arguments, and
 the target schema states how the launch environment supplies those needs.
 
 > **Implementation gate:** explicit `Build` root binding, exact source-entry
-> selection, hosted free/receiver source-shape checks, and receiver ZII checks
-> are live. Target-owned slot metadata, generated bridge integration, actual
-> receiver provisioning, corpus migration, and removal of the transitional
-> `Main::main(&mut self)` fallback remain under `ENTRY-CONTENT-ROOTS` in
-> `TASKS.md`.
+> selection, target-owned `ProgramEntry` profile/schema metadata, hosted
+> free/receiver source-shape checks, freestanding visible-root arity, and
+> receiver ZII checks are live. Exact visible-root type/calling-policy checks,
+> generated bridge integration, actual receiver provisioning, corpus migration,
+> and removal of transitional entry-name discovery remain under
+> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
 ## Parameters And Returns
 

@@ -1,1 +1,1 @@
-bind_root#windows_x64::ProgramEntry#launch
+bind_root#windows_x86_64::ProgramEntry#launch

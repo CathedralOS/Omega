@@ -1,3 +1,6 @@
+target windows_x64 {
+}
+
 machine build(builder: &mut Build) {
-    builder.roots.bind(windows_x64::ProgramEntry, Application::launch);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Application::launch);
 }
