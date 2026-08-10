@@ -1118,15 +1118,65 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
 }
 
 #[test]
-fn checked_source_staged_local_with_short_circuit_return_fails_closed() {
+fn checked_source_staged_local_composes_with_a_short_circuit_return() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("staged-local short-circuit-return source canary should compile");
-    assert_eq!(
-        lower_machine(
-            &checked,
-            "terminal_short_circuit_local_then_short_circuit_return"
+    let lowered = lower_machine(
+        &checked,
+        "terminal_short_circuit_local_then_short_circuit_return",
+    )
+    .expect("a staged local should compose with short-circuit terminal return control");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("staged-local short-circuit-return terminal Psi should encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("staged-local short-circuit-return proof should encode");
+    let semantic = decode_module(&semantic)
+        .expect("staged-local short-circuit-return terminal Psi should decode");
+    let proof =
+        decode_proof_bundle(&proof).expect("staged-local short-circuit-return proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("staged-local short-circuit-return terminal Psi should verify");
+
+    for (first, second, expected, expected_units) in [
+        (false, false, false, 7_u64),
+        (false, true, false, 7),
+        (true, false, true, 8),
+        (true, true, true, 7),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
         )
-        .expect_err("a staged local plus short-circuit return needs nested terminal control"),
+        .expect("staged-local short-circuit return should execute");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified staged-local short-circuit return should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("staged-local short-circuit return should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("staged-local short-circuit return should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("staged-local short-circuit return should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_staged_local_jump_fails_closed_until_it_is_carried() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("staged-local jump source canary should compile");
+    assert_eq!(
+        lower_machine(&checked, "terminal_short_circuit_local_jump")
+            .expect_err("a staged local crossing a jump needs terminal carrying"),
         LoweringError::Unsupported(
             "short-circuit scalar locals outside a staged terminator need terminal control"
         )
