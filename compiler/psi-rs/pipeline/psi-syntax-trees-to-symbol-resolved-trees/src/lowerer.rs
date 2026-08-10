@@ -41,6 +41,11 @@ fn lower_syntax_trees_with_optional_sources(
 
 pub(crate) struct Lowerer {
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
+    /// Authored machine `reaches` names retained only until symbol assignment
+    /// builds the canonical service rows. This vector is parallel to the root
+    /// machine arena and never enters the published symbol-resolved trees.
+    pub(crate) pending_machine_service_reaches:
+        Vec<Vec<psi_symbol_resolved_trees::name::DiagnosticName>>,
     sources: Option<Arc<SourceMap>>,
     /// Per-lowering counter that mints unique names for synthetic `let`
     /// temporaries hoisted out of operand-position indexed reads (see
@@ -138,6 +143,7 @@ impl Lowerer {
     fn new(sources: Option<Arc<SourceMap>>) -> Self {
         Self {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
+            pending_machine_service_reaches: Vec::new(),
             sources,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
@@ -181,13 +187,28 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )?;
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        assert_eq!(
+            self.symbol_resolved_trees.machines.len(),
+            self.pending_machine_service_reaches.len(),
+            "each initially resolved root machine has one pending authored service row"
+        );
+        let pending_machine_service_reaches = self
+            .symbol_resolved_trees
+            .machines
+            .iter()
+            .zip(&self.pending_machine_service_reaches)
+            .map(|(machine, reaches)| (machine.symbol, reaches.clone()))
+            .collect::<Vec<_>>();
         crate::conformance_blocks::normalize_closed_conformance_blocks(
             &mut self.symbol_resolved_trees,
         )?;
         crate::domain_establishment::normalize_domain_establishment_routes(
             &mut self.symbol_resolved_trees,
         )?;
-        crate::service_reaches::normalize_service_reaches(&mut self.symbol_resolved_trees);
+        crate::service_reaches::normalize_service_reaches(
+            &mut self.symbol_resolved_trees,
+            &pending_machine_service_reaches,
+        )?;
         self.symbol_resolved_trees.rebuild_tables();
         crate::conformance_blocks::route_inline_member_calls(&mut self.symbol_resolved_trees);
         let SymbolResolvedTrees {

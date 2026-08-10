@@ -2,8 +2,7 @@ use crate::data::lower_type_parameters;
 use crate::expression::lower_expression_into_table;
 use crate::lowerer::Lowerer;
 use crate::state::{
-    lower_signature_contracts, lower_signature_invokes, lower_signature_service_reaches,
-    lower_state_node,
+    lower_service_reach_names, lower_signature_contracts, lower_signature_invokes, lower_state_node,
 };
 use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
@@ -41,8 +40,7 @@ pub(crate) fn lower_machine_into(
     } else {
         psi_symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
-    let service_reaches =
-        lower_signature_service_reaches(lowerer, syntax_trees, machine.service_reaches);
+    let service_reaches = lower_service_reach_names(syntax_trees, machine.service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
@@ -95,6 +93,9 @@ pub(crate) fn lower_machine_into(
             psi_language_semantics::MachineSupplyMode::CheckedBody
         }
     };
+    lowerer
+        .pending_machine_service_reaches
+        .push(service_reaches);
     lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
@@ -118,7 +119,6 @@ pub(crate) fn lower_machine_into(
             decrease_order,
             decrease_view_arguments,
             decrease_range,
-            service_reaches,
             invokes,
             suspends: machine.suspends,
             blocks: machine.blocks,

@@ -346,7 +346,6 @@ pub struct MachineSnapshot {
     pub termination: TerminationInterfaceSnapshot,
     pub decreases: Vec<ExpressionSnapshot>,
     pub decrease_order: Vec<String>,
-    pub service_reaches: Vec<String>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
@@ -943,11 +942,6 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .collect(),
         decrease_order: program
             .machine_decrease_order(machine.decrease_order)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
-        service_reaches: program
-            .machine_service_reaches(machine)
             .iter()
             .map(ToString::to_string)
             .collect(),

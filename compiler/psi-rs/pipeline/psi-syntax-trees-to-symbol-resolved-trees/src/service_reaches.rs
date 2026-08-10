@@ -1,14 +1,20 @@
+use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
     ServiceReachId, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,
 };
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
+use psi_symbol_resolved_trees::name::DiagnosticName;
 use psi_symbols::{SymbolKind, SymbolTable};
 
 /// Normalize service reach only after every declaration and trait-parent edge
-/// has a resolved symbol. Unknown or non-boundary names intentionally produce
-/// no service member here; validation still owns the directed source error
-/// while normalized rows remain incapable of containing an invalid member.
-pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
+/// has a resolved symbol. Authored root-machine names live only in the
+/// lowering-private sidecar and are validated before the published resolved
+/// trees are returned; normalized rows therefore cannot contain an invalid
+/// member or retain a parallel spelling contract.
+pub(crate) fn normalize_service_reaches(
+    program: &mut SymbolResolvedTrees,
+    machine_service_reaches: &[(psi_symbols::SymbolHandle, Vec<DiagnosticName>)],
+) -> Result<(), Diagnostic> {
     let mut boundary_traits = program
         .traits
         .iter()
@@ -49,8 +55,13 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
         .machines
         .iter()
         .map(|machine| {
-            let mut names = program
-                .machine_service_reaches(machine)
+            let authored = machine_service_reaches
+                .iter()
+                .find(|(symbol, _)| *symbol == machine.symbol)
+                .map(|(_, reaches)| reaches.as_slice())
+                .expect("surviving resolved machine retains its pending authored service row");
+            validate_machine_service_reaches(program, &services, machine, authored)?;
+            let mut names = authored
                 .iter()
                 .map(|name| name.as_str().to_owned())
                 .collect::<Vec<_>>();
@@ -65,7 +76,7 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
                 program.machine_invokes(machine),
                 parameters,
             ));
-            (
+            Ok((
                 machine.symbol,
                 row_for_names(
                     &program.symbols,
@@ -73,9 +84,9 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
                     &mut rows,
                     names.iter().map(String::as_str),
                 ),
-            )
+            ))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     let signature_rows = program
         .traits
@@ -133,6 +144,36 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
 
     program.service_reaches = services;
     program.service_reach_rows = rows;
+    Ok(())
+}
+
+fn validate_machine_service_reaches(
+    program: &SymbolResolvedTrees,
+    services: &ServiceReachTable,
+    machine: &psi_symbol_resolved_trees::machine::Machine,
+    authored: &[DiagnosticName],
+) -> Result<(), Diagnostic> {
+    for service in authored {
+        if service_for_name(&program.symbols, services, service.as_str()).is_none() {
+            return Err(Diagnostic::error(format!(
+                "machine `{}` declares unknown boundary service `{service}`",
+                machine.name,
+            )));
+        }
+    }
+
+    if matches!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
+    ) && !authored.is_empty()
+    {
+        return Err(Diagnostic::error(format!(
+            "external leaf `{}` repeats an authored `reaches` row, but `via` derives behavior from the satisfied requirement and admitted binding; remove the leaf's `reaches` clause",
+            machine.name,
+        )));
+    }
+
+    Ok(())
 }
 
 fn invoked_service_names(

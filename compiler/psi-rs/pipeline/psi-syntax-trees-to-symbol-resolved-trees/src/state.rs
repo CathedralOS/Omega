@@ -207,16 +207,28 @@ pub(crate) fn lower_signature_service_reaches(
 ) -> HandleSpan<psi_symbol_resolved_trees::name::DiagnosticName> {
     let mut span = HandleSpan::empty();
 
-    for service in syntax_trees.items.identifier_path_members(service_reaches) {
+    for service in lower_service_reach_names(syntax_trees, service_reaches) {
         lowerer
             .symbol_resolved_trees
             .tables
             .declarations
             .signature_service_reaches
-            .append_to_span(&mut span, crate::name::lower_name(service));
+            .append_to_span(&mut span, service);
     }
 
     span
+}
+
+pub(crate) fn lower_service_reach_names(
+    syntax_trees: &SyntaxTrees,
+    service_reaches: HandleSpan<syntax::identifier::Identifier>,
+) -> Vec<psi_symbol_resolved_trees::name::DiagnosticName> {
+    syntax_trees
+        .items
+        .identifier_path_members(service_reaches)
+        .iter()
+        .map(crate::name::lower_name)
+        .collect()
 }
 
 pub(crate) fn lower_signature_contracts(

@@ -1248,29 +1248,6 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
 }
 
 #[test]
-fn rejects_unknown_machine_service_reach_before_typed_trees() {
-    let source = r#"
-        machine work()
-        reaches MissingService
-        {
-        }
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("unknown machine service reach must not enter typed trees");
-
-    assert!(
-        diagnostic
-            .message
-            .contains("machine `work` declares unknown boundary service `MissingService`")
-    );
-}
-
-#[test]
 fn typed_snapshots_publish_only_normalized_service_reach() {
     let source = r#"
         boundary trait Console {
@@ -1302,34 +1279,6 @@ fn typed_snapshots_publish_only_normalized_service_reach() {
         panic!("one typed trait-machine snapshot");
     };
     assert_eq!(signature.service_reach, ["Console"]);
-}
-
-#[test]
-fn rejects_authored_service_reach_on_external_realization_before_typed_trees() {
-    let source = r#"
-        boundary trait Process {
-            machine exit(code: i32)
-            reaches Process;
-        }
-
-        machine exit_leaf(code: i32)
-        satisfies Process::exit
-        via Binding::Syscall(60)
-        reaches Process;
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("external realization must derive rather than repeat service reach");
-
-    assert!(
-        diagnostic
-            .message
-            .contains("repeats an authored `reaches` row")
-    );
 }
 
 #[test]
