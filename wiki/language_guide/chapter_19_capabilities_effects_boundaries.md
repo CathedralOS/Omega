@@ -36,31 +36,28 @@ from parameter/result use and provider selection rather than from the
 `boundary` modifier.
 
 Core operators keep their public contracts visible while primitive lowering
-stays behind the compiler/runtime boundary. A core operator carries a fixed
-`spelling` so the surface symbol resolves to it without hiding the signature or
-proof obligation:
+stays behind the compiler/runtime boundary. Fixed surface tokens resolve to
+these named declarations without hiding their signatures or proof obligations.
+The exact token-binding syntax is open in
+[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax);
+`spelling` is not an accepted keyword, so these examples omit the association:
 
 ```omega
 boundary operator Slice::index<T>(items: &[T], index: u64) -> T
-    spelling []
 requires
     index < items.len;
 
 boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-    spelling [..]
 requires
     start <= end && end <= items.len;
 ```
 
-The `spelling` clause sits above the `boundary` modifier and the `requires`
-clause, so binding a fixed spelling never hides the signature or proof
-obligation.
+The declarations are intended to back `[]` and `[..]`, respectively. Owner Q1
+will settle how that association is written.
 
 Working interpretation:
 
 - `requires` remains a proof obligation for callers.
-- `spelling` binds the surface operator symbol (`[]`, `[..]`) to the named
-  operator without hiding its contract.
 - `boundary operator` says implementation lowering is accepted from the
   compiler/runtime provider for that operator.
 - The boundary report records boundary operators, library/authority boundary

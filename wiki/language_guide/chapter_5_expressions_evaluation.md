@@ -118,13 +118,15 @@ not as syntax with a completely separate meaning model. In that sense,
 `left + right` is conceptually like a call to the appropriate add/concat
 operation for the operand meaning in scope.
 
-A fixed operator spelling such as `+`, `[]`, or the range slice `[..]` is
-declared with an optional `spelling` clause on a named `operator` declaration.
-The named path stays the canonical identity; the spelling is the surface syntax
-that resolves to it.
+A fixed operator token such as `+`, `[]`, or the range slice `[..]` resolves to
+a named `operator` declaration. The named path stays the canonical identity;
+the exact source form that binds the token to it is open in
+[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
+In particular, `spelling` is not an accepted keyword.
 
 ```omega
-operator i32::add(left: i32, right: i32) -> i32 spelling +;
+operator i32::add(left: i32, right: i32) -> i32;
+// Intended fixed surface token: + (binding syntax open in Owner Q1).
 ```
 
 So `left + right` resolves to `i32::add` for `i32` operands. The public
@@ -140,15 +142,16 @@ obligation:
 
 ```omega
 boundary operator Slice::index<T>(items: &[T], index: u64) -> T
-spelling []
 requires
     index < items.len;
 
 boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-spelling [..]
 requires
     start <= end && end <= items.len;
 ```
+
+These declarations are intended to back `[]` and `[..]`, respectively; their
+source-level binding syntax is deliberately omitted pending Owner Q1.
 
 Those operators have a semantic home that users and tools can inspect, while
 their boundary primitive implementation is bound through the compiler/runtime
@@ -264,22 +267,18 @@ The visible core declaration should therefore look like a normal contract on a
 
 ```omega
 boundary operator Array::index<T>(items: &Array<T>, index: u64) -> T
-spelling []
 requires
     index < items.len;
 
 boundary operator Vec::index<T>(items: &Vec<T>, index: u64) -> T
-spelling []
 requires
     index < items.len;
 
 boundary operator Slice::index_mut<T>(items: &mut [T], index: u64) -> &mut T
-spelling []
 requires
     index < items.len;
 
 boundary operator Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
-spelling [..]
 requires
     start <= end && end <= items.len;
 
@@ -288,6 +287,9 @@ requires
     start <= items.len;
 
 ```
+
+The first three declarations are intended to back `[]` and `range_mut` is
+intended to back `[..]`; the binding syntax remains Owner Q1.
 
 The proof checker owns `start <= items.len`. The boundary primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
