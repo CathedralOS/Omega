@@ -558,14 +558,10 @@ impl Compiler {
         let control_flow = state_graph_to_control_flow(state_graph, &mut timings)?;
         write_control_flow_snapshot(&self.options, &control_flow)?;
 
-        // The selected target's declared image subsystem (`subsystem
-        // console|gui|efi_application`, ch: target blocks); console when the
-        // target declares none. PE consumes it; other formats ignore it.
-        // Resolved BEFORE the backend build because `efi_application` also
-        // means FREESTANDING: the target trusts no host boundary packages, so
-        // the backend builds against an empty host ABI plan (no bindings, no
-        // import thunks -- services arrive via the entry's parameters).
-        // Image facts come from build.omg (build_and_package_model.md); the
+        // Build image subsystem and freestanding trust independently. PE
+        // consumes the subsystem metadata; other formats ignore it. The
+        // freestanding flag selects an empty ambient host ABI baseline. Both
+        // facts come from build.omg (build_and_package_model.md); the old
         // in-source `target { subsystem }` word is retired.
         let _ = build_machine_present;
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);

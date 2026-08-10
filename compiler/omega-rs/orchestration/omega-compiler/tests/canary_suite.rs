@@ -43829,8 +43829,8 @@ fn pass_canaries_compile() {
 fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     // The first-boot milestone-1 skeleton (BOOTED under QEMU/OVMF 2026-07-03:
     // "Image Return Status = Success"; returning 5 printed "Warning Stale
-    // Data"). `subsystem efi_application` = FREESTANDING: empty host ABI plan,
-    // so the emitted PE32+ must have subsystem 10 and NO import directory/IAT
+    // Data"). This build independently selects subsystem 10 and a freestanding
+    // empty host ABI baseline, so the emitted PE32+ must have no import directory/IAT
     // (services arrive via the entry's parameters, never imports). This pins
     // the emitted HEADER FACTS so a regression that re-populates host bindings
     // for the EFI target (or loses the empty-import path) fails here, without

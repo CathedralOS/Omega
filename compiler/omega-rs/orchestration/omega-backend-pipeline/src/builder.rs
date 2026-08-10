@@ -63,9 +63,9 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
 ) -> Result<BackendPlan, Diagnostic> {
     let entry_point = resolve_backend_entry_point(&program, entry_machine_name)?;
     let mut phase_timings = Arena::new();
-    // A freestanding (no-host) target -- `subsystem efi_application` -- trusts no
-    // host boundary packages: EMPTY ABI plan, so no bindings, no platform
-    // lowerings, and (downstream) no import thunks. Absence = denial.
+    // A freestanding build trusts no ambient host boundary packages: start
+    // from an empty ABI plan, so there are no implicit bindings, platform
+    // lowerings, or downstream import thunks. Image subsystem is orthogonal.
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         if freestanding {
             // Source external leaves become bindings and call lowerings
