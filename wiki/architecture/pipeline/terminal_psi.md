@@ -29,12 +29,11 @@ Omega
     -> assigned instructions -> bytes -> installed image
 ```
 
-The default Omega abstract-operation entry accepts canonical semantic and proof
-sections plus an explicit admission profile, decodes and verifies them, and
-only then constructs realization requirements. In-memory verified-module
-lowering is test support, not a production feature. The interpreter still has
-an in-memory execution surface while its resumable state is moved behind the
-same artifact-only default boundary.
+The Omega abstract-operation and interpreter entries accept canonical semantic
+and proof sections plus an explicit admission profile, decode and verify them,
+and only then construct realization requirements or resumable execution state.
+No public in-memory module or checked-tree bypass exists at either artifact
+boundary.
 
 Parsing therefore belongs to Psi. “Omega files” is the language and product
 branding; Psi is the frontend, semantic verifier input, and portable execution

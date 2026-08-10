@@ -17,8 +17,8 @@ use omega_external_roots::{
     bind_installed_terminal_entry_fuel, compose_fixed_fuel, validate_installed_terminal_entry_fuel,
 };
 use omega_interpreter::{
-    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue,
-    interpret_terminal_artifact_measured, interpret_terminal_measured,
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
+    TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
@@ -36,7 +36,7 @@ use omega_terminal_image_emission::{
     validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::{lower_artifact_sections, lower_verified_module};
+use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use omega_terminal_target_operations::{
     TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetIntegerControl,
     TerminalTargetIntegerExpression, TerminalTargetOperation,
@@ -85,6 +85,46 @@ fn source_canary() -> PathBuf {
         .nth(4)
         .expect("omega-interpreter lives under compiler/omega-rs/orchestration")
         .join("canaries/pass/terminal_psi/integer_control_contract/main.omg")
+}
+
+fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
+    (
+        encode_module(verified.module()).expect("verified terminal semantics encode"),
+        encode_proof_bundle(verified.proof_bundle()).expect("verified proof bundle encodes"),
+    )
+}
+
+fn interpret_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+    arguments: &[TerminalScalarValue],
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let (semantic_bytes, proof_bytes) = artifact_sections(verified);
+    interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        arguments,
+    )
+}
+
+fn lower_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
+    let (semantic_bytes, proof_bytes) = artifact_sections(verified);
+    lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+}
+
+fn start_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+    arguments: &[TerminalScalarValue],
+) -> Result<TerminalExecution, TerminalArtifactInterpretError> {
+    let (semantic_bytes, proof_bytes) = artifact_sections(verified);
+    TerminalExecution::start_artifact(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        arguments,
+    )
 }
 
 fn expected_crash(module: &TerminalModule) -> TerminalExecutionStatus {
@@ -162,7 +202,7 @@ fn target_integer_crash_leaves(operation: &TerminalTargetOperation) -> Vec<(Edge
 }
 
 fn assert_guarded_crash_emits(verified: &VerifiedTerminalModule<'_>) {
-    let abstract_operations = lower_verified_module(verified)
+    let abstract_operations = lower_verified_artifact(verified)
         .expect("guarded crash should cross the source-independent Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -764,7 +804,7 @@ fn checked_source_integer_policy_operations_survive_frontend_drop() {
         let fixed_fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
             .unwrap_or_else(|error| panic!("{machine} should have fixed fuel: {error:?}"));
         assert_eq!(fixed_fuel.ceiling_units(), 5, "{machine} fuel");
-        let measured = interpret_terminal_measured(&verified, &[])
+        let measured = interpret_verified_artifact(&verified, &[])
             .unwrap_or_else(|error| panic!("{machine} should execute: {error:?}"));
         assert_eq!(measured.usage().total_units(), 5, "{machine} usage");
         assert_eq!(
@@ -829,7 +869,7 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
     );
 
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
-    let measured = interpret_terminal_measured(
+    let measured = interpret_verified_artifact(
         &verified,
         &[TerminalScalarValue::Integer {
             scalar_type: u8_type,
@@ -846,7 +886,7 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
         }
     );
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified scalar locals should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -881,12 +921,12 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
         semantic.machines[0].blocks[0].operations[0].kind,
         OperationKind::BooleanNot { .. }
     ));
-    let measured = interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(false)])
+    let measured = interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(false)])
         .expect("Boolean-local terminal Psi should execute");
     assert_eq!(measured.usage().total_units(), 2);
     assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified Boolean local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -924,7 +964,7 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
         (true, false, false),
         (true, true, true),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -935,7 +975,7 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -973,7 +1013,7 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
         (true, false, true),
         (true, true, false),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -984,7 +1024,7 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified consumed short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1040,7 +1080,7 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
         (true, false, 6),
         (true, true, 6),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1052,7 +1092,7 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified reused short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1099,7 +1139,7 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
         (true, false, false, 7),
         (true, true, true, 7),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1111,7 +1151,7 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified branched short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1166,7 +1206,7 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
         (true, false, false),
         (true, true, true),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1178,7 +1218,7 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
         assert_eq!(measured.usage().total_units(), 9);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified multiple short-circuit locals should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1219,7 +1259,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
         (true, false, true, 8),
         (true, true, true, 7),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1231,7 +1271,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local short-circuit return should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1267,7 +1307,7 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
         (true, false, false, 6),
         (true, true, true, 6),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1279,7 +1319,7 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local jump should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1315,7 +1355,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
         (true, false, true, 9),
         (true, true, true, 8),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1327,7 +1367,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local nested jump should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1363,7 +1403,7 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
         (true, false, false, 15),
         (true, true, true, 15),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1375,7 +1415,7 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local jump tuple should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1412,7 +1452,7 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
         (true, false, true, 11),
         (true, true, true, 10),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1424,7 +1464,7 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local conditional edge should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1462,7 +1502,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
         (true, false, true, 9),
         (true, true, true, 8),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1474,7 +1514,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local short-circuit guard should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -1510,7 +1550,7 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
         (true, false, 5),
         (true, true, 5),
     ] {
-        let mut execution = TerminalExecution::start(
+        let mut execution = start_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -1531,7 +1571,7 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
         assert_eq!(meter.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local crash should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -1564,7 +1604,7 @@ fn source_wrapping_add_matches_emitted_host_machine_code() {
         &AdmissionProfile::default(),
     )
     .expect("source wrapping add terminal Psi should verify");
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified source wrapping add should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("source wrapping add should select for the host");
@@ -1611,12 +1651,12 @@ fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
             value: IntegerValue::Unsigned(value),
         })
         .collect::<Vec<_>>();
-    let measured = interpret_terminal_measured(&verified, &arguments)
+    let measured = interpret_verified_artifact(&verified, &arguments)
         .expect("source-produced ninth parameter should execute");
     assert_eq!(measured.usage().total_units(), 1);
     assert_eq!(measured.value(), arguments[8]);
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified source parameters should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("source parameters should select host ABI locations");
@@ -1714,7 +1754,7 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
                 value: IntegerValue::Unsigned(value),
             })
             .collect::<Vec<_>>();
-        let measured = interpret_terminal_measured(&verified, &arguments)
+        let measured = interpret_verified_artifact(&verified, &arguments)
             .unwrap_or_else(|error| panic!("{machine} should execute: {error:?}"));
         assert_eq!(measured.usage().total_units(), fuel, "{machine} usage");
         assert_eq!(
@@ -4407,7 +4447,7 @@ fn checked_source_conditional_survives_frontend_drop() {
         ),
         (false, 239, EdgeId::new(2).unwrap(), EdgeId::new(1).unwrap()),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -4439,7 +4479,7 @@ fn checked_source_conditional_survives_frontend_drop() {
         );
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("source conditional should cross the Omega abstract boundary");
     let TerminalAbstractOperation::Conditional {
         when_true,
@@ -4553,7 +4593,7 @@ fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
         (true, false, 21, 6),
         (false, false, 31, 5),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -4568,7 +4608,7 @@ fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("nested branch tree should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -4640,7 +4680,7 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
         (true, false, 10),
         (true, true, 20),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -4654,7 +4694,7 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
         assert_eq!(measured.usage().total_units(), 5);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed Boolean integer graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -4721,7 +4761,7 @@ fn checked_source_integer_graph_stages_short_circuit_boolean_jump_bindings() {
         (true, false, 20, 10),
         (true, true, 10, 10),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -4735,7 +4775,7 @@ fn checked_source_integer_graph_stages_short_circuit_boolean_jump_bindings() {
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("short-circuit Boolean integer graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -4805,7 +4845,7 @@ fn checked_source_integer_graph_localizes_short_circuit_boolean_edge_bindings() 
         (true, true, false, 20, 10),
         (true, true, true, 10, 10),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(select),
@@ -4820,7 +4860,7 @@ fn checked_source_integer_graph_localizes_short_circuit_boolean_edge_bindings() 
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("selected short-circuit Boolean graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -4887,7 +4927,7 @@ fn checked_source_unconditional_mixed_scalar_graph_uses_general_lowering() {
         (true, false, 11),
         (true, true, 11),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -4900,7 +4940,7 @@ fn checked_source_unconditional_mixed_scalar_graph_uses_general_lowering() {
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("unconditional mixed-scalar graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -4965,7 +5005,7 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
         value: IntegerValue::Unsigned(value),
     };
     for (choose_add, expected) in [(true, 8_u128), (false, 14)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[TerminalScalarValue::Boolean(choose_add), integer(7)],
         )
@@ -4974,7 +5014,7 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
         assert_eq!(measured.usage().total_units(), 5);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed nested jump should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5059,7 +5099,7 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
         value: IntegerValue::Unsigned(value),
     };
     for (choose_add, expected) in [(true, 8_u128), (false, 14)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[TerminalScalarValue::Boolean(choose_add), integer(7)],
         )
@@ -5068,7 +5108,7 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
         assert_eq!(measured.usage().total_units(), 5);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed conditional edge should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5153,7 +5193,7 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
         (true, false, 14, 6),
         (true, true, 8, 6),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -5166,7 +5206,7 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("short-circuit computed edge should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5195,7 +5235,7 @@ fn checked_source_literal_conditional_emits_only_its_selected_arm() {
     )
     .expect("literal source conditional should verify");
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
-    let measured = interpret_terminal_measured(
+    let measured = interpret_verified_artifact(
         &verified,
         &[TerminalScalarValue::Integer {
             scalar_type: u8_type,
@@ -5224,7 +5264,7 @@ fn checked_source_literal_conditional_emits_only_its_selected_arm() {
         }
     );
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("literal conditional should cross the Omega abstract boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("literal conditional should select its known arm");
@@ -5269,7 +5309,7 @@ fn checked_source_boolean_conditional_reaches_native_control() {
         .expect("Boolean source conditional should have an exact fuel bound");
     assert_eq!(fixed.ceiling_units(), 2);
     for (condition, expected) in [(true, true), (false, false)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -5282,7 +5322,7 @@ fn checked_source_boolean_conditional_reaches_native_control() {
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean source conditional should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean source conditional should lower for the host");
@@ -5346,7 +5386,7 @@ fn checked_source_boolean_conditional_arms_preserve_short_circuit_control() {
         } else {
             6
         };
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -5359,7 +5399,7 @@ fn checked_source_boolean_conditional_arms_preserve_short_circuit_control() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean conditional arm control should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean conditional arm control should lower for the host");
@@ -5431,7 +5471,7 @@ fn checked_source_boolean_conditional_guard_preserves_short_circuit_control() {
     ] {
         let expected = if first && second { first } else { fallback };
         let expected_units = if first { 3 } else { 2 };
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -5444,7 +5484,7 @@ fn checked_source_boolean_conditional_guard_preserves_short_circuit_control() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean conditional guard control should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean conditional guard control should lower for the host");
@@ -5519,13 +5559,13 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
         ([true, true, false, true, false, false], true, 10),
     ] {
         let arguments = arguments.map(TerminalScalarValue::Boolean);
-        let measured = interpret_terminal_measured(&verified, &arguments)
+        let measured = interpret_verified_artifact(&verified, &arguments)
             .expect("nested Boolean control should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("nested Boolean control should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5579,13 +5619,13 @@ fn checked_source_short_circuit_tuple_binding_is_staged_left_to_right() {
         ([false, false, true, false], true, 13),
     ] {
         let measured =
-            interpret_terminal_measured(&verified, &arguments.map(TerminalScalarValue::Boolean))
+            interpret_verified_artifact(&verified, &arguments.map(TerminalScalarValue::Boolean))
                 .expect("short-circuit tuple binding should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("short-circuit tuple binding should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5639,13 +5679,13 @@ fn checked_source_boolean_conditional_edges_compute_only_on_the_selected_arm() {
         ([true, true, true, true, false], true, 13),
     ] {
         let measured =
-            interpret_terminal_measured(&verified, &arguments.map(TerminalScalarValue::Boolean))
+            interpret_verified_artifact(&verified, &arguments.map(TerminalScalarValue::Boolean))
                 .expect("computed Boolean conditional edges should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
         assert_eq!(measured.usage().total_units(), units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed Boolean conditional edges should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5702,7 +5742,7 @@ fn checked_source_mixed_scalar_boolean_graph_uses_the_typed_dag() {
         (false, 3, 2, true),
         (false, 1, 2, false),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(choose_less),
@@ -5715,7 +5755,7 @@ fn checked_source_mixed_scalar_boolean_graph_uses_the_typed_dag() {
         assert_eq!(measured.usage().total_units(), 9);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("mixed-scalar Boolean graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5763,7 +5803,7 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
         (true, true, 1, 4, true, 15),
         (true, true, 4, 4, false, 15),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -5777,7 +5817,7 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("mixed-scalar Boolean short-circuit graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -5809,7 +5849,7 @@ fn source_closed_integer_chain_matches_emitted_host_machine_code() {
         &AdmissionProfile::default(),
     )
     .expect("closed integer state chain should verify");
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("closed integer state chain should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("closed integer state chain should select for the host");
@@ -5869,7 +5909,7 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
             &AdmissionProfile::default(),
         )
         .unwrap_or_else(|error| panic!("{machine} terminal Psi should verify: {error:?}"));
-        let abstract_operations = lower_verified_module(&verified)
+        let abstract_operations = lower_verified_artifact(&verified)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
@@ -5911,7 +5951,7 @@ fn checked_source_booleans_survive_frontend_drop() {
     let constant_fuel = derive_fixed_entry_fuel(&constant_verified, constant.semantic_module.entry)
         .expect("Boolean constant should have fixed fuel");
     assert_eq!(constant_fuel.ceiling_units(), 2);
-    let constant_result = interpret_terminal_measured(&constant_verified, &[])
+    let constant_result = interpret_verified_artifact(&constant_verified, &[])
         .expect("source Boolean constant should execute");
     assert_eq!(constant_result.value(), TerminalScalarValue::Boolean(true));
     assert_eq!(constant_result.usage().total_units(), 2);
@@ -5930,7 +5970,7 @@ fn checked_source_booleans_survive_frontend_drop() {
         .into_iter()
         .map(TerminalScalarValue::Boolean)
         .collect::<Vec<_>>();
-    let parameter_result = interpret_terminal_measured(&parameter_verified, &arguments)
+    let parameter_result = interpret_verified_artifact(&parameter_verified, &arguments)
         .expect("source Boolean parameter should execute");
     assert_eq!(parameter_result.value(), TerminalScalarValue::Boolean(true));
     assert_eq!(parameter_result.usage().total_units(), 1);
@@ -5944,7 +5984,7 @@ fn checked_source_booleans_survive_frontend_drop() {
     let chain_fuel = derive_fixed_entry_fuel(&chain_verified, chain.semantic_module.entry)
         .expect("Boolean state chain should have fixed fuel");
     assert_eq!(chain_fuel.ceiling_units(), 3);
-    let chain_result = interpret_terminal_measured(&chain_verified, &arguments)
+    let chain_result = interpret_verified_artifact(&chain_verified, &arguments)
         .expect("source Boolean state chain should execute");
     assert_eq!(chain_result.value(), TerminalScalarValue::Boolean(true));
     assert_eq!(chain_result.usage().total_units(), 3);
@@ -5982,13 +6022,13 @@ fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
     assert_eq!(fuel.ceiling_units(), 2);
     for (input, expected) in [(false, true), (true, false)] {
         let measured =
-            interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(input)])
+            interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(input)])
                 .expect("Boolean not should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
         assert_eq!(measured.usage().total_units(), 2);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean not should cross the source-independent Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean not should select for the host");
@@ -6047,13 +6087,13 @@ fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
     assert_eq!(fuel.ceiling_units(), 3);
     for (input, expected) in [(false, true), (true, false)] {
         let measured =
-            interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(input)])
+            interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(input)])
                 .expect("Boolean equality should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
         assert_eq!(measured.usage().total_units(), 3);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean equality should cross the source-independent Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean equality against false should select for the host");
@@ -6106,7 +6146,7 @@ fn checked_source_runtime_boolean_equality_reaches_native_code() {
         (true, false, false),
         (true, true, true),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(left),
@@ -6118,7 +6158,7 @@ fn checked_source_runtime_boolean_equality_reaches_native_code() {
         assert_eq!(measured.usage().total_units(), 2);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("runtime Boolean equality should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("runtime Boolean equality should select for the host");
@@ -6185,7 +6225,7 @@ fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code()
         (u64::MAX, u64::MAX, true),
         (u64::MAX, u64::MAX - 1, false),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Integer {
@@ -6205,7 +6245,7 @@ fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code()
 
     #[cfg(unix)]
     {
-        let abstract_operations = lower_verified_module(&verified)
+        let abstract_operations = lower_verified_artifact(&verified)
             .expect("runtime integer equality should cross the Omega boundary");
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
@@ -6297,7 +6337,7 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
             2
         );
         for (left, right, expected) in &cases {
-            let measured = interpret_terminal_measured(
+            let measured = interpret_verified_artifact(
                 &verified,
                 &[
                     TerminalScalarValue::Integer {
@@ -6316,7 +6356,7 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
         }
 
         let abstract_operations =
-            lower_verified_module(&verified).expect("ordering crosses the Omega boundary");
+            lower_verified_artifact(&verified).expect("ordering crosses the Omega boundary");
         let portable_target =
             lower_to_target_operations(&abstract_operations, NativeTarget::linux_x64())
                 .expect("ordering selects for x86-64");
@@ -6339,7 +6379,7 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
 
         #[cfg(unix)]
         {
-            let abstract_operations = lower_verified_module(&verified).expect("Omega lowering");
+            let abstract_operations = lower_verified_artifact(&verified).expect("Omega lowering");
             let target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .expect("host selection");
@@ -6438,13 +6478,13 @@ fn checked_source_computed_integer_comparison_reaches_native_code() {
         value: IntegerValue::Unsigned(u128::from(value)),
     };
     for (left, right, expected) in [(10_u64, 3_u64, true), (5, 3, false), (u64::MAX, 0, false)] {
-        let measured = interpret_terminal_measured(&verified, &[integer(left), integer(right)])
+        let measured = interpret_verified_artifact(&verified, &[integer(left), integer(right)])
             .expect("computed comparison should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
         assert_eq!(measured.usage().total_units(), 6);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed comparison should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
@@ -6547,14 +6587,14 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
                 IntegerValue::Unsigned(bits.into())
             },
         };
-        let measured = interpret_terminal_measured(&verified, &[input(left), input(right)])
+        let measured = interpret_verified_artifact(&verified, &[input(left), input(right)])
             .expect("bitwise operation interprets");
         assert_eq!(measured.value(), input(expected));
         assert_eq!(measured.usage().total_units(), 2);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let abstract_operations =
-                lower_verified_module(&verified).expect("bitwise crosses the Omega boundary");
+                lower_verified_artifact(&verified).expect("bitwise crosses the Omega boundary");
             let target_operations = lower_to_target_operations(&abstract_operations, target)
                 .expect("bitwise operation selects on both native architectures");
             let expression = match &target_operations.functions[0].operation {
@@ -6574,7 +6614,7 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
 
         #[cfg(unix)]
         {
-            let abstract_operations = lower_verified_module(&verified).expect("Omega lowering");
+            let abstract_operations = lower_verified_artifact(&verified).expect("Omega lowering");
             let target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .expect("host selection");
@@ -7239,14 +7279,14 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
                 .ceiling_units(),
             2
         );
-        let measured = interpret_terminal_measured(&verified, &[value, count])
+        let measured = interpret_verified_artifact(&verified, &[value, count])
             .expect("wrapping shift interprets");
         assert_eq!(measured.value(), expected);
         assert_eq!(measured.usage().total_units(), 2);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let abstract_operations =
-                lower_verified_module(&verified).expect("shift crosses the Omega boundary");
+                lower_verified_artifact(&verified).expect("shift crosses the Omega boundary");
             let target_operations = lower_to_target_operations(&abstract_operations, target)
                 .expect("shift selects on both native architectures");
             let expression = match &target_operations.functions[0].operation {
@@ -7270,7 +7310,7 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
 
         #[cfg(unix)]
         {
-            let abstract_operations = lower_verified_module(&verified).expect("Omega lowering");
+            let abstract_operations = lower_verified_artifact(&verified).expect("Omega lowering");
             let target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .expect("host selection");
@@ -7349,7 +7389,7 @@ fn checked_source_runtime_boolean_inequality_reuses_terminal_primitives() {
         (true, false, true),
         (true, true, false),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(left),
@@ -7361,7 +7401,7 @@ fn checked_source_runtime_boolean_inequality_reuses_terminal_primitives() {
         assert_eq!(measured.usage().total_units(), 3);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("runtime Boolean inequality should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("runtime Boolean inequality should select for the host");
@@ -7431,7 +7471,7 @@ fn checked_source_short_circuit_booleans_lower_to_terminal_control() {
             } else {
                 4
             };
-            let measured = interpret_terminal_measured(
+            let measured = interpret_verified_artifact(
                 &verified,
                 &[
                     TerminalScalarValue::Boolean(left),
@@ -7443,7 +7483,7 @@ fn checked_source_short_circuit_booleans_lower_to_terminal_control() {
             assert_eq!(measured.usage().total_units(), expected_units);
         }
 
-        let abstract_operations = lower_verified_module(&verified)
+        let abstract_operations = lower_verified_artifact(&verified)
             .expect("short-circuit Boolean control should cross the Omega boundary");
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
@@ -7503,7 +7543,7 @@ fn checked_source_short_circuit_expression_conditions_reach_native_control() {
     ] {
         let expected = first == second && second == third;
         let expected_units = if first == second { 6 } else { 4 };
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -7516,7 +7556,7 @@ fn checked_source_short_circuit_expression_conditions_reach_native_control() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("expression-condition control should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("expression-condition control should select for the host");
@@ -7597,7 +7637,7 @@ fn checked_source_short_circuit_operands_preserve_terminal_equality() {
     ] {
         let expected = (first && second) == (second || third);
         let expected_units = 4 + if first { 2 } else { 1 } + if second { 1 } else { 2 };
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -7610,7 +7650,7 @@ fn checked_source_short_circuit_operands_preserve_terminal_equality() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("short-circuit equality control should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("short-circuit equality control should select for the host");
@@ -7675,7 +7715,7 @@ fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
             &AdmissionProfile::default(),
         )
         .unwrap_or_else(|error| panic!("{machine} should verify: {error:?}"));
-        let abstract_operations = lower_verified_module(&verified)
+        let abstract_operations = lower_verified_artifact(&verified)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
@@ -7712,7 +7752,7 @@ fn source_boolean_jump_bindings_reach_stack_parameter_machine_code() {
         &AdmissionProfile::default(),
     )
     .expect("Boolean state chain should verify");
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean jump bindings should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean jump bindings should select for the host");
@@ -7762,13 +7802,13 @@ fn source_boolean_state_chain_return_preserves_short_circuit_control() {
 
     for (value, expected_units) in [(false, 6), (true, 4)] {
         let measured =
-            interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(value)])
+            interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(value)])
                 .expect("state-chain short-circuit control should interpret");
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("state-chain short-circuit control should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("state-chain short-circuit control should select for the host");
@@ -7819,7 +7859,7 @@ fn source_boolean_state_chain_binding_preserves_short_circuit_control() {
     for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
         let expected = first && second;
         let expected_units = if first { 6 } else { 5 };
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(first),
@@ -7831,7 +7871,7 @@ fn source_boolean_state_chain_binding_preserves_short_circuit_control() {
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("state-chain binding control should cross the Omega boundary");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("state-chain binding control should select for the host");
@@ -8030,7 +8070,7 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
         ),
     ] {
         let mut execution =
-            TerminalExecution::start(&verified, &[TerminalScalarValue::Boolean(flag)])
+            start_verified_artifact(&verified, &[TerminalScalarValue::Boolean(flag)])
                 .expect("Boolean guarded-crash execution should start");
         assert_eq!(
             execution
@@ -8040,7 +8080,7 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
         );
     }
 
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("guarded crash should remain represented at the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -8127,7 +8167,7 @@ fn native_lowering_preserves_every_reachable_crash_leaf() {
         (true, true, Some(CrashCause::Trap)),
         (false, false, None),
     ] {
-        let mut execution = TerminalExecution::start(
+        let mut execution = start_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(trap),
@@ -8155,8 +8195,8 @@ fn native_lowering_preserves_every_reachable_crash_leaf() {
         }
     }
 
-    let abstract_operations =
-        lower_verified_module(&verified).expect("two crash leaves should cross the Omega boundary");
+    let abstract_operations = lower_verified_artifact(&verified)
+        .expect("two crash leaves should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("two crash leaves should survive target selection");
@@ -8260,12 +8300,12 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         ),
     ] {
         let mut execution =
-            TerminalExecution::start(&guarded_verified, &[TerminalScalarValue::Boolean(flag)])
+            start_verified_artifact(&guarded_verified, &[TerminalScalarValue::Boolean(flag)])
                 .expect("guarded crash execution should start");
         let mut guarded_meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut guarded_meter).unwrap(), expected);
     }
-    let guarded_abstract = lower_verified_module(&guarded_verified)
+    let guarded_abstract = lower_verified_artifact(&guarded_verified)
         .expect("guarded integer crash should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_operations = lower_to_target_operations(&guarded_abstract, target)
@@ -8372,7 +8412,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             }),
         ),
     ] {
-        let mut execution = TerminalExecution::start(
+        let mut execution = start_verified_artifact(
             &integer_guarded_verified,
             &[
                 TerminalScalarValue::Integer {
@@ -8426,7 +8466,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         (1, 5, 3, TerminalExecutionStatus::Complete(signed(0)), 6),
         (1, 2, 3, expected_crash(&transitive_semantic_module), 5),
     ] {
-        let mut execution = TerminalExecution::start(
+        let mut execution = start_verified_artifact(
             &transitive_verified,
             &[signed(left), signed(middle), signed(right)],
         )
@@ -8446,7 +8486,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     .expect("the structurally implied crash branch should verify");
     for (flag, crashes) in [(true, true), (false, false)] {
         let mut execution =
-            TerminalExecution::start(&implied_verified, &[TerminalScalarValue::Boolean(flag)])
+            start_verified_artifact(&implied_verified, &[TerminalScalarValue::Boolean(flag)])
                 .expect("implied crash execution should start");
         let mut implied_meter = TerminalFuelMeter::unbounded();
         assert_eq!(
@@ -8489,7 +8529,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     )
     .expect("source-produced crash terminal should verify");
     let mut execution =
-        TerminalExecution::start(&verified, &[]).expect("verified crash terminal should start");
+        start_verified_artifact(&verified, &[]).expect("verified crash terminal should start");
     let mut meter = TerminalFuelMeter::with_allowance(1);
     let expected = expected_crash(&lowered.semantic_module);
     assert_eq!(execution.resume(&mut meter).unwrap(), expected);
@@ -8609,7 +8649,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("source-independent consumer should recompute the certificate");
     assert_eq!(fixed_fuel.terminal_psi(), original_identity);
     assert_eq!(fixed_fuel.ceiling_units(), 4);
-    let mut execution = TerminalExecution::start(&verified, &[])
+    let mut execution = start_verified_artifact(&verified, &[])
         .expect("verified source-produced terminal Psi should start");
     let mut meter = TerminalFuelMeter::with_allowance(3);
     assert_eq!(
@@ -8647,7 +8687,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         original_identity,
         "fuel accounting must not change semantic identity"
     );
-    let abstract_operations = lower_verified_module(&verified)
+    let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified terminal Psi should lower without source state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("constant terminal requirements should select for the host");
