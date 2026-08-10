@@ -75,7 +75,11 @@ suspension/blocking inference. Both plans share the grouped
 machine/state/call topology, but service rows are interned canonical trait
 identities while operational summaries are independent booleans. Authority,
 trust, resources, failure, and mutation remain in their separate semantic
-homes.
+homes. Typed machines carry only their normalized service row; authored names
+end at resolved-to-typed lowering. Symbol-resolved machines and state
+signatures still retain those names long enough to build the row and report
+source-facing diagnostics. Removing those staging spans is an implementation
+cleanup, not a second semantic contract.
 
 ## Target representations
 

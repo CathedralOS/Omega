@@ -1177,23 +1177,6 @@ impl TypedTrees {
             .span_or_empty(machine.satisfies)
     }
 
-    pub fn push_machine_service_reach(
-        &mut self,
-        machine: &mut machine::Machine,
-        service: crate::name::Identifier,
-    ) {
-        self.signature_service_reaches
-            .append_to_span(&mut machine.service_reaches, service);
-    }
-
-    pub fn machine_service_reaches(
-        &self,
-        machine: &machine::Machine,
-    ) -> &[crate::name::Identifier] {
-        self.signature_service_reaches
-            .span_or_empty(machine.service_reaches)
-    }
-
     pub fn push_machine_invoke(
         &mut self,
         machine: &mut machine::Machine,
@@ -1561,17 +1544,18 @@ mod tests {
     }
 
     #[test]
-    fn decrease_orders_and_service_reaches_use_independent_arenas() {
+    fn decrease_orders_and_signature_service_reaches_use_independent_arenas() {
         let mut trees = TypedTrees::default();
         let mut decrease_order = HandleSpan::empty();
-        let mut service_reaches = HandleSpan::empty();
+        let mut signature_service_reaches = HandleSpan::empty();
 
         trees
             .decrease_orders
             .append_to_span(&mut decrease_order, Identifier::generated("remaining"));
-        trees
-            .signature_service_reaches
-            .append_to_span(&mut service_reaches, Identifier::generated("Console"));
+        trees.signature_service_reaches.append_to_span(
+            &mut signature_service_reaches,
+            Identifier::generated("Console"),
+        );
 
         assert_eq!(
             trees.machine_decrease_order(decrease_order)[0].as_str(),
@@ -1580,7 +1564,7 @@ mod tests {
         assert_eq!(
             trees
                 .signature_service_reaches
-                .span_or_empty(service_reaches)[0]
+                .span_or_empty(signature_service_reaches)[0]
                 .as_str(),
             "Console"
         );

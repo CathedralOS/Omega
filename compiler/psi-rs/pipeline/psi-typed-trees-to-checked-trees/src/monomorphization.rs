@@ -1774,13 +1774,6 @@ fn clone_specialized_machine(
     );
     cloned.decrease_range =
         copy_expression(source, program, source_machine.decrease_range, &symbol_map);
-    cloned.service_reaches = program.signature_service_reaches.insert_many(
-        source
-            .signature_service_reaches
-            .span_or_empty(source_machine.service_reaches)
-            .iter()
-            .cloned(),
-    );
     cloned.contracts = HandleSpan::empty();
     cloned.states = HandleSpan::empty();
 
@@ -3096,9 +3089,16 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         bytes.push(0xfd);
     }
     let mut service_reaches: Vec<_> = program
-        .machine_service_reaches(machine)
+        .service_reach_rows
+        .services(machine.service_reach_row)
         .iter()
-        .map(|service| service.as_str())
+        .map(|service| {
+            program
+                .service_reaches
+                .definition(*service)
+                .expect("normalized service row references a registered service")
+        })
+        .map(|service| service.name.as_str())
         .collect();
     service_reaches.sort_unstable();
     service_reaches.dedup();

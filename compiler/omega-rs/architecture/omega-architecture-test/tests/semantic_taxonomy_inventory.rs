@@ -101,7 +101,6 @@ fn machine_record_carries_one_public_termination_interface() {
             decrease_order: _,
             decrease_view_arguments: _, // TPR3: argumented-view arguments
             decrease_range: _,          // TPR3: the rank-range constraint
-            service_reaches: _,         // authored service names retained for diagnostics
             invokes: _,                 // authored synchronous-invocation ceiling
             suspends: _,                // EFX: independent authored suspension ceiling
             blocks: _,                  // EFX: independent authored blocking ceiling

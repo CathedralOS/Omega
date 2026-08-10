@@ -451,7 +451,7 @@ and profile entailment remain deferred. See
 
 ## Staging and extensibility
 
-V1 recognizes service members from boundary-trait declarations and has the
+The current language recognizes service members from boundary-trait declarations and has the
 closed operational clauses `suspends`, `blocks`, and `crashes`. Additional
 operational clauses, quantitative service entries, and service-row
 polymorphism are deferred until their algebras have real customers.
@@ -472,8 +472,11 @@ effect-row field or fingerprint input. Resolved and typed machine records also
 carry only normalized supply mode, not a parallel `boundary` compatibility
 bit. The obsolete
 `EffectRowId`/`EffectRowTable` carrier and global lowercase service-name/u64
-table are deleted. Core, resolved trees, and typed trees retain only
-symbol-resolved `ServiceReachRowId` values.
+table are deleted. Typed machines retain only symbol-resolved
+`ServiceReachRowId` values. Resolved machines and state signatures temporarily
+retain authored identifiers through row construction and source-facing
+diagnostics; no semantic consumer treats those staging spans as a second
+effect contract.
 Build-script admission now consumes exact service reach and admits only the
 pinned canonical `FilesystemHost` and `Console` staging slots; custom boundary
 wrappers do not inherit admission from a category alias. Unknown service
