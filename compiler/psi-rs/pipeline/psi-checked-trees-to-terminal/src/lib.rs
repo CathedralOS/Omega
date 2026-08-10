@@ -2193,9 +2193,7 @@ fn staged_short_circuit_bindings_terminator(
         return None;
     }
     let supported = match terminator {
-        LoweredScalarBranchTerminator::Return { expression } => {
-            !direct_expression_contains_short_circuit(expression)
-        }
+        LoweredScalarBranchTerminator::Return { .. } => true,
         LoweredScalarBranchTerminator::Conditional {
             condition,
             when_true_arguments,
@@ -3563,6 +3561,36 @@ fn build_scalar_graph_module(
                 stage_parameters = next_stage_parameters;
                 stage_parameter_types = next_stage_types;
                 stage_block_parameters = stage_parameters.clone();
+            }
+
+            if let LoweredScalarBranchTerminator::Return {
+                expression: LoweredDirectExpression::Boolean { expression },
+            } = &continuation_plan
+                && contains_short_circuit(expression)
+            {
+                let decision = lower_boolean_value_decision(expression);
+                let block_count = boolean_decision_block_count(&decision);
+                let first_synthetic_block = block_id(next_block_identity);
+                next_block_identity = next_block_identity
+                    .checked_add(
+                        u64::try_from(block_count - 1)
+                            .expect("staged Boolean return child count fits a semantic identity"),
+                    )
+                    .expect("staged Boolean return block identities advance");
+                let (root, children) = emit_inlined_boolean_value_blocks(
+                    &decision,
+                    &stage_parameters,
+                    stage_parameters.clone(),
+                    LoweredBooleanDecisionExit::Return,
+                    stage_block,
+                    first_synthetic_block,
+                    &mut next_value_identity,
+                    &mut next_edge_identity,
+                    &mut all_operations,
+                );
+                inlined_blocks.push(root);
+                inlined_blocks.extend(children);
+                continue;
             }
 
             let operation_start = all_operations.len();
