@@ -218,6 +218,23 @@ ensures true == true
     state finish_short_circuit_local_nested_jump(value: bool) -> bool { value }
 }
 
+machine terminal_short_circuit_local_nested_jump_tuple(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let joined: bool = first && second;
+    transition {
+        _ -> finish_short_circuit_local_nested_jump_tuple(
+            joined || first,
+            joined && second
+        )
+    }
+
+    state finish_short_circuit_local_nested_jump_tuple(left: bool, right: bool) -> bool {
+        left == right
+    }
+}
+
 machine terminal_saturating_add() -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
