@@ -1993,6 +1993,83 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
 }
 
 #[test]
+fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("unsigned u64 runtime-bound arithmetic source canaries should compile");
+    let cases: [(&str, bool, &[(u128, u128, u128)]); 3] = [
+        (
+            "terminal_exact_add_u64_runtime_bound",
+            true,
+            &[
+                (u64::MAX as u128 - 5, 5, u64::MAX as u128),
+                (u64::MAX as u128 - 4, 5, 0),
+                (0, u64::MAX as u128, u64::MAX as u128),
+            ],
+        ),
+        (
+            "terminal_exact_subtract_u64_joint_bound",
+            false,
+            &[
+                (u64::MAX as u128, u64::MAX as u128, 0),
+                (0, 1, 0),
+                (u64::MAX as u128, 0, u64::MAX as u128),
+            ],
+        ),
+        (
+            "terminal_exact_multiply_u64_joint_bound",
+            true,
+            &[
+                (u64::MAX as u128, 1, u64::MAX as u128),
+                (6_148_914_691_236_517_205, 3, u64::MAX as u128),
+                (6_148_914_691_236_517_206, 3, 0),
+                (20, 0, 0),
+            ],
+        ),
+    ];
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: u64_type,
+        value: IntegerValue::Unsigned(value),
+    };
+
+    for (machine, passes_maximum, machine_cases) in cases {
+        let lowered = lower_machine(&checked, machine)
+            .expect("unsigned u64 arithmetic should use its runtime-bound propositions");
+        assert_eq!(
+            lowered.semantic_module.vocabulary_marker,
+            VocabularyMarker::CURRENT
+        );
+        let semantic = encode_module(&lowered.semantic_module).expect("unsigned u64 semantics");
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("unsigned u64 proof");
+        for &(left, right, expected) in machine_cases {
+            let mut arguments = vec![argument(left), argument(right)];
+            if passes_maximum {
+                arguments.push(argument(u64::MAX as u128));
+            }
+            let execution = interpret_terminal_artifact_measured(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                &arguments,
+            )
+            .expect("verified unsigned u64 arithmetic should interpret");
+            assert_eq!(execution.value(), argument(expected));
+        }
+
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .expect("unsigned u64 arithmetic should cross Omega");
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .expect("unsigned u64 arithmetic should select");
+            let assigned = assign_registers(&target_operations)
+                .expect("unsigned u64 arithmetic homes should assign");
+            emit_machine_code(&assigned).expect("unsigned u64 arithmetic should emit");
+        }
+    }
+}
+
+#[test]
 fn checked_source_exact_multiply_uses_known_factor_bound() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-factor exact-multiply source canary should compile");

@@ -289,6 +289,24 @@ fn narrow_env_by_condition(
         {
             env.mark_signed_joint_multiply_negation_bound(value);
         }
+        if comparison.operator == BinaryOperator::Equal {
+            for (place, literal) in [
+                (comparison.left, comparison.right),
+                (comparison.right, comparison.left),
+            ] {
+                let Some(path) = place_path(program, place) else {
+                    continue;
+                };
+                let Some(value) = literal_u64(program, literal) else {
+                    continue;
+                };
+                if declared_place_type_raw(program, machine, state, place).is_some_and(|handle| {
+                    program.primitive_type_reference(handle) == Some(PrimitiveType::U64)
+                }) {
+                    env.mark_known_u64(path, value);
+                }
+            }
+        }
         if comparison.operator == BinaryOperator::Equal
             && let (Some(left), Some(right)) = (
                 place_path(program, comparison.left),
@@ -442,17 +460,26 @@ fn joint_add_upper_guard(
         return None;
     }
     let right_path = place_path(program, subtract.right)?;
-    let maximum = match left_primitive {
-        PrimitiveType::U8 => u8::MAX as i64,
-        PrimitiveType::U16 => u16::MAX as i64,
-        PrimitiveType::U32 => u32::MAX as i64,
-        PrimitiveType::I8 if env.get(&right_path)?.low? >= 0 => i8::MAX as i64,
-        PrimitiveType::I16 if env.get(&right_path)?.low? >= 0 => i16::MAX as i64,
-        PrimitiveType::I32 if env.get(&right_path)?.low? >= 0 => i32::MAX as i64,
-        PrimitiveType::I64 if env.get(&right_path)?.low? >= 0 => i64::MAX,
-        _ => return None,
+    let maximum_matches = match left_primitive {
+        PrimitiveType::U8 => literal_i64(program, subtract.left) == Some(u8::MAX as i64),
+        PrimitiveType::U16 => literal_i64(program, subtract.left) == Some(u16::MAX as i64),
+        PrimitiveType::U32 => literal_i64(program, subtract.left) == Some(u32::MAX as i64),
+        PrimitiveType::U64 => known_u64_value(program, env, subtract.left) == Some(u64::MAX),
+        PrimitiveType::I8 if env.get(&right_path)?.low? >= 0 => {
+            literal_i64(program, subtract.left) == Some(i8::MAX as i64)
+        }
+        PrimitiveType::I16 if env.get(&right_path)?.low? >= 0 => {
+            literal_i64(program, subtract.left) == Some(i16::MAX as i64)
+        }
+        PrimitiveType::I32 if env.get(&right_path)?.low? >= 0 => {
+            literal_i64(program, subtract.left) == Some(i32::MAX as i64)
+        }
+        PrimitiveType::I64 if env.get(&right_path)?.low? >= 0 => {
+            literal_i64(program, subtract.left) == Some(i64::MAX)
+        }
+        _ => false,
     };
-    if literal_i64(program, subtract.left) != Some(maximum) {
+    if !maximum_matches {
         return None;
     }
     Some((place_path(program, left)?, right_path))
@@ -523,7 +550,7 @@ fn joint_subtract_guard(
     if program.primitive_type_reference(right_type) != Some(left_primitive)
         || !matches!(
             left_primitive,
-            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32
+            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
         )
         || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
         || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
@@ -661,7 +688,7 @@ fn joint_multiply_guard(
     if program.primitive_type_reference(right_type) != Some(left_primitive)
         || !matches!(
             left_primitive,
-            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32
+            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
         )
         || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
         || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
@@ -672,13 +699,14 @@ fn joint_multiply_guard(
     if env.get(&right_path)?.low? < 1 {
         return None;
     }
-    let maximum = match left_primitive {
-        PrimitiveType::U8 => u8::MAX as i64,
-        PrimitiveType::U16 => u16::MAX as i64,
-        PrimitiveType::U32 => u32::MAX as i64,
-        _ => return None,
+    let maximum_matches = match left_primitive {
+        PrimitiveType::U8 => literal_i64(program, divide.left) == Some(u8::MAX as i64),
+        PrimitiveType::U16 => literal_i64(program, divide.left) == Some(u16::MAX as i64),
+        PrimitiveType::U32 => literal_i64(program, divide.left) == Some(u32::MAX as i64),
+        PrimitiveType::U64 => known_u64_value(program, env, divide.left) == Some(u64::MAX),
+        _ => false,
     };
-    if literal_i64(program, divide.left) != Some(maximum) {
+    if !maximum_matches {
         return None;
     }
     Some((place_path(program, left)?, right_path))
@@ -1173,6 +1201,7 @@ impl FloatInterval {
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ValueEnv {
     intervals: BTreeMap<String, Interval>,
+    known_u64_values: BTreeMap<String, u64>,
     float_intervals: BTreeMap<String, FloatInterval>,
     non_nan: BTreeSet<String>,
     joint_add_upper_bounds: BTreeSet<(String, String)>,
@@ -1195,6 +1224,7 @@ impl ValueEnv {
     /// mutate fields through `&mut`, or when leaving the linear prefix).
     pub(crate) fn clear(&mut self) {
         self.intervals.clear();
+        self.known_u64_values.clear();
         self.float_intervals.clear();
         self.non_nan.clear();
         self.joint_add_upper_bounds.clear();
@@ -1218,6 +1248,7 @@ impl ValueEnv {
                 .any(|written| place_paths_overlap(path, written))
         };
         self.intervals.retain(|path, _| !overlaps(path));
+        self.known_u64_values.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));
         self.non_nan.retain(|path| !overlaps(path));
         self.joint_add_upper_bounds
@@ -1246,6 +1277,10 @@ impl ValueEnv {
 
     fn set(&mut self, path: String, interval: Interval) {
         self.intervals.insert(path, interval);
+    }
+
+    fn mark_known_u64(&mut self, path: String, value: u64) {
+        self.known_u64_values.insert(path, value);
     }
 
     /// Intersect a place's tracked interval with `interval` (tightening it).
@@ -1470,6 +1505,11 @@ impl ValueEnv {
                 joined
                     .intervals
                     .insert(path.clone(), interval.union(*other_interval));
+            }
+        }
+        for (path, value) in &self.known_u64_values {
+            if other.known_u64_values.get(path) == Some(value) {
+                joined.known_u64_values.insert(path.clone(), *value);
             }
         }
         for (path, interval) in &self.float_intervals {
@@ -1780,6 +1820,8 @@ pub(crate) fn record_assignment(
     declared_range: Option<Interval>,
 ) {
     if let Some(path) = path {
+        env.known_u64_values
+            .retain(|known, _| !place_paths_overlap(known, &path));
         env.joint_add_upper_bounds.retain(|(left, right)| {
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
@@ -3795,6 +3837,25 @@ pub(crate) fn validate_return_value_range(
 /// declaration check in type_references.rs rejects it loudly).
 pub(crate) fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
     program.expression_table.constant_integer_value(expression)
+}
+
+fn literal_u64(program: &TypedTrees, expression: ExpressionHandle) -> Option<u64> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.value_bignum()?.to_u64(),
+        ExpressionNode::Mutable(inner) => literal_u64(program, *inner),
+        _ => None,
+    }
+}
+
+fn known_u64_value(
+    program: &TypedTrees,
+    env: &ValueEnv,
+    expression: ExpressionHandle,
+) -> Option<u64> {
+    literal_u64(program, expression).or_else(|| {
+        let path = place_path(program, expression)?;
+        env.known_u64_values.get(&path).copied()
+    })
 }
 
 /// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),

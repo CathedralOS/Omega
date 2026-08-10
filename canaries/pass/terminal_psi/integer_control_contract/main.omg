@@ -955,6 +955,27 @@ ensures 0u32 == 0u32
     }
 }
 
+machine terminal_exact_add_u64_runtime_bound(left: u64, right: u64, maximum: u64) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    transition maximum == 18446744073709551615u64 {
+        true -> prove_exact_add_u64_runtime_bound(left, right, maximum)
+        _ -> finish_exact_add_u64_runtime_bound(0u64)
+    }
+
+    state prove_exact_add_u64_runtime_bound(left: u64, right: u64, maximum: u64) -> u64 {
+        transition left <= maximum - right {
+            true -> finish_exact_add_u64_runtime_bound(left + right)
+            _ -> finish_exact_add_u64_runtime_bound(0u64)
+        }
+    }
+
+    state finish_exact_add_u64_runtime_bound(value: u64) -> u64 {
+        value
+    }
+}
+
 machine terminal_exact_add_signed_nonnegative_bound(left: i32, right: i32) -> i32
 requires 0i32 == 0i32
 ensures 0i32 == 0i32
@@ -1056,6 +1077,20 @@ ensures 0u32 == 0u32
     }
 
     state finish_exact_subtract_joint(value: u32) -> u32 {
+        value
+    }
+}
+
+machine terminal_exact_subtract_u64_joint_bound(left: u64, right: u64) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    transition right <= left {
+        true -> finish_exact_subtract_u64_joint(left - right)
+        _ -> finish_exact_subtract_u64_joint(0u64)
+    }
+
+    state finish_exact_subtract_u64_joint(value: u64) -> u64 {
         value
     }
 }
@@ -1168,6 +1203,27 @@ ensures 0u32 == 0u32
     }
 
     state finish_exact_multiply_joint(value: u32) -> u32 {
+        value
+    }
+}
+
+machine terminal_exact_multiply_u64_joint_bound(left: u64, right: u64, maximum: u64) -> u64
+requires 0u64 == 0u64
+ensures 0u64 == 0u64
+{
+    transition maximum == 18446744073709551615u64 && 1u64 <= right {
+        true -> prove_exact_multiply_u64_joint(left, right, maximum)
+        _ -> finish_exact_multiply_u64_joint(0u64)
+    }
+
+    state prove_exact_multiply_u64_joint(left: u64, right: u64, maximum: u64) -> u64 {
+        transition left <= maximum / right {
+            true -> finish_exact_multiply_u64_joint(left * right)
+            _ -> finish_exact_multiply_u64_joint(0u64)
+        }
+    }
+
+    state finish_exact_multiply_u64_joint(value: u64) -> u64 {
         value
     }
 }
