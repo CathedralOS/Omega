@@ -1,1 +1,1 @@
-root slot `windows_x64::ProgramEntry` is already bound
+root slot `windows_x86_64::ProgramEntry` is already bound

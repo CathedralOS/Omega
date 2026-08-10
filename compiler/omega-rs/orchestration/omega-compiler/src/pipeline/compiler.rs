@@ -405,18 +405,18 @@ impl Compiler {
         // `target { subsystem }` word is the fallback until its removal.
         let build_config =
             crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
-        let entry_machine_name = crate::pipeline::build_config::selected_program_entry_machine(
+        let selected_program_entry = crate::pipeline::build_config::selected_program_entry_machine(
             &build_config,
             self.options.target_name.as_deref(),
-        )?
-        .map(str::to_owned);
-        if let Some(entry_machine_name) = entry_machine_name.as_deref() {
+        )?;
+        if let Some(selected_program_entry) = selected_program_entry {
             crate::pipeline::build_config::validate_selected_program_entry_shape(
                 &typed,
-                entry_machine_name,
-                build_config.freestanding,
+                selected_program_entry,
             )?;
         }
+        let entry_machine_name =
+            selected_program_entry.map(|selected| selected.machine_name.to_owned());
         let target_provider_defaults =
             crate::pipeline::build_config::compute_target_provider_defaults(
                 &typed,

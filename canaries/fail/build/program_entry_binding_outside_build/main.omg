@@ -6,5 +6,5 @@ machine launch() {
 }
 
 machine Main::main(&mut self) {
-    self.roots.bind(windows_x64::ProgramEntry, launch);
+    self.roots.bind(windows_x86_64::ProgramEntry, launch);
 }

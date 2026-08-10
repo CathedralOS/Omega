@@ -67,6 +67,12 @@ pub struct RootBinding {
     pub implementation: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SelectedProgramEntry<'config> {
+    pub machine_name: &'config str,
+    pub slot: omega_target::ProgramEntrySlotDeclaration,
+}
+
 /// Resolve the selected target's `ProgramEntry` binding. This is the first
 /// implemented target-root slot; other root-slot kinds reject rather than
 /// being accepted and then ignored. With no root declarations at all the
@@ -75,11 +81,13 @@ pub struct RootBinding {
 pub(crate) fn selected_program_entry_machine<'config>(
     config: &'config BuildConfig,
     target_name: Option<&str>,
-) -> Result<Option<&'config str>, Vec<Diagnostic>> {
+) -> Result<Option<SelectedProgramEntry<'config>>, Vec<Diagnostic>> {
     if config.root_bindings.is_empty() {
         return Ok(None);
     }
 
+    let selected_profile = omega_target::TargetProfile::from_omega_target_name(target_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let mut diagnostics = Vec::new();
     let mut program_entries = Vec::new();
     for binding in &config.root_bindings {
@@ -90,54 +98,51 @@ pub(crate) fn selected_program_entry_machine<'config>(
             )));
             continue;
         };
-        if slot_name != "ProgramEntry" {
+        let profile = match omega_target::TargetProfile::from_root_slot_owner(profile) {
+            Ok(profile) => profile,
+            Err(_) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "root slot `{}` belongs to unknown target profile `{profile}`",
+                    binding.slot
+                )));
+                continue;
+            }
+        };
+        let declaration = profile.program_entry_slot();
+        if slot_name != declaration.slot_name {
             diagnostics.push(Diagnostic::error(format!(
                 "root slot `{}` is not implemented yet; the current target-slot slice accepts `target::ProgramEntry`",
                 binding.slot
             )));
             continue;
         }
-        program_entries.push((profile, binding));
+        if profile != selected_profile {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{}` belongs to target profile `{}`, not selected target `{}`",
+                binding.slot,
+                profile.root_slot_owner_name(),
+                selected_profile.target_name(),
+            )));
+            continue;
+        }
+        program_entries.push((declaration, binding));
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
 
-    let matches_target = |profile: &str| match target_name {
-        Some("windows_x64") => matches!(profile, "windows_x64" | "windows_x86_64"),
-        Some("linux_x64") => matches!(profile, "linux_x64" | "linux_x86_64"),
-        Some("uefi_x64") => matches!(profile, "uefi_x64" | "uefi_x86_64"),
-        Some(selected) => profile == selected,
-        None => true,
-    };
-    if let Some(target_name) = target_name {
-        for (profile, binding) in &program_entries {
-            if !matches_target(profile) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "root slot `{}` belongs to target profile `{profile}`, not selected target `{target_name}`",
-                    binding.slot
-                )));
-            }
-        }
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
-    }
-
-    let selected = program_entries
-        .iter()
-        .filter(|(profile, _)| matches_target(profile))
-        .map(|(_, binding)| *binding)
-        .collect::<Vec<_>>();
-    match selected.as_slice() {
-        [binding] => Ok(Some(binding.implementation.as_str())),
+    match program_entries.as_slice() {
+        [(slot, binding)] => Ok(Some(SelectedProgramEntry {
+            machine_name: binding.implementation.as_str(),
+            slot: *slot,
+        })),
         [] => Err(vec![Diagnostic::error(format!(
             "selected target `{}` has no bound `ProgramEntry` root slot",
-            target_name.unwrap_or("host")
+            selected_profile.target_name()
         ))]),
         _ => Err(vec![Diagnostic::error(format!(
             "selected target `{}` has more than one bound `ProgramEntry` root slot",
-            target_name.unwrap_or("host")
+            selected_profile.target_name()
         ))]),
     }
 }
@@ -149,9 +154,9 @@ pub(crate) fn selected_program_entry_machine<'config>(
 /// but the common result/generic/receiver rules already apply.
 pub(crate) fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
-    machine_name: &str,
-    freestanding: bool,
+    selected: SelectedProgramEntry<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let machine_name = selected.machine_name;
     let Some(machine) = typed
         .machines()
         .iter()
@@ -210,18 +215,29 @@ pub(crate) fn validate_selected_program_entry_shape(
         )));
     }
 
-    if !freestanding {
-        let visible = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .map(|parameter| parameter.name.as_str())
-            .collect::<Vec<_>>();
-        if !visible.is_empty() {
+    let visible = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| parameter.name.as_str())
+        .collect::<Vec<_>>();
+    match selected.slot.visible_parameters {
+        omega_target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
             diagnostics.push(Diagnostic::error(format!(
                 "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
                 visible.join("`, `")
             )));
         }
+        omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+            if visible.len() != 2 =>
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "target schema `{:?}` exposes exactly image and initial-storage roots, but `{machine_name}` declares {} visible parameter{}",
+                selected.slot.schema,
+                visible.len(),
+                if visible.len() == 1 { "" } else { "s" },
+            )));
+        }
+        _ => {}
     }
 
     if diagnostics.is_empty() {
@@ -794,8 +810,8 @@ mod tests {
     #[test]
     fn selected_target_rejects_foreign_program_entry_slot_after_its_own() {
         let config = config_with_root_bindings(&[
-            ("windows_x64::ProgramEntry", "Application::start"),
-            ("linux_x64::ProgramEntry", "Diagnostics::start"),
+            ("windows_x86_64::ProgramEntry", "Application::start"),
+            ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
         ]);
 
         let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
@@ -803,15 +819,15 @@ mod tests {
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
-            "root slot `linux_x64::ProgramEntry` belongs to target profile `linux_x64`, not selected target `windows_x64`"
+            "root slot `linux_x86_64::ProgramEntry` belongs to target profile `linux_x86_64`, not selected target `windows_x64`"
         ));
     }
 
     #[test]
     fn selected_target_rejects_foreign_program_entry_slot_before_its_own() {
         let config = config_with_root_bindings(&[
-            ("linux_x64::ProgramEntry", "Diagnostics::start"),
-            ("windows_x64::ProgramEntry", "Application::start"),
+            ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
+            ("windows_x86_64::ProgramEntry", "Application::start"),
         ]);
 
         let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
@@ -819,7 +835,38 @@ mod tests {
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
-            "root slot `linux_x64::ProgramEntry` belongs to target profile `linux_x64`, not selected target `windows_x64`"
+            "root slot `linux_x86_64::ProgramEntry` belongs to target profile `linux_x86_64`, not selected target `windows_x64`"
+        ));
+    }
+
+    #[test]
+    fn selected_entry_retains_the_target_owned_slot_schema() {
+        let config =
+            config_with_root_bindings(&[("uefi_x86_64::ProgramEntry", "Application::start")]);
+
+        let selected = selected_program_entry_machine(&config, Some("uefi_x64"))
+            .expect("typed root slot selection")
+            .expect("one selected entry");
+
+        assert_eq!(selected.machine_name, "Application::start");
+        assert_eq!(selected.slot.owner, omega_target::TargetProfile::UefiX64);
+        assert_eq!(
+            selected.slot.visible_parameters,
+            omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+        );
+    }
+
+    #[test]
+    fn root_slot_owner_rejects_deployment_target_names() {
+        let config =
+            config_with_root_bindings(&[("windows_x64::ProgramEntry", "Application::start")]);
+
+        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect_err("a noncanonical target owner must reject");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "root slot `windows_x64::ProgramEntry` belongs to unknown target profile `windows_x64`"
         ));
     }
 }
