@@ -1,0 +1,16 @@
+use omega::language::core::extent;
+
+machine launch(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+) {
+    transition {
+        _ -> retain(image as Extent, initial_storage as Extent)
+    }
+
+    state retain(image: Extent, initial_storage: Extent) {
+        transition {
+            _ -> retain(image, initial_storage)
+        }
+    }
+}
