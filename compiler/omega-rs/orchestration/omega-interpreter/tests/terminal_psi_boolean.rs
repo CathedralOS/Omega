@@ -12,9 +12,14 @@ use std::{
 #[cfg(unix)]
 static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
+use omega_interpreter::{
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
+};
 use omega_target::NativeTarget;
-use omega_terminal_abstract_operations::TerminalAbstractOperation;
+use omega_terminal_abstract_operations::{
+    TerminalAbstractOperation, TerminalAbstractOperationPlan,
+};
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
     build_terminal_installation_record, build_terminal_object_artifact,
@@ -23,7 +28,7 @@ use omega_terminal_image_emission::{
     validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -34,10 +39,36 @@ use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
+use psi_terminal_codec::{
+    decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
+};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, TerminalFuelSchedule};
-use psi_terminal_verifier::{ProofBundle, verify_module};
+use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
+
+fn interpret_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+    arguments: &[TerminalScalarValue],
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let semantic_bytes = encode_module(verified.module()).expect("verified semantics encode");
+    let proof_bytes =
+        encode_proof_bundle(&ProofBundle::default()).expect("proof-free bundle encodes");
+    interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        arguments,
+    )
+}
+
+fn lower_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
+    let semantic_bytes = encode_module(verified.module()).expect("verified semantics encode");
+    let proof_bytes =
+        encode_proof_bundle(&ProofBundle::default()).expect("proof-free bundle encodes");
+    lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+}
 
 #[cfg(unix)]
 #[test]
@@ -106,7 +137,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
     assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
     assert_eq!(fixed.ceiling_units(), 2);
 
-    let measured = interpret_terminal_measured(&verified, &[]).expect("interpret Boolean");
+    let measured = interpret_verified_artifact(&verified, &[]).expect("interpret Boolean");
     assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
     assert_eq!(measured.usage().total_units(), 2);
     assert_eq!(
@@ -118,7 +149,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
         1
     );
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower Boolean requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower Boolean requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[0],
         TerminalAbstractOperation::BooleanConstant { value: true, .. }
@@ -269,7 +300,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
     assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
     assert_eq!(fixed.ceiling_units(), 4);
 
-    let measured = interpret_terminal_measured(&verified, &[]).expect("interpret wrapping add");
+    let measured = interpret_verified_artifact(&verified, &[]).expect("interpret wrapping add");
     assert_eq!(
         measured.value(),
         TerminalScalarValue::Integer {
@@ -287,7 +318,8 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
         1
     );
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower wrapping-add requirements");
+    let abstract_plan =
+        lower_verified_artifact(&verified).expect("lower wrapping-add requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[2],
         TerminalAbstractOperation::WrappingIntegerAdd {
@@ -440,7 +472,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
     assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
     assert_eq!(fixed.ceiling_units(), 4);
 
-    let measured = interpret_terminal_measured(&verified, &[]).expect("interpret saturating add");
+    let measured = interpret_verified_artifact(&verified, &[]).expect("interpret saturating add");
     assert_eq!(
         measured.value(),
         TerminalScalarValue::Integer {
@@ -459,7 +491,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
     );
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower saturating-add requirements");
+        lower_verified_artifact(&verified).expect("lower saturating-add requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[2],
         TerminalAbstractOperation::SaturatingIntegerAdd {
@@ -598,7 +630,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
     assert_eq!(fixed.ceiling_units(), 2);
 
     for (left_value, right_value, expected) in [(i64::MAX, -1, i64::MAX), (i64::MIN, 1, i64::MIN)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Integer {
@@ -623,7 +655,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
     }
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower saturating-subtract requirements");
+        lower_verified_artifact(&verified).expect("lower saturating-subtract requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[0],
         TerminalAbstractOperation::SaturatingIntegerSubtract {
@@ -744,7 +776,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
         },
     ];
     let measured =
-        interpret_terminal_measured(&verified, &arguments).expect("interpret wrapping subtract");
+        interpret_verified_artifact(&verified, &arguments).expect("interpret wrapping subtract");
     assert_eq!(
         measured.value(),
         TerminalScalarValue::Integer {
@@ -763,7 +795,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
     );
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower wrapping-subtract requirements");
+        lower_verified_artifact(&verified).expect("lower wrapping-subtract requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[0],
         TerminalAbstractOperation::WrappingIntegerSubtract {
@@ -887,7 +919,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
         },
     ];
     let measured =
-        interpret_terminal_measured(&verified, &arguments).expect("interpret wrapping multiply");
+        interpret_verified_artifact(&verified, &arguments).expect("interpret wrapping multiply");
     assert_eq!(
         measured.value(),
         TerminalScalarValue::Integer {
@@ -906,7 +938,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
     );
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower wrapping-multiply requirements");
+        lower_verified_artifact(&verified).expect("lower wrapping-multiply requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[0],
         TerminalAbstractOperation::WrappingIntegerMultiply {
@@ -1024,7 +1056,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
         (i64::MIN, -1, i64::MAX),
         (i64::MIN, 2, i64::MIN),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Integer {
@@ -1049,7 +1081,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
     }
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower saturating-multiply requirements");
+        lower_verified_artifact(&verified).expect("lower saturating-multiply requirements");
     assert!(matches!(
         abstract_plan.functions[0].operations[0],
         TerminalAbstractOperation::SaturatingIntegerMultiply {
@@ -1181,7 +1213,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         })
         .collect::<Vec<_>>();
     let measured =
-        interpret_terminal_measured(&verified, &arguments).expect("interpret runtime arithmetic");
+        interpret_verified_artifact(&verified, &arguments).expect("interpret runtime arithmetic");
     assert_eq!(
         measured.value(),
         TerminalScalarValue::Integer {
@@ -1192,7 +1224,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
     assert_eq!(measured.usage().total_units(), 3);
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower runtime arithmetic requirements");
+        lower_verified_artifact(&verified).expect("lower runtime arithmetic requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select runtime arithmetic target operations");
     let assigned = assign_registers(&target_plan).expect("assign nested runtime target homes");
@@ -1285,7 +1317,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
     )
     .expect("proof-free signed runtime saturation verifies");
     for (left_value, right_value, expected) in [(i64::MAX, 1, i64::MAX), (i64::MIN, -1, i64::MIN)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Integer {
@@ -1310,7 +1342,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
     }
 
     let abstract_plan =
-        lower_verified_module(&verified).expect("lower signed runtime saturation requirements");
+        lower_verified_artifact(&verified).expect("lower signed runtime saturation requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select signed runtime saturation target operations");
     let assigned = assign_registers(&target_plan).expect("assign signed runtime target homes");
@@ -1408,7 +1440,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
         value: IntegerValue::Unsigned(77),
     });
     let measured =
-        interpret_terminal_measured(&verified, &arguments).expect("interpret parameter return");
+        interpret_verified_artifact(&verified, &arguments).expect("interpret parameter return");
     assert_eq!(
         measured.value(),
         TerminalScalarValue::Integer {
@@ -1426,7 +1458,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
         1
     );
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower parameter requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower parameter requirements");
     assert_eq!(abstract_plan.functions[0].parameters.len(), 9);
     assert_eq!(abstract_plan.functions[0].parameters[8].value, returned);
     assert!(matches!(
