@@ -1266,12 +1266,60 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
 }
 
 #[test]
-fn checked_source_staged_local_nested_jump_tuple_fails_closed() {
+fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("staged-local nested-jump tuple source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_short_circuit_local_nested_jump_tuple")
+        .expect("a staged local should compose with left-to-right jump-argument staging");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("staged-local jump-tuple terminal Psi should encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("staged-local jump-tuple proof should encode");
+    let semantic =
+        decode_module(&semantic).expect("staged-local jump-tuple terminal Psi should decode");
+    let proof = decode_proof_bundle(&proof).expect("staged-local jump-tuple proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("staged-local jump-tuple terminal Psi should verify");
+
+    for (first, second, expected, expected_units) in [
+        (false, false, true, 14_u64),
+        (false, true, true, 14),
+        (true, false, false, 15),
+        (true, true, true, 15),
+    ] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
+        )
+        .expect("staged-local jump tuple should execute");
+        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(measured.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified staged-local jump tuple should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("staged-local jump tuple should lower for both native targets");
+        let assigned =
+            assign_registers(&target_operations).expect("staged-local jump tuple should assign");
+        let emitted = emit_machine_code(&assigned).expect("staged-local jump tuple should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_staged_local_conditional_edge_fails_closed() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("staged-local conditional-edge source canary should compile");
     assert_eq!(
-        lower_machine(&checked, "terminal_short_circuit_local_nested_jump_tuple")
-            .expect_err("multiple short-circuit jump arguments need tuple staging"),
+        lower_machine(&checked, "terminal_short_circuit_local_conditional_edge")
+            .expect_err("short-circuit conditional-edge arguments need staged terminal control"),
         LoweringError::Unsupported(
             "short-circuit scalar locals outside a staged terminator need terminal control"
         )
