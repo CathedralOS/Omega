@@ -997,6 +997,41 @@ ensures 0i32 == 0i32
     }
 }
 
+machine terminal_exact_add_signed_i64_runtime_bounds(left: i64, right: i64) -> i64
+requires 0i64 == 0i64
+ensures 0i64 == 0i64
+{
+    transition 0i64 <= right {
+        true -> prove_exact_add_signed_i64_upper(left, right)
+        _ -> classify_exact_add_signed_i64_lower(left, right)
+    }
+
+    state prove_exact_add_signed_i64_upper(left: i64, right: i64) -> i64 {
+        transition left <= 9223372036854775807i64 - right {
+            true -> finish_exact_add_signed_i64(left + right)
+            _ -> finish_exact_add_signed_i64(0i64)
+        }
+    }
+
+    state classify_exact_add_signed_i64_lower(left: i64, right: i64) -> i64 {
+        transition right <= 0i64 {
+            true -> prove_exact_add_signed_i64_lower(left, right)
+            _ -> finish_exact_add_signed_i64(0i64)
+        }
+    }
+
+    state prove_exact_add_signed_i64_lower(left: i64, right: i64) -> i64 {
+        transition -9223372036854775808i64 - right <= left {
+            true -> finish_exact_add_signed_i64(left + right)
+            _ -> finish_exact_add_signed_i64(0i64)
+        }
+    }
+
+    state finish_exact_add_signed_i64(value: i64) -> i64 {
+        value
+    }
+}
+
 machine terminal_exact_subtract_known_right(value: u32, ignored: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
@@ -1063,6 +1098,41 @@ ensures 0i32 == 0i32
     }
 
     state finish_exact_subtract_signed_upper(value: i32) -> i32 {
+        value
+    }
+}
+
+machine terminal_exact_subtract_signed_i64_runtime_bounds(left: i64, right: i64) -> i64
+requires 0i64 == 0i64
+ensures 0i64 == 0i64
+{
+    transition 0i64 <= right {
+        true -> prove_exact_subtract_signed_i64_lower(left, right)
+        _ -> classify_exact_subtract_signed_i64_upper(left, right)
+    }
+
+    state prove_exact_subtract_signed_i64_lower(left: i64, right: i64) -> i64 {
+        transition -9223372036854775808i64 + right <= left {
+            true -> finish_exact_subtract_signed_i64(left - right)
+            _ -> finish_exact_subtract_signed_i64(0i64)
+        }
+    }
+
+    state classify_exact_subtract_signed_i64_upper(left: i64, right: i64) -> i64 {
+        transition right <= 0i64 {
+            true -> prove_exact_subtract_signed_i64_upper(left, right)
+            _ -> finish_exact_subtract_signed_i64(0i64)
+        }
+    }
+
+    state prove_exact_subtract_signed_i64_upper(left: i64, right: i64) -> i64 {
+        transition left <= 9223372036854775807i64 + right {
+            true -> finish_exact_subtract_signed_i64(left - right)
+            _ -> finish_exact_subtract_signed_i64(0i64)
+        }
+    }
+
+    state finish_exact_subtract_signed_i64(value: i64) -> i64 {
         value
     }
 }

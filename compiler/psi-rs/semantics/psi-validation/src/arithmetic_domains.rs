@@ -449,6 +449,7 @@ fn joint_add_upper_guard(
         PrimitiveType::I8 if env.get(&right_path)?.low? >= 0 => i8::MAX as i64,
         PrimitiveType::I16 if env.get(&right_path)?.low? >= 0 => i16::MAX as i64,
         PrimitiveType::I32 if env.get(&right_path)?.low? >= 0 => i32::MAX as i64,
+        PrimitiveType::I64 if env.get(&right_path)?.low? >= 0 => i64::MAX,
         _ => return None,
     };
     if literal_i64(program, subtract.left) != Some(maximum) {
@@ -493,6 +494,7 @@ fn joint_add_lower_guard(
         PrimitiveType::I8 if env.get(&right_path)?.high? <= 0 => i8::MIN as i64,
         PrimitiveType::I16 if env.get(&right_path)?.high? <= 0 => i16::MIN as i64,
         PrimitiveType::I32 if env.get(&right_path)?.high? <= 0 => i32::MIN as i64,
+        PrimitiveType::I64 if env.get(&right_path)?.high? <= 0 => i64::MIN,
         _ => return None,
     };
     if literal_i64(program, subtract.left) != Some(minimum) {
@@ -572,6 +574,7 @@ fn signed_joint_subtract_lower_guard(
         PrimitiveType::I8 if env.get(&right_path)?.low? >= 0 => i8::MIN as i64,
         PrimitiveType::I16 if env.get(&right_path)?.low? >= 0 => i16::MIN as i64,
         PrimitiveType::I32 if env.get(&right_path)?.low? >= 0 => i32::MIN as i64,
+        PrimitiveType::I64 if env.get(&right_path)?.low? >= 0 => i64::MIN,
         _ => return None,
     };
     if literal_i64(program, minimum) != Some(minimum_value) {
@@ -621,6 +624,7 @@ fn signed_joint_subtract_upper_guard(
         PrimitiveType::I8 if env.get(&right_path)?.high? <= 0 => i8::MAX as i64,
         PrimitiveType::I16 if env.get(&right_path)?.high? <= 0 => i16::MAX as i64,
         PrimitiveType::I32 if env.get(&right_path)?.high? <= 0 => i32::MAX as i64,
+        PrimitiveType::I64 if env.get(&right_path)?.high? <= 0 => i64::MAX,
         _ => return None,
     };
     if literal_i64(program, maximum) != Some(maximum_value) {
