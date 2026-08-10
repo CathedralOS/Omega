@@ -2194,9 +2194,7 @@ fn staged_short_circuit_bindings_terminator(
     }
     let supported = match terminator {
         LoweredScalarBranchTerminator::Return { .. } => true,
-        LoweredScalarBranchTerminator::Conditional { condition, .. } => {
-            !contains_short_circuit(condition)
-        }
+        LoweredScalarBranchTerminator::Conditional { .. } => true,
         LoweredScalarBranchTerminator::Jump { .. } => true,
         LoweredScalarBranchTerminator::Crash(_) => false,
     };
@@ -3604,6 +3602,67 @@ fn build_scalar_graph_module(
                     &stage_parameters,
                     stage_parameters.clone(),
                     LoweredBooleanDecisionExit::Jump { target },
+                    stage_block,
+                    first_synthetic_block,
+                    &mut next_value_identity,
+                    &mut next_edge_identity,
+                    &mut all_operations,
+                );
+                inlined_blocks.push(root);
+                inlined_blocks.extend(children);
+                continue;
+            }
+            if let LoweredScalarBranchTerminator::Conditional {
+                condition,
+                when_true_target,
+                when_true_arguments,
+                when_false_target,
+                when_false_arguments,
+            } = &continuation_plan
+                && contains_short_circuit(condition)
+            {
+                let decision = lower_boolean_control_decision(
+                    condition,
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                        value: true,
+                    }),
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                        value: false,
+                    }),
+                );
+                let decision_block_count = boolean_decision_test_count(&decision);
+                debug_assert!(decision_block_count > 0);
+                let first_synthetic_block = block_id(next_block_identity);
+                next_block_identity = next_block_identity
+                    .checked_add(
+                        u64::try_from(decision_block_count - 1)
+                            .expect("staged Boolean guard child count fits a semantic identity"),
+                    )
+                    .expect("staged Boolean guard block identities advance");
+                let when_true = build_scalar_conditional_target(
+                    *when_true_target,
+                    when_true_arguments,
+                    &stage_parameters,
+                    &stage_parameter_types,
+                    &mut next_block_identity,
+                    &mut next_value_identity,
+                    &mut pending_blocks,
+                );
+                let when_false = build_scalar_conditional_target(
+                    *when_false_target,
+                    when_false_arguments,
+                    &stage_parameters,
+                    &stage_parameter_types,
+                    &mut next_block_identity,
+                    &mut next_value_identity,
+                    &mut pending_blocks,
+                );
+                let (root, children) = emit_inlined_boolean_guard_blocks(
+                    &decision,
+                    &stage_parameters,
+                    stage_parameters.clone(),
+                    &when_true,
+                    &when_false,
                     stage_block,
                     first_synthetic_block,
                     &mut next_value_identity,
