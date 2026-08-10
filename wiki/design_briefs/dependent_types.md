@@ -1,6 +1,5 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
-Current staged design as of 2026-08-07; implementation remains incomplete.
 Companion to [Chapter 12](../language_guide/chapter_12_dependent_types.md) (the
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
@@ -10,7 +9,7 @@ key citations at the bottom.
 
 ## 1. The problem
 
-Three concrete programs are blocked today, all of them systems code:
+Three systems-program shapes motivated this design:
 
 1. **The UEFI memory-map walk.** Firmware returns a buffer holding `count`
    descriptors, each `stride` bytes wide — and stride is a RUNTIME value
@@ -21,9 +20,8 @@ Three concrete programs are blocked today, all of them systems code:
    and under this design it does not compile, because no fact ties that
    constant to `len`. Cathedral M2's recast consumes exactly this shape.
 2. **Row-major indexing.** `pixels[y*W+x]` with `x < W` and `y < H` is in
-   bounds, but the proof needs `y*W + x < W*H` — a relation BETWEEN runtime
-   values, not a constant range. (TASKS.md: "enabled by dependent types
-   eventually".)
+   bounds, but the proof needs `y*W + x < W*H` — a relation between runtime
+   values, not a constant range.
 3. **Signatures whose result bounds are their arguments.**
    `clamp(value, min, max) -> out in min..=max` — today a bound must be a
    constant.
@@ -45,7 +43,7 @@ can be declarative rather than inventive:
   do.
 - **A case payload's facts hold under the case fact.** Inside a
   `P::One { v } ->` arm, `v` carries `One`'s declared payload range because
-  the arm proves which case is active (landed 2026-07-08). A fact valid
+  the arm proves which case is active. A fact valid
   conditionally on another fact IS dependency.
 - **Const parameters already reach ranges and lengths.** Ch13's
   `FixedBuffer<T, const N: u64>` puts a value in a layout; ch7's clamp
@@ -62,7 +60,7 @@ The full apparatus, with the builder's verdict on each:
 |---|---|---|---|
 | Pi (result type computed from argument value) | value-indexed APIs; quantifiers; generics-as-instance | a normalizer *inside* the type checker (conversion checking evaluates open user terms at compile time); undecidable inference; elaboration | **No.** Layouts/facts *parameterized* by values never require types *computed* by code |
 | Sigma (dependent pair) | existential returns; length-prefixed wire data — `{len, payload[len]}` IS one | near-zero in a decidable index fragment | **Yes** — the single most systems-relevant object. UEFI GetMemoryMap returns one |
-| Indexed families (Vec) | compile-time-impossible cases | index unification, K-axiom, forced-argument erasure | No — sum types + fact-conditioned cases + dominating guards reproduce the effect (the landed sum-payload narrowing already is this) |
+| Indexed families (Vec) | compile-time-impossible cases | index unification, K-axiom, forced-argument erasure | No — sum types + fact-conditioned cases + dominating guards reproduce the effect through sum-payload narrowing |
 | Universes | classify values and formulas | Girard's paradox management only if universes themselves become freely first-class | **Yes, internally:** `Type` for objects and `Prop` for formulas; neither is currently a runtime value or an open source-level universe |
 | Definitional equality / normalization | silent computation in types | the checker's termination = the termination checker's soundness; Lean's main pain center (defeq debt, kernel blowups) | No — an entailment *engine* deciding equalities in a decidable theory is the third road: reflected-equality ergonomics without undecidable checking |
 | Erasure (QTT quantities 0/1/ω, Idris 2) | proofs cost nothing at runtime | relevance must compose with multiplicity, effects, and validity scope | **Partly built:** current facts erase and multiplicity already propagates; explicit relevance must replace structural proof-only classification |
@@ -113,30 +111,17 @@ cannot assert
 eligibility. Open symbolic expressions normalize only under an exact selected
 algebraic conformance whose laws were checked, not admitted.
 
-PDI1 implementation status (2026-08-01): this structural eligibility judgment
-and canonical closed-value identity are live for generic `const` arguments over
-eligible literal integers, booleans, fixed arrays, records, and cases. Field
-order is declaration-canonical, and current structural `Rat` values are checked
-for positivity, cancellation, and gcd reduction at the argument site.
+Current compiler coverage includes:
 
-PDI2 implementation status (2026-08-01): complete. Closed erased domain families
-carry an explicit carrier binder and typed const telescope through syntax,
-resolved, and typed trees. Binding constraints accept canonical closed values
-or a direct in-scope const binder; normalized instance identity distinguishes
-different values, collapses equivalent structural spellings, and remains
-erased from carrier layout. Executable destination qualification and
-const-machine specialization run in both engines. The first shipped units
-package supplies named closed combinations, visible conversion policy, and
-per-pair operators across module boundaries.
-
-PDI3 implementation status (2026-08-01): complete. Computed open result indices
-retain their exact selected operation and proved algebra authority through
-specialization and checked artifacts. Closed canonical identity and licensed
-normalization discharge matching instances. Otherwise an exact active
-`requires` fact or prior/result-call `ensures` may discharge the named equality
-condition without rewriting identity. Multi-index and nested literal boundaries
-retain every evidence handle; unresolved equality rejects, and no ambient lemma
-search or indexed-domain citation surface exists.
+- structural eligibility and canonical identity for closed eligible integers,
+  booleans, fixed arrays, records, cases, and normalized structural `Rat` values;
+- erased domain families with explicit carrier/const telescopes, canonical
+  binding constraints, specialization in both engines, and no carrier-layout
+  contribution; and
+- computed open result indices that retain the selected operation and proved
+  algebra authority. Closed normalization or exact active `requires`/`ensures`
+  evidence discharges compatibility; unresolved equality rejects without
+  ambient lemma search or an index-specific citation surface.
 
 ### The proof-side proposition-family fragment
 
@@ -315,45 +300,15 @@ the windowed place (a capability is a licensed path to state outside the
 signature — "cannot observe the window" is unprovable for it), so every
 window closes before the world can look.
 
-Implementation status: explicit state `requires` now survives every compiler
-tree and specialization, is indexed as a state-owned proof fact, is discharged
-on guarded named transitions, and is assumed only in the target state. `self`
-back-edges are checked after statement-level invalidation, so the entry
-assumption cannot prove itself after a dependent place is mutated. Automatic
-Houdini inference has its first frame-aware candidate class: monotone counter
-bounds survive recursive may-write analysis across resolved sibling calls when
-their frames are disjoint, and are discarded for overlapping or opaque calls.
-Its first relational class is live too: equivalent guards on every entry and
-back edge carry `i < self.collection.len` to an increasing-counter head even
-though the guards have distinct expression handles. The candidate crosses
-calls only when recursive frames are disjoint from both the counter and
-collection, and index reassignment kills the collection-relative fact. Further
-composition now handles a finite chain of stable intermediate limits: edge and
-authored machine-arrival relations compose when at least one link is strict,
-admitting both `i < limit <= collection.len` and
-`i <= outer <= limit < collection.len` while rejecting a fully non-strict
-chain. Since the bridge premises originate at machine arrival, every
-intermediate and the collection must be frame-stable through every machine
-state, including preheaders. Further relational classes remain future work;
-authored arrival contracts do not depend on them. Inferred intra-unit frames
-now normalize into one shared
-complete-or-opaque representation, with sorted/deduplicated paths and positional
-state-parameter roots. Checked machine plans retain the per-state frames and
-their deterministic implementation identities, and the machine-contract
-manifest exposes them only as implementation evidence. Public contract and
-specialization identities intentionally exclude body-derived frames.
-Complete inferred frames now compose across acyclic state-transition graphs as
-well as ordinary internal call graphs. Both conditional arms contribute their
-may-write paths, shared tail states are memoized, and target-state parameters
-substitute positionally into the source namespace before the entry frame is
-normalized. Value-position calls in every state expression root contribute the
-shared call resolver's complete may-write paths before the surrounding
-statement or transition is summarized, with one recursion frontier spanning
-statement- and value-position calls. A bare `-> self` target retains the exact
-finite frame already collected for that state because it preserves the same
-receiver and parameter namespace. Named cycles, which may rebind parameters,
-and every genuinely unresolved frame remain opaque; completeness never depends
-on selecting one runtime arm or assuming a cycle terminates.
+The compiler retains explicit state `requires` through checking and
+specialization, discharges them on every named incoming edge, and assumes them
+only after arrival. Statement invalidation prevents a back-edge assumption from
+proving itself after mutation. Inferred frames use one sorted complete-or-opaque
+representation, compose across resolved calls and acyclic state graphs, and
+substitute state parameters positionally. Body-derived frames remain
+implementation evidence outside public contract/specialization identity.
+Rebinding cycles and unresolved calls stay opaque; `TASKS.md` R5 owns broader
+relational candidates and frame precision.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -396,7 +351,7 @@ Gating resolves the ZII/invariant tension:
   (ch20's existing words).
 - If zero satisfies the default domain, the type is zero-constructible: a
   zeroed value is born established, the facts are standing everywhere,
-  nothing is tracked. Everything landed today is this tier.
+  nothing is tracked. This is the zero-constructible tier.
 - If zero does not, the type is **gated**: not zero-constructible. Data can
   have non-zero requirements — business logic cannot thrive under a
   zero-init-everything law. The zeroed form exists only as storage and is
@@ -414,7 +369,7 @@ Gating resolves the ZII/invariant tension:
   spelled as a case (`PlayerSlot::Empty`), not as a nonsense zero value.
   Machine-owned data is access-gated, not construction-gated (Main boots
   zeroed; gated fields are storage until a state establishes them).
-- The landed 0-in-range declaration check becomes the first tier as an
+- The current 0-in-range declaration check becomes the first tier as an
   implementation restriction, not language law.
 - Deferred honestly in every universe: partially-established arrays under
   runtime indices ("elements below `loaded` are established" is a
@@ -429,8 +384,8 @@ are never observed zeroed.
 
 Invariant preservation uses **consumption-point enforcement**. Writes never
 fail a domain check. A write the checker can
-prove domain-preserving changes nothing (facts stay standing — the common
-case and every landed range-checked store). A write it cannot prove opens a
+prove domain-preserving changes nothing (facts stay standing for ordinary
+proved range-checked stores). A write it cannot prove opens a
 **window** on the place; the window must close — the domain re-proven from
 flow facts — at the next **consumption point**: a read relying on a domain
 fact, a borrow creation, any call, a transition, return/scope expiration,
