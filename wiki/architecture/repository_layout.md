@@ -252,20 +252,16 @@ Omega/
   Psi and owns provider installation, ABI/storage realization, optimization,
   target lowering, and execution machinery.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
-  invariants, and validation. It has been consolidated: there are no separate
-  `omega-borrow`, `omega-invariants`, `omega-contracts`, or `omega-consteval`
-  crates today. Borrow, invariant, contract, and const-evaluation reasoning live
-  inside the existing semantic crates (chiefly `psi-types`, `psi-facts`,
-  `psi-validation`, and `psi-proof`).
+  invariants, and validation. Borrow, invariant, contract, and const-evaluation
+  reasoning live chiefly in `psi-types`, `psi-facts`, `psi-validation`, and
+  `psi-proof`.
 - `psi-facts` carries checked facts, invariants, and refinement data: what
-  remains true. The unused former `omega-facts` compatibility package is
-  retired; legacy backend consumers depend on the Psi owner directly while
-  they migrate to terminal Psi.
+  remains true. Transitional backend consumers depend on the Psi owner directly
+  until terminal-Psi slices replace them.
 - `psi-checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. Legacy
   state/control representations and transforms, artifact/backend orchestration,
   the interpreter, and backend leaf consumers depend on the Psi owner directly.
-  The unused former `omega-checked-trees` compatibility package is retired.
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts; target-neutral
   consumers depend on it directly. `omega-effects` retains provider
@@ -274,16 +270,12 @@ Omega/
   the Psi vocabulary. Checked semantic trees do not retain that Omega
   realization sidecar.
 - `psi-validation` answers target-neutral cross-semantic obligations, including
-  who may read or mutate and what a callable requires or promises. The unused
-  former `omega-validation` compatibility package is retired; its cross-owner
-  integration tests live in the architecture harness. Provider installation
-  and approval remain in Omega.
-- `psi-proof` plans and discharges source-level obligations. The unused former
-  `omega-proof` package is retired.
-- `omega-compiler` invokes the Psi-owned source-to-checked frontend directly;
-  the compatibility frontend packages are no longer part of the driver graph.
-  Its checked-tree handoff to the legacy Omega state-graph lane remains an
-  interim boundary until general terminal-Psi production replaces it.
+  who may read or mutate and what a callable requires or promises. Provider
+  installation and approval remain in Omega.
+- `psi-proof` plans and discharges source-level obligations.
+- `omega-compiler` invokes the Psi-owned source-to-checked frontend directly.
+  Its checked-tree handoff to the transitional Omega state-graph lane remains
+  only until general terminal-Psi production replaces it.
 
 ### Representations And Pipeline
 

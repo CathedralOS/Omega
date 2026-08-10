@@ -254,15 +254,15 @@ evidence is derived when the instruction model proves the conformance and may
 come from an admitted provider only when the selected profile permits that
 trust class. Admission never means leaving an emitted requirement open.
 
-## Required initial catalogs
+## Required catalogs
 
 The freestanding x86 vertical slice needs contracts for:
 
-- completed `cli`/`sti`, `hlt`, and structured flags save/restore;
+- `cli`/`sti`, `hlt`, and structured flags save/restore;
 - `in`/`out` port I/O;
-- completed deriver-only `lidt`; `lgdt` remains (structured control-register
-  and MSR access is complete);
-- atomics and the completed x86 fence slice;
+- deriver-only `lidt` and `lgdt`, plus structured control-register and MSR
+  access;
+- atomics and x86 fences;
 - cache/TLB maintenance and invalidation;
 - mode-transition operations; and
 - generated interrupt/syscall entry and return sequences.
