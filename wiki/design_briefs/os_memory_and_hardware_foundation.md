@@ -1,9 +1,7 @@
 # Design Brief: OS Memory And Hardware Foundation
 
-Current direction as of 2026-08-01. The primitive taxonomy and security model
-guide implementation. The placed-access source model is specified here;
-`TASKS.md` distinguishes it from the smaller normalized Rust foundation already
-implemented.
+This brief specifies the primitive taxonomy, security model, and placed-access
+source contract. `TASKS.md` owns implementation state and ordering.
 
 This brief is the common foundation for MMIO, DMA, shared-memory
 IPC, descriptor tables, interrupt entry, admitted executable installation, and
@@ -1460,22 +1458,14 @@ interleavings, protocol state, and selected liveness evidence; ordinary proof
 machines consume normalized policy and provenance rather than re-reading source
 attributes.
 
-## Implementation status and ownership
+## Ownership
 
-`TASKS.md` owns the current implementation sequence. The language/compiler
-lanes are the checked-assembly catalog, authority values and boundary evidence,
-generic layout/materialization, `PlacementPlan`/`AccessPlan` evaluation,
-`ResourceProfile` admission, `Placed<P, T>` projection and primitive lowering,
-evaluated entry plans, final machine-state validation, external loans,
-carry/runtime admission, and relocatable admitted artifacts.
-
-Cathedral owns page-table hierarchy and teardown, IDT/TSS schema and lifecycle,
-exception/IST policy, PIC/LAPIC providers, timer top and bottom halves, DMA
-protocols, hostile-IPC mapping policy, task-runtime provisioning, concrete
-device schemas and placement policies, device `ResourceProfile` declarations,
-and protocol machines such as W1C/read-back/completion. Those customers are
-acceptance tests for the generic machinery, never compiler implementation
-phases.
+`TASKS.md` owns implementation order. Omega owns the reusable extent, layout,
+access, admission, materialization, entry-plan, artifact, and runtime-contract
+machinery described here. Cathedral owns concrete page tables, interrupt
+structures and policy, timer/device providers, DMA and IPC protocols, runtime
+provisioning, and device schemas. Cathedral workloads are acceptance tests for
+the generic machinery, never compiler phases.
 
 ## Gauntlet
 
