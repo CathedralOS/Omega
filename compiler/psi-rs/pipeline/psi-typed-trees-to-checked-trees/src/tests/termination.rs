@@ -2052,6 +2052,25 @@ fn contract_plans_fingerprint_published_halves() {
             transition { _ -> cycle(right, left) }
         }
     }
+    machine reordered_shared_cycle(first: &u64, second: &u64) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: &u64, right: &u64) {
+            transition { _ -> cycle(right, left) }
+        }
+    }
+    machine reordered_mut_cycle(first: &mut u64, second: &mut u64) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: &mut u64, right: &mut u64) {
+            transition { _ -> cycle(right, left) }
+        }
+    }
+    boundary trait Device {
+        machine overwrite(value: &mut u64);
+    }
+    data Wrapper { device: Device; value: u64; }
+    machine Wrapper::boundary_call(&mut self) {
+        self.device.overwrite(&mut self.value);
+    }
     machine Main::direct_self_loop(&mut self) {
         self.left = 9;
         transition { _ -> self }
@@ -2112,6 +2131,9 @@ fn contract_plans_fingerprint_published_halves() {
     let write_through_transition = symbol_of("write_through_transition");
     let cyclic = symbol_of("Main::cyclic");
     let reordered_cycle = symbol_of("reordered_cycle");
+    let reordered_shared_cycle = symbol_of("reordered_shared_cycle");
+    let reordered_mut_cycle = symbol_of("reordered_mut_cycle");
+    let boundary_call = symbol_of("Wrapper::boundary_call");
     let direct_self_loop = symbol_of("Main::direct_self_loop");
     let branching = symbol_of("Main::branching");
     let call_bearing = symbol_of("Main::call_bearing");
@@ -2145,9 +2167,24 @@ fn contract_plans_fingerprint_published_halves() {
         Some([].as_slice()),
         "an argument-free named state cycle preserves its complete empty namespace"
     );
+    assert_eq!(
+        frame(reordered_cycle).complete_paths(),
+        Some([].as_slice()),
+        "reordering read-only scalar parameters cannot redirect a caller-visible write"
+    );
+    assert_eq!(
+        frame(reordered_shared_cycle).complete_paths(),
+        Some([].as_slice()),
+        "reordering shared-reference parameters cannot redirect a caller-visible write"
+    );
     assert!(
-        !frame(reordered_cycle).is_complete(),
-        "a named state cycle that reorders parameters must retain an opaque inferred frame"
+        !frame(reordered_mut_cycle).is_complete(),
+        "a named state cycle that reorders exclusive parameters must remain opaque"
+    );
+    assert_eq!(
+        frame(boundary_call).paths(),
+        &["self.device".to_owned(), "self.value".to_owned()],
+        "checked frames retain exact nested boundary receiver and out-argument writes"
     );
     assert_eq!(
         frame(direct_self_loop).paths(),
