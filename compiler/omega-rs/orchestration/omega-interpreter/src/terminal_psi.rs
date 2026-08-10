@@ -16,14 +16,29 @@ pub fn interpret_terminal_artifact_measured(
     profile: &psi_proof_kernel::AdmissionProfile,
     arguments: &[TerminalScalarValue],
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let module = psi_terminal_codec::decode_module(semantic_bytes)
-        .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
-        .map_err(TerminalArtifactInterpretError::ProofDecode)?;
-    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
-        .map_err(TerminalArtifactInterpretError::Verification)?;
-    interpret_terminal_measured(&verified, arguments)
-        .map_err(TerminalArtifactInterpretError::Execution)
+    let mut execution =
+        TerminalExecution::start_artifact(semantic_bytes, proof_bytes, profile, arguments)?;
+    let mut meter = TerminalFuelMeter::unbounded();
+    let value = match execution
+        .resume(&mut meter)
+        .map_err(TerminalArtifactInterpretError::Execution)?
+    {
+        TerminalExecutionStatus::Complete(value) => value,
+        TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+            return Err(TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::Fuel(FuelMeterError::Exhausted(exhaustion)),
+            ));
+        }
+        TerminalExecutionStatus::Crashed(crash) => {
+            return Err(TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::Crash(crash),
+            ));
+        }
+    };
+    Ok(MeasuredTerminalExecution {
+        value,
+        usage: meter.into_usage(),
+    })
 }
 
 /// Decode, verify, and execute canonical terminal-Psi semantic/proof artifact
@@ -108,8 +123,8 @@ pub fn interpret_terminal_with_meter(
 /// Fuel exhaustion never advances `next_operation` or the current terminator,
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
-pub struct TerminalExecution<'module> {
-    blocks: BTreeMap<BlockId, &'module Block>,
+pub struct TerminalExecution {
+    blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     current: BlockId,
     next_operation: usize,
@@ -117,9 +132,30 @@ pub struct TerminalExecution<'module> {
     crash: Option<TerminalCrash>,
 }
 
-impl<'module> TerminalExecution<'module> {
+impl TerminalExecution {
+    /// Canonical-decode, verify, and begin one resumable artifact execution.
+    /// The resulting state owns its verified entry block graph, so no decoded
+    /// producer object or self-referential verifier borrow escapes this entry.
+    pub fn start_artifact(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &psi_proof_kernel::AdmissionProfile,
+        arguments: &[TerminalScalarValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        let module = psi_terminal_codec::decode_module(semantic_bytes)
+            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+        let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+            .map_err(TerminalArtifactInterpretError::ProofDecode)?;
+        let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+            .map_err(TerminalArtifactInterpretError::Verification)?;
+        Self::start(&verified, arguments).map_err(TerminalArtifactInterpretError::Execution)
+    }
+
+    /// Direct verified-stage harness retained while integration tests migrate
+    /// to [`Self::start_artifact`]. Production execution starts from artifact
+    /// sections so canonical decoding cannot be bypassed.
     pub fn start(
-        verified: &VerifiedTerminalModule<'module>,
+        verified: &VerifiedTerminalModule<'_>,
         arguments: &[TerminalScalarValue],
     ) -> Result<Self, TerminalInterpretError> {
         let module = verified.module();
@@ -155,7 +191,7 @@ impl<'module> TerminalExecution<'module> {
         let blocks = machine
             .blocks
             .iter()
-            .map(|block| (block.id, block))
+            .map(|block| (block.id, block.clone()))
             .collect::<BTreeMap<_, _>>();
         Ok(Self {
             blocks,
@@ -182,7 +218,6 @@ impl<'module> TerminalExecution<'module> {
             let block = self
                 .blocks
                 .get(&self.current)
-                .copied()
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             while let Some(operation) = block.operations.get(self.next_operation) {
                 if let Err(error) = meter.charge_operation(operation) {
@@ -716,7 +751,6 @@ impl<'module> TerminalExecution<'module> {
                     let target_block = self
                         .blocks
                         .get(target)
-                        .copied()
                         .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
                     let transferred = arguments
                         .iter()
@@ -753,7 +787,6 @@ impl<'module> TerminalExecution<'module> {
                     let target_block = self
                         .blocks
                         .get(&successor.target)
-                        .copied()
                         .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
                     let transferred = successor
                         .arguments
