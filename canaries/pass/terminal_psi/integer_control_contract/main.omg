@@ -800,6 +800,37 @@ crashes Trap
     state succeed_boolean() -> bool { true }
 }
 
+machine terminal_two_crash_leaves(trap: bool, abort: bool) -> i32
+requires 0i32 == 0i32
+ensures 0i32 == 0i32
+crashes Trap
+    trap
+crashes Abort
+    abort
+{
+    transition {
+        trap -> fail_trap()
+        _ -> check_abort(abort)
+    }
+
+    state check_abort(abort: bool) -> i32 {
+        transition {
+            abort -> fail_abort()
+            _ -> succeed()
+        }
+    }
+
+    state fail_trap() -> i32 {
+        crash Trap;
+    }
+
+    state fail_abort() -> i32 {
+        crash Abort;
+    }
+
+    state succeed() -> i32 { 0i32 }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

@@ -201,9 +201,9 @@ The reference interpreter does not return a crash as data. Reaching a crash
 terminator yields a distinct interpreter outcome carrying its cause and
 semantic site identity. Build-time evaluation rejects any invocation with a
 surviving crash route; a concrete invocation that disproves all routes remains
-admissible. Native lowering may retain a physical check even when a caller has
-proved its semantic edge unreachable, unless specialization makes erasure
-valid.
+admissible. Native lowering preserves every reachable no-successor crash leaf.
+It may retain a physical check even when a caller has proved its semantic edge
+unreachable, unless specialization makes erasure valid.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
