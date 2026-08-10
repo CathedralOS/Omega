@@ -318,24 +318,13 @@ without such a theorem remains safely executable under interpreter metering or
 trusted inserted native metering. A certificate that arbitrary native bytes
 refine terminal Psi is a separate future proof-carrying-code chain.
 
-Provider-local `FixedFuelProviderSummary` and `LogicalFuelResourceColumn` are
-the current implementation precursor for hard roots. Each summary and
-provision now names the `psi-core`-owned nonzero `FuelScheduleIdentity` directly;
-composition rejects mixed schedules, and the external-root artifact publishes
-the schedule marker, provision, ceiling, and composed units. A summary's local
-evidence now distinguishes a sealed recomputable terminal-Psi entry/segment
-certificate from an admitted opaque-provider unit claim. Certificate-backed
-units derive from the certificate, contribute no provider-validation receipt,
-and retain exact terminal identity in the external-root artifact. The real
-source canary composes its four-unit entry certificate through this path after
-the generic installation ladder freezes and validates its code. The sealed
-binding checks terminal semantic identity, architecture, exact
-relocation-free artifact/frozen bytes, installed-code context, and selected
-function offset. External-root installation rechecks the whole-entry
-certificate against the exact root code and stub; a segment certificate alone
-cannot authorize a whole hard-root entry. Opaque provider leaves remain
-admitted summaries, and the Cathedral hard-root graph still needs migration.
-This precursor does not grow into general symbolic complexity analysis.
+The live hard-root precursor composes recomputable entry/segment certificates
+and admitted opaque-provider summaries under one `FuelScheduleIdentity`.
+Installation rechecks whole-entry evidence against the exact terminal identity,
+architecture, frozen code, entry stub, and function offset; a segment
+certificate cannot authorize a whole root. Cathedral migration and general
+loop/build-time coverage remain in `TASKS.md`. This path does not grow into a
+symbolic complexity language.
 
 ## Response and physical time
 

@@ -1,37 +1,20 @@
 # Design Brief: Proof-Engine North Star — Obsoleting SPARK, Rust, and Lean
 
-Drafted 2026-06-19. Status: **settled architectural direction with staged
-migration.** Records the long-range target for Omega's proof layer and the
-architectural fork it forces. Landed source and terminal-Psi rules remain
-governed by the language guide and `TASKS.md`; this brief states the endpoint
-those increments must converge toward.
+Status: **settled architectural direction; implementation is staged.** The
+language guide governs landed source semantics, the terminal-Psi and proof-
+kernel pages govern the artifact boundary, and `TASKS.md` owns remaining work.
+This brief states only the endpoint those increments converge toward.
 
-Update 2026-08-02: the terminal-Psi architecture has now settled the fork in
-favor of a small trusted kernel plus untrusted/certifying automation. The
-initial Psi-owned scalar proposition core, structural kernel, total primitive
-judgments, certificate envelope, and sealed admission validator are live. The
-broader quantified proof language and automation-to-certificate bridge remain
-long-range work; see
-[Terminal Psi, Fuel, And Resource Provisioning](canonical_ir_fuel_and_resource_provisioning.md).
-
-Update 2026-08-04: nominal `proposition` declarations establish `Prop` as the
-formula universe. The long-range core is one typed framework with distinct
-value, proposition, and effectful-computation judgments, explicit relevance,
-validity scope, and trust provenance. This is a semantic north star; it does
-not retroactively replace the current structural proof-only classification or
-make the effectful computation judgment an implementation prerequisite.
-
-Update 2026-08-07: explicit `[erased]` relevance belongs to binding
-occurrences and remains orthogonal to multiplicity, validity, conservation,
-and provenance. Relation heterogeneity belongs to each proposition's own
-left/right carrier telescope rather than to a global carrier-parameter role.
-
-Update 2026-08-09: source automation remains ergonomic elaboration, but every
-accepted step must converge on a total, sound certificate checker. Recursive
-proofs certify whole strongly connected components under one cited
-well-founded relation and per-edge descent proofs. Algebraic normalization
-cites the exact law evidence it consumes, and the human proof synopsis is a
-deterministic view of the checked certificate rather than a parallel account.
+The endpoint is one typed framework with distinct value, proposition, and
+effectful-computation judgments, explicit binding relevance, validity scope,
+and trust provenance. `Prop` is the formula universe. Source automation is an
+ergonomic elaborator into certificates checked by a small Psi-owned kernel;
+recursive proofs certify one SCC with shared well-foundedness evidence and
+per-edge descent, normalization cites exact conformance/law evidence, and the
+human synopsis is derived from the accepted certificate. `[erased]` remains
+orthogonal to multiplicity, validity, conservation, and provenance. Relation
+heterogeneity belongs to each proposition's own carrier telescopes, never to a
+global carrier-role convention.
 
 ## The ambition
 
@@ -271,32 +254,18 @@ reconstruct what probably happened. The source remains readable as ordinary
 control flow, while the synopsis warns reviewers about logical work hidden by
 that presentation and the certificate remains the complete authority.
 
-## Where Omega is today (grounded)
+## Current boundary
 
-The engine is real and past where systems languages stop
-(`compiler/psi-rs/semantics/psi-validation/src/contract_entailment.rs`,
-`wiki/proof_engine_roadmap.md`):
+The source entailment engine already handles canonical polynomial, order,
+range, congruence, and measured-recursion obligations. Terminal Psi has a small
+structural certificate kernel, sealed admissions, exact accepted-premise trust
+records, deterministic proof-bundle synopsis rendering, and kernel checkers for
+recursive-component and law-normalization certificate shapes.
 
-- canonical polynomials over atoms (folding, congruence, distributivity);
-- a difference-bound matrix with transitive closure (order reasoning, vacuity);
-- a correlated-power interval evaluator (range sums, squares, euclidean mod);
-- directed substitutions from `requires` equations;
-- **induction (L7)** — recursive contracts + `terminates by`, with the induction
-  hypothesis gated on a per-call-site strict-decrease discharge (the
-  well-foundedness that makes assuming the smaller instance sound).
-
-The L0–L7 ladder is discharged: constant arithmetic, order transitivity, linear
-range sums, congruence, commutativity, nonlinear square ranges, antisymmetry,
-remainder ranges, inductive accumulator theorems.
-
-The **known ceilings are exactly the automation/general-math boundary**:
-
-- **no quantifiers** in contracts (`forall`/`exists` are parse errors);
-- proof views (`Seq`/`Bag`/`Range`, `Sorted`) parse but have no semantics;
-- `Real` approximation is an open design question;
-- the legacy source entailment engine emits no terminal-Psi certificate, so it
-  remains trusted automation on that path. The initial Psi kernel is live but
-  not yet connected to source obligations or the broader theorem vocabulary.
+The source engine does not yet emit those terminal certificates. Quantifiers
+remain unsupported; proof views do not yet have semantics; and the broader
+proposition-family, explicit-relevance, and effectful-computation migrations
+remain open. `TASKS.md` is the authoritative queue for that gap.
 
 ## The three kills, sequenced
 
@@ -318,36 +287,6 @@ become the backstop without discarding the automation** — they compose
 (automation tries first; kernel-checked explicit proof catches the rest). So the
 end-state is coherent and incremental, not a rewrite.
 
-## The down-payment, and what it buys
-
-Three open threads are secretly the *same* problem — carrying a proven fact
-through code without re-proving it:
-
-- **arithmetic-range** (S4 narrowing → return `Wrapping` ops to Exact),
-- **text validity** (`[u8]::Utf8` → retire the `String` vestige),
-- **recoverable errors** (a "fallible" fact on a sum → strict-use + inferred
-  failure surface, ch16).
-
-All three want **domains/facts that attach to and propagate over carriers**
-(scalars, `Slice<u8>`, sums) — the design exists in ch8 ("one generic level up"
-from `domain i32::Degrees`), the implementation is scalar-only today. Building
-that fact-propagation substrate is the highest-leverage near-term investment: it
-pays down all three at once and is the same machinery the automation front line
-runs on.
-
-**Architecture frozen (decision 18 / ch16, 2026-06-19).** The substrate is now a
-named target: ONE **unified flow-sensitive fact catalog** threaded through the
-CFG — the borrow checker, the decision-17 interval engine, and sum case-narrowing
-converge into a single carrier-generic analysis (scalar→interval, sum→which-case,
-slice/`[u8]`→length+encoding, ref→validity), narrowed by guards and case
-partitions via intersection. Cross-call propagation is **modular and
-contract-mediated** (prove `requires`, assume `ensures`), with contracts inferred
-within a compilation unit and written only at boundaries — chosen over
-whole-program context-sensitivity precisely so separate compilation survives,
-which is also the SPARK-rung architecture. ch16's recoverable-error model is the
-first concrete customer: a success case's `ensures` fact is inherited by the
-handling arm. Initial fact kinds: intervals (done), which-case, and slice-length.
-
 ## Remaining research questions for the Lean rung
 
 1. **Logic surface:** what fragment of quantification do we admit, and how is it
@@ -357,10 +296,8 @@ handling arm. Initial fact kinds: intervals (done), which-case, and slice-length
    propositions, structural implication/conjunction proofs, and total closed
    judgments. Which additional term constructors and rules are necessary for
    quantified mathematics while keeping the trusted core small?
-3. **Certificate bridge:** implement the settled bridge from source automation
-   to kernel-checkable certificates: SCC-level well-founded recursion,
-   per-edge descent, exact law/provenance dependencies for normalization, and a
-   certificate-derived review synopsis.
+3. **Certificate bridge:** carry the live recursive/normalization kernel shapes
+   through terminal Psi and emit them from source automation.
 4. **`Real` / analysis:** the proof-side Cauchy/evidence/quotient construction
    and dedicated `proposition` surface are settled; implementing the
    proposition-family/index-telescope fragment gates its
