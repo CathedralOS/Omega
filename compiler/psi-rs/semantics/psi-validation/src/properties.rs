@@ -48,7 +48,7 @@ pub(crate) fn validate_data_properties(
             continue;
         }
 
-        if properties.copy {
+        if properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted {
             validate_structural_property(program, symbols, data_definition, "copy", diagnostics);
         }
         if let Some(carry) = properties.carry {
@@ -321,7 +321,7 @@ fn validate_opaque_data_properties(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let properties = data_definition.properties;
-    if properties.copy {
+    if properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted {
         diagnostics.push(Diagnostic::error(format!(
             "opaque boundary data `{}` cannot claim `[copy]` without an admitted property receipt",
             data_definition.name
@@ -454,7 +454,7 @@ pub fn declared_property_requirements(
     properties: &psi_typed_trees::data::DataProperties,
 ) -> Vec<DeclaredPropertyRequirement> {
     let mut names = Vec::new();
-    if properties.copy {
+    if properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted {
         names.push(DeclaredPropertyRequirement::Copy);
     }
     if properties.multiplicity == psi_language_semantics::Multiplicity::Linear {
@@ -477,7 +477,9 @@ fn type_parameter_named<'program>(
 
 fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -> bool {
     match property {
-        "copy" => parameter.bounds.copy,
+        "copy" => {
+            parameter.bounds.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
+        }
         "linear" => parameter.bounds.multiplicity == psi_language_semantics::Multiplicity::Linear,
         _ => false,
     }
@@ -526,7 +528,10 @@ fn named_type_declares_property(
         .iter()
         .find(|definition| definition.name.as_str() == name)
         .is_some_and(|definition| match property {
-            "copy" => definition.properties.copy,
+            "copy" => {
+                definition.properties.multiplicity
+                    == psi_language_semantics::Multiplicity::Unrestricted
+            }
             "linear" => {
                 definition.properties.multiplicity == psi_language_semantics::Multiplicity::Linear
             }

@@ -636,7 +636,10 @@ fn validate_callable_type_parameters(
     {
         match (&required.kind, &actual.kind) {
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
-                if (actual.bounds.copy && !required.bounds.copy)
+                if (actual.bounds.multiplicity
+                    == psi_language_semantics::Multiplicity::Unrestricted
+                    && required.bounds.multiplicity
+                        != psi_language_semantics::Multiplicity::Unrestricted)
                     || actual.bounds.carry.is_some() && required.bounds.carry != actual.bounds.carry
                 {
                     diagnostics.push(Diagnostic::error(format!(

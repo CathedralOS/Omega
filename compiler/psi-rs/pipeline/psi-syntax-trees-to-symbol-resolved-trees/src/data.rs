@@ -96,8 +96,6 @@ pub(crate) fn lower_data_definition(
                 .collect(),
             type_parameters,
             properties: DataProperties {
-                copy: data_definition.properties.multiplicity
-                    == psi_language_semantics::Multiplicity::Unrestricted,
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
@@ -225,8 +223,6 @@ pub(crate) fn lower_type_parameters(
                 name: crate::name::lower_name(&parameter.name),
                 kind,
                 bounds: DataProperties {
-                    copy: parameter.bounds.multiplicity
-                        == psi_language_semantics::Multiplicity::Unrestricted,
                     carry: parameter.bounds.carry,
                     multiplicity: parameter.bounds.multiplicity,
                 },

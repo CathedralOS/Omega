@@ -73,8 +73,6 @@ fn lower_proposition_binders(
             name: crate::name::lower_name(&binder.name),
             kind,
             bounds: DataProperties {
-                copy: binder.bounds.multiplicity
-                    == psi_language_semantics::Multiplicity::Unrestricted,
                 carry: binder.bounds.carry,
                 multiplicity: binder.bounds.multiplicity,
             },

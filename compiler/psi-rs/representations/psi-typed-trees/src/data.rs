@@ -50,16 +50,14 @@ pub struct QuotientDefinition {
     pub relation_symbol: SymbolHandle,
 }
 
-/// Declared type properties (`data Point [copy]`). The spelling
-/// set is closed at parse time; validation verifies copy and carry
+/// Declared type properties (`data Point [copy]`). The spelling set is closed
+/// at parse time; validation verifies unrestricted multiplicity and carry
 /// structurally.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
-    pub copy: bool,
     pub carry: Option<psi_language_semantics::CarryPolicy>,
-    /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
-    /// ordinary data -> Affine, `[linear]` -> Linear). `copy` survives as the
-    /// compatibility bool until STR7 retires it.
+    /// The first-class usage model (`[copy]` -> Unrestricted, ordinary data ->
+    /// Affine, `[linear]` -> Linear).
     pub multiplicity: psi_language_semantics::Multiplicity,
 }
 

@@ -3276,7 +3276,6 @@ fn specialization_contract_fingerprint(
 }
 
 fn encode_data_properties(properties: psi_typed_trees::data::DataProperties, output: &mut Vec<u8>) {
-    output.push(u8::from(properties.copy));
     output.push(match properties.multiplicity {
         psi_language_semantics::Multiplicity::Unrestricted => 1,
         psi_language_semantics::Multiplicity::Affine => 2,
