@@ -151,10 +151,9 @@ Remaining:
 - **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
-- **TERMINAL-ARTIFACT-INTERPRETATION.** Make canonical semantic/proof bytes plus
-  an explicit admission profile the sole default interpreter entry. Keep
-  resumable execution internal to that decoded, verified artifact; expose no
-  production in-memory module or checked-tree bypass.
+- **TERMINAL-ARTIFACT-INTERPRETATION.** Migrate terminal integration tests to
+  artifact-started sessions, then retire the public direct in-memory module
+  interpretation APIs. No production checked-tree or module bypass remains.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

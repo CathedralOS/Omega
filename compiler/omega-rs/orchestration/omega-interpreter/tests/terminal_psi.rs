@@ -278,7 +278,18 @@ fn verified_integer_control_contract_slice_executes_directly() {
     );
     assert_eq!(limited.usage().total_units(), 2);
 
-    let mut execution = TerminalExecution::start(&verified, &[]).unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("resumable execution starts at the canonical artifact boundary");
+    drop(verified);
+    drop(module);
+    drop(bundle);
+    drop(semantic_bytes);
+    drop(proof_bytes);
     let mut resumable_meter = TerminalFuelMeter::with_allowance(2);
     let exhaustion = FuelExhaustion {
         schedule: TerminalFuelSchedule::CURRENT.identity(),
