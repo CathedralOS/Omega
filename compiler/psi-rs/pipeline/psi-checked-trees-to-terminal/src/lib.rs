@@ -2208,9 +2208,16 @@ fn staged_short_circuit_bindings_terminator(
                     .iter()
                     .any(direct_expression_contains_short_circuit)
         }
-        LoweredScalarBranchTerminator::Jump { arguments, .. } => !arguments
-            .iter()
-            .any(direct_expression_contains_short_circuit),
+        LoweredScalarBranchTerminator::Jump { arguments, .. } => {
+            !arguments
+                .iter()
+                .any(direct_expression_contains_short_circuit)
+                || matches!(
+                    arguments.as_slice(),
+                    [LoweredDirectExpression::Boolean { expression }]
+                        if contains_short_circuit(expression)
+                )
+        }
         LoweredScalarBranchTerminator::Crash(_) => false,
     };
     if !supported {
@@ -3583,6 +3590,40 @@ fn build_scalar_graph_module(
                     &stage_parameters,
                     stage_parameters.clone(),
                     LoweredBooleanDecisionExit::Return,
+                    stage_block,
+                    first_synthetic_block,
+                    &mut next_value_identity,
+                    &mut next_edge_identity,
+                    &mut all_operations,
+                );
+                inlined_blocks.push(root);
+                inlined_blocks.extend(children);
+                continue;
+            }
+            if let LoweredScalarBranchTerminator::Jump { target, arguments } = &continuation_plan
+                && let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
+                && contains_short_circuit(expression)
+            {
+                let decision = lower_boolean_value_decision(expression);
+                let block_count = boolean_decision_block_count(&decision);
+                let first_synthetic_block = block_id(next_block_identity);
+                next_block_identity = next_block_identity
+                    .checked_add(
+                        u64::try_from(block_count - 1)
+                            .expect("staged Boolean jump child count fits a semantic identity"),
+                    )
+                    .expect("staged Boolean jump block identities advance");
+                let target = block_id(
+                    u64::try_from(*target)
+                        .expect("state index fits a semantic identity")
+                        .checked_add(1)
+                        .expect("block identity is nonzero"),
+                );
+                let (root, children) = emit_inlined_boolean_value_blocks(
+                    &decision,
+                    &stage_parameters,
+                    stage_parameters.clone(),
+                    LoweredBooleanDecisionExit::Jump { target },
                     stage_block,
                     first_synthetic_block,
                     &mut next_value_identity,
