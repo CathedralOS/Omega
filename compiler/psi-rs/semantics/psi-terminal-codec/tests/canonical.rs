@@ -42,12 +42,14 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 #[test]
 fn crash_round_trips_and_every_semantic_field_enters_identity() {
     let mut module = fixture();
-    module.machines[0].contract.crash_context = psi_terminal::CrashContextMaximum::portable_root();
+    module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+    }];
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: edge_id(2),
         cause: CrashCause::Trap,
-        damage_minimum: "Activation".to_owned(),
-        containment_demand: "ExecutionDomain".to_owned(),
+        site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
     };
     let bytes = encode_module(&module).expect("crash encodes");
@@ -59,43 +61,31 @@ fn crash_round_trips_and_every_semantic_field_enters_identity() {
     } else {
         unreachable!()
     }
+    module.machines[0].contract.crash_routes[0].cause = CrashCause::Abort;
     assert_ne!(
         semantic_fingerprint(&module).expect("changed cause identity"),
         baseline
     );
-    if let Terminator::Crash {
-        cause,
-        damage_minimum,
-        ..
+    let Terminator::Crash {
+        cause, site_guard, ..
     } = &mut module.machines[0].blocks[1].terminator
-    {
-        *cause = CrashCause::Trap;
-        *damage_minimum = "ExecutionDomain".to_owned();
-    } else {
+    else {
         unreachable!()
-    }
+    };
+    *cause = CrashCause::Trap;
+    site_guard.push(psi_terminal::CrashPredicateIdentity::from_canonical_bytes(
+        vec![1],
+    ));
+    module.machines[0].contract.crash_routes[0].cause = CrashCause::Trap;
     assert_ne!(
-        semantic_fingerprint(&module).expect("changed minimum identity"),
+        semantic_fingerprint(&module).expect("changed site-guard identity"),
         baseline
     );
-    if let Terminator::Crash {
-        damage_minimum,
-        containment_demand,
-        ..
-    } = &mut module.machines[0].blocks[1].terminator
-    {
-        *damage_minimum = "Activation".to_owned();
-        *containment_demand = "Activation".to_owned();
-    } else {
-        unreachable!()
-    }
+    let predicate = psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![1]);
+    module.machines[0].contract.crash_routes[0].alternatives =
+        vec![psi_terminal::CrashRouteGuard::Predicate(predicate)];
     assert_ne!(
-        semantic_fingerprint(&module).expect("changed demand identity"),
-        baseline
-    );
-    module.machines[0].contract.crash_context[0].maximum_scope = "Activation".to_owned();
-    assert_ne!(
-        semantic_fingerprint(&module).expect("changed context maximum identity"),
+        semantic_fingerprint(&module).expect("changed route identity"),
         baseline
     );
 }
@@ -250,7 +240,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     let mut reordered_requirements = bytes.clone();
     let contract_prefix = [
         1, 0, 0, 0, 0, 0, 0, 0, // ContractId(1)
-        0, 0, 0, 0, // zero crash context maxima
+        0, 0, 0, 0, // zero crash route buckets
         8, 0, 0, 0, // eight requirements
         1, 2, 3, // Truth, Falsehood, Atom
     ];
@@ -425,7 +415,7 @@ fn fixture() -> TerminalModule {
             ],
             contract: MachineContract {
                 id: contract_id(1),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: vec![
                     Proposition::Truth,
                     Proposition::Falsehood,
@@ -528,7 +518,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
             }],
             contract: MachineContract {
                 id: contract_id(80),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation: obligation_id(80),

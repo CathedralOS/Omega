@@ -188,7 +188,6 @@ fn build_contract_plans(
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
-    let open_invariant_crashes = psi_validation::build_open_invariant_crash_sites(program);
     let frame_resolver = psi_validation::CallFrameResolver::new(program);
     let invocation_inference = psi_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
@@ -324,13 +323,8 @@ fn build_contract_plans(
                     .collect()
             })
             .unwrap_or_default();
-        let crash = build_published_crash_plan(
-            program,
-            machine,
-            &parameter_names,
-            &content_conservation,
-            &open_invariant_crashes,
-        );
+        let crash =
+            build_published_crash_plan(program, machine, &parameter_names, &content_conservation);
         canonical_facts.extend(encode_contract_set_canonical(
             program,
             program.machine_contracts(machine),
@@ -618,19 +612,12 @@ fn encode_signature_contract_kind(
         psi_typed_trees::signature::SignatureContractKind::Requires => output.push(1),
         psi_typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
         psi_typed_trees::signature::SignatureContractKind::Boundary => output.push(3),
-        psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } => {
+        psi_typed_trees::signature::SignatureContractKind::Crashes { cause } => {
             output.push(4);
             output.push(match cause {
                 psi_typed_trees::signature::CrashCause::Trap => 1,
                 psi_typed_trees::signature::CrashCause::Abort => 2,
             });
-            let scope = scope.as_str().as_bytes();
-            output.extend(
-                u32::try_from(scope.len())
-                    .expect("crash damage-scope name exceeds the canonical encoding limit")
-                    .to_le_bytes(),
-            );
-            output.extend(scope);
         }
     }
 }
@@ -640,7 +627,6 @@ fn build_published_crash_plan(
     machine: &psi_typed_trees::machine::Machine,
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
-    open_invariant_crashes: &[psi_validation::OpenInvariantCrashSite],
 ) -> psi_checked_trees::CrashPlan {
     let published = build_published_crash_buckets(
         program,
@@ -655,7 +641,7 @@ fn build_published_crash_plan(
     } else {
         psi_checked_trees::CrashPlan::default()
     };
-    let checked_sites = build_checked_crash_sites(program, machine, &plan, open_invariant_crashes);
+    let checked_sites = build_checked_crash_sites(program, machine, &plan);
     plan.with_checked_sites(checked_sites)
         .expect("one checked crash cause occupies each transition site")
 }
@@ -674,10 +660,9 @@ fn build_published_crash_buckets(
         routes: Vec<psi_checked_trees::CrashPredicateIdentity>,
     }
 
-    let mut buckets = BTreeMap::<(psi_checked_trees::CrashCause, String), Bucket>::new();
+    let mut buckets = BTreeMap::<psi_checked_trees::CrashCause, Bucket>::new();
     for contract in contracts {
-        let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
-            &contract.kind
+        let psi_typed_trees::signature::SignatureContractKind::Crashes { cause } = &contract.kind
         else {
             continue;
         };
@@ -685,9 +670,7 @@ fn build_published_crash_buckets(
             psi_typed_trees::signature::CrashCause::Trap => psi_checked_trees::CrashCause::Trap,
             psi_typed_trees::signature::CrashCause::Abort => psi_checked_trees::CrashCause::Abort,
         };
-        let bucket = buckets
-            .entry((cause, scope.as_str().to_owned()))
-            .or_default();
+        let bucket = buckets.entry(cause).or_default();
         let facts = program.proof_facts.span_or_empty(contract.facts);
         if facts.is_empty() || facts.iter().any(|fact| is_true_crash_route(program, fact)) {
             bucket.unconditional = true;
@@ -711,7 +694,7 @@ fn build_published_crash_buckets(
 
     buckets
         .into_iter()
-        .map(|((cause, containment_demand), mut bucket)| {
+        .map(|(cause, mut bucket)| {
             let alternative_guards = if bucket.unconditional {
                 vec![psi_checked_trees::CrashRouteGuard::Truth]
             } else {
@@ -723,7 +706,7 @@ fn build_published_crash_buckets(
                     .map(psi_checked_trees::CrashRouteGuard::Predicate)
                     .collect()
             };
-            psi_checked_trees::CrashRouteBucket::new(cause, containment_demand, alternative_guards)
+            psi_checked_trees::CrashRouteBucket::new(cause, alternative_guards)
                 .expect("an authored crash bucket has a canonical nonempty route set")
         })
         .collect()
@@ -733,7 +716,6 @@ fn build_checked_crash_sites(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     crash_plan: &psi_checked_trees::CrashPlan,
-    open_invariant_crashes: &[psi_validation::OpenInvariantCrashSite],
 ) -> Vec<psi_checked_trees::CheckedCrashSite> {
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
@@ -758,38 +740,23 @@ fn build_checked_crash_sites(
             };
             // An unconditional same-cause route covers every possible path
             // guard. Guarded buckets join only after path-conditioned
-            // entailment exists; damage-scope comparison remains independent.
+            // entailment exists.
             let guard_covering_buckets = crash_plan
                 .published_with_ids()
                 .filter_map(|(id, bucket)| {
                     (bucket.cause() == cause && bucket.is_unconditional()).then_some(id)
                 })
                 .collect();
-            let open_invariant_data = open_invariant_crashes
-                .iter()
-                .find(|evidence| {
-                    evidence.machine() == machine.symbol
-                        && evidence.state() == state.symbol
-                        && evidence.statement_ordinal()
-                            == u32::try_from(statement_ordinal).expect(
-                                "state-local statement ordinal exceeds checked identity range",
-                            )
-                })
-                .map(|evidence| evidence.open_data().to_vec())
-                .unwrap_or_default();
-            sites.push(
-                psi_checked_trees::CheckedCrashSite::new(
-                    psi_checked_trees::CrashSiteLocation::new(
-                        state.symbol,
-                        u32::try_from(statement_ordinal)
-                            .expect("state-local statement ordinal exceeds checked identity range"),
-                    ),
-                    cause,
-                    guard_covering_buckets,
-                    Vec::new(),
-                )
-                .with_open_invariant_data(open_invariant_data),
-            );
+            sites.push(psi_checked_trees::CheckedCrashSite::new(
+                psi_checked_trees::CrashSiteLocation::new(
+                    state.symbol,
+                    u32::try_from(statement_ordinal)
+                        .expect("state-local statement ordinal exceeds checked identity range"),
+                ),
+                cause,
+                guard_covering_buckets,
+                Vec::new(),
+            ));
         }
     }
     sites
@@ -806,11 +773,11 @@ fn is_true_crash_route(program: &TypedTrees, fact: &psi_typed_trees::domain::Pro
     )
 }
 
-/// Encode contracts as semantic sets. Crash clauses are first merged by
-/// `(cause, scope)`: their facts are alternative routes, duplicate routes are
-/// irrelevant, and one unconditional clause subsumes every guarded route in
-/// the same bucket. This keeps public contract identity independent of clause
-/// grouping while preserving the bucket itself as identity-bearing material.
+/// Encode contracts as semantic sets. Crash clauses are first merged by cause:
+/// their facts are alternative routes, duplicate routes are irrelevant, and
+/// one unconditional clause subsumes every guarded route in the same bucket.
+/// This keeps public contract identity independent of clause grouping while
+/// preserving the bucket itself as identity-bearing material.
 fn encode_contract_set_canonical(
     program: &TypedTrees,
     contracts: &[psi_typed_trees::signature::SignatureContract],

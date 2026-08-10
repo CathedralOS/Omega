@@ -231,8 +231,7 @@ enum LoweredScalarBranchTerminator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredCrashExit {
     cause: TerminalCrashCause,
-    damage_minimum: String,
-    containment_demand: String,
+    site_guard: Vec<psi_terminal::CrashPredicateIdentity>,
     frontier_lower_bound: Vec<ClaimId>,
 }
 
@@ -1266,28 +1265,12 @@ fn lower_content_place(
 /// ```
 ///
 /// The first explicit-crash slice also accepts a one-state scalar machine whose
-/// sole statement is `crash Cause;` and whose checked site cites exactly one
-/// prechecked guard-and-damage-covering bucket. It emits a distinct terminal-
+/// sole statement is `crash Cause;` and whose checked site cites a prechecked
+/// same-cause route bucket. It emits a distinct terminal-
 /// Psi crash terminator; it never reuses ordinary return lowering.
 pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    lower_machine_with_crash_context(
-        checked,
-        machine_name,
-        psi_terminal::CrashContextMaximum::portable_root(),
-    )
-}
-
-/// Lower one checked machine under an already selected portable crash-context
-/// plan. This is the provider/Build composition seam for a narrower activation,
-/// task, or supervisor context; ordinary artifact-root lowering uses
-/// [`lower_machine`] and supplies `ExecutionDomain` for both closed causes.
-pub fn lower_machine_with_crash_context(
-    checked: &CheckedTrees,
-    machine_name: &str,
-    crash_context: Vec<psi_terminal::CrashContextMaximum>,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let mut matches = checked
         .facts
@@ -1306,9 +1289,6 @@ pub fn lower_machine_with_crash_context(
     let (declarations, applications) = lower_proposition_vocabulary(checked);
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
-    for machine in &mut lowered.semantic_module.machines {
-        machine.contract.crash_context = crash_context.clone();
-    }
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     lowered.debug_map = checked
@@ -1482,6 +1462,46 @@ fn lower_checked_crash_frontier(
     Ok(lowered)
 }
 
+fn lower_checked_crash_routes(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+) -> Vec<psi_terminal::CrashRouteBucket> {
+    checked
+        .facts
+        .contract_plans
+        .for_machine(machine)
+        .map(|contract| {
+            contract
+                .crash
+                .published()
+                .iter()
+                .map(|bucket| psi_terminal::CrashRouteBucket {
+                    cause: match bucket.cause() {
+                        psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                        psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+                    },
+                    alternatives: bucket
+                        .alternative_guards()
+                        .iter()
+                        .map(|guard| match guard {
+                            psi_checked_trees::CrashRouteGuard::Truth => {
+                                psi_terminal::CrashRouteGuard::Truth
+                            }
+                            psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                                psi_terminal::CrashRouteGuard::Predicate(
+                                    psi_terminal::CrashPredicateIdentity::from_canonical_bytes(
+                                        predicate.canonical_bytes().to_vec(),
+                                    ),
+                                )
+                            }
+                        })
+                        .collect(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn lower_checked_crash_exit(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
@@ -1504,9 +1524,9 @@ fn lower_checked_crash_exit(
         .covering_buckets_for_site(checked_site)
         .map(|(_, bucket)| bucket)
         .collect::<Vec<_>>();
-    let [covering_bucket] = matching_contracts.as_slice() else {
+    let [_covering_bucket] = matching_contracts.as_slice() else {
         return unsupported(
-            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering bucket",
+            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket",
         );
     };
     Ok(LoweredCrashExit {
@@ -1514,8 +1534,18 @@ fn lower_checked_crash_exit(
             psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
             psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
         },
-        damage_minimum: checked_site.damage_minimum().to_owned(),
-        containment_demand: covering_bucket.containment_demand().to_owned(),
+        site_guard: checked_site
+            .path_guard_conjuncts()
+            .iter()
+            .chain(checked_site.path_guard_consequences())
+            .map(|predicate| {
+                psi_terminal::CrashPredicateIdentity::from_canonical_bytes(
+                    predicate.canonical_bytes().to_vec(),
+                )
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect(),
         frontier_lower_bound: lower_checked_crash_frontier(
             checked_site.frontier_lower_bound(),
             source_claims,
@@ -1836,6 +1866,7 @@ fn lower_scalar_graph_machine(
         &lowered_states,
         result_type,
         contract_value,
+        lower_checked_crash_routes(checked, machine),
         identity_reshuffles,
         partition_compositions,
     )
@@ -3339,6 +3370,7 @@ fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     result_type: ScalarType,
     contract_value: Option<KnownDirectScalar>,
+    crash_routes: Vec<psi_terminal::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
@@ -3779,8 +3811,7 @@ fn build_scalar_graph_module(
                     Terminator::Crash {
                         edge,
                         cause: crash.cause,
-                        damage_minimum: crash.damage_minimum,
-                        containment_demand: crash.containment_demand,
+                        site_guard: crash.site_guard,
                         frontier_lower_bound: crash.frontier_lower_bound,
                     }
                 }
@@ -4068,8 +4099,7 @@ fn build_scalar_graph_module(
                 Terminator::Crash {
                     edge,
                     cause: crash.cause,
-                    damage_minimum: crash.damage_minimum.clone(),
-                    containment_demand: crash.containment_demand.clone(),
+                    site_guard: crash.site_guard.clone(),
                     frontier_lower_bound: crash.frontier_lower_bound.clone(),
                 }
             }
@@ -4290,7 +4320,7 @@ fn build_scalar_graph_module(
                 blocks,
                 contract: MachineContract {
                     id: contract_id(1),
-                    crash_context: psi_terminal::CrashContextMaximum::portable_root(),
+                    crash_routes,
                     requires,
                     ensures,
                 },

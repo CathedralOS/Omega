@@ -427,10 +427,7 @@ pub enum CapabilityContractKind {
     Ensures,
     Requires,
     Boundary(BoundaryLevel),
-    Crashes {
-        cause: CrashCause,
-        scope: Identifier,
-    },
+    Crashes { cause: CrashCause },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

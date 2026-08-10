@@ -48,7 +48,6 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         SignatureContract {
             kind: SignatureContractKind::Crashes {
                 cause: psi_typed_trees::signature::CrashCause::Abort,
-                scope: psi_typed_trees::name::Identifier::generated("ExecutionDomain"),
             },
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 3,

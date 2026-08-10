@@ -78,7 +78,6 @@ pub(crate) fn lower_operator_definition(
                     }
                     psi_symbol_resolved_trees::signature::SignatureContractKind::Crashes {
                         cause,
-                        scope,
                     } => psi_typed_trees::signature::SignatureContractKind::Crashes {
                         cause: match cause {
                             psi_symbol_resolved_trees::signature::CrashCause::Trap => {
@@ -88,7 +87,6 @@ pub(crate) fn lower_operator_definition(
                                 psi_typed_trees::signature::CrashCause::Abort
                             }
                         },
-                        scope: crate::name::lower_name(scope),
                     },
                 },
                 facts,

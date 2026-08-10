@@ -91,7 +91,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(10).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -175,7 +175,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(20).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -290,7 +290,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(30).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -412,7 +412,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 id: ContractId::new(40).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -556,7 +556,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(50).expect("contract"),
-                    crash_context: Vec::new(),
+                    crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: vec![ContractClause {
                         obligation,
@@ -689,7 +689,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(60).expect("contract"),
-                    crash_context: Vec::new(),
+                    crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: vec![ContractClause {
                         obligation,
@@ -795,7 +795,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
             }],
             contract: MachineContract {
                 id: ContractId::new(65).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -889,7 +889,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
             }],
             contract: MachineContract {
                 id: ContractId::new(68).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,
@@ -992,7 +992,7 @@ fn preserves_address_carrier_identity() {
             }],
             contract: MachineContract {
                 id: ContractId::new(168).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1053,7 +1053,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
             }],
             contract: MachineContract {
                 id: ContractId::new(170).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1137,7 +1137,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(180).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1210,7 +1210,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(190).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1267,7 +1267,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(194).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1324,7 +1324,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(198).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1381,7 +1381,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(202).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1438,7 +1438,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(212).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1495,7 +1495,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(222).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1551,7 +1551,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(232).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1607,7 +1607,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(242).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1663,7 +1663,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 id: ContractId::new(252).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1719,7 +1719,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
             }],
             contract: MachineContract {
                 id: ContractId::new(256).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -1815,7 +1815,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(70).expect("contract"),
-                    crash_context: Vec::new(),
+                    crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: vec![ContractClause {
                         obligation,
@@ -2052,108 +2052,83 @@ fn entry_claims_require_dense_unique_parameter_bindings() {
 #[test]
 fn crash_is_an_explicit_no_successor_exit() {
     let mut module = Fixture::new().module;
-    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+    module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
         cause: CrashCause::Abort,
-        maximum_scope: "ExecutionDomain".to_owned(),
+        alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
     }];
     module.machines[0].contract.ensures.clear();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: EdgeId::new(10).expect("crash edge"),
         cause: CrashCause::Abort,
-        damage_minimum: "ExecutionDomain".to_owned(),
-        containment_demand: "ExecutionDomain".to_owned(),
+        site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
     };
     validate_module(&module).expect("Psi explicitly represents a no-cleanup crash");
 
-    let Terminator::Crash { damage_minimum, .. } = &mut module.machines[0].blocks[1].terminator
-    else {
-        unreachable!()
-    };
-    damage_minimum.clear();
+    module.machines[0].contract.crash_routes.clear();
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::EmptyCrashDamageMinimum(block))
+        Err(ModuleError::CrashRouteUncovered { block, cause: CrashCause::Abort })
             if block == BlockId::new(2).expect("block")
     ));
 }
 
 #[test]
-fn crash_requires_a_demand_covering_its_separate_damage_minimum() {
+fn crash_route_buckets_are_canonical_nonempty_disjunctions() {
     let mut module = Fixture::new().module;
-    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+    module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
         cause: CrashCause::Trap,
-        maximum_scope: "ExecutionDomain".to_owned(),
+        alternatives: Vec::new(),
     }];
-    module.machines[0].contract.ensures.clear();
-    module.machines[0].blocks[1].terminator = Terminator::Crash {
-        edge: EdgeId::new(10).expect("crash edge"),
-        cause: CrashCause::Trap,
-        damage_minimum: "Activation".to_owned(),
-        containment_demand: "ExecutionDomain".to_owned(),
-        frontier_lower_bound: Vec::new(),
-    };
-    validate_module(&module).expect("execution-domain demand covers an activation minimum");
-
-    let Terminator::Crash {
-        damage_minimum,
-        containment_demand,
-        ..
-    } = &mut module.machines[0].blocks[1].terminator
-    else {
-        unreachable!()
-    };
-    *damage_minimum = "ExecutionDomain".to_owned();
-    *containment_demand = "Activation".to_owned();
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::CrashContainmentDemandTooNarrow { .. })
-    ));
-
-    let Terminator::Crash {
-        containment_demand, ..
-    } = &mut module.machines[0].blocks[1].terminator
-    else {
-        unreachable!()
-    };
-    containment_demand.clear();
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::EmptyCrashContainmentDemand(_))
-    ));
-}
-
-#[test]
-fn crash_requires_a_per_cause_context_maximum_covering_its_demand() {
-    let mut module = Fixture::new().module;
-    module.vocabulary_marker = VocabularyMarker::CURRENT;
-    module.machines[0].contract.ensures.clear();
-    module.machines[0].blocks[1].terminator = Terminator::Crash {
-        edge: EdgeId::new(10).expect("crash edge"),
-        cause: CrashCause::Trap,
-        damage_minimum: "Activation".to_owned(),
-        containment_demand: "ExecutionDomain".to_owned(),
-        frontier_lower_bound: Vec::new(),
-    };
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::MissingCrashContextMaximum {
+        Err(ModuleError::EmptyCrashRouteBucket {
             cause: CrashCause::Trap,
             ..
         })
     ));
 
-    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
-        cause: CrashCause::Trap,
-        maximum_scope: "Activation".to_owned(),
-    }];
+    module.machines[0].contract.crash_routes[0].alternatives = vec![
+        psi_terminal::CrashRouteGuard::Truth,
+        psi_terminal::CrashRouteGuard::Predicate(
+            psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![1]),
+        ),
+    ];
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::CrashContextMaximumTooNarrow { .. })
+        Err(ModuleError::NonCanonicalCrashRouteAlternatives { .. })
+    ));
+}
+
+#[test]
+fn guarded_crash_requires_a_matching_canonical_route() {
+    let mut module = Fixture::new().module;
+    module.vocabulary_marker = VocabularyMarker::CURRENT;
+    module.machines[0].contract.ensures.clear();
+    let predicate = psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![7]);
+    module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![psi_terminal::CrashRouteGuard::Predicate(predicate.clone())],
+    }];
+    module.machines[0].blocks[1].terminator = Terminator::Crash {
+        edge: EdgeId::new(10).expect("crash edge"),
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CrashRouteUncovered {
+            cause: CrashCause::Trap,
+            ..
+        })
     ));
 
-    module.machines[0].contract.crash_context[0].maximum_scope = "ExecutionDomain".to_owned();
-    validate_module(&module).expect("the per-cause context maximum covers the crash demand");
+    let Terminator::Crash { site_guard, .. } = &mut module.machines[0].blocks[1].terminator else {
+        unreachable!()
+    };
+    site_guard.push(predicate);
+    validate_module(&module).expect("the site guard implies its exact published route");
 }
 
 #[test]
@@ -2168,15 +2143,14 @@ fn crash_frontier_must_name_every_still_live_entry_claim() {
         projections: reshuffle.projections,
     }];
     module.machines[0].contract.ensures.clear();
-    module.machines[0].contract.crash_context = vec![psi_terminal::CrashContextMaximum {
+    module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
         cause: CrashCause::Trap,
-        maximum_scope: "Activation".to_owned(),
+        alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
     }];
     module.machines[0].blocks[0].terminator = Terminator::Crash {
         edge: EdgeId::new(90).expect("crash edge"),
         cause: CrashCause::Trap,
-        damage_minimum: "Activation".to_owned(),
-        containment_demand: "Activation".to_owned(),
+        site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
     };
     let crash_block = module.machines[0].blocks[0].id;
@@ -2328,7 +2302,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(90).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -2545,7 +2519,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(80).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3028,7 +3002,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(20).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3101,7 +3075,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(30).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3174,7 +3148,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(40).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3247,7 +3221,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(50).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3320,7 +3294,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(60).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3393,7 +3367,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         contract: MachineContract {
             id: ContractId::new(70).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -3481,7 +3455,7 @@ impl Fixture {
             ],
             contract: MachineContract {
                 id: ContractId::new(1).expect("contract"),
-                crash_context: Vec::new(),
+                crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: vec![ContractClause {
                     obligation,

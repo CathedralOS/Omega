@@ -34,10 +34,11 @@ use psi_core::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    CrashContextMaximum, MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration,
-    SuccessorEdge, TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    CrashPredicateIdentity, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
+    OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -146,13 +147,11 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     for machine in &module.machines {
         if machine
             .contract
-            .crash_context
+            .crash_routes
             .windows(2)
-            .any(|pair| pair[0].cause >= pair[1].cause)
+            .any(|pair| pair[0] >= pair[1])
         {
-            return Err(CodecError::NonCanonicalOrder(
-                "crash context maxima by cause",
-            ));
+            return Err(CodecError::NonCanonicalOrder("crash route buckets"));
         }
         if !strictly_increasing(machine.blocks.iter().map(|block| block.id)) {
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
@@ -867,8 +866,7 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
         Terminator::Crash {
             edge,
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
         } => {
             writer.u8(4);
@@ -877,8 +875,10 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 CrashCause::Trap => 1,
                 CrashCause::Abort => 2,
             });
-            writer.string("crash damage minimum", damage_minimum)?;
-            writer.string("crash containment demand", containment_demand)?;
+            writer.len("crash site guard", site_guard.len())?;
+            for predicate in site_guard {
+                encode_crash_predicate(writer, predicate)?;
+            }
             writer.len("crash frontier lower bound", frontier_lower_bound.len())?;
             for claim in frontier_lower_bound {
                 writer.id(*claim);
@@ -900,13 +900,22 @@ fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Resu
 
 fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<(), CodecError> {
     writer.id(contract.id);
-    writer.len("crash context maxima", contract.crash_context.len())?;
-    for maximum in &contract.crash_context {
-        writer.u8(match maximum.cause {
+    writer.len("crash route buckets", contract.crash_routes.len())?;
+    for bucket in &contract.crash_routes {
+        writer.u8(match bucket.cause {
             CrashCause::Trap => 1,
             CrashCause::Abort => 2,
         });
-        writer.string("crash context maximum", &maximum.maximum_scope)?;
+        writer.len("crash route alternatives", bucket.alternatives.len())?;
+        for guard in &bucket.alternatives {
+            match guard {
+                CrashRouteGuard::Truth => writer.u8(0),
+                CrashRouteGuard::Predicate(predicate) => {
+                    writer.u8(1);
+                    encode_crash_predicate(writer, predicate)?;
+                }
+            }
+        }
     }
     writer.len("requires", contract.requires.len())?;
     for proposition in &contract.requires {
@@ -917,6 +926,18 @@ fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<()
         writer.id(clause.obligation);
         encode_proposition(writer, &clause.proposition, 0)?;
     }
+    Ok(())
+}
+
+fn encode_crash_predicate(
+    writer: &mut Writer,
+    predicate: &CrashPredicateIdentity,
+) -> Result<(), CodecError> {
+    writer.len(
+        "crash predicate identity",
+        predicate.canonical_bytes().len(),
+    )?;
+    writer.bytes(predicate.canonical_bytes());
     Ok(())
 }
 
@@ -1844,8 +1865,11 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 2 => CrashCause::Abort,
                 tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
             };
-            let damage_minimum = reader.string("crash damage minimum")?;
-            let containment_demand = reader.string("crash containment demand")?;
+            let guard_count = reader.count()?;
+            let mut site_guard = Vec::with_capacity(guard_count as usize);
+            for _ in 0..guard_count {
+                site_guard.push(decode_crash_predicate(reader)?);
+            }
             let claim_count = reader.count()?;
             let mut frontier_lower_bound = Vec::with_capacity(claim_count as usize);
             for _ in 0..claim_count {
@@ -1854,8 +1878,7 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             Terminator::Crash {
                 edge,
                 cause,
-                damage_minimum,
-                containment_demand,
+                site_guard,
                 frontier_lower_bound,
             }
         }
@@ -1887,16 +1910,25 @@ fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, Codec
 fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
     let id = reader.id("ContractId")?;
     let count = reader.count()?;
-    let mut crash_context = Vec::with_capacity(count as usize);
+    let mut crash_routes = Vec::with_capacity(count as usize);
     for _ in 0..count {
         let cause = match reader.u8()? {
             1 => CrashCause::Trap,
             2 => CrashCause::Abort,
             tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
         };
-        crash_context.push(CrashContextMaximum {
+        let alternative_count = reader.count()?;
+        let mut alternatives = Vec::with_capacity(alternative_count as usize);
+        for _ in 0..alternative_count {
+            alternatives.push(match reader.u8()? {
+                0 => CrashRouteGuard::Truth,
+                1 => CrashRouteGuard::Predicate(decode_crash_predicate(reader)?),
+                tag => return Err(CodecError::InvalidTag("CrashRouteGuard", tag)),
+            });
+        }
+        crash_routes.push(CrashRouteBucket {
             cause,
-            maximum_scope: reader.string("crash context maximum")?,
+            alternatives,
         });
     }
     let requires_count = reader.count()?;
@@ -1914,10 +1946,18 @@ fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecErro
     }
     Ok(MachineContract {
         id,
-        crash_context,
+        crash_routes,
         requires,
         ensures,
     })
+}
+
+fn decode_crash_predicate(reader: &mut Reader<'_>) -> Result<CrashPredicateIdentity, CodecError> {
+    let len = usize::try_from(reader.count()?)
+        .map_err(|_| CodecError::CollectionTooLong("crash predicate identity"))?;
+    Ok(CrashPredicateIdentity::from_canonical_bytes(
+        reader.take(len)?.to_vec(),
+    ))
 }
 
 fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Proposition, CodecError> {

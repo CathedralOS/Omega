@@ -541,15 +541,13 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
             Terminator::Crash {
                 edge,
                 cause,
-                damage_minimum,
-                containment_demand,
+                site_guard,
                 frontier_lower_bound,
             } => {
                 operations.push(TerminalAbstractOperation::Crash {
                     psi_edge: *edge,
                     cause: *cause,
-                    damage_minimum: damage_minimum.clone(),
-                    containment_demand: containment_demand.clone(),
+                    site_guard: site_guard.clone(),
                     frontier_lower_bound: frontier_lower_bound.clone(),
                 });
             }

@@ -3420,7 +3420,7 @@ fn encode_contract(
 
 fn encode_contract_kind(
     kind: &psi_typed_trees::signature::SignatureContractKind,
-    binders: &[(String, String)],
+    _binders: &[(String, String)],
     output: &mut Vec<u8>,
 ) {
     output.push(match kind {
@@ -3429,12 +3429,11 @@ fn encode_contract_kind(
         psi_typed_trees::signature::SignatureContractKind::Boundary => 3,
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
     });
-    if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } = kind {
+    if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause } = kind {
         output.push(match cause {
             psi_typed_trees::signature::CrashCause::Trap => 1,
             psi_typed_trees::signature::CrashCause::Abort => 2,
         });
-        encode_normalized_text(scope.as_str(), binders, output);
     }
 }
 
@@ -3468,8 +3467,8 @@ fn contract_fact_text(program: &TypedTrees, fact: &psi_typed_trees::domain::Proo
 }
 
 /// Template and specialization identities use the same crash-bucket algebra
-/// as public contract plans: route clauses merge by `(cause, scope)`, routes
-/// form a set, and an unconditional route subsumes guarded alternatives.
+/// as public contract plans: route clauses merge by cause, routes form a set,
+/// and an unconditional route subsumes guarded alternatives.
 fn encode_contract_set(
     program: &TypedTrees,
     contracts: &[psi_typed_trees::signature::SignatureContract],

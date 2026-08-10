@@ -69,7 +69,7 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
 
     if input.at_contextual("trap") {
         return Err(input.error_here(
-            "statement `trap` is retired; write `crash Trap;` and publish a covering `crashes Trap <Scope>` route",
+            "statement `trap` is retired; write `crash Trap;` and publish a covering `crashes Trap` route",
         ));
     }
 

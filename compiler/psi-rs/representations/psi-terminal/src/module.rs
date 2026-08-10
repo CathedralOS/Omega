@@ -196,31 +196,36 @@ impl ContentPartitionComposition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContract {
     pub id: ContractId,
-    /// Strictly ordered by cause. Missing causes are forbidden in this
-    /// execution context.
-    pub crash_context: Vec<CrashContextMaximum>,
+    /// Strictly ordered canonical may-routes. Omitting a cause forbids it.
+    pub crash_routes: Vec<CrashRouteBucket>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<ContractClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CrashContextMaximum {
+pub struct CrashRouteBucket {
     pub cause: CrashCause,
-    pub maximum_scope: String,
+    /// Canonical nonempty disjunction. `Truth`, when present, is the sole row.
+    pub alternatives: Vec<CrashRouteGuard>,
 }
 
-impl CrashContextMaximum {
-    pub fn portable_root() -> Vec<Self> {
-        vec![
-            Self {
-                cause: CrashCause::Trap,
-                maximum_scope: "ExecutionDomain".to_owned(),
-            },
-            Self {
-                cause: CrashCause::Abort,
-                maximum_scope: "ExecutionDomain".to_owned(),
-            },
-        ]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CrashRouteGuard {
+    Truth,
+    Predicate(CrashPredicateIdentity),
+}
+
+/// Canonical source-independent identity of one normalized crash predicate.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CrashPredicateIdentity(Vec<u8>);
+
+impl CrashPredicateIdentity {
+    pub fn from_canonical_bytes(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn canonical_bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 
@@ -444,15 +449,14 @@ pub enum Terminator {
     Return { edge: EdgeId, value: ValueId },
     /// Leave checked execution without cleanup or a successor.
     ///
-    /// Both scopes are portable nominal identities; installation gives the
-    /// selected demand physical meaning. `frontier_lower_bound` is deliberately
-    /// not described as the complete process-wide abandonment set: it is the
-    /// machine-local claim frontier the verifier can reconstruct at this site.
+    /// `site_guard` is the canonical conjunction known on every path into this
+    /// site. `frontier_lower_bound` is deliberately not described as the
+    /// complete process-wide abandonment set: it is the machine-local claim
+    /// frontier the verifier can reconstruct at this site.
     Crash {
         edge: EdgeId,
         cause: CrashCause,
-        damage_minimum: String,
-        containment_demand: String,
+        site_guard: Vec<CrashPredicateIdentity>,
         frontier_lower_bound: Vec<ClaimId>,
     },
 }

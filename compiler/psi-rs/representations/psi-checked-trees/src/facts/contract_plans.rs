@@ -17,27 +17,10 @@ use psi_language_semantics::{
 use psi_numerics::literals::IntegerLiteral;
 use psi_symbols::SymbolHandle;
 
-pub use psi_language_semantics::crash::{
-    ACTIVATION_CRASH_SCOPE, EXECUTION_DOMAIN_CRASH_SCOPE,
-    scope_covers_minimum as crash_scope_covers_minimum,
-};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CrashCause {
     Trap,
     Abort,
-}
-
-impl CrashCause {
-    /// The first checked damage-minimum slice follows the language's intrinsic
-    /// cause law. Later invariant/custody analysis may widen `Trap`; it can
-    /// never narrow either cause below this seed.
-    pub const fn intrinsic_damage_minimum(self) -> &'static str {
-        match self {
-            Self::Trap => ACTIVATION_CRASH_SCOPE,
-            Self::Abort => EXECUTION_DOMAIN_CRASH_SCOPE,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -157,28 +140,22 @@ impl CrashSiteLocation {
     }
 }
 
-/// Body-derived seed for a crash-terminator plan. Intrinsic cause minima and
-/// structurally unconditional guard coverage are attached immediately;
-/// path-conditioned entailment, invariant/custody widening, and frontier
-/// reconstruction remain independent later passes.
+/// Body-derived seed for a crash-terminator plan. Structurally unconditional
+/// guard coverage is attached immediately; path-conditioned entailment and
+/// frontier reconstruction remain independent later passes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCrashSite {
     location: CrashSiteLocation,
     cause: CrashCause,
-    /// Smallest nominal termination scope currently proved necessary to keep
-    /// surviving state sound. This is body evidence, not public identity.
-    damage_minimum: String,
     /// Exact canonical predicates known to hold on every path into this site.
     /// Their conjunction is the retained derived path guard; implication
     /// consequences remain separate coverage evidence.
     path_guard_conjuncts: Vec<CrashPredicateIdentity>,
-    /// Invariant-bearing data identities whose default-domain windows are
-    /// open at this crash. Any such evidence widens the portable minimum to
-    /// `ExecutionDomain` until a finer custody scope is proved.
-    open_invariant_data: Vec<SymbolHandle>,
+    /// Sound canonical consequences of the exact incoming conjunction. These
+    /// witness guarded-route coverage without rewriting the exact guard.
+    path_guard_consequences: Vec<CrashPredicateIdentity>,
     /// Published buckets whose guard implication is already established for
-    /// this site. This is not yet complete crash coverage: damage-minimum and
-    /// containment-demand comparison remains an independent check.
+    /// this site.
     guard_covering_buckets: Vec<CrashRouteBucketId>,
     /// Stable identities of claims proved live at this exact machine-local
     /// crash site. This is deliberately a lower bound: conditionally live sum
@@ -201,9 +178,8 @@ impl CheckedCrashSite {
         Self {
             location,
             cause,
-            damage_minimum: cause.intrinsic_damage_minimum().to_owned(),
             path_guard_conjuncts: Vec::new(),
-            open_invariant_data: Vec::new(),
+            path_guard_consequences: Vec::new(),
             guard_covering_buckets,
             frontier_lower_bound,
         }
@@ -217,22 +193,6 @@ impl CheckedCrashSite {
         self.cause
     }
 
-    pub fn damage_minimum(&self) -> &str {
-        &self.damage_minimum
-    }
-
-    pub fn with_damage_minimum(mut self, damage_minimum: impl Into<String>) -> Option<Self> {
-        let damage_minimum = damage_minimum.into();
-        if !crash_scope_covers_minimum(self.cause.intrinsic_damage_minimum(), &damage_minimum)
-            || (!self.open_invariant_data.is_empty()
-                && damage_minimum != EXECUTION_DOMAIN_CRASH_SCOPE)
-        {
-            return None;
-        }
-        self.damage_minimum = damage_minimum;
-        Some(self)
-    }
-
     pub fn with_guard_covering_buckets(
         mut self,
         mut guard_covering_buckets: Vec<CrashRouteBucketId>,
@@ -243,16 +203,6 @@ impl CheckedCrashSite {
         self
     }
 
-    pub fn with_open_invariant_data(mut self, mut open_invariant_data: Vec<SymbolHandle>) -> Self {
-        open_invariant_data.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        open_invariant_data.dedup();
-        if !open_invariant_data.is_empty() {
-            self.damage_minimum = EXECUTION_DOMAIN_CRASH_SCOPE.to_owned();
-        }
-        self.open_invariant_data = open_invariant_data;
-        self
-    }
-
     pub fn with_path_guard_conjuncts(
         mut self,
         mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
@@ -260,6 +210,16 @@ impl CheckedCrashSite {
         path_guard_conjuncts.sort();
         path_guard_conjuncts.dedup();
         self.path_guard_conjuncts = path_guard_conjuncts;
+        self
+    }
+
+    pub fn with_path_guard_consequences(
+        mut self,
+        mut path_guard_consequences: Vec<CrashPredicateIdentity>,
+    ) -> Self {
+        path_guard_consequences.sort();
+        path_guard_consequences.dedup();
+        self.path_guard_consequences = path_guard_consequences;
         self
     }
 
@@ -281,8 +241,8 @@ impl CheckedCrashSite {
         &self.path_guard_conjuncts
     }
 
-    pub fn open_invariant_data(&self) -> &[SymbolHandle] {
-        &self.open_invariant_data
+    pub fn path_guard_consequences(&self) -> &[CrashPredicateIdentity] {
+        &self.path_guard_consequences
     }
 
     pub fn frontier_lower_bound(&self) -> &[psi_language_semantics::PermissionClaimIdentity] {
@@ -471,17 +431,12 @@ fn crash_frontier_claim_sort_key(
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CrashRouteBucket {
     cause: CrashCause,
-    containment_demand: String,
     /// Canonical nonempty set. `Truth` is always the sole entry when present.
     alternative_guards: Vec<CrashRouteGuard>,
 }
 
 impl CrashRouteBucket {
-    pub fn new(
-        cause: CrashCause,
-        containment_demand: impl Into<String>,
-        mut alternative_guards: Vec<CrashRouteGuard>,
-    ) -> Option<Self> {
+    pub fn new(cause: CrashCause, mut alternative_guards: Vec<CrashRouteGuard>) -> Option<Self> {
         if alternative_guards.contains(&CrashRouteGuard::Truth) {
             alternative_guards = vec![CrashRouteGuard::Truth];
         } else {
@@ -490,22 +445,17 @@ impl CrashRouteBucket {
         }
         (!alternative_guards.is_empty()).then(|| Self {
             cause,
-            containment_demand: containment_demand.into(),
             alternative_guards,
         })
     }
 
-    pub fn unconditional(cause: CrashCause, containment_demand: impl Into<String>) -> Self {
-        Self::new(cause, containment_demand, vec![CrashRouteGuard::Truth])
+    pub fn unconditional(cause: CrashCause) -> Self {
+        Self::new(cause, vec![CrashRouteGuard::Truth])
             .expect("the unconditional crash bucket has one canonical guard")
     }
 
     pub fn cause(&self) -> CrashCause {
         self.cause
-    }
-
-    pub fn containment_demand(&self) -> &str {
-        &self.containment_demand
     }
 
     pub fn alternative_guards(&self) -> &[CrashRouteGuard] {
@@ -519,8 +469,8 @@ impl CrashRouteBucket {
 
 /// The published and body-derived halves of CRASH-CONTRACT remain independent:
 /// published route buckets are contract identity, while checked sites are
-/// implementation evidence and never enter that fingerprint. Damage minima,
-/// path guards, complete covering buckets, and frontier lower bounds enrich
+/// implementation evidence and never enter that fingerprint. Path guards,
+/// complete covering buckets, and frontier lower bounds enrich
 /// the site layer without changing the published interface.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CrashPlan {
@@ -559,20 +509,12 @@ impl CrashPlan {
             return None;
         }
         if checked_sites.iter().any(|site| {
-            !crash_scope_covers_minimum(site.cause.intrinsic_damage_minimum(), &site.damage_minimum)
-                || (!site.open_invariant_data.is_empty()
-                    && site.damage_minimum != EXECUTION_DOMAIN_CRASH_SCOPE)
-                || site
-                    .open_invariant_data
-                    .iter()
-                    .any(|symbol| !symbol.is_valid())
-                || site.guard_covering_buckets.iter().any(|bucket| {
-                    self.published_bucket(*bucket)
-                        .is_none_or(|published| published.cause != site.cause)
-                })
-                || site.frontier_lower_bound.iter().any(|identity| {
-                    *identity == psi_language_semantics::PermissionClaimIdentity::Unknown
-                })
+            site.guard_covering_buckets.iter().any(|bucket| {
+                self.published_bucket(*bucket)
+                    .is_none_or(|published| published.cause != site.cause)
+            }) || site.frontier_lower_bound.iter().any(|identity| {
+                *identity == psi_language_semantics::PermissionClaimIdentity::Unknown
+            })
         }) {
             return None;
         }
@@ -645,21 +587,14 @@ impl CrashPlan {
         })
     }
 
-    /// Published buckets whose guards and containment demands both cover this
-    /// checked body site.
+    /// Published buckets whose guards cover this checked body site.
     pub fn covering_buckets_for_site<'plan>(
         &'plan self,
         site: &'plan CheckedCrashSite,
     ) -> impl Iterator<Item = (CrashRouteBucketId, &'plan CrashRouteBucket)> + 'plan {
         site.guard_covering_buckets.iter().filter_map(move |id| {
-            self.published_bucket(*id).and_then(|bucket| {
-                (bucket.cause == site.cause
-                    && crash_scope_covers_minimum(
-                        site.damage_minimum(),
-                        bucket.containment_demand(),
-                    ))
-                .then_some((*id, bucket))
-            })
+            self.published_bucket(*id)
+                .and_then(|bucket| (bucket.cause == site.cause).then_some((*id, bucket)))
         })
     }
 
@@ -870,15 +805,6 @@ pub fn contract_fingerprint(
             CrashCause::Trap => 1,
             CrashCause::Abort => 2,
         });
-        for byte in u32::try_from(bucket.containment_demand.len())
-            .expect("crash containment-demand name exceeds the canonical encoding limit")
-            .to_le_bytes()
-        {
-            fold(byte);
-        }
-        for byte in bucket.containment_demand.as_bytes() {
-            fold(*byte);
-        }
         for guard in bucket.alternative_guards {
             match guard {
                 CrashRouteGuard::Truth => fold(0),
@@ -924,12 +850,11 @@ mod tests {
 
     #[test]
     fn crash_route_carriers_enforce_canonical_nonempty_sets() {
-        assert!(CrashRouteBucket::new(CrashCause::Trap, "Activation", Vec::new()).is_none());
+        assert!(CrashRouteBucket::new(CrashCause::Trap, Vec::new()).is_none());
 
         let predicate = CrashPredicateIdentity::from_canonical_bytes(vec![1, 2, 3]);
         let guarded = CrashRouteBucket::new(
             CrashCause::Trap,
-            "Activation",
             vec![
                 CrashRouteGuard::Predicate(predicate.clone()),
                 CrashRouteGuard::Predicate(predicate),
@@ -940,7 +865,6 @@ mod tests {
 
         let unconditional = CrashRouteBucket::new(
             CrashCause::Trap,
-            "Activation",
             vec![
                 CrashRouteGuard::Predicate(CrashPredicateIdentity::from_canonical_bytes(vec![4])),
                 CrashRouteGuard::Truth,
@@ -1048,10 +972,7 @@ mod tests {
             SymbolHandle::from_arena_index(8),
             state,
             18,
-            vec![CrashRouteBucket::unconditional(
-                CrashCause::Abort,
-                EXECUTION_DOMAIN_CRASH_SCOPE,
-            )],
+            vec![CrashRouteBucket::unconditional(CrashCause::Abort)],
         );
         assert!(
             CrashPlan::default()
@@ -1070,9 +991,9 @@ mod tests {
             target_state,
             0xfeed,
             vec![
-                CrashRouteBucket::unconditional(CrashCause::Abort, EXECUTION_DOMAIN_CRASH_SCOPE),
-                CrashRouteBucket::unconditional(CrashCause::Trap, ACTIVATION_CRASH_SCOPE),
-                CrashRouteBucket::unconditional(CrashCause::Abort, EXECUTION_DOMAIN_CRASH_SCOPE),
+                CrashRouteBucket::unconditional(CrashCause::Abort),
+                CrashRouteBucket::unconditional(CrashCause::Trap),
+                CrashRouteBucket::unconditional(CrashCause::Abort),
             ],
         );
         assert_eq!(capsule.published_buckets().len(), 2);
@@ -1091,8 +1012,8 @@ mod tests {
     #[test]
     fn crash_bucket_ids_join_checked_sites_to_their_published_contract() {
         let plan = CrashPlan::published_ceiling(vec![
-            CrashRouteBucket::unconditional(CrashCause::Abort, "ExecutionDomain"),
-            CrashRouteBucket::unconditional(CrashCause::Trap, "Activation"),
+            CrashRouteBucket::unconditional(CrashCause::Abort),
+            CrashRouteBucket::unconditional(CrashCause::Trap),
         ]);
         let ids = plan
             .published_with_ids()
@@ -1119,89 +1040,6 @@ mod tests {
         assert_eq!(
             plan.checked_sites()[0].guard_covering_buckets(),
             &[abort_id]
-        );
-    }
-
-    #[test]
-    fn crash_damage_minima_filter_guard_covering_buckets_independently() {
-        let plan = CrashPlan::published_ceiling(vec![
-            CrashRouteBucket::unconditional(CrashCause::Abort, ACTIVATION_CRASH_SCOPE),
-            CrashRouteBucket::unconditional(CrashCause::Abort, EXECUTION_DOMAIN_CRASH_SCOPE),
-        ]);
-        let ids = plan
-            .published_with_ids()
-            .map(|(id, _)| id)
-            .collect::<Vec<_>>();
-        let site = CheckedCrashSite::new(
-            CrashSiteLocation::new(SymbolHandle::from_arena_index(4), 0),
-            CrashCause::Abort,
-            ids,
-            Vec::new(),
-        );
-        assert_eq!(site.damage_minimum(), EXECUTION_DOMAIN_CRASH_SCOPE);
-
-        let covering = plan
-            .covering_buckets_for_site(&site)
-            .map(|(_, bucket)| bucket.containment_demand())
-            .collect::<Vec<_>>();
-        assert_eq!(covering, [EXECUTION_DOMAIN_CRASH_SCOPE]);
-        assert!(crash_scope_covers_minimum(
-            ACTIVATION_CRASH_SCOPE,
-            EXECUTION_DOMAIN_CRASH_SCOPE
-        ));
-        assert!(!crash_scope_covers_minimum(
-            EXECUTION_DOMAIN_CRASH_SCOPE,
-            ACTIVATION_CRASH_SCOPE
-        ));
-
-        let trap = CheckedCrashSite::new(
-            CrashSiteLocation::new(SymbolHandle::from_arena_index(5), 0),
-            CrashCause::Trap,
-            Vec::new(),
-            Vec::new(),
-        );
-        assert_eq!(trap.damage_minimum(), ACTIVATION_CRASH_SCOPE);
-        assert_eq!(
-            trap.clone()
-                .with_damage_minimum(EXECUTION_DOMAIN_CRASH_SCOPE)
-                .expect("a trap minimum may widen to the portable top")
-                .damage_minimum(),
-            EXECUTION_DOMAIN_CRASH_SCOPE
-        );
-        assert!(
-            site.with_damage_minimum(ACTIVATION_CRASH_SCOPE).is_none(),
-            "an abort minimum cannot narrow below ExecutionDomain"
-        );
-    }
-
-    #[test]
-    fn open_invariant_evidence_widens_and_normalizes_the_damage_minimum() {
-        let first = SymbolHandle::from_arena_index(7);
-        let second = SymbolHandle::from_arena_index(3);
-        let site = CheckedCrashSite::new(
-            CrashSiteLocation::new(SymbolHandle::from_arena_index(5), 0),
-            CrashCause::Trap,
-            Vec::new(),
-            Vec::new(),
-        )
-        .with_open_invariant_data(vec![first, second, first]);
-
-        assert_eq!(site.damage_minimum(), EXECUTION_DOMAIN_CRASH_SCOPE);
-        assert_eq!(site.open_invariant_data(), &[second, first]);
-        assert!(
-            site.clone()
-                .with_damage_minimum(ACTIVATION_CRASH_SCOPE)
-                .is_none(),
-            "open invariant evidence cannot be narrowed after construction"
-        );
-
-        let plan = CrashPlan::published_ceiling(vec![CrashRouteBucket::unconditional(
-            CrashCause::Trap,
-            EXECUTION_DOMAIN_CRASH_SCOPE,
-        )]);
-        assert!(
-            plan.with_checked_sites(vec![site]).is_some(),
-            "normalized invariant evidence is a valid checked crash site"
         );
     }
 

@@ -5,7 +5,7 @@
 
 use omega_target::NativeTarget;
 use psi_core::{ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
-use psi_terminal::{CrashCause, TerminalPsiIdentity};
+use psi_terminal::{CrashCause, CrashPredicateIdentity, TerminalPsiIdentity};
 
 pub use omega_calling_conventions::MachineRegister;
 
@@ -37,8 +37,7 @@ pub enum TerminalTargetOperation {
     Crash {
         psi_edge: EdgeId,
         cause: CrashCause,
-        damage_minimum: String,
-        containment_demand: String,
+        site_guard: Vec<CrashPredicateIdentity>,
         frontier_lower_bound: Vec<ClaimId>,
     },
     /// Return one compile-time integer through the target's ordinary scalar
@@ -185,8 +184,7 @@ pub enum TerminalTargetBooleanControl {
     Crash {
         psi_crash_edge: EdgeId,
         cause: CrashCause,
-        damage_minimum: String,
-        containment_demand: String,
+        site_guard: Vec<CrashPredicateIdentity>,
         frontier_lower_bound: Vec<ClaimId>,
     },
     ReturnImmediate {
@@ -237,8 +235,7 @@ pub enum TerminalTargetIntegerControl {
     Crash {
         psi_crash_edge: EdgeId,
         cause: CrashCause,
-        damage_minimum: String,
-        containment_demand: String,
+        site_guard: Vec<CrashPredicateIdentity>,
         frontier_lower_bound: Vec<ClaimId>,
     },
     Return {

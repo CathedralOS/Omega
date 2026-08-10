@@ -164,20 +164,24 @@ conservation remains derived.
 Terminal Psi represents `Trap` and `Abort` as closed crash causes attached to
 distinct no-successor terminators. A crash terminator is not an ordinary
 terminal transition and does not encode abandonment by omitting a cleanup list.
-It carries the path-conditioned site guard, covering published route buckets,
-and the statically known local frontier as an explicit lower bound. The exact
-dynamically abandoned frontier is not claimed to be edge-enumerable.
+It carries a canonical site-guard set, covering published route buckets, and
+the statically known local frontier as an explicit lower bound. The guard set
+contains the exact incoming conjunction plus sound canonical consequences used
+as route witnesses; retaining a consequence never erases the exact path
+identity. The exact dynamically abandoned frontier is not claimed to be
+edge-enumerable.
 
 Published crash buckets are fingerprinted semantic content. Each bucket has
 one cause and a canonical disjunction of route predicates over the same lowered
 values and structural places as executable Psi. Buckets normalize by cause. An
 unconditional clause contains the canonical `true` predicate.
 
-The verifier independently reconstructs every crash site and checks:
+The verifier checks each crash site against the canonical guard facts carried
+by that site:
 
 ```text
-site_guard implies
-    OR(covering_guard for the same cause)
+the published route is Truth, or site_guard contains
+    a canonical predicate from that same-cause route
 ```
 
 Call composition substitutes arguments and caller path facts into published

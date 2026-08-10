@@ -268,14 +268,13 @@ pub enum TerminalAbstractOperation {
         value: ValueId,
         scalar_type: ScalarType,
     },
-    /// A verified no-successor terminal. The audit-only frontier and legacy
-    /// containment fields remain attached at the Omega boundary even though
-    /// native realization only needs the closed cause and edge identity.
+    /// A verified no-successor terminal. The audit-only site guard and frontier
+    /// remain attached at the Omega boundary even though native realization
+    /// only needs the closed cause and edge identity.
     Crash {
         psi_edge: EdgeId,
         cause: CrashCause,
-        damage_minimum: String,
-        containment_demand: String,
+        site_guard: Vec<psi_terminal::CrashPredicateIdentity>,
         frontier_lower_bound: Vec<ClaimId>,
     },
 }

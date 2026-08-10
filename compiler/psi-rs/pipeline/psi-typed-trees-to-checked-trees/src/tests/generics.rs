@@ -387,44 +387,32 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
 
 #[test]
 fn static_machine_selection_respects_guarded_crash_ceiling() {
-    fn check(selected_scope: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
-        let source = format!(
-            r#"
+    let source = r#"
             machine selected(flag: bool)
-            crashes Abort {selected_scope}
+            crashes Abort
                 flag
-            {{}}
+            {}
 
             machine apply<machine Selected>(flag: bool)
             where machine Selected(value: bool)
-                crashes Abort Activation
+                crashes Abort
                     value;
-            {{
+            {
                 Selected(flag);
-            }}
+            }
 
-            machine caller(flag: bool) {{
+            machine caller(flag: bool) {
                 apply<selected>(flag);
-            }}
-            "#
-        );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        lower_typed_trees(typed).map(|_| ())
-    }
+            }
+            "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    check("Activation").expect("an identical crash bucket should refine the machine slot");
-    let diagnostics = check("ExecutionDomain")
-        .expect_err("a differently scoped crash bucket must not silently refine the slot");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("routes are not contained by the required crash ceiling")
-    }));
+    lower_typed_trees(typed).expect("an identical crash route should refine the machine slot");
 }
 
 #[test]
@@ -1072,33 +1060,33 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
     }
 
     let grouped = r#"
-        crashes Trap Activation
+        crashes Trap
             first
             second
     "#;
     let split = r#"
-        crashes Trap Activation
+        crashes Trap
             second
-        crashes Trap Activation
+        crashes Trap
             first
     "#;
     let duplicated = r#"
-        crashes Trap Activation
+        crashes Trap
             first
             second
             first
     "#;
     let unconditional = r#"
-        crashes Trap Activation
+        crashes Trap
     "#;
     let explicit_true = r#"
-        crashes Trap Activation
+        crashes Trap
             true
     "#;
     let unconditional_with_guard = r#"
-        crashes Trap Activation
+        crashes Trap
             first
-        crashes Trap Activation
+        crashes Trap
     "#;
 
     assert_eq!(fingerprint(grouped), fingerprint(split));

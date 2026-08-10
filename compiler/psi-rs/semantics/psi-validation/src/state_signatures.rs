@@ -375,16 +375,14 @@ fn validate_crash_route_shapes(
     contract: &psi_typed_trees::signature::SignatureContract,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let psi_typed_trees::signature::SignatureContractKind::Crashes { cause, scope } =
-        &contract.kind
+    let psi_typed_trees::signature::SignatureContractKind::Crashes { cause } = &contract.kind
     else {
         return;
     };
     for fact in program.proof_facts.span_or_empty(contract.facts) {
         if !matches!(fact, psi_typed_trees::domain::ProofFact::Expression(_)) {
             diagnostics.push(Diagnostic::error(format!(
-                "`crashes {cause:?} {}` routes must be Boolean expressions; domain memberships and proposition applications are proof facts, not runtime-refinable crash routes",
-                scope.as_str(),
+                "`crashes {cause:?}` routes must be Boolean expressions; domain memberships and proposition applications are proof facts, not runtime-refinable crash routes",
             )));
         }
     }

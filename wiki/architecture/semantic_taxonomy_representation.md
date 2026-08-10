@@ -713,11 +713,12 @@ unordered values cannot make that rule unsound. Checked integer strict order
 also entails its non-strict bound and inequality; equality entails both
 non-strict bounds. Checked call
 rows retain the same source-independent consequence set for caller-ceiling
-coverage. The checked site and call rows separately retain the canonical
-conjunction of exact incoming predicates; consequences
-only establish bucket coverage and never replace that derived guard. Richer
-logical entailment remains. Checked sites are implementation evidence and never enter the
-published contract fingerprint.
+coverage. Checked site and call rows retain both the canonical conjunction of
+exact incoming predicates and a separate canonical consequence set. A
+consequence can witness bucket coverage and cross the terminal boundary beside
+the exact guard, but never replaces or rewrites that guard. Richer logical
+entailment remains. Checked sites are implementation evidence and never enter
+the published contract fingerprint.
 
 `CrashTerminatorPlan` is a distinct no-successor terminal with no cleanup. Its
 frontier field is explicitly a lower bound: caller frames, external effects,

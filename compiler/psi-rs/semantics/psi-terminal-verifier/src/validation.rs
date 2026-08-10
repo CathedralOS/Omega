@@ -6,10 +6,10 @@ use psi_core::{
     PlaceId, Proposition, PropositionContext, PropositionError, PropositionId, ScalarTerm,
     ScalarType, StructuralPlaceKind, ValueId,
 };
-use psi_language_semantics::crash::scope_covers_minimum;
 use psi_terminal::{
-    ContentPartitionComposition, CrashCause, OperationKind, PropositionBinderArgumentKind,
-    PropositionBinderKind, PropositionEvidence, TerminalMachine, TerminalModule, Terminator,
+    ContentPartitionComposition, CrashCause, CrashRouteGuard, OperationKind,
+    PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, TerminalMachine,
+    TerminalModule, Terminator,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -603,22 +603,31 @@ fn validate_machine(
 fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError> {
     if machine
         .contract
-        .crash_context
+        .crash_routes
         .windows(2)
-        .any(|pair| pair[0].cause >= pair[1].cause)
+        .any(|pair| pair[0] >= pair[1])
     {
-        return Err(ModuleError::NonCanonicalCrashContext(machine.id));
+        return Err(ModuleError::NonCanonicalCrashRoutes(machine.id));
     }
-    if let Some(maximum) = machine
-        .contract
-        .crash_context
-        .iter()
-        .find(|maximum| maximum.maximum_scope.is_empty())
-    {
-        return Err(ModuleError::EmptyCrashContextMaximum {
-            machine: machine.id,
-            cause: maximum.cause,
-        });
+    for bucket in &machine.contract.crash_routes {
+        if bucket.alternatives.is_empty() {
+            return Err(ModuleError::EmptyCrashRouteBucket {
+                machine: machine.id,
+                cause: bucket.cause,
+            });
+        }
+        if bucket
+            .alternatives
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+            || (bucket.alternatives.contains(&CrashRouteGuard::Truth)
+                && bucket.alternatives != [CrashRouteGuard::Truth])
+        {
+            return Err(ModuleError::NonCanonicalCrashRouteAlternatives {
+                machine: machine.id,
+                cause: bucket.cause,
+            });
+        }
     }
     let expected = machine
         .content_entry_claims
@@ -628,34 +637,32 @@ fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError
     for block in &machine.blocks {
         let Terminator::Crash {
             cause,
-            damage_minimum,
-            containment_demand,
+            site_guard,
             frontier_lower_bound,
             ..
         } = &block.terminator
         else {
             continue;
         };
-        if damage_minimum.is_empty() {
-            return Err(ModuleError::EmptyCrashDamageMinimum(block.id));
+        if site_guard.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(ModuleError::NonCanonicalCrashSiteGuard(block.id));
         }
-        if containment_demand.is_empty() {
-            return Err(ModuleError::EmptyCrashContainmentDemand(block.id));
-        }
-        if !scope_covers_minimum(damage_minimum, containment_demand) {
-            return Err(ModuleError::CrashContainmentDemandTooNarrow { block: block.id });
-        }
-        let maximum = machine
+        let covered = machine
             .contract
-            .crash_context
+            .crash_routes
             .iter()
-            .find(|maximum| maximum.cause == *cause)
-            .ok_or(ModuleError::MissingCrashContextMaximum {
+            .filter(|bucket| bucket.cause == *cause)
+            .any(|bucket| {
+                bucket.alternatives.iter().any(|route| match route {
+                    CrashRouteGuard::Truth => true,
+                    CrashRouteGuard::Predicate(predicate) => site_guard.contains(predicate),
+                })
+            });
+        if !covered {
+            return Err(ModuleError::CrashRouteUncovered {
                 block: block.id,
                 cause: *cause,
-            })?;
-        if !scope_covers_minimum(containment_demand, &maximum.maximum_scope) {
-            return Err(ModuleError::CrashContextMaximumTooNarrow { block: block.id });
+            });
         }
         if frontier_lower_bound
             .windows(2)
@@ -2085,22 +2092,19 @@ pub enum ModuleError {
         clause: ContractClauseKind,
         value: ValueId,
     },
-    EmptyCrashDamageMinimum(BlockId),
-    EmptyCrashContainmentDemand(BlockId),
-    CrashContainmentDemandTooNarrow {
-        block: BlockId,
-    },
-    NonCanonicalCrashContext(MachineId),
-    EmptyCrashContextMaximum {
+    NonCanonicalCrashRoutes(MachineId),
+    EmptyCrashRouteBucket {
         machine: MachineId,
         cause: CrashCause,
     },
-    MissingCrashContextMaximum {
-        block: BlockId,
+    NonCanonicalCrashRouteAlternatives {
+        machine: MachineId,
         cause: CrashCause,
     },
-    CrashContextMaximumTooNarrow {
+    NonCanonicalCrashSiteGuard(BlockId),
+    CrashRouteUncovered {
         block: BlockId,
+        cause: CrashCause,
     },
     NonCanonicalCrashFrontier(BlockId),
     CrashFrontierMismatch {

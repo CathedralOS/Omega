@@ -121,12 +121,15 @@ fn a_segment_cannot_cross_the_reached_return_to_find_an_unrelated_edge() {
 #[test]
 fn crash_is_an_explicit_fixed_fuel_terminal_edge() {
     let (mut module, _) = fixture();
+    module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+    }];
     module.machines[0].contract.ensures.clear();
     module.machines[0].blocks[1].terminator = Terminator::Crash {
         edge: edge_id(2),
         cause: CrashCause::Abort,
-        damage_minimum: "ExecutionDomain".to_owned(),
-        containment_demand: "ExecutionDomain".to_owned(),
+        site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
     };
     let verified = verify_module(
@@ -235,7 +238,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
             ],
             contract: MachineContract {
                 id: contract_id(1),
-                crash_context: psi_terminal::CrashContextMaximum::portable_root(),
+                crash_routes: Vec::new(),
                 requires: vec![goal.clone()],
                 ensures: vec![ContractClause {
                     obligation,

@@ -15,8 +15,9 @@ use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, ContractClause, CrashCause, CrashContextMaximum, MachineContract, Operation,
-    OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
+    Operation, OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{
@@ -83,7 +84,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         ],
         contract: MachineContract {
             id: ContractId::new(1).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: vec![ContractClause {
                 obligation,
@@ -334,16 +335,15 @@ fn verified_crashes_are_stable_terminal_outcomes() {
             terminator: Terminator::Crash {
                 edge: EdgeId::new(90).expect("crash edge"),
                 cause: CrashCause::Trap,
-                damage_minimum: "Activation".to_owned(),
-                containment_demand: "Activation".to_owned(),
+                site_guard: Vec::new(),
                 frontier_lower_bound: Vec::new(),
             },
         }],
         contract: MachineContract {
             id: ContractId::new(90).expect("contract"),
-            crash_context: vec![CrashContextMaximum {
+            crash_routes: vec![CrashRouteBucket {
                 cause: CrashCause::Trap,
-                maximum_scope: "ExecutionDomain".to_owned(),
+                alternatives: vec![CrashRouteGuard::Truth],
             }],
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -363,9 +363,9 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     )
     .expect("the explicit crash exit verifies");
     let expected = TerminalCrash {
+        edge: EdgeId::new(90).expect("crash edge"),
         cause: CrashCause::Trap,
-        damage_minimum: "Activation".to_owned(),
-        containment_demand: "Activation".to_owned(),
+        site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
     };
 
@@ -388,31 +388,6 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         TerminalExecutionStatus::Crashed(expected)
     );
     assert_eq!(meter.usage().total_units(), 1, "crash must not replay");
-
-    let mut current = module.clone();
-    current.vocabulary_marker = VocabularyMarker::CURRENT;
-    let Terminator::Crash {
-        containment_demand, ..
-    } = &mut current.machines[0].blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    *containment_demand = "ExecutionDomain".to_owned();
-    let verified = verify_module(
-        &current,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("the separated crash scopes verify");
-    assert_eq!(
-        interpret_terminal(&verified, &[]),
-        Err(TerminalInterpretError::Crash(TerminalCrash {
-            cause: CrashCause::Trap,
-            damage_minimum: "Activation".to_owned(),
-            containment_demand: "ExecutionDomain".to_owned(),
-            frontier_lower_bound: Vec::new(),
-        }))
-    );
 }
 
 #[test]
@@ -447,7 +422,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         }],
         contract: MachineContract {
             id: ContractId::new(10).expect("contract"),
-            crash_context: Vec::new(),
+            crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
         },

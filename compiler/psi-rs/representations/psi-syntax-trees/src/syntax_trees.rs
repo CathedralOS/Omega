@@ -682,11 +682,8 @@ impl SyntaxTrees {
                     CapabilityContractKind::Boundary(BoundaryLevel::Named(name)) => {
                         CapabilityContractKind::Boundary(BoundaryLevel::Named(name.clone()))
                     }
-                    CapabilityContractKind::Crashes { cause, scope } => {
-                        CapabilityContractKind::Crashes {
-                            cause: *cause,
-                            scope: scope.clone(),
-                        }
+                    CapabilityContractKind::Crashes { cause } => {
+                        CapabilityContractKind::Crashes { cause: *cause }
                     }
                 },
                 facts: self.copy_domain_fact_span(other, contract.facts),

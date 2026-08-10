@@ -1042,13 +1042,12 @@ fn validate_crash_contract_refinement(
                         .all(|route| required.routes.contains(route)))
         });
         if !valid {
-            let SignatureContractKind::Crashes { cause, scope } = &actual_contract.kind else {
+            let SignatureContractKind::Crashes { cause } = &actual_contract.kind else {
                 unreachable!("checked crash bucket kind")
             };
             diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: its `crashes {cause:?} {}` routes are not contained by the required crash ceiling",
+                "{label} does not refine `{}`: its `crashes {cause:?}` routes are not contained by the required crash ceiling",
                 parameter.name,
-                scope.as_str(),
             )));
         }
     }

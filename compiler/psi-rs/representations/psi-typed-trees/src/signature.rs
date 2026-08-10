@@ -85,7 +85,6 @@ pub enum SignatureContractKind {
     Boundary,
     Crashes {
         cause: CrashCause,
-        scope: Identifier,
     },
 }
 

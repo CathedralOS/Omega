@@ -295,15 +295,13 @@ enum SummaryCrashRouteGuard {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct SummaryCrashBucket {
     cause: psi_checked_trees::CrashCause,
-    containment_demand: String,
     alternative_guards: Vec<SummaryCrashRouteGuard>,
 }
 
 impl SummaryCrashBucket {
-    fn unconditional(cause: psi_checked_trees::CrashCause, containment_demand: &str) -> Self {
+    fn unconditional(cause: psi_checked_trees::CrashCause) -> Self {
         Self {
             cause,
-            containment_demand: containment_demand.to_owned(),
             alternative_guards: vec![SummaryCrashRouteGuard::Truth],
         }
     }
@@ -327,7 +325,6 @@ impl SummaryCrashBucket {
         normalize_summary_guards(&mut guards);
         Self {
             cause: self.cause,
-            containment_demand: self.containment_demand.clone(),
             alternative_guards: guards,
         }
     }
@@ -335,7 +332,6 @@ impl SummaryCrashBucket {
     fn into_checked(self) -> Option<psi_checked_trees::CrashRouteBucket> {
         psi_checked_trees::CrashRouteBucket::new(
             self.cause,
-            self.containment_demand,
             self.alternative_guards
                 .into_iter()
                 .map(|guard| match guard {
@@ -360,22 +356,21 @@ fn normalize_summary_guards(guards: &mut Vec<SummaryCrashRouteGuard>) {
 
 fn normalize_summary_buckets(buckets: Vec<SummaryCrashBucket>) -> Vec<SummaryCrashBucket> {
     let mut grouped = std::collections::BTreeMap::<
-        (psi_checked_trees::CrashCause, String),
+        psi_checked_trees::CrashCause,
         Vec<SummaryCrashRouteGuard>,
     >::new();
     for bucket in buckets {
         grouped
-            .entry((bucket.cause, bucket.containment_demand))
+            .entry(bucket.cause)
             .or_default()
             .extend(bucket.alternative_guards);
     }
     grouped
         .into_iter()
-        .filter_map(|((cause, containment_demand), mut alternative_guards)| {
+        .filter_map(|(cause, mut alternative_guards)| {
             normalize_summary_guards(&mut alternative_guards);
             (!alternative_guards.is_empty()).then_some(SummaryCrashBucket {
                 cause,
-                containment_demand,
                 alternative_guards,
             })
         })
@@ -501,7 +496,6 @@ fn refine_published_crash_routes(
         if !guards.is_empty() {
             surviving.push(SummaryCrashBucket {
                 cause: bucket.cause(),
-                containment_demand: bucket.containment_demand().to_owned(),
                 alternative_guards: guards,
             });
         }
@@ -988,8 +982,8 @@ fn solve_private_summary_fixed_point(
                         // Substitution around a recursive cycle can create an
                         // unbounded family such as p(n), p(n - 1), ... . The
                         // finite conservative lattice widens exactly those SCC
-                        // edges to their cause/scope bucket.
-                        SummaryCrashBucket::unconditional(bucket.cause, &bucket.containment_demand)
+                        // edges to their cause bucket.
+                        SummaryCrashBucket::unconditional(bucket.cause)
                     } else {
                         bucket.substitute(&dependency.substitution)
                     }
@@ -1056,7 +1050,7 @@ fn inferred_direct_body_crash_buckets(
         .crash
         .checked_sites()
         .iter()
-        .map(|site| SummaryCrashBucket::unconditional(site.cause(), site.damage_minimum()))
+        .map(|site| SummaryCrashBucket::unconditional(site.cause()))
         .collect::<Vec<_>>();
     normalize_summary_buckets(std::mem::take(&mut buckets))
 }
@@ -1166,21 +1160,14 @@ mod tests {
     fn private_summary_fixed_point_closes_recursive_components() {
         let first = SymbolHandle::from_arena_index(1);
         let second = SymbolHandle::from_arena_index(2);
-        let abort = SummaryCrashBucket::unconditional(
-            psi_checked_trees::CrashCause::Abort,
-            psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE,
-        );
+        let abort = SummaryCrashBucket::unconditional(psi_checked_trees::CrashCause::Abort);
         let guarded_abort = SummaryCrashBucket {
             cause: psi_checked_trees::CrashCause::Abort,
-            containment_demand: psi_checked_trees::EXECUTION_DOMAIN_CRASH_SCOPE.to_owned(),
             alternative_guards: vec![SummaryCrashRouteGuard::Predicate(
                 CrashPredicateExpression::Parameter(0),
             )],
         };
-        let trap = SummaryCrashBucket::unconditional(
-            psi_checked_trees::CrashCause::Trap,
-            psi_checked_trees::ACTIVATION_CRASH_SCOPE,
-        );
+        let trap = SummaryCrashBucket::unconditional(psi_checked_trees::CrashCause::Trap);
         let equations = vec![
             PrivateSummaryEquation {
                 machine: first,
@@ -1221,7 +1208,6 @@ mod tests {
         let wrapper = SymbolHandle::from_arena_index(2);
         let route = SummaryCrashBucket {
             cause: psi_checked_trees::CrashCause::Trap,
-            containment_demand: psi_checked_trees::ACTIVATION_CRASH_SCOPE.to_owned(),
             alternative_guards: vec![SummaryCrashRouteGuard::Predicate(
                 CrashPredicateExpression::Parameter(0),
             )],

@@ -448,8 +448,6 @@ pub struct SignatureContractSnapshot {
     pub kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub crash_cause: Option<&'static str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub crash_scope: Option<String>,
     pub facts: Vec<ProofFactSnapshot>,
     pub token_count: usize,
 }
@@ -1180,18 +1178,17 @@ fn signature_contract_snapshot(
     program: &SymbolResolvedTrees,
     contract: &crate::signature::SignatureContract,
 ) -> SignatureContractSnapshot {
-    let (kind, crash_cause, crash_scope) = match &contract.kind {
-        crate::signature::SignatureContractKind::Requires => ("requires", None, None),
-        crate::signature::SignatureContractKind::Ensures => ("ensures", None, None),
-        crate::signature::SignatureContractKind::Boundary => ("boundary", None, None),
-        crate::signature::SignatureContractKind::Crashes { cause, scope } => {
+    let (kind, crash_cause) = match &contract.kind {
+        crate::signature::SignatureContractKind::Requires => ("requires", None),
+        crate::signature::SignatureContractKind::Ensures => ("ensures", None),
+        crate::signature::SignatureContractKind::Boundary => ("boundary", None),
+        crate::signature::SignatureContractKind::Crashes { cause } => {
             return SignatureContractSnapshot {
                 kind: "crashes",
                 crash_cause: Some(match cause {
                     crate::signature::CrashCause::Trap => "Trap",
                     crate::signature::CrashCause::Abort => "Abort",
                 }),
-                crash_scope: Some(scope.to_string()),
                 facts: domain_fact_snapshots(program, contract.facts),
                 token_count: contract.token_count,
             };
@@ -1200,7 +1197,6 @@ fn signature_contract_snapshot(
     SignatureContractSnapshot {
         kind,
         crash_cause,
-        crash_scope,
         facts: domain_fact_snapshots(program, contract.facts),
         token_count: contract.token_count,
     }
