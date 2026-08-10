@@ -9,7 +9,7 @@ fn checked(source: &str) -> psi_checked_trees::CheckedTrees {
 }
 
 #[test]
-fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
+fn retains_canonical_semantic_permission_events() {
     let checked = checked(
         r#"
         data Receipt [linear] { code: i32; }
@@ -48,10 +48,6 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
         ]
     );
     assert!(
-        !checked.facts.flow.ownership.moves.is_empty(),
-        "legacy compatibility moves remain while downstream migration is staged"
-    );
-    assert!(
         events
             .iter()
             .all(|event| event.access == psi_language_semantics::PermissionAccess::Owned)
@@ -88,7 +84,7 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
     assert_eq!(
         events[4].provenance,
         psi_language_semantics::PermissionProvenance::Unknown,
-        "legacy-derived affine cleanup must not invent establishment provenance"
+        "affine cleanup without live debt must not invent establishment provenance"
     );
     assert_eq!(
         events[4].claim_identity,
@@ -581,7 +577,7 @@ fn borrow_loans_share_the_permission_context_with_access_and_origin() {
 }
 
 #[test]
-fn linear_judgment_reads_permission_events_not_legacy_move_drop_arenas() {
+fn linear_judgment_reads_canonical_permission_events() {
     let checked = checked(
         r#"
         data Receipt [linear] { code: i32; }
@@ -595,10 +591,7 @@ fn linear_judgment_reads_permission_events_not_legacy_move_drop_arenas() {
         }
         "#,
     );
-    let mut facts = checked.facts.clone();
-    facts.flow.ownership.moves = Default::default();
-    facts.flow.ownership.drops = Default::default();
-    crate::checks::validate_linear_permission_events(&checked.typed, &facts)
+    crate::checks::validate_linear_permission_events(&checked.typed, &checked.facts)
         .expect("semantic permission events are sufficient for the judgment");
 }
 
@@ -983,7 +976,7 @@ fn state_call_result_consumes_checked_opaque_multi_output_map() {
 }
 
 #[test]
-fn permission_producer_discovers_transfers_without_legacy_moves() {
+fn permission_producer_reconstructs_transfers_from_typed_flow() {
     let checked = checked(
         r#"
         data Receipt [linear] { code: i32; }
@@ -1007,7 +1000,6 @@ fn permission_producer_discovers_transfers_without_legacy_moves() {
         .collect::<Vec<_>>();
 
     let mut facts = checked.facts.clone();
-    facts.flow.ownership.moves = Default::default();
     facts.flow.ownership.permissions = Default::default();
     crate::checks::record_permission_events(&checked.typed, &mut facts);
     let actual = facts
@@ -1021,7 +1013,7 @@ fn permission_producer_discovers_transfers_without_legacy_moves() {
 }
 
 #[test]
-fn permission_producer_discovers_affine_cleanup_without_legacy_drops() {
+fn permission_producer_reconstructs_affine_cleanup_from_typed_flow() {
     let checked = checked(
         r#"
         data Box { value: i32; }
@@ -1052,7 +1044,6 @@ fn permission_producer_discovers_affine_cleanup_without_legacy_drops() {
     );
 
     let mut facts = checked.facts.clone();
-    facts.flow.ownership.drops = Default::default();
     facts.flow.ownership.permissions = Default::default();
     crate::checks::record_permission_events(&checked.typed, &mut facts);
     let actual = facts

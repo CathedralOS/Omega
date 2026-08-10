@@ -1,7 +1,6 @@
 use omega_core::parallel::WorkerPoolHandle;
 use omega_state_graph::{MachineGraph, StateGraph, StateGraphServiceReachRoots};
 use psi_checked_trees::CheckedTrees;
-use psi_checked_trees::expression::ExpressionTableCapacity;
 use psi_checked_trees::machine::Machine;
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -22,34 +21,7 @@ pub(crate) fn build_state_graph_with_workers(
     workers: WorkerPoolHandle,
 ) -> Result<StateGraph, Diagnostic> {
     if program.machines().is_empty() {
-        let mut state_graph = StateGraph::with_capacity(
-            ExpressionTableCapacity::default(),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        );
+        let mut state_graph = StateGraph::default();
         install_service_reach_roots(&mut state_graph, &program);
         return Ok(state_graph);
     }

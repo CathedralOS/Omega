@@ -41,9 +41,9 @@ Primary responsibility: lower checked control flow into explicit operations with
   boundary, borrow, and ownership arenas visibly separate from executable
   control-flow shape.
 - `lowering/ownership.rs` owns the canonical control-flow permission-event copy
-  into the abstract-operation ownership summary. The legacy move/drop arenas
-  end at this boundary; this stage must not reconstruct permission meaning from
-  them. Each copied event retains its canonical control-flow arena identity so
+  into the abstract-operation ownership summary. Checked trees and subsequent
+  IRs carry no parallel move/drop arenas. Each copied event retains its
+  canonical control-flow arena identity so
   selection-time realization candidates can join without source-text identity.
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level

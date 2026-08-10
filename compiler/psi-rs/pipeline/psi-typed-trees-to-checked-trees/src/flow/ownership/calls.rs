@@ -2,7 +2,7 @@ use super::*;
 
 pub(in crate::flow) fn append_call_ownership_events(
     program: &psi_typed_trees::TypedTrees,
-    sink: &mut impl MoveEventSink,
+    sink: &mut DirectMoveEventSink<'_>,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     borrow_call: &BorrowCallFact,

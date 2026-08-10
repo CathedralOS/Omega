@@ -51,8 +51,6 @@ pub(super) fn append_state_statement_flow_facts(
         // can restore it for the fallthrough after this statement is flowed.
         let fallthrough_contexts = *active_contexts;
         let fallthrough_constraints = *active_constraints;
-        append_statement_ownership_events(program, ctx, state.symbol, statement_index, statement);
-
         while let Some(borrow_call) = borrow_calls.get(call_index) {
             if borrow_call.statement_index != statement_index {
                 break;

@@ -67,8 +67,6 @@ pub(super) fn build_state_flow_fact(
     let state_invalidations_start = ctx.invalidations.events.len();
     let state_borrow_activations_start = ctx.borrow_lifetimes.activations.len();
     let state_borrow_weakenings_start = ctx.borrow_lifetimes.weakenings.len();
-    let state_moves_start = ctx.ownership.moves.len();
-    let state_drops_start = ctx.ownership.drops.len();
     let state_boundary_edges_start = ctx.boundaries.edges.len();
     let state_statements_start = ctx.control.statements.len();
     let state_calls = append_state_statement_flow_facts(
@@ -95,7 +93,6 @@ pub(super) fn build_state_flow_fact(
             .len(),
         FlowBorrowWeakeningReason::StateExit,
     );
-    append_state_exit_drop_events(program, ctx, state);
     let state_exits = append_state_exit_facts(
         proof,
         semantic,
@@ -122,8 +119,6 @@ pub(super) fn build_state_flow_fact(
             &ctx.borrow_lifetimes.weakenings,
             state_borrow_weakenings_start,
         ),
-        moves: appended_span_since(&ctx.ownership.moves, state_moves_start),
-        drops: appended_span_since(&ctx.ownership.drops, state_drops_start),
         boundary_edges: appended_span_since(&ctx.boundaries.edges, state_boundary_edges_start),
         statements: appended_span_since(&ctx.control.statements, state_statements_start),
         calls: state_calls,

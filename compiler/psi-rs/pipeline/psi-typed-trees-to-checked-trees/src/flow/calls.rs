@@ -60,7 +60,6 @@ pub(super) fn build_call_flow_fact(
         &entry,
         &mut exit,
     );
-    append_call_ownership_events(program, ctx, machine, state, borrow_call);
     let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
     *active_contexts = clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, exit.contexts);
     *active_constraints =

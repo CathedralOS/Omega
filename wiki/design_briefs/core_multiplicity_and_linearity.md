@@ -165,12 +165,10 @@ transfer-stable provenance.
 Existing shared/exclusive borrow loans enter the same permission context at
 activation and leave it at weakening; their mature legality checks are not
 reimplemented. The linear judgment reads this context exclusively. Affine
-cleanup is discovered directly from typed state ownership; the legacy drop
-summary is no longer producer input. Semantic transfers and consumes run the
-same canonical typed move-discovery traversal through an independent event
-sink, so the legacy move summary is likewise compatibility output only.
-Both compatibility arenas now terminate at control flow. Abstract operations
-and every later backend plan carry only the canonical permission ledger.
+cleanup is discovered directly from typed state ownership. Semantic transfers
+and consumes run the canonical typed move-discovery traversal directly into
+the permission producer. Checked trees and every later IR carry only the
+canonical permission ledger; the parallel move/drop summaries are deleted.
 The backend ledger now also records one fail-closed realization per canonical
 event: exact selected instruction indices, or a narrow checked no-code reason
 for an explicit zero-code terminal consume, no-live-debt event, or trivial

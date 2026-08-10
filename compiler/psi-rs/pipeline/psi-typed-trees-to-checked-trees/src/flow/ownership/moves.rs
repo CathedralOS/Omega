@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn append_move_events_for_expression(
     program: &psi_typed_trees::TypedTrees,
-    sink: &mut impl MoveEventSink,
+    sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -171,7 +171,7 @@ pub(super) fn append_move_events_for_expression(
 /// the receiver descent regardless of the callee.
 fn append_move_events_for_call_arguments(
     program: &psi_typed_trees::TypedTrees,
-    sink: &mut impl MoveEventSink,
+    sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
     call: &psi_typed_trees::expression::TableCallExpression,
@@ -243,7 +243,7 @@ fn append_move_events_for_call_arguments(
 /// borrowed receiver (`&self`/`&mut self`) transfers nothing.
 pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call(
     program: &psi_typed_trees::TypedTrees,
-    sink: &mut impl MoveEventSink,
+    sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
     call: &psi_typed_trees::statement::TableCall,

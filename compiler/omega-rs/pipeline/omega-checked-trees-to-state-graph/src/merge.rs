@@ -64,8 +64,6 @@ pub(crate) fn merge_machine_graph(
             },
             ownership: SourceOwnershipArenas {
                 segments: &ownership.segments,
-                moves: &ownership.moves,
-                drops: &ownership.drops,
                 permissions: &ownership.permissions,
             },
         },

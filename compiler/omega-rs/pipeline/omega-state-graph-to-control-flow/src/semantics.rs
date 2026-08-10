@@ -26,10 +26,7 @@ use crate::contracts::{
 use crate::facts::{
     remap_invariant_owned, remap_invariants, remap_proof_obligation_owned, remap_proof_obligations,
 };
-use crate::ownership::{
-    remap_drop_event_owned, remap_drop_events, remap_move_event_owned, remap_move_events,
-    remap_permission_event_owned, remap_permission_events,
-};
+use crate::ownership::{remap_permission_event_owned, remap_permission_events};
 use crate::values::{remap_value_owned, remap_values};
 
 pub(crate) fn remap_semantic_roots(state_graph: &StateGraph) -> ControlFlowSemanticRoots {
@@ -154,8 +151,6 @@ fn remap_borrow_roots_owned(borrow: SourceBorrowRoots) -> ControlFlowBorrowRoots
 fn remap_ownership_roots(state_graph: &StateGraph) -> ControlFlowOwnershipRoots {
     ControlFlowOwnershipRoots::with_roots(
         state_graph.semantics.ownership.segments.clone(),
-        remap_move_events(state_graph),
-        remap_drop_events(state_graph),
         remap_permission_events(state_graph),
     )
 }
@@ -163,8 +158,6 @@ fn remap_ownership_roots(state_graph: &StateGraph) -> ControlFlowOwnershipRoots 
 fn remap_ownership_roots_owned(ownership: SourceOwnershipRoots) -> ControlFlowOwnershipRoots {
     ControlFlowOwnershipRoots::with_roots(
         ownership.segments,
-        ownership.moves.map(remap_move_event_owned),
-        ownership.drops.map(remap_drop_event_owned),
         ownership.permissions.map(remap_permission_event_owned),
     )
 }
