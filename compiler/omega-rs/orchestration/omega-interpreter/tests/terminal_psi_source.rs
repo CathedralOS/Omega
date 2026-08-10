@@ -687,7 +687,7 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
         .find(|machine| machine.name.as_str() == "terminal_constant")
         .expect("terminal constant machine");
     source_machine.name = replacement_name;
-    source_machine.boundary = true;
+    source_machine.supply_mode = psi_language_semantics::MachineSupplyMode::Boundary;
 
     let actual = lower_machine(&without_typed_selection, "terminal_constant")
         .expect("terminal production must not reopen typed machine selection or eligibility");

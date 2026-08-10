@@ -468,7 +468,9 @@ symbol-exact, capability flows use normalized call topology, and categorical
 provider authority/reporting no longer projects service names. Static-machine
 refinement consumes exact service rows, checked trees carry grouped
 `ServiceReachFacts` directly, and machine-contract identity has no legacy
-legacy effect-row field or fingerprint input. The obsolete
+effect-row field or fingerprint input. Resolved and typed machine records also
+carry only normalized supply mode, not a parallel `boundary` compatibility
+bit. The obsolete
 `EffectRowId`/`EffectRowTable` carrier and global lowercase service-name/u64
 table are deleted. Core, resolved trees, and typed trees retain only
 symbol-resolved `ServiceReachRowId` values.

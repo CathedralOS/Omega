@@ -2706,6 +2706,35 @@ fn quotient_rejects_missing_equivalence_law() {
 }
 
 #[test]
+fn quotient_rejects_external_relation_even_when_its_shape_matches() {
+    let mut typed = typed_program_from_source(
+        r#"
+        data Carrier { case Zero; case Next(prev: Carrier); }
+        machine equivalent(a: Carrier, b: Carrier) -> bool {
+            transition { _ -> (true) }
+        }
+        data Quotient = Carrier % equivalent;
+        "#,
+    );
+    let relation = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "equivalent")
+        .expect("relation machine");
+    relation.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        binding: psi_language_semantics::ExternalBindingId(1),
+    };
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an external realization cannot act as a checked quotient relation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must be a free checked pure machine")
+    }));
+}
+
+#[test]
 fn quotient_construction_is_carrier_only() {
     let typed = typed_program_from_source(
         r#"

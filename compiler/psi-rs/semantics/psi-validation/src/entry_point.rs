@@ -27,7 +27,8 @@ pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<D
     // any boundary-marked entry; legacy param'd `Main::main` test scaffolding
     // is exempt until the main-retirement sweep migrates it.
     let canonical = machine.name.as_str() == "Main::run";
-    if !canonical && !machine.boundary {
+    let is_boundary_declaration = machine.supply_mode.is_boundary_declaration();
+    if !canonical && !is_boundary_declaration {
         return;
     }
     let parameters: Vec<_> = program
@@ -43,7 +44,7 @@ pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<D
     let imposes_structure = parameters
         .iter()
         .any(|parameter| !program.is_borrowed_byte_slice(parameter.type_reference));
-    if imposes_structure && !machine.boundary {
+    if imposes_structure && !is_boundary_declaration {
         diagnostics.push(Diagnostic::error(format!(
             "the entry `{}` imposes structure on the platform's arrival bytes; declare it `boundary machine` (the exported-callable surface owns that claim)",
             machine.name.as_str()

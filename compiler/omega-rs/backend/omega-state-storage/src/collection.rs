@@ -164,7 +164,6 @@ fn build_machine_state_storage_plan(
                     if !local_data_requires_storage(
                         program,
                         local_data.is_mutable,
-                        machine.boundary,
                         state,
                         &program.expression_table,
                         &program.statement_table,
@@ -486,9 +485,6 @@ fn operand_declared_trapping(
 fn local_data_requires_storage(
     program: &CheckedTrees,
     local_is_mutable: bool,
-    // Retained for signature stability; the ref-param deref materialization it
-    // used to gate now fires in every machine (bug 2026-07-12).
-    _machine_is_boundary: bool,
     state: &psi_checked_trees::state::State,
     expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,

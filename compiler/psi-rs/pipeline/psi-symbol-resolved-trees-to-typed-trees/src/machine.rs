@@ -16,8 +16,7 @@ pub(crate) fn lower_machine(
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
-        boundary: machine.boundary,
-        // STR3: copied, never re-derived.
+        // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         // TPR2: copied, never re-derived (populated at syntax->resolved).
         // TPR4 slice 3: an implementation satisfying a requirement that

@@ -41,13 +41,14 @@ compiler-specific `ArithmeticDomain` paths and contribute the closed
 
 ### Machines
 
-The symbol-resolved and typed `Machine` records carry `boundary: bool`, a
-normalized `termination_guarantee`, a private `RankingWitness`, a flat
-effect-name span, contracts, and states. They do not yet
-carry a normalized semantic contract, supply mode, consumption eligibility,
-observation surface/floor, progress contract, or boundary-facing contract
-identity. Requirement, provider, checked body, and accepted declaration are
-therefore liable to be inferred from syntax and lookup context repeatedly.
+The symbol-resolved and typed `Machine` records carry one normalized
+`MachineSupplyMode`, a public termination guarantee, a private
+`RankingWitness`, independent service/suspension/blocking/crash surfaces,
+contracts, and states. Source syntax alone retains the `boundary` spelling;
+semantic consumers do not reconstruct supply from that spelling or body
+presence. The remaining gap is their convergence into one normalized semantic
+contract with consumption eligibility, observation surface/floor, progress
+contract, and boundary-facing contract identity.
 
 The guarantee/witness split now represents an inherited guarantee with an
 implementation-local witness and lets a witness change leave interface
@@ -307,25 +308,31 @@ between rows without merging their semantic identities.
 
 ### Machine semantic contract
 
-Introduce a normalized `MachineSemanticContract` (name provisional) containing
-the complete substitutable contract plus an explicit `MachineSupplyMode`.
-Syntax trees may retain source spelling, but provider admission, proof
-artifacts, component manifests, compile-time evaluation, task-activation
-checking, and lowering must consume this normalized object rather than
-re-derive it from `boundary`, bodies, and effect names.
+Converge the complete substitutable contract into a normalized
+`MachineSemanticContract` (name provisional). Its `MachineSupplyMode` is
+already first-class from symbol-resolved trees onward. Syntax trees may retain
+source spelling, but provider admission, proof artifacts, component manifests,
+compile-time evaluation, task-activation checking, and lowering consume the
+normalized mode rather than re-derive it from `boundary`, bodies, or effect
+names.
 
 Consumption eligibility should normally be derived views/queries over the
 contract, not stored independent booleans that can drift.
 
-The supply representation must preserve the four settled variants directly:
+The supply representation preserves the five settled variants directly:
 
 ```text
 MachineSupplyMode =
     CheckedBody
-  | RequiredBody
+  | Requirement
+  | Boundary
+  | Accepted
   | ExternalRealization { binding: NormalizedBindingId }
-  | AcceptedDeclaration
 ```
+
+`Boundary` is an externally supplied host/component declaration. `Accepted` is
+the axiom-tier form whose trust remains explicit. Neither is interchangeable
+with a checked body or a requirement.
 
 `ExternalRealization` is sourced by `satisfies ... via <Binding>`. The binding
 expression is compile-time evaluated and normalized before checked-plan
@@ -447,11 +454,11 @@ manifest. Attachment rejects child-scope drift, duplicate scope identities,
 and entries attributed to the wrong scope. Parent and child completeness—and
 therefore profile acceptance—remain independent.
 
-Source `boundary` remains insufficient to reconstruct this enum: a checked
-exported callable and an accepted bodyless declaration both mention the word
-but have different supply modes. Likewise, body absence distinguishes a trait
-requirement only in its declaration context. Populate the enum once during
-semantic lowering and carry it thereafter.
+Source `boundary` remains insufficient to reconstruct this enum: boundary
+supply and an accepted bodyless declaration both mention the word but have
+different trust. Likewise, body absence distinguishes a requirement only in
+its declaration context, while `via` names an external realization. Populate
+the enum once during semantic lowering and carry it thereafter.
 
 Termination needs an explicit interface/implementation split:
 

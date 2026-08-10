@@ -27,7 +27,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     || !machine.invokes.is_empty()
                     || machine.suspends
                     || machine.blocks
-                    || machine.boundary
+                    || !machine.supply_mode.is_checked_body()
                 {
                     CheckedTerminalSignatureEligibility::Unsupported
                 } else {
