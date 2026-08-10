@@ -456,19 +456,6 @@ These entries are pointers, not duplicate specifications.
 - Keep unavailable hosts structurally tested and report the missing runtime
   leg explicitly.
 
-## Vertical acceptance slices
-
-- **Allocator:** qualified root -> two live subextents -> cleanup/retirement ->
-  exact recomposition -> original root returned.
-- **PCC:** canonical Psi -> independently reconstructed obligations -> checked
-  proof bundle -> interpretation/native agreement after producer state is gone.
-- **OS:** UART/MMIO -> Cathedral page tables -> DMA -> hostile/trusted shared
-  pages -> exception/timer entry -> SMP AP bring-up, with no customer-shaped
-  compiler primitive.
-- **Control state:** checked assembly cannot hide stack/control mutation;
-  provider exits match their plans; external loans remain inside their extent;
-  parked continuations remain non-addressable.
-
 ## Deferred until a real customer
 
 - fault-tolerant component restart: define closed-custody component closure,

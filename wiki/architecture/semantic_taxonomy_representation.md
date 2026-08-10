@@ -785,11 +785,9 @@ outcomes, and mutation remain separate fields/analyses. Do not manufacture a
 single all-purpose effect record or reconstruct suspension/blocking from
 service reach.
 
-Checked facts
-name the grouped suspension/blocking/call-topology plan `operational`. The
-former `operations` field was an ambiguous internal umbrella name; this rename
-does not combine service reach, trust, mutation, termination, or any other
-independent semantic axis with the operational fixed point.
+Checked facts name the grouped suspension/blocking/call-topology plan
+`operational`. Service reach, trust, mutation, and termination remain
+independent semantic axes.
 
 ## Migration discipline
 

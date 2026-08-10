@@ -1,7 +1,5 @@
 # Design Brief: Build-Time Evaluation — Const Evaluation + Trait Generators
 
-Current design as of 2026-07-27. This brief resolves the former build-time
-evaluation owner question.
 Omega uses hermetic **semantic evaluation** for constants, proofs, plans, and
 trait generators. It has no `comptime`, macro, or `#run` keyword.
 
@@ -81,70 +79,24 @@ also prove at that site that its denominator is positive, its signed
 coordinates are cancelled, and its numerator magnitude and denominator are
 gcd-reduced.
 
-Current implementation: generic `const` arguments retain
-one compiler-generated canonical value atom across monomorphized and structural
-generic identity. Named literal constants over eligible integers, booleans,
-fixed arrays, records, and cases normalize recursively; record and payload
-fields use declaration order, not authored literal order. Eligibility rejects
-floating/text values, references, slices, dynamic identities, and
-boundary-opaque data structurally. Current `Rat` admission performs the three
-checks above at the argument site. Quotients and default-domain-constrained
-records fail closed until the evaluator can prove their canonical
-representative or domain facts at that site. Closed erased domain families now
-consume the same canonical atoms for per-instance semantic identity. Indexed
-explicit qualification now preserves a closed atom or direct const binder as
-that exact identity. Constrained parameter/result evidence now specializes
-const-generic calls to canonical tuples and refreshes their exact domain
-identity before checking. PDI3's licensed symbolic index normalization and
-exact local-fact compatibility are implemented; arbitrary machine evaluation
-in type equality remains forbidden.
+Canonical compile-time values retain one atom across generic,
+monomorphized, and structural identity. Eligible values are integers, Booleans,
+fixed arrays, records, and cases; declaration order determines aggregate
+identity. Floating/text values, references, slices, dynamic identities, and
+boundary-opaque data are not canonical generic atoms. Indexed qualification and
+constrained calls preserve the same closed atom or const-binder identity.
+Quotients and constrained records fail closed unless their canonical
+representative and required facts are proved at the use site. Arbitrary machine
+evaluation never participates in type equality.
 
-Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
-arithmetic evaluates the same executable `FloatSemantics` functions that define
-the target operation contracts. Constant/runtime twin canaries cover rounding
-boundaries, subnormals, overflow/underflow, signed zero, infinities, NaN
-semantics, and fused-versus-unfused operations. Computing target `f32` through
-host `f64` without an exact equivalence proof is a compiler bug.
-
-The base promise is equality of `FloatMeaning`, not arbitrary NaN payload bits.
-A build-time raw-bit observation of a computed possibly-NaN result requires
-proof of non-NaN, canonicalization, or an exact raw-NaN refinement from the
-selected target realization. Cache keys include that selected realization and
-its semantic control-state identity wherever the refinement matters.
-
-The first shared-engine checkpoint now routes exact decimal landing,
-anonymous-constant landing, and landed interpreter add/subtract/multiply/divide
-through one binary32/binary64 semantic implementation, including per-operation
-binary32 rounding, partial comparisons, min/max, and separate fused and
-unfused multiply-add meanings. The same engine now supplies correctly rounded
-square root, classification, float/integer and format conversion, and explicit
-directed-rounding definitions; the interpreter's square-root and compatibility
-conversion consumers use them without host arithmetic. Backend guard-constant
-folding also uses the shared engine rather than evaluating on the host and
-narrowing afterward. Compatibility x86-64 and AArch64 integer-to-float
-lowering now preserves source signedness through the full 64-bit range as well.
-The compatibility `Math::fused_multiply_add` interpreter path also consumes the
-shared fused definition, with a native/interpreter edge pair that would become
-zero if the operation were incorrectly split into multiply-then-add.
-The core module now publishes source-visible pure `FloatSemantics` identities
-and contracted f32/f64 carrier requirements for arithmetic/comparison,
-multiply-then-add/FMA, classification, and directed rounding. Named F32/F64
-FMA, classification, and directed-rounding calls now share one
-ambiguity-checked resolver across validation, checked flow, and the interpreter,
-which evaluates them through `FloatSemantics`; argument and result types remain
-checked and unknown requirements reject. A fixed-array-length invocation and
-its runtime call now execute the same zero-argument semantic machine across
-both permanent formats, pinning rounding boundaries, subnormal underflow,
-overflow, signed zero, infinities, NaN comparisons and min/max, classification,
-square root, every directed arithmetic family, and fused-versus-unfused
-behavior. Core float requirements backed by the hermetic semantic engine do
-not count as host observation; compatibility imports retain the dynamic host-
-boundary purity fence. The public float-conversion family is now settled as
-destination-owned named requirements with result-domain overloads for
-same-shape arithmetic policy. Exact denotation-preserving coercions remain
-`as`; directed one-step rounding remains separately named. Only the public
-failure-returning result carrier remains deferred with checked-result
-arithmetic.
+Target equivalence is mandatory. Build-time floating-point operations use the
+same executable `FloatSemantics` meanings as runtime operations, including
+format-specific rounding, classification, conversions, square root, and fused
+versus unfused arithmetic. A target-specific realization may refine raw NaN
+bits, but the portable promise is equality of `FloatMeaning`; observing
+computed NaN payload bits requires a proof or selected realization that fixes
+them. Cache identity includes every selected realization and semantic control
+state that can affect the result.
 
 ## Admission uses the complete invocation contract
 
