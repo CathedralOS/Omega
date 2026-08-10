@@ -5,11 +5,11 @@ the immutable terminal-Psi module. Crates under this directory must not depend
 on Omega backend, target, ABI, storage, instruction, object, or installation
 representations.
 
-The migration is incremental. Existing target-neutral bootstrap crates remain
-under `compiler/omega-rs` until their ownership is moved or renamed with a
-compatibility adapter. New terminal semantic identities and proof machinery
-land here so the eventual boundary does not acquire a reverse dependency on
-the old Omega pipeline.
+Frontend ownership has migrated completely: Omega consumes Psi-owned source
+and semantic representations directly, and no Omega-named frontend adapter or
+`omega-core` re-export sits between them. Terminal-Psi coverage still grows in
+vertical slices; constructs outside that vocabulary continue from checked Psi
+semantics into Omega lowering until their terminal form lands.
 
 Current roots:
 
@@ -34,8 +34,8 @@ Current roots:
 - `foundation/psi-numerics`: exact integers/rationals, host-independent float
   semantics, arithmetic domains, and source-literal payloads;
 - `foundation/psi-source`: loaded-source records and maps, source identities,
-  coordinates, and source-backed text shared by the Psi frontend and temporary
-  Omega compatibility exports;
+  coordinates, and source-backed text shared by the Psi frontend and Omega
+  orchestration;
 - `foundation/psi-source-loader`: root-file loading into Psi-owned source maps;
 - `foundation/psi-symbols`: stable source symbol identities, names, paths, and
   hierarchy storage used by resolution and later semantic stages;
@@ -77,9 +77,7 @@ Current roots:
   verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
   evidence checking.
 
-The old Omega-named source-to-checked pipeline packages have been retired;
-every workspace harness invokes these Psi stages directly. Some Omega-named
-source representation packages remain implementation-free compatibility
-exports for legacy consumers. The driver's checked-tree handoff into the
-legacy Omega backend remains migration work; new frontend and
-terminal-production work proceeds under this root.
+Every workspace harness invokes the Psi source-to-checked stages directly.
+Omega begins at provider selection and realization: it consumes terminal Psi
+where that vocabulary exists and otherwise lowers checked Psi semantics while
+the remaining terminal slices are implemented.

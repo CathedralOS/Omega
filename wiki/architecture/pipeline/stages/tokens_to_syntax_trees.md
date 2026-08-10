@@ -21,22 +21,19 @@ source shape without turning nested syntax into scattered heap objects.
 
 - `compiler/psi-rs/representations/psi-syntax-trees` owns `SyntaxTrees`, its
   arena-backed tables, identity/snapshot materialization, and all source-shaped
-  nodes. The unused `omega-syntax-trees` compatibility package is retired.
+  nodes.
 - `compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees` owns the parser modules
-  listed below. The old `omega-tokens-to-syntax-trees` package is retired after
-  every workspace harness moved to this Psi stage.
+  listed below. Every workspace harness uses this Psi stage directly; the old
+  Omega-named parser and syntax-tree packages are retired.
 - `compiler/psi-rs/foundation/psi-arena` owns the generic typed dense, paged,
   generational, hierarchy, and ordered-root arena storage required by source
-  representations. `omega-core::arena` temporarily re-exports these exact
-  types for unmigrated frontend consumers.
+  representations.
 - `compiler/psi-rs/foundation/psi-diagnostics` owns the target-neutral
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
 - `compiler/psi-rs/foundation/psi-language-core` owns the grammar-facing
   multiplicity, data-supply, carry, domain-body, call-acknowledgement,
   atomic-ordering, cast-form, operator-spelling, and source-assembly contract
-  vocabulary. The
-  corresponding `omega-core` modules are compatibility exports during parser
-  migration.
+  vocabulary.
 - `compiler/psi-rs/foundation/psi-numerics` owns exact numeric meanings,
   arithmetic-domain vocabulary, and integer/float literal payloads. Parser-side
   literal validation therefore remains target-neutral when the stage migrates.
@@ -63,8 +60,8 @@ source shape without turning nested syntax into scattered heap objects.
   `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `suspends`,
   `blocks`, `crashes`, `requires`, and `ensures`
   clauses. `via` is terminal and mutually exclusive with an executable body.
-  The current standalone `decreases` parser is migration debt under decision
-  23.
+  Standalone `decreases` and the old termination block diagnose their current
+  `terminates by ...` replacement rather than entering the syntax tree.
 - `parser/transition.rs` owns transition block assembly.
 - `parser/transition/guards.rs` owns transition subjects, guard patterns, wildcard matching, and guard expression synthesis.
 - `parser/transition/targets.rs` owns transition target parsing and

@@ -18,13 +18,12 @@ Primary responsibility: preserve source identity and split text into tokens.
   source identities, byte-span coordinates, and source-backed text.
 - `compiler/psi-rs/foundation/psi-diagnostics` owns source-addressable
   diagnostics, and `compiler/psi-rs/foundation/psi-source-loader` owns root-file
-  loading. Their old `omega-core` module paths are compatibility exports.
+  loading.
 - `compiler/psi-rs/representations/psi-tokens` owns token kinds, text, and
   streams.
 - `compiler/psi-rs/pipeline/psi-source-files-to-tokens` owns the implementation
-  files below. The old `omega-source-files-to-tokens` package is retired after
-  every workspace harness moved to this Psi stage. The unused `omega-tokens`
-  representation export is retired too.
+  files below. Every workspace harness uses this Psi stage directly; the old
+  Omega-named lexer and token packages are retired.
 - `lexer.rs` owns token dispatch, source-span slicing, token construction, comments, whitespace, identifiers, keywords, and punctuation.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.
 - `lexer/strings.rs` owns cooked/raw string scanning and escape validation while advancing the lexer cursor.
@@ -52,9 +51,3 @@ Primary responsibility: preserve source identity and split text into tokens.
 - Must preserve byte spans and source text slices faithfully enough for diagnostics and later lowering.
 - Must classify tokens only by spelling-level rules.
 - Must not own language meaning, import semantics, symbol resolution, type facts, proof facts, borrow facts, reach, or boundary authority.
-
-## Known Gaps
-
-The lexer and next parser stage both consume Psi-owned packages directly. Some
-nonfrontend consumers still use `omega-core::source` compatibility module paths;
-that shared-foundation migration is independent of this stage's ownership.
