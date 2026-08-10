@@ -1,34 +1,15 @@
-// PROVES the FULL window_demo behavior running natively through the shipped macOS
-// Gui backend module (render fire 22). This is `samples/gui/window_demo`'s main
-// state machine — the animated 64x64 diagonal wash, StretchDIBits-style blit, and
-// per-frame message pump — but driven through a `gui: MacosGui` CONCRETE-PROVIDER
-// field (the proven value-call model; fire 22 refuted the fire-21 "must inline"
-// finding). Every Gui op the sample calls is exercised in its real loop shape:
-// window_create → get_dc → (per frame: fill → blit → msg_peek/translate/dispatch
-// pump loop → is_window liveness → advance). All 7 ops are the shipped
-// `omega::language::std::macos_gui` machines, unchanged. A clean run of the whole
-// bounded loop -> exit 3.
-//
-// Differences from the sample (headless-CI faithful, NOT behavioral): 8 frames
-// instead of 60 (bounded + fast); no `Clock.sleep` pacing (Clock native lowering
-// is a separate pending op — see TASKS_RENDER "Clock.sleep → usleep"); no
-// `Console.read_line` pause (would block CI). Everything else is verbatim.
-//
-// The ONLY thing between this canary and the UNTOUCHED sample running is the
-// source-transparent substitution (task #57): resolving the sample's abstract
-// `gui: Gui` boundary field to this concrete `gui: MacosGui` provider on darwin.
+// Bounded headless-CI canary for the shipped `MacosGui` provider. It exercises
+// window creation, DC lookup, framebuffer blitting, the message pump, and window
+// liveness through the same value-call shape as `window_demo`, using eight frames
+// and omitting timing and interactive console waits. Success exits with 3.
 
 use omega::language::std::macos_gui;
 
 use omega::language::std::console;
 
-// FIELD ORDER: the loop counter `i` and the guard scalars are declared BEFORE the
-// large `pixels: [i32; 4096]` so their frame offsets stay inside the AArch64 LDR
-// scaled-immediate range (< 16380). The real sample declares them AFTER the
-// framebuffer, which needs the large-offset machine-index encoder fix (a pending
-// task, see TASKS_RENDER); that fix is orthogonal to what this canary proves (the
-// full MacosGui behavior). `pixels` itself sits last — its base address is
-// materialized into a register, so a large base offset is already handled.
+// Keep loop/guard scalars before the framebuffer so this canary isolates provider
+// behavior from large frame-offset addressing. The framebuffer base itself is
+// materialized in a register.
 data Main {
     console: Console;
     gui: MacosGui;

@@ -1,7 +1,5 @@
-//! The GUI HEADLESS parity pin (TASKS_RENDER item 9, Gui/Input scope --
-//! Clock's virtual semantics belong to the time lane per D12): the flagship
-//! `samples/gui/window_demo` runs INTERPRETED to the same exit 0 the native
-//! build produces (`sample_window_demo_runs_natively_exits_0`, macos-gated).
+//! Headless GUI parity pin: `samples/gui/window_demo` runs interpreted to the
+//! same exit 0 as the macOS-gated native build.
 //! The virtual window system mints live handles, serves DCs/blits, reports
 //! "no key / no event", and the sample's own 60-frame loop terminates -- no
 //! real window opens, so this pin is platform-independent.

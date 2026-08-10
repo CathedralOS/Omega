@@ -53,8 +53,8 @@ pub enum InstructionOperandKind {
     /// marshalled into a FLOAT argument register (arm64 v0–v7), NOT a GPR. arm64
     /// passes float/double args in the vector-register sequence, independent of the
     /// x-register sequence used for integers/pointers. `byte_count` is 4 (`f32`) or
-    /// 8 (`f64`). Needed by any Cocoa/Core Graphics/libm call taking a `CGFloat`/
-    /// `double`. (Wired in a later fire — see TASKS_RENDER.md.)
+    /// 8 (`f64`). Used by Cocoa, Core Graphics, libm, and other native calls taking
+    /// a `CGFloat`/`double`.
     RuntimeScalarFloat {
         region: RuntimeStorageRegion,
         byte_offset: usize,

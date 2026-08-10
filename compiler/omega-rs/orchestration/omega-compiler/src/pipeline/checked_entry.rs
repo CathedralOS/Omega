@@ -57,9 +57,8 @@ pub fn compile_to_checked(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
 
-    // `native: false` — the interpreter path keeps the abstract `boundary trait Gui`
-    // (its own headless stub, item #9); only the native-image pipeline substitutes the
-    // darwin `MacosGui` provider (task #57).
+    // The interpreter keeps the abstract `boundary trait Gui` for its headless
+    // provider; only the native-image pipeline substitutes target providers.
     let (_source_file_count, mut syntax) =
         source_files_to_syntax_trees_for_engine(root_path, target_name, false, &mut timings)?;
     crate::pipeline::const_generic_calls::evaluate_const_generic_calls(&mut syntax.syntax_trees)?;
