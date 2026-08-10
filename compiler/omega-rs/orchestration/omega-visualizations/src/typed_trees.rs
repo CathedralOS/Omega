@@ -469,13 +469,23 @@ fn trait_machine_signature_label(program: &TypedTrees, machine: &StateSignature)
         symbol_label(machine.symbol),
         machine.parameters.len()
     );
-    let service_reaches = program.state_signature_service_reaches(machine);
+    let service_reaches = program
+        .service_reach_rows
+        .services(machine.service_reach_row)
+        .iter()
+        .map(|service| {
+            program
+                .service_reaches
+                .definition(*service)
+                .expect("normalized signature service row references a registered service")
+        })
+        .collect::<Vec<_>>();
     if !service_reaches.is_empty() {
         label.push_str("\nreaches: ");
         label.push_str(
             &service_reaches
                 .iter()
-                .map(|service| service.as_str())
+                .map(|service| service.name.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
         );

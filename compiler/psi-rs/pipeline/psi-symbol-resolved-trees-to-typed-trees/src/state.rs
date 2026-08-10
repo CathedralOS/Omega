@@ -5,6 +5,24 @@ use crate::type_reference::lower_type_reference_into_table;
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
 use psi_typed_trees as typed;
+use std::fmt;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum StateSignatureReachOwner<'a> {
+    Trait(&'a resolved::name::DiagnosticName),
+    Requirement(&'a resolved::name::DiagnosticName),
+}
+
+impl fmt::Display for StateSignatureReachOwner<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Trait(name) => write!(formatter, "trait `{name}`"),
+            Self::Requirement(name) => {
+                write!(formatter, "machine-parameter requirement `{name}`")
+            }
+        }
+    }
+}
 
 pub(crate) fn lower_state(
     lowerer: &mut Lowerer,
@@ -120,7 +138,10 @@ pub(crate) fn lower_state(
 pub(crate) fn lower_state_signature(
     lowerer: &mut Lowerer,
     signature: &resolved::signature::StateSignature,
+    owner: StateSignatureReachOwner<'_>,
 ) -> Result<typed::signature::StateSignature, Diagnostic> {
+    validate_state_signature_service_reaches(lowerer.source_trees, signature, owner)?;
+
     let mut typed_signature = typed::signature::StateSignature {
         symbol: signature.symbol,
         name: crate::name::lower_name(&signature.name),
@@ -138,7 +159,6 @@ pub(crate) fn lower_state_signature(
             .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
-        service_reaches: Default::default(),
         invokes: Default::default(),
         service_reach_row: signature.service_reach_row,
         suspends: signature.suspends,
@@ -190,16 +210,6 @@ pub(crate) fn lower_state_signature(
         lowerer
             .typed_trees
             .push_state_signature_invoke(&mut typed_signature, crate::name::lower_name(binding));
-    }
-
-    for service in lowerer
-        .source_trees
-        .signature_service_reaches(signature.service_reaches)
-    {
-        lowerer.typed_trees.push_state_signature_service_reach(
-            &mut typed_signature,
-            crate::name::lower_name(service),
-        );
     }
 
     for contract in lowerer
@@ -257,6 +267,30 @@ pub(crate) fn lower_state_signature(
     }
 
     Ok(typed_signature)
+}
+
+fn validate_state_signature_service_reaches(
+    program: &resolved::SymbolResolvedTrees,
+    signature: &resolved::signature::StateSignature,
+    owner: StateSignatureReachOwner<'_>,
+) -> Result<(), Diagnostic> {
+    for service in program.signature_service_reaches(signature.service_reaches) {
+        let resolved = program.symbols.find_child_by_name_and_kind(
+            program.symbols.root(),
+            service.as_str(),
+            psi_symbols::SymbolKind::Trait,
+        );
+        if resolved
+            .and_then(|symbol| program.service_reaches.id_for_symbol(symbol))
+            .is_none()
+        {
+            return Err(Diagnostic::error(format!(
+                "{owner} state `{}` declares unknown boundary service `{service}`",
+                signature.name,
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Every normalized declared domain on a parameter type, looking through a

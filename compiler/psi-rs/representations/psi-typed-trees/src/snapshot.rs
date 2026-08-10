@@ -558,7 +558,6 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
-    pub service_reaches: Vec<String>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
@@ -1234,11 +1233,6 @@ fn state_signature_snapshot(
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
         return_type: type_reference_snapshot_option(program, signature.return_type),
-        service_reaches: program
-            .state_signature_service_reaches(signature)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
         invokes: program
             .state_signature_invokes(signature)
             .iter()

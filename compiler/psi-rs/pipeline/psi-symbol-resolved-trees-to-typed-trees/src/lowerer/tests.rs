@@ -1271,7 +1271,7 @@ fn rejects_unknown_machine_service_reach_before_typed_trees() {
 }
 
 #[test]
-fn typed_machine_snapshot_publishes_only_normalized_service_reach() {
+fn typed_snapshots_publish_only_normalized_service_reach() {
     let source = r#"
         boundary trait Console {
             machine write_line(text: &[u8])
@@ -1295,6 +1295,13 @@ fn typed_machine_snapshot_publishes_only_normalized_service_reach() {
     };
 
     assert_eq!(machine.service_reach, ["Console"]);
+    let [trait_definition] = snapshot.roots.traits.as_slice() else {
+        panic!("one typed trait snapshot");
+    };
+    let [signature] = trait_definition.machines.as_slice() else {
+        panic!("one typed trait-machine snapshot");
+    };
+    assert_eq!(signature.service_reach, ["Console"]);
 }
 
 #[test]
@@ -1323,4 +1330,25 @@ fn rejects_authored_service_reach_on_external_realization_before_typed_trees() {
             .message
             .contains("repeats an authored `reaches` row")
     );
+}
+
+#[test]
+fn rejects_unknown_machine_parameter_service_reach_before_typed_trees() {
+    let source = r#"
+        machine invoke<machine F>()
+        where machine F() reaches MissingService;
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("unknown machine-parameter service reach must not enter typed trees");
+
+    assert!(diagnostic.message.contains(
+        "machine-parameter requirement `F` state `F` declares unknown boundary service `MissingService`"
+    ));
 }

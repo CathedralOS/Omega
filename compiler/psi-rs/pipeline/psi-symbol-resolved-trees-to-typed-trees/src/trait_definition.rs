@@ -90,7 +90,11 @@ pub(crate) fn lower_trait_definition(
         .source_trees
         .trait_machine_signatures(trait_definition.machines)
     {
-        let signature = lower_state_signature(lowerer, signature)?;
+        let signature = lower_state_signature(
+            lowerer,
+            signature,
+            crate::state::StateSignatureReachOwner::Trait(&trait_definition.name),
+        )?;
         lowerer
             .typed_trees
             .push_trait_machine_signature(&mut typed_trait, signature);

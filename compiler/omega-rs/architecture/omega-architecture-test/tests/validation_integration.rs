@@ -3770,14 +3770,13 @@ fn rejects_unknown_trait_machine_service_reaches() {
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
-
-    let diagnostics = validate_program(&typed).expect_err("validation should reject effect");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("unknown service reach must not enter typed trees");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
+        diagnostic
             .message
-            .contains("unknown boundary service `stdoutish`")),
-        "expected unknown service diagnostic, got {diagnostics:#?}"
+            .contains("unknown boundary service `stdoutish`"),
+        "expected unknown service diagnostic, got {diagnostic:#?}"
     );
 }
 

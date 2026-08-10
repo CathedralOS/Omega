@@ -12,7 +12,6 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
-    pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
@@ -36,7 +35,6 @@ impl Default for StateSignature {
             is_default: false,
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
-            service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
             suspends: false,

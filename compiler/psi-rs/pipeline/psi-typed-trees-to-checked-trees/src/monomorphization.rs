@@ -3322,8 +3322,15 @@ fn encode_state_signature(
         binders,
         output,
     );
-    for service in program.state_signature_service_reaches(signature) {
-        output.extend(service.as_bytes());
+    for service in program
+        .service_reach_rows
+        .services(signature.service_reach_row)
+    {
+        let service = program
+            .service_reaches
+            .definition(*service)
+            .expect("normalized signature service row references a registered service");
+        output.extend(service.name.as_bytes());
         output.push(0);
     }
     output.push(u8::from(signature.suspends));

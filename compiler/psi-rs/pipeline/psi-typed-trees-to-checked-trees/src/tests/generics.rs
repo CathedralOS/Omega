@@ -1291,6 +1291,25 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
         reach_fingerprint("Filesystem + Readable"),
         "template identity must consume the normalized service row, including parent closure"
     );
+
+    fn slot_reach_fingerprint(reach: &str) -> u64 {
+        fingerprint(format!(
+            r#"
+                boundary trait Readable {{}}
+                boundary trait Filesystem: Readable {{}}
+
+                boundary machine admitted<T, machine F>(value: &T)
+                where machine F(item: &T) reaches {reach};
+                ensures true;
+            "#
+        ))
+    }
+
+    assert_eq!(
+        slot_reach_fingerprint("Filesystem"),
+        slot_reach_fingerprint("Filesystem + Readable"),
+        "machine-parameter identity must consume the normalized service row"
+    );
 }
 
 #[test]
