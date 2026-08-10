@@ -1,12 +1,9 @@
 use omega_interpreter::{
     TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
-    TerminalInterpretError, TerminalScalarValue, interpret_terminal, interpret_terminal_artifact,
-    interpret_terminal_artifact_measured, interpret_terminal_measured,
-    interpret_terminal_with_meter,
+    TerminalInterpretError, TerminalScalarValue, interpret_terminal_artifact,
+    interpret_terminal_artifact_measured,
 };
-use omega_terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, lower_artifact_sections, lower_verified_module,
-};
+use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
@@ -20,10 +17,8 @@ use psi_terminal::{
     VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
-use psi_terminal_fuel::{
-    FuelChargeSite, FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelSchedule,
-};
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
+use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
 fn verified_integer_control_contract_slice_executes_directly() {
@@ -135,34 +130,32 @@ fn verified_integer_control_contract_slice_executes_directly() {
             }),
         }],
     };
-    let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("module verifies without source or producer state");
-
     let expected = TerminalScalarValue::Integer {
         scalar_type: integer,
         value: IntegerValue::Signed(7),
     };
-    let first = interpret_terminal_measured(&verified, &[])
-        .expect("verified module executes with deterministic usage");
-    let second = interpret_terminal_measured(&verified, &[])
-        .expect("equal execution reproduces deterministic usage");
-    assert_eq!(first, second);
-    assert_eq!(first.value(), expected);
     let semantic_bytes = encode_module(&module).expect("canonical semantic artifact");
     let proof_bytes = encode_proof_bundle(&bundle).expect("canonical proof artifact");
-    let direct_abstract = lower_verified_module(&verified).expect("lower verified terminal Psi");
-    let artifact_abstract =
-        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
-            .expect("artifact-root abstract lowering decodes and verifies first");
-    assert_eq!(artifact_abstract, direct_abstract);
-    let artifact = interpret_terminal_artifact_measured(
+    let first = interpret_terminal_artifact_measured(
         &semantic_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
     )
     .expect("artifact-root interpretation decodes and verifies before execution");
-    assert_eq!(artifact, first);
+    let second = interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("equal artifact execution reproduces deterministic usage");
+    assert_eq!(first, second);
+    assert_eq!(first.value(), expected);
+    let artifact_abstract =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("artifact-root abstract lowering decodes and verifies first");
+    assert_eq!(artifact_abstract.entry, module.entry);
     assert_eq!(
         interpret_terminal_artifact(
             &semantic_bytes,
@@ -262,19 +255,22 @@ fn verified_integer_control_contract_slice_executes_directly() {
             .units(),
         1
     );
-    assert_eq!(interpret_terminal(&verified, &[]).unwrap(), expected);
-
+    let mut limited_execution = TerminalExecution::start_artifact(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("limited execution starts at the artifact boundary");
     let mut limited = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
-        interpret_terminal_with_meter(&verified, &[], &mut limited),
-        Err(TerminalInterpretError::Fuel(FuelMeterError::Exhausted(
-            FuelExhaustion {
-                schedule: TerminalFuelSchedule::CURRENT.identity(),
-                site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
-                required_units: 1,
-                remaining_units: 0,
-            }
-        )))
+        limited_execution.resume(&mut limited).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
+            required_units: 1,
+            remaining_units: 0,
+        })
     );
     assert_eq!(limited.usage().total_units(), 2);
 
@@ -285,7 +281,6 @@ fn verified_integer_control_contract_slice_executes_directly() {
         &[],
     )
     .expect("resumable execution starts at the canonical artifact boundary");
-    drop(verified);
     drop(module);
     drop(bundle);
     drop(semantic_bytes);
@@ -367,12 +362,8 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         proposition_applications: Vec::new(),
         machines: vec![machine],
     };
-    let verified = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("the explicit crash exit verifies");
+    let semantic_bytes = encode_module(&module).expect("crash semantic artifact");
+    let proof_bytes = encode_proof_bundle(&ProofBundle::default()).expect("crash proof artifact");
     let expected = TerminalCrash {
         edge: EdgeId::new(90).expect("crash edge"),
         cause: CrashCause::Trap,
@@ -380,12 +371,25 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         frontier_lower_bound: Vec::new(),
     };
 
-    assert_eq!(
-        interpret_terminal(&verified, &[]),
-        Err(TerminalInterpretError::Crash(expected.clone()))
-    );
+    assert!(matches!(
+        interpret_terminal_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &AdmissionProfile::default(),
+            &[],
+        ),
+        Err(TerminalArtifactInterpretError::Execution(
+            TerminalInterpretError::Crash(crash)
+        )) if crash == expected
+    ));
 
-    let mut execution = TerminalExecution::start(&verified, &[]).expect("execution starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("crash execution starts from its artifact");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution.resume(&mut meter).expect("crash is an outcome"),
@@ -445,21 +449,22 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         proposition_applications: Vec::new(),
         machines: vec![machine],
     };
-    let verified = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("parameter-return module verifies");
+    let semantic_bytes = encode_module(&module).expect("parameter semantic artifact");
+    let proof_bytes =
+        encode_proof_bundle(&ProofBundle::default()).expect("parameter proof artifact");
 
-    assert_eq!(
-        interpret_terminal(
-            &verified,
+    assert!(matches!(
+        interpret_terminal_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &AdmissionProfile::default(),
             &[TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Unsigned(300),
             }],
         ),
-        Err(TerminalInterpretError::ArgumentIntegerOutsideType { value: parameter })
-    );
+        Err(TerminalArtifactInterpretError::Execution(
+            TerminalInterpretError::ArgumentIntegerOutsideType { value }
+        )) if value == parameter
+    ));
 }
