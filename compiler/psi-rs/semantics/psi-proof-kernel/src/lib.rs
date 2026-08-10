@@ -9,7 +9,9 @@
 
 mod evidence;
 mod kernel;
+mod normalization;
 mod proof;
+mod recursion;
 
 pub use evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
@@ -17,7 +19,17 @@ pub use evidence::{
     Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
+pub use normalization::{
+    NormalizationAcceptance, NormalizationCertificate, NormalizationError,
+    NormalizationLawAcceptance, NormalizationLawCertificate, NormalizationLawObligation,
+    NormalizationObligation, verify_normalization,
+};
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
     accept_certificate, check_certificate,
+};
+pub use recursion::{
+    CertificateObligation, RecursiveComponentAcceptance, RecursiveComponentCertificate,
+    RecursiveComponentError, RecursiveComponentObligation, RecursiveEdgeCertificate,
+    RecursiveEdgeObligation, verify_recursive_component,
 };

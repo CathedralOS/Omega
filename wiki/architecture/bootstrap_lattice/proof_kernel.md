@@ -151,8 +151,15 @@ assumption/semantic-axiom propositions during the accepting traversal. The
 terminal artifact layer fingerprints the exact accepted proof bundle and
 renders its review synopsis only from a `VerifiedTerminalModule`; changing a
 valid proof route therefore changes both the fingerprint and rendered trust
-record. Recursive-component and normalization nodes will extend this same
-record rather than adding a second explanation path.
+record. The kernel also has a total recursive-component checker: reconstruction
+owns a canonical strongly connected member/edge set and selected relation; one
+certificate supplies the single well-foundedness route and exact per-edge
+decrease evidence, with admissions retained in the returned provenance. The
+normalization checker similarly pins the selected conformance and canonical law
+set, verifies each law route, and requires the conclusion certificate to cite
+every law premise; an admitted law therefore remains explicit in the accepted
+normalization record. The terminal vocabulary, source producer, and synopsis
+still need to carry both records rather than adding a second explanation path.
 
 ## Scope discipline
 
