@@ -126,6 +126,31 @@ ensures 44u8 == 44u8
     state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value + 100u8 }
 }
 
+machine terminal_scalar_locals(value: u8 in Wrapping) -> u8 in Wrapping
+requires 0u8 == 0u8
+ensures 0u8 == 0u8
+{
+    let incremented: u8 in Wrapping = value + 5u8;
+    let doubled: u8 in Wrapping = incremented * 2u8;
+    doubled
+}
+
+machine terminal_boolean_local(value: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let inverted: bool = !value;
+    inverted
+}
+
+machine terminal_short_circuit_boolean_local(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let joined: bool = first && second;
+    joined
+}
+
 machine terminal_saturating_add() -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

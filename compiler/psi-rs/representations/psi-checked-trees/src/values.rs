@@ -127,6 +127,7 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    LocalInitializer { binding_ordinal: u32 },
     Return,
     Guard,
     TransitionArgument { argument_ordinal: u32 },
@@ -135,6 +136,10 @@ pub enum CheckedScalarExpressionRole {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
     Parameter {
+        position: usize,
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+    },
+    Local {
         position: usize,
         primitive_type: psi_typed_trees::types::PrimitiveType,
     },
@@ -193,6 +198,9 @@ pub enum CheckedIntegerBinaryKind {
 pub enum CheckedBooleanExpression {
     Constant(bool),
     Parameter {
+        position: usize,
+    },
+    Local {
         position: usize,
     },
     Not(Box<CheckedBooleanExpression>),

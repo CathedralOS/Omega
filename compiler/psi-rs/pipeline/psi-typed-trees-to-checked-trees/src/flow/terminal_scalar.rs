@@ -1,7 +1,8 @@
 use psi_checked_trees::{
-    CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarStateGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
-    CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
+    CheckedScalarBinding, CheckedScalarGraphPlans, CheckedScalarMachineGraph,
+    CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
+    CheckedTerminalSignatureEligibility,
 };
 
 pub(crate) fn build_checked_terminal_machine_selections(
@@ -78,9 +79,30 @@ fn build_machine_graph(
                 .collect::<Option<Vec<_>>>()?;
             let result_type = program.primitive_type_reference(state.return_type)?;
             let statements = program.statement_table.statements(state.statement_nodes);
-            let terminator = match statements {
+            let binding_count = statements
+                .iter()
+                .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+                .count();
+            let bindings = statements[..binding_count]
+                .iter()
+                .enumerate()
+                .map(|(statement_index, statement)| {
+                    let StatementNode::LocalData(local) = statement else {
+                        unreachable!("binding prefix contains only local data")
+                    };
+                    if local.is_mutable || !local.initial_value.is_valid() {
+                        return None;
+                    }
+                    Some(CheckedScalarBinding {
+                        statement_ordinal: u32::try_from(statement_index).ok()?,
+                        primitive_type: program.primitive_type_reference(local.type_reference)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let terminator_ordinal = u32::try_from(binding_count).ok()?;
+            let terminator = match &statements[binding_count..] {
                 [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
-                    statement_ordinal: 0,
+                    statement_ordinal: terminator_ordinal,
                 },
                 [StatementNode::Transition(transition)]
                     if matches!(transition.exit, TransitionExit::Crash(_))
@@ -92,7 +114,7 @@ fn build_machine_graph(
                         ) =>
                 {
                     CheckedScalarStateTerminator::Crash {
-                        statement_ordinal: 0,
+                        statement_ordinal: terminator_ordinal,
                     }
                 }
                 [
@@ -104,9 +126,19 @@ fn build_machine_graph(
                     && !when_false.continuation.is_valid() =>
                 {
                     CheckedScalarStateTerminator::Conditional {
-                        guard_statement_ordinal: 0,
-                        when_true: checked_successor(program, source_states, 0, when_true)?,
-                        when_false: checked_successor(program, source_states, 1, when_false)?,
+                        guard_statement_ordinal: terminator_ordinal,
+                        when_true: checked_successor(
+                            program,
+                            source_states,
+                            terminator_ordinal,
+                            when_true,
+                        )?,
+                        when_false: checked_successor(
+                            program,
+                            source_states,
+                            terminator_ordinal.checked_add(1)?,
+                            when_false,
+                        )?,
                     }
                 }
                 [StatementNode::Transition(transition)]
@@ -116,7 +148,7 @@ fn build_machine_graph(
                     CheckedScalarStateTerminator::Jump(checked_successor(
                         program,
                         source_states,
-                        0,
+                        terminator_ordinal,
                         transition,
                     )?)
                 }
@@ -125,6 +157,7 @@ fn build_machine_graph(
             Some(CheckedScalarStateGraph {
                 state: state.symbol,
                 parameter_types,
+                bindings,
                 result_type,
                 terminator,
             })

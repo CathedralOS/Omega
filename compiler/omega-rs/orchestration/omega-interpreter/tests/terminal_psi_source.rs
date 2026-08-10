@@ -704,6 +704,140 @@ fn checked_source_integer_policy_operations_survive_frontend_drop() {
     }
 }
 
+#[test]
+fn checked_source_scalar_locals_become_terminal_block_values() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi scalar-local source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_scalar_locals")
+        .expect("immutable scalar locals should lower from checked plans");
+    let mut without_typed_frontend = checked.clone();
+    without_typed_frontend.typed = Default::default();
+    let without_typed_frontend = lower_machine(&without_typed_frontend, "terminal_scalar_locals")
+        .expect("scalar locals must survive complete typed-tree disposal");
+    assert_eq!(without_typed_frontend, lowered);
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("scalar-local terminal Psi should encode canonically");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("scalar-local proof bundle should encode canonically");
+    let debug = encode_debug_map(
+        &lowered.semantic_module,
+        lowered
+            .debug_map
+            .as_ref()
+            .expect("scalar-local lowering should retain presentation spans"),
+    )
+    .expect("scalar-local debug map should encode canonically");
+    let semantic = decode_module(&semantic).expect("scalar-local terminal Psi should decode");
+    let proof = decode_proof_bundle(&proof).expect("scalar-local proof bundle should decode");
+    let debug = decode_debug_map(&semantic, &debug).expect("scalar-local debug map should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("scalar-local terminal Psi should verify after frontend disposal");
+
+    let block = &semantic.machines[0].blocks[0];
+    assert_eq!(block.operations.len(), 4);
+    assert!(matches!(
+        block.operations[1].kind,
+        OperationKind::WrappingIntegerAdd { .. }
+    ));
+    assert!(matches!(
+        block.operations[3].kind,
+        OperationKind::WrappingIntegerMultiply { .. }
+    ));
+    assert_eq!(
+        debug
+            .sites
+            .iter()
+            .filter(|site| matches!(site.subject, DebugSubject::Operation(_)))
+            .count(),
+        4
+    );
+
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let measured = interpret_terminal_measured(
+        &verified,
+        &[TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(20),
+        }],
+    )
+    .expect("scalar-local terminal Psi should execute");
+    assert_eq!(measured.usage().total_units(), 5);
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: u8_type,
+            value: IntegerValue::Unsigned(50),
+        }
+    );
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified scalar locals should lower without frontend state");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("scalar locals should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("scalar-local target operations should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("scalar-local target operations should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_boolean_local_becomes_a_terminal_block_value() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi Boolean-local source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_boolean_local")
+        .expect("an immutable Boolean local should lower from checked plans");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("Boolean-local terminal Psi should encode canonically");
+    let proof = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("Boolean-local proof bundle should encode canonically");
+    let semantic = decode_module(&semantic).expect("Boolean-local terminal Psi should decode");
+    let proof = decode_proof_bundle(&proof).expect("Boolean-local proof bundle should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("Boolean-local terminal Psi should verify after frontend disposal");
+
+    assert_eq!(semantic.machines[0].blocks[0].operations.len(), 1);
+    assert!(matches!(
+        semantic.machines[0].blocks[0].operations[0].kind,
+        OperationKind::BooleanNot { .. }
+    ));
+    let measured = interpret_terminal_measured(&verified, &[TerminalScalarValue::Boolean(false)])
+        .expect("Boolean-local terminal Psi should execute");
+    assert_eq!(measured.usage().total_units(), 2);
+    assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified Boolean local should lower without frontend state");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("Boolean local should lower for both native targets");
+        let assigned = assign_registers(&target_operations)
+            .expect("Boolean-local target operations should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("Boolean-local target operations should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
+}
+
+#[test]
+fn checked_source_short_circuit_local_fails_closed_before_terminal_control_exists() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("short-circuit Boolean-local source canary should compile");
+    assert_eq!(
+        lower_machine(&checked, "terminal_short_circuit_boolean_local")
+            .expect_err("short-circuit local initialization needs an explicit control slice"),
+        LoweringError::Unsupported(
+            "scalar expression has no source-independent checked value plan"
+        )
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn source_wrapping_add_matches_emitted_host_machine_code() {
