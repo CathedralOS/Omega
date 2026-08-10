@@ -777,9 +777,11 @@ operator add(
     left: i32::Degrees,
     right: i32::Degrees
 ) -> sum: i32::Degrees
-    spelling +
     ensures degree_sum(left, right, sum);
 ```
+
+This operator is intended to back `+`; the source binding syntax is open in
+[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
 
 `45 as i32::Degrees` is accepted when the prover discharges the
 predicate. An arbitrary runtime integer uses an ordinary checked machine such
@@ -836,10 +838,11 @@ as `Add::add` or `Index::index`. Omega has a similar semantic home for
 operators, but with one extra axis: the semantic domains selected on operand
 bindings determine which domain-owned meanings participate.
 
-A fixed operator spelling is declared with an optional `spelling` clause on a
-named `operator`. The named operator carries the full signature and proof
-contract; the `spelling` clause only binds the surface symbol that resolves to
-it.
+A fixed operator token resolves to a named `operator`, which carries the full
+signature and proof contract. The exact declaration syntax for that association
+is open in
+[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax);
+`spelling` is not an accepted keyword.
 
 ```omega
 domain Quantity::Additive;
@@ -847,8 +850,11 @@ domain Quantity::Additive;
 operator Quantity::Additive::add(
     left: Quantity,
     right: Quantity,
-) -> Quantity spelling +;
+) -> Quantity;
 ```
+
+The declaration is intended to back `+`; its token-binding syntax is omitted
+pending Owner Q1.
 
 Operators associated with a domain remain ordinary named declarations; the
 domain body is reserved for establishment routes. An exact qualified name such
@@ -863,8 +869,8 @@ same-carrier declarations may coexist.
 
 Decided model:
 
-- Fixed operator spellings are declared with an optional `spelling` clause on a
-  named `operator`.
+- Fixed operator tokens resolve to named `operator` declarations; their exact
+  source binding syntax remains Owner Q1.
 - Core types such as `Slice`, `Array`, and `Vec` can expose
   operator definitions whose implementations are bound to boundary primitive
   compiler/runtime operations below the public core surface.
@@ -1057,11 +1063,11 @@ obligation lives on `slice`, in the open:
 
 ```omega
 operator concat(left: Slice<u8>::Utf8, right: Slice<u8>::Utf8)
-    -> Slice<u8>::Utf8 spelling +;          // concat preserves UTF-8: proven once
+    -> Slice<u8>::Utf8; // intended token: +; preserves UTF-8
 
 operator slice(s: Slice<u8>::Utf8, range: Range) -> Slice<u8>::Utf8
-    requires char_boundary(s, range.start) && char_boundary(s, range.end)
-    spelling [];                              // cannot cut mid-codepoint
+    requires char_boundary(s, range.start) && char_boundary(s, range.end);
+    // intended token: []; cannot cut mid-codepoint
 ```
 
 "The operation exists, its contract stops misuse" replaces "the operation is
@@ -1257,8 +1263,8 @@ Working interpretation:
 - `Type::Domain` in a match arm is a domain pattern for values of `Type`.
 - `if x in Type::Domain` is a full executable domain check when the domain is
   runtime-checkable.
-- A fixed operator spelling is declared with an optional `spelling` clause on a
-  named `operator`; domain operators may carry a `spelling`.
+- Fixed operator tokens resolve to named `operator` declarations, including
+  domain operators; their source binding syntax remains Owner Q1.
 - Static semantic roles selected at a binding site (declaration, explicit
   qualification, or `requires`) participate in operator resolution;
   flow-established knowledge never changes operator meaning.
