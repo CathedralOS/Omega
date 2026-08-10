@@ -472,8 +472,8 @@ effect-row field or fingerprint input. Resolved and typed machine records also
 carry only normalized supply mode, not a parallel `boundary` compatibility
 bit. The obsolete
 `EffectRowId`/`EffectRowTable` carrier and global lowercase service-name/u64
-table are deleted. Typed machines retain only symbol-resolved
-`ServiceReachRowId` values. Resolved machines and state signatures temporarily
+table are deleted. Typed machines and state signatures retain only
+symbol-resolved `ServiceReachRowId` values. Their resolved inputs temporarily
 retain authored identifiers through row construction and source-facing
 diagnostics; no semantic consumer treats those staging spans as a second
 effect contract.

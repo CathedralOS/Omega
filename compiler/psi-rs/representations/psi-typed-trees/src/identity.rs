@@ -326,9 +326,6 @@ fn count_type_parameter(
                     counts,
                 );
             }
-            for service in typed_trees.state_signature_service_reaches(contract) {
-                count_declaration_name(service, counts);
-            }
             for binding in typed_trees.state_signature_invokes(contract) {
                 count_declaration_name(binding, counts);
             }

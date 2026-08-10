@@ -51,7 +51,6 @@ pub(crate) fn validate_callable_state_signatures(
                     lifetime_parameters: &[],
                     parameters: program.state_parameters(state),
                     return_type: state.return_type,
-                    service_reaches: &[],
                     contracts: program.state_contracts(state),
                 }),
             program,
@@ -105,7 +104,6 @@ pub(crate) fn validate_callable_state_signatures(
                     lifetime_parameters: &machine.lifetime_parameters,
                     parameters: program.state_signature_parameters(machine),
                     return_type: machine.return_type,
-                    service_reaches: program.state_signature_service_reaches(machine),
                     contracts: program.state_signature_contracts(machine),
                 }),
                 program,
@@ -125,7 +123,6 @@ struct StateSignatureView<'program> {
     lifetime_parameters: &'program [Identifier],
     parameters: &'program [StateParameter],
     return_type: TypeReferenceHandle,
-    service_reaches: &'program [Identifier],
     contracts: &'program [SignatureContract],
 }
 
@@ -198,7 +195,6 @@ fn validate_machine_parameter_signatures<'program>(
                 lifetime_parameters: &contract.lifetime_parameters,
                 parameters: program.state_signature_parameters(contract),
                 return_type: contract.return_type,
-                service_reaches: program.state_signature_service_reaches(contract),
                 contracts: program.state_signature_contracts(contract),
             }),
             program,
@@ -240,7 +236,6 @@ fn validate_state_signature_types<'program>(
             }
         }
         validate_state_parameter_names(signature, owner, diagnostics);
-        validate_state_signature_service_reaches(program, signature, owner, diagnostics);
         validate_state_signature_contracts(program, signature, owner, diagnostics);
 
         for parameter in signature.parameters {
@@ -282,22 +277,6 @@ fn validate_state_signature_types<'program>(
     }
 }
 
-fn validate_state_signature_service_reaches(
-    program: &TypedTrees,
-    signature: StateSignatureView<'_>,
-    owner: StateSignatureOwner<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for service in signature.service_reaches {
-        if !is_resolved_service_name(program, service.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "{owner} state `{}` declares unknown boundary service `{}`",
-                signature.name, service
-            )));
-        }
-    }
-}
-
 fn validate_state_signature_contracts(
     program: &TypedTrees,
     signature: StateSignatureView<'_>,
@@ -326,14 +305,6 @@ fn validate_state_signature_contracts(
             },
         );
     }
-}
-
-fn is_resolved_service_name(program: &TypedTrees, name: &str) -> bool {
-    program
-        .symbols
-        .find_child_by_name_and_kind(program.symbols.root(), name, psi_symbols::SymbolKind::Trait)
-        .and_then(|symbol| program.service_reaches.id_for_symbol(symbol))
-        .is_some()
 }
 
 pub(crate) fn validate_machine_contracts(

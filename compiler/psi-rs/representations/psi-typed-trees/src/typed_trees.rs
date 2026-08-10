@@ -223,7 +223,6 @@ pub struct TypedTreeTables {
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub decrease_orders: Arena<crate::name::Identifier>,
-    pub signature_service_reaches: Arena<crate::name::Identifier>,
     pub signature_invokes: Arena<crate::name::Identifier>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
@@ -1277,23 +1276,6 @@ impl TypedTrees {
             .span_or_empty(signature.type_parameters)
     }
 
-    pub fn push_state_signature_service_reach(
-        &mut self,
-        signature: &mut signature::StateSignature,
-        service: crate::name::Identifier,
-    ) {
-        self.signature_service_reaches
-            .append_to_span(&mut signature.service_reaches, service);
-    }
-
-    pub fn state_signature_service_reaches(
-        &self,
-        signature: &signature::StateSignature,
-    ) -> &[crate::name::Identifier] {
-        self.signature_service_reaches
-            .span_or_empty(signature.service_reaches)
-    }
-
     pub fn push_state_signature_invoke(
         &mut self,
         signature: &mut signature::StateSignature,
@@ -1544,17 +1526,17 @@ mod tests {
     }
 
     #[test]
-    fn decrease_orders_and_signature_service_reaches_use_independent_arenas() {
+    fn decrease_orders_and_signature_invokes_use_independent_arenas() {
         let mut trees = TypedTrees::default();
         let mut decrease_order = HandleSpan::empty();
-        let mut signature_service_reaches = HandleSpan::empty();
+        let mut signature_invokes = HandleSpan::empty();
 
         trees
             .decrease_orders
             .append_to_span(&mut decrease_order, Identifier::generated("remaining"));
-        trees.signature_service_reaches.append_to_span(
-            &mut signature_service_reaches,
-            Identifier::generated("Console"),
+        trees.signature_invokes.append_to_span(
+            &mut signature_invokes,
+            Identifier::generated("Console.write"),
         );
 
         assert_eq!(
@@ -1562,11 +1544,8 @@ mod tests {
             "remaining"
         );
         assert_eq!(
-            trees
-                .signature_service_reaches
-                .span_or_empty(signature_service_reaches)[0]
-                .as_str(),
-            "Console"
+            trees.signature_invokes.span_or_empty(signature_invokes)[0].as_str(),
+            "Console.write"
         );
     }
 }
