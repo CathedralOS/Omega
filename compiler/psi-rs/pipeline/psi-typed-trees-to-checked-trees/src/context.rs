@@ -12,10 +12,10 @@ pub(crate) use psi_checked_trees::{
     DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact, FlowBorrowLifetimeFacts,
     FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts,
     FlowCallFact, FlowConstraintKind, FlowConstraintRef, FlowContextFacts, FlowControlFacts,
-    FlowDropEventFact, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationFacts,
-    FlowInvalidationSource, FlowMoveEventFact, FlowOwnershipEventSource, FlowOwnershipFacts,
-    FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts,
-    ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource,
+    FlowOwnershipFacts, FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact,
+    InvariantFacts, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner,
+    StateBorrowFact,
 };
 pub(crate) use psi_facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FactRef, ProgramPoint,

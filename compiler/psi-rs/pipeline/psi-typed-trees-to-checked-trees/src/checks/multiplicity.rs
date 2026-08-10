@@ -1,7 +1,7 @@
 use psi_arena::HandleSpan;
 use psi_checked_trees::{
     CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
-    FlowOwnershipEventSource, FlowPermissionEventFact,
+    FlowPermissionEventFact,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
@@ -11,6 +11,8 @@ use psi_language_semantics::{
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+use crate::flow::FlowOwnershipEventSource;
 
 #[derive(Debug, Clone)]
 struct LinearPlace {
@@ -2708,7 +2710,6 @@ fn event_statement_index(source: FlowOwnershipEventSource) -> Option<usize> {
         | FlowOwnershipEventSource::Call {
             statement_index, ..
         } => Some(statement_index),
-        FlowOwnershipEventSource::StateExit => None,
     }
 }
 
@@ -2726,7 +2727,6 @@ fn permission_source(source: FlowOwnershipEventSource) -> PermissionEventSource 
             call_ordinal,
             target_symbol,
         },
-        FlowOwnershipEventSource::StateExit => PermissionEventSource::StateExit,
     }
 }
 
@@ -3180,8 +3180,7 @@ fn expression_permission_provenance_for_claim(
     common_permission_provenance(matches)
 }
 
-/// Discover ordinary affine cleanup directly from typed ownership rather than
-/// projecting it back out of the compatibility `drops` arena. Locals drop in
+/// Discover ordinary affine cleanup directly from typed ownership. Locals drop in
 /// reverse declaration order, followed by owned by-value parameters in reverse
 /// declaration order, exactly matching the language's cleanup order. Linear
 /// and conditional roots are excluded because their path-sensitive settlement

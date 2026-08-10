@@ -572,7 +572,8 @@ Current implementation carries normalized `Establish | Transfer | Consume |
 AffineDrop` events, conditional payload debt, exact place/provenance identity,
 and backend realization evidence. Every event maps to selected instructions or
 a narrowly checked no-code reason; incomplete or foreign evidence publishes no
-ledger. Legacy move/drop arenas are nonsemantic compatibility output.
+ledger. Checked trees, state graphs, and control flow carry no parallel
+move/drop arenas.
 
 Permission debt is path-indexed through transparent records, fixed arrays, and
 active sum cases. Static projections preserve sibling debt and claim identity;

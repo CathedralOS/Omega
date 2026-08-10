@@ -6,7 +6,7 @@ use crate::{BorrowArgumentAccessFact, BorrowWritableRootFact, ContractProofFactR
 
 use super::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowConstraintRef,
-    FlowDropEventFact, FlowInvalidationFact, FlowMoveEventFact, FlowSemanticContextRef,
+    FlowInvalidationFact, FlowSemanticContextRef,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -62,8 +62,6 @@ pub struct FlowStateFact {
     pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub borrow_activations: HandleSpan<FlowBorrowActivationFact>,
     pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
-    pub moves: HandleSpan<FlowMoveEventFact>,
-    pub drops: HandleSpan<FlowDropEventFact>,
     pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,

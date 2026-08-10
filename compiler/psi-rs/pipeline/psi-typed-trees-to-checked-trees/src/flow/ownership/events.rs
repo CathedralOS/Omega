@@ -1,27 +1,15 @@
 use super::*;
 
-pub(crate) trait MoveEventSink {
-    fn append_move_event(
-        &mut self,
-        program: &psi_typed_trees::TypedTrees,
-        place: CanonicalPlace,
-        source: FlowOwnershipEventSource,
-    );
-}
-
-impl MoveEventSink for FlowBuildContext {
-    fn append_move_event(
-        &mut self,
-        program: &psi_typed_trees::TypedTrees,
-        place: CanonicalPlace,
-        source: FlowOwnershipEventSource,
-    ) {
-        self.ownership.moves.append(FlowMoveEventFact {
-            source,
-            root: normalized_event_place_root(program, place.root),
-            segments: self.ownership.segments.insert_many(place.segments),
-        });
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FlowOwnershipEventSource {
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +37,7 @@ impl<'segments> DirectMoveEventSink<'segments> {
     }
 }
 
-impl MoveEventSink for DirectMoveEventSink<'_> {
+impl DirectMoveEventSink<'_> {
     fn append_move_event(
         &mut self,
         program: &psi_typed_trees::TypedTrees,
@@ -66,24 +54,11 @@ impl MoveEventSink for DirectMoveEventSink<'_> {
 
 pub(in crate::flow::ownership) fn append_move_event_for_place(
     program: &psi_typed_trees::TypedTrees,
-    sink: &mut impl MoveEventSink,
+    sink: &mut DirectMoveEventSink<'_>,
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) {
     sink.append_move_event(program, place, source);
-}
-
-pub(in crate::flow::ownership) fn append_drop_event_for_place(
-    program: &psi_typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
-    place: CanonicalPlace,
-    source: FlowOwnershipEventSource,
-) {
-    ctx.ownership.drops.append(FlowDropEventFact {
-        source,
-        root: normalized_event_place_root(program, place.root),
-        segments: ctx.ownership.segments.insert_many(place.segments),
-    });
 }
 
 /// Re-root a `self`/`self.field` event place at its machine symbol.
@@ -91,9 +66,8 @@ pub(in crate::flow::ownership) fn append_drop_event_for_place(
 /// A canonical place for `self.field` roots at the producing state's `&mut
 /// self` parameter symbol, but every post-checked stage filters `self` out of
 /// its parameter lists (the state graph drops it when scheduling parameters),
-/// so a downstream consumer of the preserved ownership events could never
-/// resolve that root again. The machine symbol is the durable identity of the
-/// `self` instance, and it survives the whole spine.
+/// so the permission producer could not publish a durable root for it. The
+/// machine symbol is the durable identity of the `self` instance.
 fn normalized_event_place_root(
     program: &psi_typed_trees::TypedTrees,
     root: psi_facts::PlaceRoot,

@@ -30,8 +30,6 @@ impl StateGraph {
         borrow_activation_capacity: usize,
         borrow_weakening_capacity: usize,
         ownership_segment_capacity: usize,
-        move_event_capacity: usize,
-        drop_event_capacity: usize,
         permission_event_capacity: usize,
         operation_capacity: usize,
         transition_capacity: usize,
@@ -72,8 +70,6 @@ impl StateGraph {
                 ),
                 StateGraphOwnershipRoots::with_roots(
                     Arena::with_capacity(ownership_segment_capacity),
-                    Arena::with_capacity(move_event_capacity),
-                    Arena::with_capacity(drop_event_capacity),
                     Arena::with_capacity(permission_event_capacity),
                 ),
             ),

@@ -1,9 +1,5 @@
 use super::*;
-use omega_control_flow::{
-    ControlFlowPlan, StateDropEvent, StateFlow, StateKey, StateMoveEvent,
-    StateOwnershipEventSource, StatePermissionEvent,
-};
-use psi_arena::HandleSpan;
+use omega_control_flow::{ControlFlowPlan, StateFlow, StateKey, StatePermissionEvent};
 use psi_symbols::SymbolHandle;
 
 #[test]
@@ -31,22 +27,6 @@ fn lowers_only_semantic_permission_events() {
         },
         ..StateFlow::default()
     };
-    control_flow.semantics.ownership.moves.append_to_span(
-        &mut state.ownership.moves,
-        StateMoveEvent {
-            source: StateOwnershipEventSource::Statement { statement_index: 3 },
-            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(9)),
-            segments,
-        },
-    );
-    control_flow.semantics.ownership.drops.append_to_span(
-        &mut state.ownership.drops,
-        StateDropEvent {
-            source: StateOwnershipEventSource::StateExit,
-            root: psi_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(10)),
-            segments: HandleSpan::empty(),
-        },
-    );
     control_flow.semantics.ownership.permissions.append_to_span(
         &mut state.ownership.permissions,
         StatePermissionEvent {

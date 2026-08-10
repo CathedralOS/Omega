@@ -184,20 +184,14 @@ fn service_reach_rows_are_identity_sets_without_global_name_bits() {
 /// owned/shared/exclusive access, transfer-stable root-lineage provenance, and
 /// an independent transfer-stable permission claim identity.
 /// Borrow activations/weakenings also enter this context, and the linear
-/// judgment no longer reads move/drop. The remaining gap is retiring them as
-/// transitional producer input.
+/// judgment and downstream IRs carry no parallel move/drop summary.
 #[test]
 fn downstream_ownership_summary_carries_qualified_permission_events() {
     use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
     use psi_language_semantics::{
         Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionProvenance,
     };
-    let StateOwnershipSummary {
-        moves: _,
-        drops: _,
-        permissions: _,
-        ..
-    } = StateOwnershipSummary::default();
+    let StateOwnershipSummary { permissions: _ } = StateOwnershipSummary::default();
     let event = StatePermissionEvent::default();
     assert_eq!(event.multiplicity, Multiplicity::Affine);
     assert_eq!(event.access, PermissionAccess::Owned);

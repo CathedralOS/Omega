@@ -1,18 +1,14 @@
 use super::*;
 
 mod calls;
-mod drops;
 mod events;
 mod moves;
 mod place_types;
 mod type_references;
 
-pub(super) use calls::append_call_ownership_events;
-pub(super) use drops::append_state_exit_drop_events;
-pub(crate) use events::DiscoveredMoveEvent;
-use events::{
-    DirectMoveEventSink, MoveEventSink, append_drop_event_for_place, append_move_event_for_place,
-};
+use calls::append_call_ownership_events;
+use events::{DirectMoveEventSink, append_move_event_for_place};
+pub(crate) use events::{DiscoveredMoveEvent, FlowOwnershipEventSource};
 use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
     initializer_produces_owned_value,
@@ -24,7 +20,7 @@ use type_references::type_requires_ownership;
 
 pub(super) fn append_statement_ownership_events(
     program: &psi_typed_trees::TypedTrees,
-    sink: &mut impl MoveEventSink,
+    sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -146,10 +142,9 @@ pub(super) fn append_statement_ownership_events(
     }
 }
 
-/// Run the ownership discovery rules directly into a semantic producer sink.
-/// This deliberately shares the expression/call traversal with compatibility
-/// move emission while returning an independent event vocabulary, so the
-/// permission checker never reads the legacy move arena.
+/// Run the ownership discovery rules directly into the semantic permission
+/// producer. The discovered vocabulary is private to checked lowering; only
+/// normalized permission events are published.
 pub(crate) fn discover_state_move_events(
     program: &psi_typed_trees::TypedTrees,
     borrow: &BorrowFacts,

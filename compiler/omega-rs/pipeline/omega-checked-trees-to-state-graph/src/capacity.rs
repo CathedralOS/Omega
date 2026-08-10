@@ -72,8 +72,6 @@ struct StateGraphBorrowCapacity {
 #[derive(Debug, Clone, Copy, Default)]
 struct StateGraphOwnershipCapacity {
     ownership_segments: usize,
-    move_events: usize,
-    drop_events: usize,
     permission_events: usize,
 }
 
@@ -115,8 +113,6 @@ impl StateGraphCapacity {
             self.semantics.borrow.borrow_activations,
             self.semantics.borrow.borrow_weakenings,
             self.semantics.ownership.ownership_segments,
-            self.semantics.ownership.move_events,
-            self.semantics.ownership.drop_events,
             self.semantics.ownership.permission_events,
             self.code.operations,
             self.code.transitions,
@@ -233,8 +229,6 @@ impl StateGraphOwnershipCapacity {
     fn for_program(program: &CheckedTrees) -> Self {
         Self {
             ownership_segments: program.facts.flow.ownership.segments.len(),
-            move_events: program.facts.flow.ownership.moves.len(),
-            drop_events: program.facts.flow.ownership.drops.len(),
             permission_events: program.facts.flow.ownership.permissions.len(),
         }
     }

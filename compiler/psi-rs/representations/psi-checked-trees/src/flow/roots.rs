@@ -2,9 +2,9 @@ use psi_arena::Arena;
 
 use super::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowCallFact,
-    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowConstraintRef, FlowDropEventFact,
-    FlowExitFact, FlowInvalidationFact, FlowMoveEventFact, FlowPermissionEventFact,
-    FlowSemanticContextRef, FlowStateFact, FlowStatementFact,
+    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowConstraintRef, FlowExitFact,
+    FlowInvalidationFact, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
+    FlowStatementFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -61,8 +61,6 @@ impl FlowBorrowLifetimeFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnershipFacts {
     pub segments: Arena<psi_facts::PlaceSegment>,
-    pub moves: Arena<FlowMoveEventFact>,
-    pub drops: Arena<FlowDropEventFact>,
     pub permissions: Arena<FlowPermissionEventFact>,
     pub claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
     pub claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
@@ -71,16 +69,12 @@ pub struct FlowOwnershipFacts {
 impl FlowOwnershipFacts {
     pub fn with_roots(
         segments: Arena<psi_facts::PlaceSegment>,
-        moves: Arena<FlowMoveEventFact>,
-        drops: Arena<FlowDropEventFact>,
         permissions: Arena<FlowPermissionEventFact>,
         claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
         claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
     ) -> Self {
         Self {
             segments,
-            moves,
-            drops,
             permissions,
             claim_outcome_entries,
             claim_outcome_maps,

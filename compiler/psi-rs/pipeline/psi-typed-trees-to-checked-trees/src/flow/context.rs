@@ -39,8 +39,6 @@ impl FlowBuildContext {
                 psi_arena::Arena::default(),
                 psi_arena::Arena::default(),
                 psi_arena::Arena::default(),
-                psi_arena::Arena::default(),
-                psi_arena::Arena::default(),
             ),
             boundaries: FlowBoundaryFacts::with_roots(psi_arena::Arena::with_capacity(
                 borrow.calls.len(),
