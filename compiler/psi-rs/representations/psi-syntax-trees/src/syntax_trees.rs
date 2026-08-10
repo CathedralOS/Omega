@@ -487,7 +487,6 @@ impl SyntaxTrees {
                     conformance: bound.conformance.clone(),
                 })
                 .collect(),
-            terminates: machine.terminates,
             terminates_guarantee: machine.terminates_guarantee,
             decreases: self.copy_expression_handle_list(other, machine.decreases),
             decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),

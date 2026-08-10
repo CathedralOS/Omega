@@ -47,7 +47,6 @@ pub(super) fn parse_machine<'tokens, 'source>(
     }
     let (
         (
-            terminates,
             terminates_guarantee,
             decreases,
             decrease_order,
@@ -112,7 +111,6 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 type_parameters,
                 satisfies,
                 conformance_bounds,
-                terminates,
                 terminates_guarantee,
                 decreases,
                 decrease_order,
@@ -206,7 +204,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     // proof, loop-carried arg staging, both engines) sees the same bare
     // back-edge the arm spelling produces. Unmeasured machines keep the
     // call; validation names the missing measure.
-    if terminates && !decreases.is_empty() {
+    if !decreases.is_empty() {
         let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
         rewrite_terminal_tail_self_calls(
             syntax_trees,
@@ -226,7 +224,6 @@ pub(super) fn parse_machine<'tokens, 'source>(
             type_parameters,
             satisfies,
             conformance_bounds,
-            terminates,
             terminates_guarantee,
             decreases,
             decrease_order,

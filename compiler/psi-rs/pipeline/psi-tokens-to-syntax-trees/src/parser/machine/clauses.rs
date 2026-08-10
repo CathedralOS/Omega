@@ -14,7 +14,6 @@ use psi_syntax_trees::item::{
 use psi_tokens::{KeywordKind, PunctuationKind};
 
 type MachineClauses = (
-    bool,
     // TPR2: authored BARE `terminates;` (the public guarantee); the by-form
     // supplies only the witness and leaves this false.
     bool,
@@ -44,7 +43,6 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, MachineClauses> {
-    let mut terminates = false;
     let mut terminates_guarantee = false;
     let mut decreases = HandleSpan::empty();
     let mut decrease_order = HandleSpan::empty();
@@ -68,7 +66,6 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     {
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
-            terminates = true;
             // Decision 23 (TPR1): bare `terminates;` authors the public
             // guarantee; `terminates by <subjects> [-> View] [in <range>];`
             // supplies the private ranking witness. The old block form is
@@ -379,7 +376,6 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     };
     Ok((
         (
-            terminates,
             terminates_guarantee,
             decreases,
             decrease_order,

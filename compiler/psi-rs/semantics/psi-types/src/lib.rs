@@ -763,7 +763,6 @@ mod tests {
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             conformance_bounds: Vec::new(),
-            terminates: false,
             terminates_guarantee: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),

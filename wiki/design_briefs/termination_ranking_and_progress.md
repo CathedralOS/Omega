@@ -89,7 +89,9 @@ Current implementation: checker legality resolves subjects
 and argumented-view bounds from the normalized `RankingWitness`, and consumes
 its view/range identity directly. Validation, checked value facts,
 specialization, terminal eligibility, and snapshots use the same witness.
-Typed machines no longer carry parallel decreases/order/argument/range spans.
+Typed machines no longer carry parallel decreases/order/argument/range spans,
+and syntax machines no longer carry a boolean that collapses authored
+guarantees and private witnesses back into one `terminates` flag.
 
 The diagnostic firewall follows the same rule: checked-stage messages use the
 current `terminates by` spelling exclusively, and even the directed rejection

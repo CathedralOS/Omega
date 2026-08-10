@@ -825,7 +825,6 @@ fn machine_from_signature(
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        terminates: signature.terminates_guarantee,
         terminates_guarantee: signature.terminates_guarantee,
         decreases: HandleSpan::<ExpressionHandle>::empty(),
         decrease_order: HandleSpan::empty(),

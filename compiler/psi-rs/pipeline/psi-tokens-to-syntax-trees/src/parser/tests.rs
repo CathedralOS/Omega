@@ -1478,7 +1478,6 @@ fn parses_machine_termination_clauses() {
         })
         .expect("machine root item");
 
-    assert!(machine.terminates);
     assert_eq!(
         parsed
             .expressions
@@ -1518,7 +1517,6 @@ fn parses_machine_termination_tuple_subjects() {
         })
         .expect("machine root item");
 
-    assert!(machine.terminates);
     assert_eq!(
         parsed
             .expressions
@@ -1559,7 +1557,6 @@ fn parses_machine_termination_argumented_view() {
         })
         .expect("machine root item");
 
-    assert!(machine.terminates);
     // The by-form supplies only the witness -- never the public guarantee.
     assert!(!machine.terminates_guarantee);
     assert_eq!(
