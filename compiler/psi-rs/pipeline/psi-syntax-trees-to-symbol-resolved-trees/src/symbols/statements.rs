@@ -44,8 +44,8 @@ pub(super) fn assign_statement_reference_symbols(
         let psi_symbol_resolved_trees::machine::MachineStorage {
             owned_data,
             satisfies: _,
-            decreases: _,
-            decrease_order: _,
+            ranking_subjects: _,
+            ranking_view: _,
             contracts: _,
             states,
             ..

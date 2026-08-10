@@ -44,10 +44,10 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, MachineClauses> {
     let mut terminates_guarantee = false;
-    let mut decreases = HandleSpan::empty();
-    let mut decrease_order = HandleSpan::empty();
-    let mut decrease_view_arguments = HandleSpan::empty();
-    let mut decrease_range = psi_syntax_trees::expression::ExpressionHandle::invalid();
+    let mut ranking_subjects = HandleSpan::empty();
+    let mut ranking_view = HandleSpan::empty();
+    let mut ranking_view_arguments = HandleSpan::empty();
+    let mut ranking_range = psi_syntax_trees::expression::ExpressionHandle::invalid();
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
     let mut invokes_start = Handle::invalid();
@@ -72,13 +72,13 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             // RETIRED loudly below.
             if input.at_contextual("by") {
                 let by_input = input.take_contextual("by")?;
-                let ((clause_decreases, clause_order, clause_view_arguments, clause_range), rest) =
+                let ((clause_subjects, clause_view, clause_view_arguments, clause_range), rest) =
                     parse_ranked_subjects(syntax_trees, by_input)?;
                 input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-                decreases = clause_decreases;
-                decrease_order = clause_order;
-                decrease_view_arguments = clause_view_arguments;
-                decrease_range = clause_range;
+                ranking_subjects = clause_subjects;
+                ranking_view = clause_view;
+                ranking_view_arguments = clause_view_arguments;
+                ranking_range = clause_range;
                 continue;
             }
             if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -377,10 +377,10 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     Ok((
         (
             terminates_guarantee,
-            decreases,
-            decrease_order,
-            decrease_view_arguments,
-            decrease_range,
+            ranking_subjects,
+            ranking_view,
+            ranking_view_arguments,
+            ranking_range,
             service_reaches,
             invokes,
             suspends,
@@ -565,16 +565,16 @@ fn parse_ranked_subjects<'tokens, 'source>(
             parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         (vec![expression], rest)
     };
-    let decreases = syntax_trees.expressions.insert_expression_handles(subjects);
-    let mut decrease_order = HandleSpan::empty();
-    let mut decrease_view_arguments = HandleSpan::empty();
+    let ranking_subjects = syntax_trees.expressions.insert_expression_handles(subjects);
+    let mut ranking_view = HandleSpan::empty();
+    let mut ranking_view_arguments = HandleSpan::empty();
 
     if rest.at_punctuation(PunctuationKind::Arrow) {
         rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
         let (order, next) = parse_path_handle_span(rest, |member| {
             syntax_trees.items.append_identifier_path_member(member)
         })?;
-        decrease_order = order;
+        ranking_view = order;
         rest = next;
 
         // TPR3: an ARGUMENTED view (`-> Nat::IncreasingTo(limit)`) -- the
@@ -595,14 +595,14 @@ fn parse_ranked_subjects<'tokens, 'source>(
                     after_argument.take_punctuation(PunctuationKind::RightParen, ")")?;
                 break;
             }
-            decrease_view_arguments = syntax_trees
+            ranking_view_arguments = syntax_trees
                 .expressions
                 .insert_expression_handles(arguments);
             rest = argument_input;
         }
     }
 
-    let mut decrease_range = psi_syntax_trees::expression::ExpressionHandle::invalid();
+    let mut ranking_range = psi_syntax_trees::expression::ExpressionHandle::invalid();
     if rest.at_contextual("in") {
         let range_input = rest.take_contextual("in")?;
         // `<start> ..(=) <end>`: ranges only parse structurally in index
@@ -627,7 +627,7 @@ fn parse_ranked_subjects<'tokens, 'source>(
             syntax_trees,
             after_separator,
         )?;
-        decrease_range =
+        ranking_range =
             syntax_trees
                 .expressions
                 .insert(psi_syntax_trees::expression::ExpressionNode::Range(
@@ -642,10 +642,10 @@ fn parse_ranked_subjects<'tokens, 'source>(
 
     Ok((
         (
-            decreases,
-            decrease_order,
-            decrease_view_arguments,
-            decrease_range,
+            ranking_subjects,
+            ranking_view,
+            ranking_view_arguments,
+            ranking_range,
         ),
         rest,
     ))

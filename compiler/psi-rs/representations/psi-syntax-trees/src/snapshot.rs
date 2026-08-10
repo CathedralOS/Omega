@@ -151,8 +151,8 @@ pub enum ItemSnapshot {
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
         terminates_guarantee: bool,
-        decreases: Vec<ExpressionSnapshot>,
-        decrease_order: Vec<IdentifierSnapshot>,
+        ranking_subjects: Vec<ExpressionSnapshot>,
+        ranking_view: Vec<IdentifierSnapshot>,
         service_reaches: Vec<IdentifierSnapshot>,
         invokes: Vec<IdentifierSnapshot>,
         suspends: bool,
@@ -956,16 +956,16 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
             terminates_guarantee: value.terminates_guarantee,
-            decreases: syntax_trees
+            ranking_subjects: syntax_trees
                 .expressions
-                .expression_handles(value.decreases)
+                .expression_handles(value.ranking_subjects)
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
-            decrease_order: snapshot_identifier_slice(
+            ranking_view: snapshot_identifier_slice(
                 syntax_trees
                     .items
-                    .identifier_path_members(value.decrease_order),
+                    .identifier_path_members(value.ranking_view),
             ),
             service_reaches: snapshot_identifier_slice(
                 syntax_trees

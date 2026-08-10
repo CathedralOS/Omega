@@ -488,12 +488,12 @@ impl SyntaxTrees {
                 })
                 .collect(),
             terminates_guarantee: machine.terminates_guarantee,
-            decreases: self.copy_expression_handle_list(other, machine.decreases),
-            decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),
-            decrease_view_arguments: self
-                .copy_expression_handle_list(other, machine.decrease_view_arguments),
-            decrease_range: if machine.decrease_range.is_valid() {
-                self.copy_expression_handle(other, machine.decrease_range)
+            ranking_subjects: self.copy_expression_handle_list(other, machine.ranking_subjects),
+            ranking_view: self.copy_item_identifier_span(other, machine.ranking_view),
+            ranking_view_arguments: self
+                .copy_expression_handle_list(other, machine.ranking_view_arguments),
+            ranking_range: if machine.ranking_range.is_valid() {
+                self.copy_expression_handle(other, machine.ranking_range)
             } else {
                 crate::expression::ExpressionHandle::invalid()
             },

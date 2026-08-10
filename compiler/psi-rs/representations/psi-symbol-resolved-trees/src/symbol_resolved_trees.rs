@@ -84,7 +84,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub machine_states: Arena<state::State>,
     pub trait_requirements: Arena<crate::trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
-    pub decrease_orders: Arena<crate::name::DiagnosticName>,
+    pub ranking_views: Arena<crate::name::DiagnosticName>,
     pub signature_invokes: Arena<crate::name::DiagnosticName>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub state_parameters: Arena<signature::StateParameter>,
@@ -266,11 +266,11 @@ impl SymbolResolvedTrees {
         self.data_type_parameters(machine.type_parameters)
     }
 
-    pub fn machine_decrease_order(
+    pub fn machine_ranking_view(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables.declarations.decrease_orders.span_or_empty(span)
+        self.tables.declarations.ranking_views.span_or_empty(span)
     }
 
     pub fn machine_contracts(
@@ -437,23 +437,23 @@ mod tests {
     }
 
     #[test]
-    fn decrease_orders_and_signature_invokes_use_independent_arenas() {
+    fn ranking_views_and_signature_invokes_use_independent_arenas() {
         let mut trees = SymbolResolvedTrees::default();
-        let mut decrease_order = HandleSpan::empty();
+        let mut ranking_view = HandleSpan::empty();
         let mut signature_invokes = HandleSpan::empty();
 
         trees
             .tables
             .declarations
-            .decrease_orders
-            .append_to_span(&mut decrease_order, DiagnosticName::generated("remaining"));
+            .ranking_views
+            .append_to_span(&mut ranking_view, DiagnosticName::generated("remaining"));
         trees.tables.declarations.signature_invokes.append_to_span(
             &mut signature_invokes,
             DiagnosticName::generated("Console.write"),
         );
 
         assert_eq!(
-            trees.machine_decrease_order(decrease_order)[0].as_str(),
+            trees.machine_ranking_view(ranking_view)[0].as_str(),
             "remaining"
         );
         assert_eq!(

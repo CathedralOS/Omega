@@ -344,8 +344,8 @@ pub struct MachineSnapshot {
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
     pub termination: TerminationInterfaceSnapshot,
-    pub decreases: Vec<ExpressionSnapshot>,
-    pub decrease_order: Vec<String>,
+    pub ranking_subjects: Vec<ExpressionSnapshot>,
+    pub ranking_view: Vec<String>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
@@ -931,16 +931,16 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
-        decreases: program
+        ranking_subjects: program
             .tables
             .bodies
             .expressions
-            .expression_handles(machine.decreases)
+            .expression_handles(machine.ranking_subjects)
             .iter()
             .map(|handle| table_expression_snapshot(program, *handle))
             .collect(),
-        decrease_order: program
-            .machine_decrease_order(machine.decrease_order)
+        ranking_view: program
+            .machine_ranking_view(machine.ranking_view)
             .iter()
             .map(ToString::to_string)
             .collect(),

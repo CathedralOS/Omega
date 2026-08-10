@@ -846,16 +846,16 @@ pub struct Machine {
     /// public eventual-terminal guarantee. `terminates by ...` supplies only
     /// the private ranking witness and does not set this.
     pub terminates_guarantee: bool,
-    pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
-    pub decrease_order: HandleSpan<Identifier>,
+    pub ranking_subjects: HandleSpan<crate::expression::ExpressionHandle>,
+    pub ranking_view: HandleSpan<Identifier>,
     /// TPR3: an ARGUMENTED view's arguments (`-> Nat::IncreasingTo(limit)`),
     /// in order; empty for plain views. The bound is part of the view.
-    pub decrease_view_arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    pub ranking_view_arguments: HandleSpan<crate::expression::ExpressionHandle>,
     /// TPR1: the witness clause's optional `in <range>` (decision 23's
     /// rank-range constraint). Invalid = absent. Parsed and stored here;
     /// the syntax->resolved lowering refuses it loudly until TPR3's cycle
     /// checker consumes ranges (never silently dropped).
-    pub decrease_range: crate::expression::ExpressionHandle,
+    pub ranking_range: crate::expression::ExpressionHandle,
     pub service_reaches: HandleSpan<Identifier>,
     /// Direct synchronous boundary bindings this callable may enter before
     /// returning. Bodyful machines infer this set and use an authored list as
