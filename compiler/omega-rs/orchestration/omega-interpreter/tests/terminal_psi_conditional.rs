@@ -1,10 +1,15 @@
-use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
+use omega_interpreter::{
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
+};
 use omega_target::NativeTarget;
-use omega_terminal_abstract_operations::TerminalAbstractOperation;
+use omega_terminal_abstract_operations::{
+    TerminalAbstractOperation, TerminalAbstractOperationPlan,
+};
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use omega_terminal_target_operations::{
     TerminalTargetBooleanControl, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
     TerminalTargetOperation,
@@ -19,13 +24,39 @@ use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, SuccessorEdge, TerminalMachine,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
+use psi_terminal_codec::{
+    decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
+};
 use psi_terminal_fixed_fuel::{
     derive_fixed_entry_fuel, derive_fixed_safe_point_segments, validate_fixed_entry_fuel,
     validate_fixed_safe_point_segments,
 };
 use psi_terminal_fuel::FuelChargeSite;
-use psi_terminal_verifier::{ProofBundle, verify_module};
+use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
+
+fn interpret_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+    arguments: &[TerminalScalarValue],
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let semantic_bytes = encode_module(verified.module()).expect("verified semantics encode");
+    let proof_bytes =
+        encode_proof_bundle(&ProofBundle::default()).expect("proof-free bundle encodes");
+    interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        arguments,
+    )
+}
+
+fn lower_verified_artifact(
+    verified: &VerifiedTerminalModule<'_>,
+) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
+    let semantic_bytes = encode_module(verified.module()).expect("verified semantics encode");
+    let proof_bytes =
+        encode_proof_bundle(&ProofBundle::default()).expect("proof-free bundle encodes");
+    lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+}
 
 #[test]
 fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
@@ -71,7 +102,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
         (true, 17, true_edge, false_edge),
         (false, 29, false_edge, true_edge),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -105,7 +136,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
         assert_eq!(measured.usage().at(FuelChargeSite::Edge(unselected)), None);
     }
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower conditional requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower conditional requirements");
     let function = &abstract_plan.functions[0];
     assert_eq!(
         function
@@ -216,7 +247,7 @@ fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
 
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     for (condition, expected) in [(true, 17), (false, 29)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -241,7 +272,7 @@ fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
         );
     }
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower prefixed requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower prefixed requirements");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target_plan = lower_to_target_operations(&abstract_plan, target)
             .expect("entry-prefixed conditional lowers for each architecture");
@@ -278,7 +309,7 @@ fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
 
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     for (condition, expected) in [(true, 12), (false, 32)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -303,7 +334,7 @@ fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
         );
     }
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower shared-tail requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower shared-tail requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("acyclic arm chains should lower for the host");
     let function = &target_plan.functions[0];
@@ -377,7 +408,7 @@ fn compile_known_nested_conditional_folds_inside_a_runtime_arm() {
 
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     for (condition, expected, fuel) in [(true, 6, 5), (false, 4, 2)] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(condition),
@@ -402,7 +433,7 @@ fn compile_known_nested_conditional_folds_inside_a_runtime_arm() {
         );
     }
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower nested requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower nested requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("compile-known nested condition should fold inside its runtime arm");
     let function = &target_plan.functions[0];
@@ -472,7 +503,7 @@ fn runtime_nested_conditional_lowers_as_recursive_target_control() {
     for (outer, inner, expected, fuel) in
         [(true, true, 6, 4), (true, false, 9, 4), (false, true, 4, 2)]
     {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Integer {
@@ -497,7 +528,7 @@ fn runtime_nested_conditional_lowers_as_recursive_target_control() {
             }
         );
     }
-    let abstract_plan = lower_verified_module(&verified).expect("lower nested requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower nested requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("runtime-nested conditional lowers");
     let TerminalTargetOperation::ReturnIntegerConditionalControl {
@@ -579,7 +610,7 @@ fn nested_boolean_result_conditional_reaches_native_control() {
         (true, false, false, 3),
         (false, true, true, 2),
     ] {
-        let measured = interpret_terminal_measured(
+        let measured = interpret_verified_artifact(
             &verified,
             &[
                 TerminalScalarValue::Boolean(outer),
@@ -594,7 +625,7 @@ fn nested_boolean_result_conditional_reaches_native_control() {
         assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
     }
 
-    let abstract_plan = lower_verified_module(&verified).expect("lower Boolean requirements");
+    let abstract_plan = lower_verified_artifact(&verified).expect("lower Boolean requirements");
     let host_target = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("nested Boolean-result conditional lowers for the host");
     let TerminalTargetOperation::ReturnBooleanConditionalControl {
