@@ -1785,15 +1785,6 @@ fn lower_scalar_graph_machine(
                 LoweredScalarBranchTerminator::Jump { target, arguments }
             }
         };
-        if bindings
-            .iter()
-            .any(direct_expression_contains_short_circuit)
-            && staged_short_circuit_bindings_terminator(&bindings, &terminator).is_none()
-        {
-            return unsupported(
-                "short-circuit scalar locals outside a staged terminator need terminal control",
-            );
-        }
         lowered_states.push(LoweredScalarBranchState {
             parameter_types,
             bindings,
@@ -2190,15 +2181,6 @@ fn staged_short_circuit_bindings_terminator(
         .iter()
         .any(direct_expression_contains_short_circuit)
     {
-        return None;
-    }
-    let supported = match terminator {
-        LoweredScalarBranchTerminator::Return { .. } => true,
-        LoweredScalarBranchTerminator::Conditional { .. } => true,
-        LoweredScalarBranchTerminator::Jump { .. } => true,
-        LoweredScalarBranchTerminator::Crash(_) => false,
-    };
-    if !supported {
         return None;
     }
     Some((bindings.to_vec(), terminator.clone()))
@@ -3789,8 +3771,18 @@ fn build_scalar_graph_module(
                         }
                     }
                 }
-                LoweredScalarBranchTerminator::Crash(_) => {
-                    unreachable!("carried Boolean helper filters unsupported terminators")
+                LoweredScalarBranchTerminator::Crash(crash) => {
+                    let edge = edge_id(next_edge_identity);
+                    next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("staged local crash edge identity advances");
+                    Terminator::Crash {
+                        edge,
+                        cause: crash.cause,
+                        damage_minimum: crash.damage_minimum,
+                        containment_demand: crash.containment_demand,
+                        frontier_lower_bound: crash.frontier_lower_bound,
+                    }
                 }
             };
             inlined_blocks.push(Block {

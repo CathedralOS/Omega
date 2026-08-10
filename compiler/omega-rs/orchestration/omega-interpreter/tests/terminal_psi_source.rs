@@ -1414,16 +1414,65 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
 }
 
 #[test]
-fn checked_source_staged_local_crash_fails_closed() {
+fn checked_source_staged_local_sequences_before_an_explicit_crash() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("staged-local crash source canary should compile");
-    assert_eq!(
-        lower_machine(&checked, "terminal_short_circuit_local_crash")
-            .expect_err("a staged local before a crash needs terminal sequencing"),
-        LoweringError::Unsupported(
-            "short-circuit scalar locals outside a staged terminator need terminal control"
+    let lowered = lower_machine(&checked, "terminal_short_circuit_local_crash")
+        .expect("a staged local should sequence before terminal crash control");
+    drop(checked);
+
+    let semantic = encode_module(&lowered.semantic_module)
+        .expect("staged-local crash terminal Psi should encode");
+    let proof =
+        encode_proof_bundle(&lowered.proof_bundle).expect("staged-local crash proof should encode");
+    let semantic = decode_module(&semantic).expect("staged-local crash terminal Psi should decode");
+    let proof = decode_proof_bundle(&proof).expect("staged-local crash proof should decode");
+    let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
+        .expect("staged-local crash terminal Psi should verify");
+
+    for (first, second, expected_units) in [
+        (false, false, 4_u64),
+        (false, true, 4),
+        (true, false, 5),
+        (true, true, 5),
+    ] {
+        let mut execution = TerminalExecution::start(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(first),
+                TerminalScalarValue::Boolean(second),
+            ],
         )
+        .expect("staged-local crash execution should start");
+        let mut meter = TerminalFuelMeter::unbounded();
+        assert!(matches!(
+            execution
+                .resume(&mut meter)
+                .expect("staged-local crash should execute"),
+            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+                cause: CrashCause::Abort,
+                ..
+            })
+        ));
+        assert_eq!(meter.usage().total_units(), expected_units);
+    }
+
+    let abstract_operations = lower_verified_module(&verified)
+        .expect("verified staged-local crash should cross the Omega boundary");
+    assert!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, TerminalAbstractOperation::Crash { .. }))
     );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("staged-local crash should lower for both native targets");
+        let assigned =
+            assign_registers(&target_operations).expect("staged-local crash should assign");
+        let emitted = emit_machine_code(&assigned).expect("staged-local crash should emit");
+        assert!(!emitted.functions[0].bytes.is_empty());
+    }
 }
 
 #[cfg(unix)]
