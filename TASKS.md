@@ -148,10 +148,9 @@ Remaining:
   interpretation, and Omega lowering. Retire legacy consumers as each slice
   moves. Nothing below terminal Psi may depend on typed/source trees,
   `ExpressionHandle`, source rendering, or an Omega-to-Psi bridge.
-- **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars and
-  preserve every reachable no-successor crash leaf in native lowering. Imported
-  crash capsules remain design-blocked on artifact identity and certificate
-  binding.
+- **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
+  Imported crash capsules remain design-blocked on artifact identity and
+  certificate binding.
 - Re-root remaining interpretation and abstract-operation construction on
   canonical-decoded, verified semantic/proof bytes under an explicit admission
   profile. No producer module or checked tree crosses either artifact entry.

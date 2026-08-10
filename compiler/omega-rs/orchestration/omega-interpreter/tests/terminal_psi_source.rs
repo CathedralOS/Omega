@@ -109,6 +109,58 @@ fn expected_crash(module: &TerminalModule) -> TerminalExecutionStatus {
     TerminalExecutionStatus::Crashed(crash)
 }
 
+fn collect_integer_crash_leaves(
+    control: &TerminalTargetIntegerControl,
+    output: &mut Vec<(EdgeId, CrashCause)>,
+) {
+    match control {
+        TerminalTargetIntegerControl::Crash {
+            psi_crash_edge,
+            cause,
+            ..
+        } => output.push((*psi_crash_edge, *cause)),
+        TerminalTargetIntegerControl::Conditional {
+            when_true,
+            when_false,
+            ..
+        }
+        | TerminalTargetIntegerControl::ConditionalExpression {
+            when_true,
+            when_false,
+            ..
+        } => {
+            collect_integer_crash_leaves(&when_true.control, output);
+            collect_integer_crash_leaves(&when_false.control, output);
+        }
+        TerminalTargetIntegerControl::Return { .. } => {}
+    }
+}
+
+fn target_integer_crash_leaves(operation: &TerminalTargetOperation) -> Vec<(EdgeId, CrashCause)> {
+    let mut output = Vec::new();
+    match operation {
+        TerminalTargetOperation::Crash {
+            psi_edge, cause, ..
+        } => output.push((*psi_edge, *cause)),
+        TerminalTargetOperation::ReturnIntegerConditionalControl {
+            when_true,
+            when_false,
+            ..
+        }
+        | TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+            when_true,
+            when_false,
+            ..
+        } => {
+            collect_integer_crash_leaves(&when_true.control, &mut output);
+            collect_integer_crash_leaves(&when_false.control, &mut output);
+        }
+        _ => {}
+    }
+    output.sort_unstable();
+    output
+}
+
 fn assert_guarded_crash_emits(verified: &VerifiedTerminalModule<'_>) {
     let abstract_operations = lower_verified_module(verified)
         .expect("guarded crash should cross the source-independent Omega boundary");
@@ -8051,6 +8103,91 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
                 .windows(branch_to_false_over_fault.len())
                 .any(|window| window == branch_to_false_over_fault),
             "the false return arm must branch over the true crash leaf"
+        );
+    }
+}
+
+#[test]
+fn native_lowering_preserves_every_reachable_crash_leaf() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("two-leaf crash source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_two_crash_leaves")
+        .expect("both guarded crash leaves should lower to terminal Psi");
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("both guarded crash leaves should verify");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+
+    for (trap, abort, expected_crash) in [
+        (true, false, Some(CrashCause::Trap)),
+        (false, true, Some(CrashCause::Abort)),
+        (true, true, Some(CrashCause::Trap)),
+        (false, false, None),
+    ] {
+        let mut execution = TerminalExecution::start(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(trap),
+                TerminalScalarValue::Boolean(abort),
+            ],
+        )
+        .expect("two-leaf crash execution should start");
+        let status = execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("two-leaf crash execution should finish");
+        match (status, expected_crash) {
+            (TerminalExecutionStatus::Crashed(crash), Some(cause)) => {
+                assert_eq!(crash.cause, cause);
+            }
+            (
+                TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: IntegerValue::Signed(0),
+                }),
+                None,
+            ) => assert_eq!(scalar_type, i32_type),
+            (status, expected) => {
+                panic!("unexpected two-leaf outcome {status:?}; expected crash cause {expected:?}")
+            }
+        }
+    }
+
+    let abstract_operations =
+        lower_verified_module(&verified).expect("two crash leaves should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("two crash leaves should survive target selection");
+        let function = &target_operations.functions[0];
+        let leaves = target_integer_crash_leaves(&function.operation);
+        assert_eq!(leaves.len(), 2);
+        assert!(leaves.iter().any(|(_, cause)| *cause == CrashCause::Trap));
+        assert!(leaves.iter().any(|(_, cause)| *cause == CrashCause::Abort));
+        for (edge, _) in &leaves {
+            assert!(function.provenance.edges.contains(edge));
+        }
+
+        let assigned = assign_registers(&target_operations)
+            .expect("two-leaf conditional control should assign");
+        let emitted = emit_machine_code(&assigned).expect("two crash leaves should emit");
+        let emitted_function = &emitted.functions[0];
+        for (edge, _) in &leaves {
+            assert!(emitted_function.provenance.edges.contains(edge));
+        }
+        let fault = match target.architecture {
+            omega_target::Architecture::X86_64 => &[0x0f, 0x0b][..],
+            omega_target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
+        };
+        assert_eq!(
+            emitted_function
+                .bytes
+                .windows(fault.len())
+                .filter(|window| *window == fault)
+                .count(),
+            2,
+            "one native fault instruction must remain for each reachable crash leaf"
         );
     }
 }
