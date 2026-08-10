@@ -500,8 +500,9 @@ the checker never selects a noncanonical view heuristically.
 Current implementation: termination legality and checked
 view facts resolve ranked subjects and argumented-view bounds from the
 normalized `RankingWitness`; view and rank-range identity come from the same
-witness. The legacy typed-machine decreases/order/argument/range spans are
-compatibility output only and may be cleared without changing the judgment.
+witness. Validation, checked facts, specialization, eligibility, and typed
+snapshots resolve that same witness; the legacy typed-machine
+decreases/order/argument/range spans are deleted.
 
 Current artifact: visual builds emit
 `05_machine_contracts.json`, with authored contract identity and private

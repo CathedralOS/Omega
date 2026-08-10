@@ -469,8 +469,8 @@ pub struct MachineSnapshot {
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
     pub termination: TerminationInterfaceSnapshot,
-    pub decreases: Vec<ExpressionSnapshot>,
-    pub decrease_order: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub termination_witness: Option<RankingWitnessSnapshot>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
@@ -517,6 +517,22 @@ pub enum TerminationInterfaceSnapshot {
 pub enum TerminationGuaranteeSnapshot {
     NoGuarantee,
     Terminates { premises: Vec<u32> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankingWitnessSnapshot {
+    pub subjects: Vec<String>,
+    pub ranking_view: u32,
+    pub view_path: String,
+    pub view_arguments: Vec<String>,
+    pub rank_range: Option<RankRangeSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankRangeSnapshot {
+    pub floor: String,
+    pub ceiling: String,
+    pub ceiling_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1040,17 +1056,21 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
-        decreases: program
-            .expression_table
-            .expression_handles(machine.decreases)
-            .iter()
-            .map(|handle| expression_snapshot(program, *handle))
-            .collect(),
-        decrease_order: program
-            .machine_decrease_order(machine.decrease_order)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        termination_witness: machine
+            .termination_plan
+            .implementation_witness
+            .as_ref()
+            .map(|witness| RankingWitnessSnapshot {
+                subjects: witness.subjects.clone(),
+                ranking_view: witness.ranking_view.0,
+                view_path: witness.view_path.clone(),
+                view_arguments: witness.view_arguments.clone(),
+                rank_range: witness.rank_range.as_ref().map(|range| RankRangeSnapshot {
+                    floor: range.floor.clone(),
+                    ceiling: range.ceiling.clone(),
+                    ceiling_inclusive: range.ceiling_inclusive,
+                }),
+            }),
         invokes: program
             .machine_invokes(machine)
             .iter()

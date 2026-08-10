@@ -227,11 +227,12 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                 }
             }
         }
-        for measure in program
-            .expression_table
-            .expression_handles(machine.decreases)
+        if let Some(measures) =
+            psi_typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
         {
-            bless_fact_literals(program, *measure, &mut blessed);
+            for measure in measures {
+                bless_fact_literals(program, measure, &mut blessed);
+            }
         }
     }
     blessed

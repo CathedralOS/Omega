@@ -33,10 +33,6 @@ pub(crate) fn lower_machine(
         owned_data: psi_arena::HandleSpan::empty(),
         satisfies: psi_arena::HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        decreases: psi_arena::HandleSpan::empty(),
-        decrease_order: psi_arena::HandleSpan::empty(),
-        decrease_view_arguments: psi_arena::HandleSpan::empty(),
-        decrease_range: typed::expression::ExpressionHandle::invalid(),
         invokes: psi_arena::HandleSpan::empty(),
         suspends: machine.suspends,
         blocks: machine.blocks,
@@ -121,7 +117,6 @@ pub(crate) fn lower_machine(
             });
     }
 
-    let mut decreases = Vec::new();
     for decrease in lowerer
         .source_trees
         .tables
@@ -129,15 +124,10 @@ pub(crate) fn lower_machine(
         .expressions
         .expression_handles(machine.decreases)
     {
-        let decrease = lower_expression_handle(lowerer, *decrease)?;
-        decreases.push(decrease);
+        let _ = lower_expression_handle(lowerer, *decrease)?;
     }
-    typed_machine.decreases = lowerer
-        .typed_trees
-        .expression_table
-        .insert_expression_handles(decreases);
-    // TPR3: argumented-view arguments lower exactly like the subjects.
-    let mut view_arguments = Vec::new();
+    // Retain typed expression nodes for normalized-witness resolution without
+    // publishing parallel authored handles on the typed machine.
     for argument in lowerer
         .source_trees
         .tables
@@ -145,25 +135,10 @@ pub(crate) fn lower_machine(
         .expressions
         .expression_handles(machine.decrease_view_arguments)
     {
-        let argument = lower_expression_handle(lowerer, *argument)?;
-        view_arguments.push(argument);
+        let _ = lower_expression_handle(lowerer, *argument)?;
     }
-    typed_machine.decrease_view_arguments = lowerer
-        .typed_trees
-        .expression_table
-        .insert_expression_handles(view_arguments);
-    // TPR3 slice 3: the rank-range constraint (invalid = absent).
     if machine.decrease_range.is_valid() {
-        typed_machine.decrease_range = lower_expression_handle(lowerer, machine.decrease_range)?;
-    }
-    for member in lowerer
-        .source_trees
-        .machine_decrease_order(machine.decrease_order)
-    {
-        lowerer.typed_trees.decrease_orders.append_to_span(
-            &mut typed_machine.decrease_order,
-            crate::name::lower_name(member),
-        );
+        let _ = lower_expression_handle(lowerer, machine.decrease_range)?;
     }
 
     for binding in lowerer.source_trees.machine_invokes(machine) {

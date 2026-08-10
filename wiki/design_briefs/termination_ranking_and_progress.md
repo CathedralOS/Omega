@@ -87,14 +87,14 @@ never invents ranking subjects or heuristically chooses a noncanonical view.
 
 Current implementation: checker legality resolves subjects
 and argumented-view bounds from the normalized `RankingWitness`, and consumes
-its view/range identity directly. The typed machine's older decreases/order/
-argument/range spans are compatibility output only; clearing them does not
-change the termination judgment.
+its view/range identity directly. Validation, checked value facts,
+specialization, terminal eligibility, and snapshots use the same witness.
+Typed machines no longer carry parallel decreases/order/argument/range spans.
 
 The diagnostic firewall follows the same rule: checked-stage messages use the
 current `terminates by` spelling exclusively, and even the directed rejection
 of a retired subtraction subject is reconstructed from the normalized witness,
-not from compatibility spans.
+not from authored compatibility spans.
 
 Checked-artifact status (2026-07-17): every acyclic body records a local
 `Terminates` summary, including an unannotated private body. The

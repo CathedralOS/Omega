@@ -1758,22 +1758,20 @@ fn clone_specialized_machine(
     cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();
-    cloned.decreases = copy_expression_span(source, program, source_machine.decreases, &symbol_map);
-    cloned.decrease_order = program.decrease_orders.insert_many(
-        source
-            .decrease_orders
-            .span_or_empty(source_machine.decrease_order)
-            .iter()
-            .cloned(),
-    );
-    cloned.decrease_view_arguments = copy_expression_span(
-        source,
-        program,
-        source_machine.decrease_view_arguments,
-        &symbol_map,
-    );
-    cloned.decrease_range =
-        copy_expression(source, program, source_machine.decrease_range, &symbol_map);
+    if let Some(subjects) =
+        psi_typed_trees::ranking::resolve_machine_witness_subjects(source, source_machine)
+    {
+        for expression in subjects {
+            let _ = copy_expression(source, program, expression, &symbol_map);
+        }
+    }
+    if let Some(arguments) =
+        psi_typed_trees::ranking::resolve_machine_witness_view_arguments(source, source_machine)
+    {
+        for expression in arguments {
+            let _ = copy_expression(source, program, expression, &symbol_map);
+        }
+    }
     cloned.contracts = HandleSpan::empty();
     cloned.states = HandleSpan::empty();
 
@@ -1888,21 +1886,6 @@ fn copy_expression(
         .copy_from(&source.expression_table, expression);
     program.expression_table.remap_symbols_in(copied, symbols);
     copied
-}
-
-fn copy_expression_span(
-    source: &TypedTrees,
-    program: &mut TypedTrees,
-    expressions: HandleSpan<ExpressionHandle>,
-    symbols: &[(SymbolHandle, SymbolHandle)],
-) -> HandleSpan<ExpressionHandle> {
-    let copied: Vec<_> = source
-        .expression_table
-        .expression_handles(expressions)
-        .iter()
-        .map(|expression| copy_expression(source, program, *expression, symbols))
-        .collect();
-    program.expression_table.insert_expression_handles(copied)
 }
 
 /// `ExpressionTable::copy_from` owns expression recursion but deliberately

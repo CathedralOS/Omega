@@ -20,9 +20,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || !machine.satisfies.is_empty()
-                    || !machine.decreases.is_empty()
-                    || !machine.decrease_view_arguments.is_empty()
-                    || machine.decrease_range.is_valid()
+                    || machine.termination_plan.implementation_witness.is_some()
                     || !program
                         .service_reach_rows
                         .services(machine.service_reach_row)

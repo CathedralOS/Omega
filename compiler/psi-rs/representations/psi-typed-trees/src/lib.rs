@@ -17,6 +17,7 @@ pub mod name;
 pub mod operator;
 pub mod proof_only;
 pub mod proposition;
+pub mod ranking;
 pub mod signature;
 pub mod snapshot;
 pub mod state;

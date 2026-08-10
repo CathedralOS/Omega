@@ -5,6 +5,7 @@ mod slice;
 mod struct_view;
 
 use psi_typed_trees::expression::ExpressionHandle;
+use psi_typed_trees::ranking::resolve_witness_expressions;
 
 use super::graph;
 use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
@@ -300,69 +301,6 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
                     .unwrap_or_default()
             }),
         _ => String::new(),
-    }
-}
-
-/// Resolve the normalized witness's source-like subject names back to the
-/// typed expression nodes already retained in the expression arena. This is
-/// deliberately independent of `Machine::{decreases,decrease_order,...}`:
-/// those spans are compatibility output, while the witness is the semantic
-/// producer consumed by the checker.
-fn resolve_witness_expressions(
-    program: &psi_typed_trees::TypedTrees,
-    state: &psi_typed_trees::state::State,
-    rendered: &[String],
-) -> Option<Vec<ExpressionHandle>> {
-    rendered
-        .iter()
-        .map(|expected| {
-            if expected == "value" {
-                return None;
-            }
-            program
-                .expression_table
-                .iter_expressions()
-                .filter(|(handle, _)| decreasing_value_text(program, *handle) == *expected)
-                .find_map(|(handle, _)| {
-                    expression_belongs_to_state(program, state, handle).then_some(handle)
-                })
-                .or_else(|| {
-                    // Literal view arguments/range bounds have no place root.
-                    program
-                        .expression_table
-                        .iter_expressions()
-                        .find_map(|(handle, _)| {
-                            (decreasing_value_text(program, handle) == *expected).then_some(handle)
-                        })
-                })
-        })
-        .collect()
-}
-
-fn expression_belongs_to_state(
-    program: &psi_typed_trees::TypedTrees,
-    state: &psi_typed_trees::state::State,
-    expression: ExpressionHandle,
-) -> bool {
-    let Some(root) = ranked_expression_root(program, expression) else {
-        return false;
-    };
-    program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.symbol == root)
-}
-
-fn ranked_expression_root(
-    program: &psi_typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<psi_symbols::SymbolHandle> {
-    use psi_typed_trees::expression::ExpressionNode;
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => Some(path.symbol),
-        ExpressionNode::Member(member) => ranked_expression_root(program, member.receiver),
-        ExpressionNode::Cast(cast) => ranked_expression_root(program, cast.value),
-        _ => None,
     }
 }
 
