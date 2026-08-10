@@ -248,6 +248,19 @@ ensures true == true
     state finish_short_circuit_local_conditional_edge(value: bool) -> bool { value }
 }
 
+machine terminal_short_circuit_local_guard(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let joined: bool = first && second;
+    transition joined || first {
+        true -> finish_short_circuit_local_guard(true)
+        _ -> finish_short_circuit_local_guard(false)
+    }
+
+    state finish_short_circuit_local_guard(value: bool) -> bool { value }
+}
+
 machine terminal_saturating_add() -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
