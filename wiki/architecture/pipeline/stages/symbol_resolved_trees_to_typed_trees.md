@@ -59,8 +59,7 @@ Must not own:
 The implementation should make typed semantic surfaces visible by file:
 
 - `compiler/psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees` owns the
-  stage implementation. The old Omega compatibility package is retired; all
-  workspace consumers invoke the Psi stage directly.
+  stage implementation. All workspace consumers invoke it directly.
 
 - `compiler/psi-rs/foundation/psi-language-semantics` owns canonical
   const-value atoms and normalized wire scalar ranges used by typed
@@ -70,8 +69,7 @@ The implementation should make typed semantic surfaces visible by file:
   typed `Placed<P, T>` surfaces retain. Concrete ABI selection and target
   lowering remain Omega-owned.
 - `compiler/psi-rs/representations/psi-typed-trees` owns the typed source
-  representation. Consumers depend on this Psi owner directly; the old
-  Omega-named typed-tree package is retired.
+  representation. Consumers depend on this Psi owner directly.
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.

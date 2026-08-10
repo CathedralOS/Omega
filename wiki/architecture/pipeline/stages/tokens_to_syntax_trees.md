@@ -23,8 +23,7 @@ source shape without turning nested syntax into scattered heap objects.
   arena-backed tables, identity/snapshot materialization, and all source-shaped
   nodes.
 - `compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees` owns the parser modules
-  listed below. Every workspace harness uses this Psi stage directly; the old
-  Omega-named parser and syntax-tree packages are retired.
+  listed below. Every workspace harness uses this Psi stage directly.
 - `compiler/psi-rs/foundation/psi-arena` owns the generic typed dense, paged,
   generational, hierarchy, and ordered-root arena storage required by source
   representations.

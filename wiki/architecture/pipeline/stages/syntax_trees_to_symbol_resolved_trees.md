@@ -51,12 +51,10 @@ Must not own:
 The implementation should stay split by identity task:
 
 - `compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees` owns the
-  stage implementation. The old Omega compatibility package is retired; all
-  workspace consumers invoke the Psi stage directly.
+  stage implementation. All workspace consumers invoke it directly.
 
 - `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
-  output. The unused `omega-symbol-resolved-trees` compatibility package is
-  retired.
+  output.
 
 - `compiler/psi-rs/foundation/psi-language-semantics` owns the resolved
   semantic identities, service/domain tables, machine supply/termination

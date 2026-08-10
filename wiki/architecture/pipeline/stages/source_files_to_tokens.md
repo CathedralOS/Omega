@@ -22,8 +22,7 @@ Primary responsibility: preserve source identity and split text into tokens.
 - `compiler/psi-rs/representations/psi-tokens` owns token kinds, text, and
   streams.
 - `compiler/psi-rs/pipeline/psi-source-files-to-tokens` owns the implementation
-  files below. Every workspace harness uses this Psi stage directly; the old
-  Omega-named lexer and token packages are retired.
+  files below. Every workspace harness uses this Psi stage directly.
 - `lexer.rs` owns token dispatch, source-span slicing, token construction, comments, whitespace, identifiers, keywords, and punctuation.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.
 - `lexer/strings.rs` owns cooked/raw string scanning and escape validation while advancing the lexer cursor.
