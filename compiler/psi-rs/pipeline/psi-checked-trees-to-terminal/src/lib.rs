@@ -1695,11 +1695,6 @@ fn lower_scalar_graph_machine(
                 return unsupported("checked scalar local initializer type must match its binding");
             }
             validate_direct_parameter_types(&expression, &value_types)?;
-            if direct_expression_contains_short_circuit(&expression) {
-                return unsupported(
-                    "short-circuit Boolean local initialization needs explicit terminal control",
-                );
-            }
             bindings.push(expression);
             value_types.push(binding_type);
         }
@@ -1790,6 +1785,16 @@ fn lower_scalar_graph_machine(
                 LoweredScalarBranchTerminator::Jump { target, arguments }
             }
         };
+        if bindings
+            .iter()
+            .any(direct_expression_contains_short_circuit)
+            && direct_short_circuit_binding_return(parameter_types.len(), &bindings, &terminator)
+                .is_none()
+        {
+            return unsupported(
+                "short-circuit scalar locals outside direct return need carried terminal control",
+            );
+        }
         lowered_states.push(LoweredScalarBranchState {
             parameter_types,
             bindings,
@@ -2176,6 +2181,39 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
         LoweredDirectExpression::Boolean { expression }
             if contains_short_circuit(expression)
     )
+}
+
+fn direct_short_circuit_binding_return<'a>(
+    parameter_count: usize,
+    bindings: &'a [LoweredDirectExpression],
+    terminator: &LoweredScalarBranchTerminator,
+) -> Option<&'a LoweredDirectExpression> {
+    let [binding] = bindings else {
+        return None;
+    };
+    let LoweredDirectExpression::Boolean {
+        expression: binding_expression,
+    } = binding
+    else {
+        return None;
+    };
+    if !contains_short_circuit(binding_expression) {
+        return None;
+    }
+    let LoweredScalarBranchTerminator::Return {
+        expression:
+            LoweredDirectExpression::Boolean {
+                expression: returned_expression,
+            },
+    } = terminator
+    else {
+        return None;
+    };
+    matches!(
+        returned_expression.as_ref(),
+        LoweredBooleanReturnExpression::Local { position } if *position == parameter_count
+    )
+    .then_some(binding)
 }
 
 fn validate_short_circuit_expression(
@@ -3396,9 +3434,26 @@ fn build_scalar_graph_module(
         } else {
             current_parameters.clone()
         };
+        let direct_short_circuit_return = direct_short_circuit_binding_return(
+            state.parameter_types.len(),
+            &state.bindings,
+            &state.terminator,
+        );
+        let direct_return_terminator =
+            direct_short_circuit_return.map(|binding| LoweredScalarBranchTerminator::Return {
+                expression: binding.clone(),
+            });
+        let terminator_plan = direct_return_terminator
+            .as_ref()
+            .unwrap_or(&state.terminator);
+        let bindings = if direct_short_circuit_return.is_some() {
+            &[][..]
+        } else {
+            state.bindings.as_slice()
+        };
         let mut current_values = current_parameters.clone();
         let mut current_value_types = state.parameter_types.clone();
-        for binding in &state.bindings {
+        for binding in bindings {
             let id = emit_direct_expression(
                 binding,
                 &current_values,
@@ -3412,7 +3467,7 @@ fn build_scalar_graph_module(
             current_value_types.push(binding.scalar_type());
         }
         let terminator_operation_start = all_operations.len();
-        let terminator = match &state.terminator {
+        let terminator = match terminator_plan {
             LoweredScalarBranchTerminator::Jump { target, arguments } => {
                 if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                     && contains_short_circuit(expression)

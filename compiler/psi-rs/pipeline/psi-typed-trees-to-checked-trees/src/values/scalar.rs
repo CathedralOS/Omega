@@ -76,7 +76,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         );
                         if let (Some(binding_ordinal), Some(initializer)) =
                             (binding_ordinal, initializer)
-                            && !direct_expression_contains_short_circuit(&initializer)
                         {
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
@@ -919,13 +918,6 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => true,
     }
-}
-
-fn direct_expression_contains_short_circuit(expression: &CheckedScalarExpression) -> bool {
-    matches!(
-        expression,
-        CheckedScalarExpression::Boolean(expression) if contains_short_circuit(expression)
-    )
 }
 
 fn is_integer_comparison(expression: &CheckedBooleanExpression) -> bool {
