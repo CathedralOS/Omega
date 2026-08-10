@@ -63,10 +63,8 @@ pub(super) fn source_files_to_syntax_trees(
     target_name: Option<&str>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-    // `native: true` — the full native-image path substitutes target-specific
-    // providers (task #57: `gui: Gui` -> `MacosGui` on darwin). The interpreter's
-    // `compile_to_checked` path keeps the abstract boundary traits (its own headless
-    // stubs), so it calls the `..._for_engine(false)` variant.
+    // The native-image path substitutes target-specific providers. The interpreter
+    // keeps abstract boundary traits for its headless stubs.
     source_files_to_syntax_trees_for_engine(root_path, target_name, true, timings)
 }
 

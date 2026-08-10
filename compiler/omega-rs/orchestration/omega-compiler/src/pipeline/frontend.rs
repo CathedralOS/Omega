@@ -458,8 +458,8 @@ pub(crate) fn bundled_omega_root() -> PathBuf {
 }
 
 /// Read a bundled std module's source text (`omega/language/std/<module>.omg`).
-/// Used by target-specific provider substitution (task #57), which injects a
-/// bundled provider module (`macos_gui`) that the sample never `use`s itself.
+/// Target-specific provider substitution uses this to inject bundled provider
+/// modules, such as `macos_gui`, that application source does not import itself.
 pub(crate) fn read_bundled_std_source(module: &str) -> Result<String, Vec<Diagnostic>> {
     let mut path = bundled_omega_root();
     path.push("language");

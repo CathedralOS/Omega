@@ -1155,14 +1155,10 @@ fn clock_sleep_poll_milliseconds_exits_6() {
     );
 }
 
-// The darwin GUI-provider SUBSTITUTION (task #57): a program that declares the
-// UNCHANGED Win32-shaped `boundary trait Gui` and holds a `gui: Gui` FIELD, with NO
-// `use` of any macOS module -- exactly like samples/gui/window_demo. On darwin the
-// compiler injects the bundled MacosGui provider and rewrites the `gui: Gui` field to
-// `MacosGui`, so `self.gui.window_create(..)` dispatches to the objc-composing
-// MacosGui machine as a value-call. A non-null window + get_dc echo -> exit 7. This is
-// the source-transparent wiring that runs the samples natively without touching their
-// traits. (The interpreter path keeps `gui: Gui`, so this substitution is native-only.)
+// Darwin provider-substitution canary: source declares only the abstract `Gui`
+// boundary field. The native pipeline injects `MacosGui`, while the interpreter
+// retains its abstract headless provider. A non-null window plus `get_dc` echo exits
+// with 7.
 #[test]
 fn gui_provider_substitution_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_provider_substitution/main.omg");

@@ -8,11 +8,8 @@
 //
 // The samples call `self.gui.window_create(cls, title, style, x, y, w, h)` etc.
 // through a `boundary trait Gui` field; on darwin that field is provided by this
-// `MacosGui` (the boundary→provider substitution, task #57). Its ops are ordinary
-// value-calls — run-verified (fire 22): the WHOLE window_demo shape (window +
-// 60-frame blit + 3-op pump loop + liveness) runs natively through MacosGui value-
-// calls (`fullpump` → exit 7). The op signatures here EXACTLY match the samples'
-// `Gui` trait so the substitution is a drop-in provider.
+// `MacosGui`. Its ordinary value-call signatures exactly match the samples'
+// `Gui` trait, making target-selected substitution transparent to source callers.
 //
 // D-macgui-style: the Win32 `class_name`/`style` args are IGNORED — macOS always
 // builds a standard titled/closable/resizable window (styleMask 15). The samples
@@ -324,9 +321,9 @@ machine MacosGui::foreground_window(&mut self) -> u64 {
 // keycode and asking Core Graphics whether that physical key is currently down
 // (`CGEventSourceKeyState`, HID system state = 1). On darwin the samples' `input:
 // Input` boundary field is provided by this `MacosInput` (the boundary→provider
-// substitution, task #57/#60), so `self.input.key_state(27)` (ESC) dispatches here
-// as an ordinary value-call. Unmapped virtual-keys report "not down" (0) rather than
-// querying a wrong keycode.
+// substitution), so `self.input.key_state(27)` (ESC) dispatches here as an ordinary
+// value-call. Unmapped virtual-keys report "not down" (0) rather than querying a
+// wrong keycode.
 data MacosInput {
     cg: CoreGraphics;
     keycode: u64;
