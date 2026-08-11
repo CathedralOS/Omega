@@ -14,11 +14,12 @@ pub use plans::{
     StatePlan, SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation,
     ValuePlacement, ValueShape, compose_state_footprints, evaluate_call_plan,
     evaluate_darwin_aapcs64_variadic_boundary_entry_plan,
-    evaluate_darwin_aapcs64_variadic_call_plan, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan, validate_boundary_plan_result, validate_call_plan,
-    validate_call_return_mechanics_footprint, validate_composed_state_footprint,
-    validate_outbound_call_footprint, validate_provider_exit_realization,
-    validate_runtime_value_guard_footprint, validate_state_footprint,
+    evaluate_darwin_aapcs64_variadic_call_plan, evaluate_freestanding_program_entry_plan,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    validate_boundary_plan_result, validate_call_plan, validate_call_return_mechanics_footprint,
+    validate_composed_state_footprint, validate_outbound_call_footprint,
+    validate_provider_exit_realization, validate_runtime_value_guard_footprint,
+    validate_state_footprint,
 };
 pub use windows::windows_import_library;
 

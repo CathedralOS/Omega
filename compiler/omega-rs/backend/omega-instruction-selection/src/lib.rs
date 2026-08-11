@@ -8,7 +8,7 @@ pub mod widths;
 pub use encoding::*;
 pub use entry::{
     DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage, DerivedBoundaryExit,
-    derive_boundary_call_return_mechanics_footprint,
+    derive_boundary_call_return_mechanics_footprint, derive_boundary_checked_assembly_footprint,
     derive_boundary_compiler_body_atomic_footprint,
     derive_boundary_compiler_body_constant_host_result_footprint,
     derive_boundary_compiler_body_outbound_authored_aggregate_import_footprint,
@@ -100,6 +100,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionSelectionInput<'plan> {
     pub target: omega_target::NativeTarget,
+    pub freestanding: bool,
     pub runtime_abi: &'plan RuntimeAbiPlan,
     pub entry_key: StateKey,
     pub entry_boundary_plan: Option<&'plan omega_calling_conventions::BoundaryEntryPlan>,

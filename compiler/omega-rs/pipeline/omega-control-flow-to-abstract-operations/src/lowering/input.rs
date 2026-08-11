@@ -19,6 +19,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationLoweringInput<'plan> {
     pub target: omega_target::NativeTarget,
+    pub freestanding: bool,
     pub runtime_abi: &'plan RuntimeAbiPlan,
     pub entry_key: StateKey,
     pub entry_boundary_plan: Option<&'plan omega_calling_conventions::BoundaryEntryPlan>,
@@ -50,6 +51,7 @@ impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>>
     fn from(input: &'plan AbstractOperationLoweringInput<'plan>) -> Self {
         Self {
             target: input.target,
+            freestanding: input.freestanding,
             runtime_abi: input.runtime_abi,
             entry_key: input.entry_key,
             entry_boundary_plan: input.entry_boundary_plan,

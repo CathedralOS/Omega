@@ -412,6 +412,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             let runtime_abi = build_runtime_abi_plan(backend_plan.target);
             build_abstract_operation_plan(&AbstractOperationLoweringInput {
                 target: backend_plan.target,
+                freestanding,
                 receiver_bases: &backend_plan.receiver_bases,
                 state_contexts: &backend_plan.state_contexts,
                 runtime_abi: &runtime_abi,

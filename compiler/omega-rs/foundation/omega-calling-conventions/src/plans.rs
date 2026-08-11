@@ -570,6 +570,29 @@ pub fn evaluate_ordinary_boundary_entry_plan(
     evaluate_ordinary_boundary_entry_plan_from_call(call, signature)
 }
 
+/// Concrete state policy for the compiler-selected implicit entry of a
+/// freestanding program. Unlike a hosted ordinary call, this root is the
+/// admitted owns-the-machine domain: checked instruction contracts may use
+/// instruction, stack, and control state in addition to the ordinary ABI
+/// volatile banks. An explicit source-selected boundary plan remains
+/// authoritative and must not be widened through this compatibility path.
+pub fn evaluate_freestanding_program_entry_plan(
+    policy: CallingPolicy,
+    signature: &CallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+    let ordinary = evaluate_ordinary_boundary_entry_plan(policy, signature)?;
+    let mut plan = ordinary.plan().clone();
+    plan.state.permitted_transitive_use =
+        plan.state
+            .permitted_transitive_use
+            .union(MachineStateSet::new([
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+                MachineState::ControlState,
+            ]));
+    validate_boundary_entry_plan(plan, signature)
+}
+
 pub fn evaluate_darwin_aapcs64_variadic_boundary_entry_plan(
     signature: &ConcreteVariadicCallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
@@ -2647,6 +2670,48 @@ mod tests {
             ),
         )
         .expect("ordinary caller-volatile condition flags fit the state ceiling");
+    }
+
+    #[test]
+    fn implicit_freestanding_entry_admits_boot_root_machine_state() {
+        let signature = integer_signature(1);
+        let hosted = evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("ordinary entry");
+        let freestanding =
+            evaluate_freestanding_program_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+                .expect("implicit freestanding entry");
+        let boot_root_state = MachineStateSet::new([
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+            MachineState::ControlState,
+        ]);
+
+        assert!(
+            !hosted
+                .plan()
+                .state
+                .permitted_transitive_use
+                .contains_all(boot_root_state)
+        );
+        assert!(
+            freestanding
+                .plan()
+                .state
+                .permitted_transitive_use
+                .contains_all(boot_root_state)
+        );
+        assert_eq!(
+            hosted.plan().state.interrupted_state,
+            freestanding.plan().state.interrupted_state
+        );
+        assert_eq!(
+            hosted.plan().state.saved_state,
+            freestanding.plan().state.saved_state
+        );
+        assert_eq!(
+            hosted.plan().state.restored_state,
+            freestanding.plan().state.restored_state
+        );
     }
 
     #[test]

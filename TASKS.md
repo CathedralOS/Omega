@@ -219,18 +219,6 @@ Owners:
   view through foreign signatures, calling plans, borrow checking, and both
   execution paths without widening it to read/write authority.
 
-#### ENT3 — final state-footprint validation
-
-Remaining:
-
-- finish complete entry/body-region enumeration, including format-owned thunks,
-  veneers, and generated stubs;
-- derive the complete final register/machine-state union and require exact
-  equality with earlier `StatePlan` evidence; and
-- set certificate completeness only after every executable byte belongs to one
-  validated compiler or admitted-format class. Do not add an
-  interrupt-specific or second whole-image decoder.
-
 #### ENT4 — registered callbacks
 
 - Bind one named static boundary machine to a callback requirement, retain exact

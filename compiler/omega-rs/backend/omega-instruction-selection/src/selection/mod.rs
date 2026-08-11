@@ -1,6 +1,6 @@
 use crate::{
     InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
-    derive_boundary_compiler_body_atomic_footprint,
+    derive_boundary_checked_assembly_footprint, derive_boundary_compiler_body_atomic_footprint,
     derive_boundary_compiler_body_constant_host_result_footprint,
     derive_boundary_compiler_body_outbound_authored_aggregate_import_footprint,
     derive_boundary_compiler_body_outbound_authored_aggregate_import_result_footprint,
@@ -417,6 +417,23 @@ fn retain_exit_footprints(
         },
     )
     .expect("retained function mechanics must name and fit the entry boundary contract");
+
+    let evidence = derive_boundary_checked_assembly_footprint(
+        boundary,
+        runtime_value_operands,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected checked assembly must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CheckedAssemblyCatalog,
+                evidence,
+            },
+        )
+        .expect("retained checked-assembly footprint must name the entry boundary contract");
+    }
 
     let evidence = derive_boundary_exit_result_register_footprint(
         boundary,

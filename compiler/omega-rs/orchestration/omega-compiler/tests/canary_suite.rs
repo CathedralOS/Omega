@@ -881,7 +881,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     assert!(
         win_regions
             .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-            && win_regions.contains("\"compiler_function_body_specification_subset\""),
+            && win_regions.contains("\"compiler_function_body_specification\""),
         "Windows atomics must reach final-byte validation"
     );
     // Only a windows host can execute the PE; elsewhere the windows_x64 build
@@ -924,7 +924,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     assert!(
         arm_regions
             .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-            && arm_regions.contains("\"compiler_function_body_specification_subset\""),
+            && arm_regions.contains("\"compiler_function_body_specification\""),
         "AArch64 atomics must reach final-byte validation"
     );
     let elf = fs::read(arm_dir.join("omega-program")).expect("linux_arm64 ELF should be emitted");
@@ -1186,9 +1186,9 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains(
                 "\"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_function_call_return_mechanics\""
             )
-            && executable_regions.contains("\"enumeration_complete\": false")
+            && executable_regions.contains("\"enumeration_complete\": true")
             && executable_regions.contains("\"region_enumeration_complete\": true")
-            && executable_regions.contains("\"footprint_enumeration_complete\": false")
+            && executable_regions.contains("\"footprint_enumeration_complete\": true")
             && executable_regions.contains(
                 "\"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"]"
             )
@@ -1209,7 +1209,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"body_specification_boundary_contract_fingerprint\": \"0x")
             && executable_regions.contains("\"body_specification_footprint_fingerprint\": \"0x")
             && executable_regions.contains("\"composed_footprint_fingerprint\": \"0x")
-            && executable_regions.contains("\"compiler_function_body_specification_subset\"")
+            && executable_regions.contains("\"compiler_function_body_specification\"")
             && executable_regions.contains("\"compiler_function_instruction_enumeration\"")
             && executable_regions.contains("\"relocation_envelope_fingerprint\": \"0x")
             && executable_regions.contains("\"derivation_fingerprint\": \"0x")
@@ -1217,10 +1217,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"text_fingerprint\": \"0x")
             && executable_regions.contains("\"byte_fingerprint\": \"0x")
             && executable_regions.contains("\"unclassified_gaps\"")
-            && executable_regions.contains(
-                "\"missing_classes\": [\"compiler_function_body_footprint_decoding\"]"
-            ),
-        "final executable inventory should classify placed compiler code without claiming complete footprint enumeration"
+            && executable_regions.contains("\"missing_classes\": []"),
+        "final executable inventory should classify placed compiler code with complete footprint enumeration"
     );
     assert!(
         machine_instructions.contains("Machine Instructions")
@@ -3155,7 +3153,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
         .expect("general x86 final executable-region evidence should be written");
     assert!(
         regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-            && regions.contains("\"compiler_function_body_specification_subset\""),
+            && regions.contains("\"compiler_function_body_specification\""),
         "general x86 text assembly must reach final-image validation"
     );
     let elf = fs::read(output.join("omega-program")).expect("linux_x64 ELF emitted");
@@ -3217,7 +3215,7 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire appends must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3289,7 +3287,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire text append must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3363,7 +3361,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire scalar-slice append must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3441,7 +3439,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire repeated-scalar appends must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3514,7 +3512,7 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire byte-slice read must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3595,7 +3593,7 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} nested-boundary checks must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3674,7 +3672,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} guarded repeated-scalar read must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3738,7 +3736,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire expected-byte read must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3812,7 +3810,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
         assert!(
             regions
                 .contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-                && regions.contains("\"compiler_function_body_specification_subset\""),
+                && regions.contains("\"compiler_function_body_specification\""),
             "{target} wire scalar-varint reads must reach final-byte validation"
         );
         let elf = fs::read(output.join("omega-program"))
@@ -3852,7 +3850,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
         .expect("cross-region AArch64 final executable-region evidence should be written");
     assert!(
         regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-            && regions.contains("\"compiler_function_body_specification_subset\""),
+            && regions.contains("\"compiler_function_body_specification\""),
         "cross-region AArch64 frame-descriptor operations must reach final-image validation"
     );
     let elf = fs::read(output.join("omega-program")).expect("linux_arm64 ELF emitted");
@@ -42909,10 +42907,11 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
     assert!(
         executable_regions.contains("\"checked_instruction_validation_count\": 3")
             && executable_regions.contains("\"checked_instruction_validation_fingerprint\": \"0x")
+            && executable_regions.contains("\"checked_instruction_footprint_fingerprint\": \"0x")
             && executable_regions.contains("\"catalog_checked_assembly\"")
-            && executable_regions
-                .contains("\"missing_classes\": [\"compiler_function_body_footprint_decoding\"]"),
-        "final image evidence should cover all three fixed fence instructions without claiming complete body decoding:\n{executable_regions}"
+            && executable_regions.contains("\"enumeration_complete\": true")
+            && executable_regions.contains("\"missing_classes\": []"),
+        "final image evidence should cover all three fixed fence instructions with complete body validation:\n{executable_regions}"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -42937,7 +42936,8 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
         .expect("final executable-region inventory should be written");
     assert!(
         executable_regions.contains("\"checked_instruction_validation_count\": 1")
-            && executable_regions.contains("\"checked_instruction_validation_fingerprint\": \"0x"),
+            && executable_regions.contains("\"checked_instruction_validation_fingerprint\": \"0x")
+            && executable_regions.contains("\"checked_instruction_footprint_fingerprint\": \"0x"),
         "final image evidence should bind the immediate port instruction:\n{executable_regions}"
     );
 
@@ -44766,7 +44766,7 @@ fn efi_vtable_call_emits_indirect_dispatch() {
         .expect("vtable-call executable-region evidence should be emitted");
     assert!(
         regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
-            && regions.contains("\"compiler_function_body_specification_subset\""),
+            && regions.contains("\"compiler_function_body_specification\""),
         "vtable dispatch must reach final-byte replay"
     );
     let _ = fs::remove_dir_all(&build_dir);

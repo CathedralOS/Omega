@@ -222,6 +222,13 @@ SIMD-free: optimization, register allocation, and callees may introduce SIMD.
 The backend therefore emits an actual footprint certificate and final-artifact
 validation checks it against the state ceiling.
 
+A compiler-selected implicit freestanding program entry is the admitted boot
+root rather than a hosted caller. Its normalized ceiling additionally permits
+the instruction-pointer, balanced-stack, and control-state use required by the
+checked machine-control catalog. This compatibility entry rule never widens an
+explicit source-selected boundary `StatePlan`; authored interrupt, firmware,
+or callback plans remain exact authority.
+
 Floating arithmetic instruction contracts additionally require the target's
 canonical masked semantic-control state. For binary32/binary64 this includes
 the selected rounding rule and gradual-underflow controls such as x86 FTZ/DAZ

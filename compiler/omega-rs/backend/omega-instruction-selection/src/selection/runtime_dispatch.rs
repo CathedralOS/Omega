@@ -2639,6 +2639,15 @@ fn select_normalized_entry_argument_writes(
     let boundary = match input.entry_boundary_plan {
         Some(plan) => validate_boundary_entry_plan(plan.clone(), &signature)
             .expect("selected target entry plan must match its source continuation signature"),
+        None if input.freestanding => {
+            omega_calling_conventions::evaluate_freestanding_program_entry_plan(
+                entry_calling_policy(input),
+                &signature,
+            )
+            .expect(
+                "freestanding runtime entry signature must have a normalized boundary entry plan",
+            )
+        }
         None => evaluate_ordinary_boundary_entry_plan(entry_calling_policy(input), &signature)
             .expect("runtime entry signature must have a normalized boundary entry plan"),
     };
