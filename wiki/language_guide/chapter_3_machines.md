@@ -151,10 +151,11 @@ the target schema states how the launch environment supplies those needs.
 > to one selected provider plan/invocation, establishment route, capacity
 > account, and qualification through that record. A canonical
 > non-authoritative completed-installation JSON renderer and atomic artifact
-> writer cover both provider-issued and compiler-provisioned origins; ordinary
-> compilation removes stale copies and never claims completion. Binding this
-> portable evidence to the selected physical provider and invoking the writer
-> after that bridge succeeds remain. Actual receiver provisioning, corpus
+> writer cover both provider-issued and compiler-provisioned origins. The
+> installation handoff releases roots only after that record is emitted and
+> seals them for retry across a write failure; ordinary compilation removes
+> stale copies and never claims completion. Binding this portable evidence to
+> the selected physical provider remains. Actual receiver provisioning, corpus
 > migration, and removal of transitional entry-name discovery also remain under
 > `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 

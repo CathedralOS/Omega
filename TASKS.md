@@ -56,14 +56,14 @@ Remaining:
   provisioning, and explicit-entry corpus migration. Exact target-owned
   `ProgramEntry` selection, typed `ProgramStorageEntry::enter` positions,
   calling-plan/capture binding, all-or-nothing two-grant installation, derived
-  image/storage subextents, and pending/completed audit artifacts are live.
-  Bind the installer to the selected physical provider and emit its completed
-  record only after successful installation. Provision a ZII-valid receiver
-  from admitted storage for one `&mut self` activation, record its placement,
-  migrate the corpus, and delete `main`/`Main::run` discovery. No ambient
-  `static` storage. Final composition of firmware `ImageHandle`/`SystemTable`
-  inputs with the semantic roots is design-blocked on owner Q2; the other
-  bridge and migration work is not.
+  image/storage subextents, and a completion-record gate that retains installed
+  roots across write failure are live. Bind the installer to the selected
+  physical provider. Provision a ZII-valid receiver from admitted storage for
+  one `&mut self` activation, record its placement, migrate the corpus, and
+  delete `main`/`Main::run` discovery. No ambient `static` storage. Final
+  composition of firmware `ImageHandle`/`SystemTable` inputs with the semantic
+  roots is design-blocked on owner Q2; the other bridge and migration work is
+  not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless

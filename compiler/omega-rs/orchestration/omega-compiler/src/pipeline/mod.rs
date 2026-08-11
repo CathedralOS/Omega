@@ -39,7 +39,6 @@ mod wire_report;
 pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
-    write_program_storage_installation_record,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{CheckedCompilation, compile_to_checked};
@@ -54,8 +53,10 @@ pub use layout_plans::{
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
-    ProgramStorageInstallationRecord, ProgramStorageInstalledExtentRecord,
-    ProgramStoragePartitionError, ProgramStorageRootInput, ProgramStorageRootInstallationError,
+    ProgramStorageInstallationHandoffError, ProgramStorageInstallationRecord,
+    ProgramStorageInstalledExtentRecord, ProgramStoragePartitionError,
+    ProgramStorageRecordEmissionError, ProgramStorageRootInput,
+    ProgramStorageRootInstallationError, RecordedProgramStorageInstallation,
     SelectedProgramStorageEntryPlan, bind_generated_program_storage_entry_plan,
     bind_program_storage_entry_plan, install_program_storage_entry_roots,
 };

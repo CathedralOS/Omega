@@ -409,8 +409,10 @@ geometries must satisfy
 rejected handoff returns both grants without importing a complete qualified
 fact. A completed installation produces a non-authoritative audit record with
 the exact binding, geometry, authority metadata, lineage, and whole root-origin
-evidence. Its canonical JSON writer is available to the installing bridge;
-ordinary compilation only emits the pending contract and removes stale
+evidence. The installing handoff releases the roots only after successfully
+emitting its canonical JSON record; a write failure seals the installed roots
+for retry.
+Ordinary compilation only emits the pending contract and removes stale
 completion records. Thus an artifact cannot claim installation merely because
 the compiler selected a target entry. Image sections derive as borrowed
 subrange views under the one installed image root. An independently owned
