@@ -147,11 +147,16 @@ Owners:
 
 Remaining:
 
-- **PSIIR.** Add general blocks, calls, aggregates, structural places, cleanup,
-  transfer, boundaries, loops, suspension, and scoped ordering in complete
-  vertical slices: semantics, obligations, proof rules, encoding, fuel,
-  interpretation, and Omega lowering. Retire legacy consumers as each slice
-  moves. Nothing below terminal Psi may depend on typed/source trees,
+- **PSIIR.** General blocks and crash-free positional scalar direct calls now
+  span canonical semantics, obligations, encoding, fuel, resumable
+  interpretation, native calling plans, typed relocations, and image
+  resolution. Finish stack-passed scalar arguments and conditional-control call
+  emission, then add aggregates, structural/content call effects, crash
+  continuations, cleanup, transfer, boundaries, loops, suspension, and scoped
+  ordering as complete vertical slices. Ranked tail-recursive call graphs stay
+  rejected until their tail-position and ranking evidence is terminal and
+  verifier-owned. Retire legacy consumers as each slice moves. Nothing below
+  terminal Psi may depend on typed/source trees,
   `ExpressionHandle`, source rendering, or an Omega-to-Psi bridge.
 - **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
   Imported crash capsules remain design-blocked on artifact identity and

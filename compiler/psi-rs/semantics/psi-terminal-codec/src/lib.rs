@@ -618,7 +618,26 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
     for operation in &block.operations {
         writer.id(operation.id);
         encode_declaration(writer, operation.result);
-        match operation.kind {
+        match operation.kind.clone() {
+            OperationKind::Call {
+                callee,
+                arguments,
+                requirement_obligations,
+            } => {
+                writer.u8(33);
+                writer.id(callee);
+                writer.len("call arguments", arguments.len())?;
+                for argument in arguments {
+                    writer.id(argument);
+                }
+                writer.len(
+                    "call requirement obligations",
+                    requirement_obligations.len(),
+                )?;
+                for obligation in requirement_obligations {
+                    writer.id(obligation);
+                }
+            }
             OperationKind::IntegerConstant { value } => {
                 writer.u8(1);
                 encode_integer_value(writer, value);
@@ -1826,6 +1845,28 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 right: reader.id("ValueId")?,
                 obligation: reader.id("ObligationId")?,
             },
+            33 => {
+                let callee = reader.id("MachineId")?;
+                let argument_count = reader.count()?;
+                let mut arguments = Vec::with_capacity(
+                    usize::try_from(argument_count).expect("u32 count fits usize"),
+                );
+                for _ in 0..argument_count {
+                    arguments.push(reader.id("ValueId")?);
+                }
+                let requirement_count = reader.count()?;
+                let mut requirement_obligations = Vec::with_capacity(
+                    usize::try_from(requirement_count).expect("u32 count fits usize"),
+                );
+                for _ in 0..requirement_count {
+                    requirement_obligations.push(reader.id("ObligationId")?);
+                }
+                OperationKind::Call {
+                    callee,
+                    arguments,
+                    requirement_obligations,
+                }
+            }
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {

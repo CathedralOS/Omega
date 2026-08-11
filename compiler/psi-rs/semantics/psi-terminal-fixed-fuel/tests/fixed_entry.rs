@@ -152,6 +152,21 @@ fn crash_is_an_explicit_fixed_fuel_terminal_edge() {
 }
 
 #[test]
+fn calls_include_the_complete_callee_bound() {
+    let module = call_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("call module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(1))
+        .expect("acyclic call graph has a fixed bound");
+    assert_eq!(certificate.ceiling_units(), 4);
+    validate_fixed_entry_fuel(&verified, &certificate).expect("call bound recomputes");
+}
+
+#[test]
 fn safe_point_selection_covers_the_complete_ordered_path() {
     let (module, proof) = fixture();
     let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
@@ -254,6 +269,83 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         }],
     };
     (module, proof)
+}
+
+fn call_fixture() -> TerminalModule {
+    let boolean = ScalarType::Boolean;
+    let declaration = |raw| ValueDeclaration {
+        id: value_id(raw),
+        scalar_type: boolean,
+    };
+    let empty_contract = |raw| MachineContract {
+        id: contract_id(raw),
+        crash_routes: Vec::new(),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                parameters: Vec::new(),
+                result: declaration(3),
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: operation_id(1),
+                            result: declaration(1),
+                            kind: OperationKind::BooleanConstant { value: true },
+                        },
+                        Operation {
+                            id: operation_id(2),
+                            result: declaration(2),
+                            kind: OperationKind::Call {
+                                callee: machine_id(2),
+                                arguments: vec![value_id(1)],
+                                requirement_obligations: Vec::new(),
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Return {
+                        edge: edge_id(1),
+                        value: value_id(2),
+                    },
+                }],
+                contract: empty_contract(1),
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                parameters: vec![declaration(4)],
+                result: declaration(5),
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: edge_id(2),
+                        value: value_id(4),
+                    },
+                }],
+                contract: empty_contract(2),
+            },
+        ],
+    }
 }
 
 macro_rules! id_constructor {

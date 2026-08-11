@@ -108,6 +108,12 @@ pub enum TerminalAssignedOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedBooleanExpression {
+    Call {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        callee: psi_core::MachineId,
+        arguments: Vec<TerminalAssignedCallArgument>,
+    },
     Immediate {
         source_value: ValueId,
         value: bool,
@@ -254,6 +260,12 @@ pub struct TerminalEntryRegisterSpill {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedIntegerExpression {
+    Call {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        callee: psi_core::MachineId,
+        arguments: Vec<TerminalAssignedCallArgument>,
+    },
     Immediate {
         source_value: ValueId,
         value: IntegerValue,
@@ -375,6 +387,28 @@ pub enum TerminalAssignedIntegerExpression {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAssignedCallArgument {
+    pub scalar_type: psi_core::ScalarType,
+    /// ABI register populated after all sibling arguments have been evaluated.
+    /// Stack-passed arguments do not enter this representation until their
+    /// outgoing-area assignment slice is implemented.
+    pub destination: MachineRegister,
+    /// Stable frame slot holding the fully evaluated argument until every
+    /// sibling argument is ready for simultaneous ABI placement.
+    pub spill_byte_offset: u32,
+    pub expression: TerminalAssignedScalarExpression,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalAssignedScalarExpression {
+    Boolean(TerminalAssignedBooleanExpression),
+    Integer {
+        scalar_type: IntegerType,
+        expression: TerminalAssignedIntegerExpression,
     },
 }
 

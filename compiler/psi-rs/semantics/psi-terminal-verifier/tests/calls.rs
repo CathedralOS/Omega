@@ -1,0 +1,265 @@
+use psi_core::{
+    BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, OperationId,
+    Proposition, ScalarTerm, ScalarType, ValueId,
+};
+use psi_proof_kernel::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+};
+use psi_terminal::{
+    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
+    Operation, OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
+};
+use psi_terminal_verifier::{
+    ModuleError, ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
+    validate_module, verify_module,
+};
+
+#[test]
+fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
+    let module = call_module();
+    let obligations = reconstruct_operation_obligations(&module).expect("call obligations");
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(obligations[0].obligation.id, obligation_id(1));
+    assert_eq!(
+        obligations[0].obligation.proposition,
+        Proposition::Equal(boolean_value(1), ScalarTerm::boolean(true))
+    );
+
+    let bundle = ProofBundle {
+        evidence: vec![
+            semantic_axiom_evidence(
+                obligation_id(1),
+                Proposition::Equal(boolean_value(1), ScalarTerm::boolean(true)),
+                0,
+                1,
+            ),
+            semantic_axiom_evidence(
+                obligation_id(2),
+                Proposition::Equal(boolean_value(5), boolean_value(4)),
+                0,
+                2,
+            ),
+        ],
+    };
+    let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("callee requirement and guarantee verify");
+    assert_eq!(verified.accepted_facts().len(), 2);
+}
+
+#[test]
+fn scalar_call_rejects_incomplete_or_crash_erasing_shapes() {
+    let mut unknown = call_module();
+    *call_kind_mut(&mut unknown).0 = machine_id(3);
+    assert_eq!(
+        validate_module(&unknown).unwrap_err(),
+        ModuleError::UnknownCallTarget {
+            operation: operation_id(2),
+            callee: machine_id(3),
+        }
+    );
+
+    let mut missing_argument = call_module();
+    call_kind_mut(&mut missing_argument).1.clear();
+    assert_eq!(
+        validate_module(&missing_argument).unwrap_err(),
+        ModuleError::CallArgumentArityMismatch {
+            operation: operation_id(2),
+            expected: 1,
+            actual: 0,
+        }
+    );
+
+    let mut missing_requirement = call_module();
+    call_kind_mut(&mut missing_requirement).2.clear();
+    assert_eq!(
+        validate_module(&missing_requirement).unwrap_err(),
+        ModuleError::CallRequirementArityMismatch {
+            operation: operation_id(2),
+            expected: 1,
+            actual: 0,
+        }
+    );
+
+    let mut may_crash = call_module();
+    may_crash.machines[1].contract.crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    }];
+    assert_eq!(
+        validate_module(&may_crash).unwrap_err(),
+        ModuleError::CallTargetMayCrash {
+            operation: operation_id(2),
+            callee: machine_id(2),
+        }
+    );
+
+    let mut recursive = call_module();
+    let (callee, arguments, requirements) = call_kind_mut(&mut recursive);
+    *callee = machine_id(1);
+    arguments.clear();
+    requirements.clear();
+    assert_eq!(
+        validate_module(&recursive).unwrap_err(),
+        ModuleError::RecursiveCallSliceNotYetSupported(machine_id(1))
+    );
+}
+
+fn call_module() -> TerminalModule {
+    let caller_constant = value_id(1);
+    let call_result = value_id(2);
+    let caller_result = value_id(3);
+    let callee_parameter = value_id(4);
+    let callee_result = value_id(5);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                parameters: Vec::new(),
+                result: boolean_declaration(caller_result),
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: operation_id(1),
+                            result: boolean_declaration(caller_constant),
+                            kind: OperationKind::BooleanConstant { value: true },
+                        },
+                        Operation {
+                            id: operation_id(2),
+                            result: boolean_declaration(call_result),
+                            kind: OperationKind::Call {
+                                callee: machine_id(2),
+                                arguments: vec![caller_constant],
+                                requirement_obligations: vec![obligation_id(1)],
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Return {
+                        edge: edge_id(1),
+                        value: call_result,
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                parameters: vec![boolean_declaration(callee_parameter)],
+                result: boolean_declaration(callee_result),
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: edge_id(2),
+                        value: callee_parameter,
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(2),
+                    crash_routes: Vec::new(),
+                    requires: vec![Proposition::Equal(
+                        boolean_value(4),
+                        ScalarTerm::boolean(true),
+                    )],
+                    ensures: vec![ContractClause {
+                        obligation: obligation_id(2),
+                        proposition: Proposition::Equal(boolean_value(5), boolean_value(4)),
+                    }],
+                },
+            },
+        ],
+    }
+}
+
+fn call_kind_mut(
+    module: &mut TerminalModule,
+) -> (&mut MachineId, &mut Vec<ValueId>, &mut Vec<ObligationId>) {
+    let OperationKind::Call {
+        callee,
+        arguments,
+        requirement_obligations,
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    (callee, arguments, requirement_obligations)
+}
+
+fn semantic_axiom_evidence(
+    obligation: ObligationId,
+    proposition: Proposition,
+    index: usize,
+    identity: u64,
+) -> ObligationEvidence {
+    ObligationEvidence {
+        obligation,
+        route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: EvidenceIdentity::new(identity).unwrap(),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof: ProofNode {
+                conclusion: proposition,
+                rule: ProofRule::SemanticAxiom { index },
+            },
+        }),
+    }
+}
+
+fn boolean_declaration(id: ValueId) -> ValueDeclaration {
+    ValueDeclaration {
+        id,
+        scalar_type: ScalarType::Boolean,
+    }
+}
+
+fn boolean_value(raw: u64) -> ScalarTerm {
+    ScalarTerm::value(value_id(raw), ScalarType::Boolean)
+}
+
+fn machine_id(raw: u64) -> MachineId {
+    MachineId::new(raw).unwrap()
+}
+
+fn block_id(raw: u64) -> BlockId {
+    BlockId::new(raw).unwrap()
+}
+
+fn operation_id(raw: u64) -> OperationId {
+    OperationId::new(raw).unwrap()
+}
+
+fn edge_id(raw: u64) -> EdgeId {
+    EdgeId::new(raw).unwrap()
+}
+
+fn contract_id(raw: u64) -> ContractId {
+    ContractId::new(raw).unwrap()
+}
+
+fn obligation_id(raw: u64) -> ObligationId {
+    ObligationId::new(raw).unwrap()
+}
+
+fn value_id(raw: u64) -> ValueId {
+    ValueId::new(raw).unwrap()
+}

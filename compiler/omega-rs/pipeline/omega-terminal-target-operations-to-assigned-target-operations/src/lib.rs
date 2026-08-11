@@ -8,15 +8,17 @@ use std::collections::BTreeMap;
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
-    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
-    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
-    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarLocation,
-    TerminalEntryRegisterSpill, TerminalExpressionFrame,
+    TerminalAssignedCallArgument, TerminalAssignedConditionalBooleanArm,
+    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
+    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
+    TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
+    TerminalAssignedScalarLocation, TerminalEntryRegisterSpill, TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
     MachineRegister, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-    TerminalTargetBooleanExpression, TerminalTargetFunction, TerminalTargetIntegerControl,
-    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetBooleanExpression, TerminalTargetCallArgument, TerminalTargetFunction,
+    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
+    TerminalTargetOperationPlan, TerminalTargetScalarExpression,
 };
 use psi_core::{MachineId, OperationId, ValueId};
 
@@ -118,14 +120,12 @@ fn assign_function(
             source_value,
             expression,
         } => {
-            let locations = boolean_expression_parameter_locations(expression)?;
-            let (frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (frame, expression) = assign_boolean_expression_frame(expression, architecture)?;
             TerminalAssignedOperation::ReturnBooleanExpression {
                 psi_edge: *psi_edge,
                 source_value: *source_value,
                 frame,
-                expression: assign_boolean_expression(expression, &assigned_locations)?,
+                expression,
             }
         }
         TerminalTargetOperation::ReturnIntegerExpression {
@@ -134,15 +134,13 @@ fn assign_function(
             scalar_type,
             expression,
         } => {
-            let locations = expression_parameter_locations(expression)?;
-            let (frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (frame, expression) = assign_integer_expression_frame(expression, architecture)?;
             TerminalAssignedOperation::ReturnIntegerExpression {
                 psi_edge: *psi_edge,
                 source_value: *source_value,
                 scalar_type: *scalar_type,
                 frame,
-                expression: assign_expression(expression, &assigned_locations)?,
+                expression,
             }
         }
         TerminalTargetOperation::ReturnIntegerConditionalControl {
@@ -171,13 +169,12 @@ fn assign_function(
             when_true,
             when_false,
         } => {
-            let locations = boolean_expression_parameter_locations(condition)?;
-            let (condition_frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (condition_frame, condition) =
+                assign_boolean_expression_frame(condition, architecture)?;
             TerminalAssignedOperation::ReturnIntegerExpressionConditionalControl {
                 condition_source: *condition_source,
                 condition_frame,
-                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                condition,
                 scalar_type: *scalar_type,
                 when_true: assign_control_arm(when_true, architecture)?,
                 when_false: assign_control_arm(when_false, architecture)?,
@@ -206,13 +203,12 @@ fn assign_function(
             when_true,
             when_false,
         } => {
-            let locations = boolean_expression_parameter_locations(condition)?;
-            let (condition_frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (condition_frame, condition) =
+                assign_boolean_expression_frame(condition, architecture)?;
             TerminalAssignedOperation::ReturnBooleanExpressionConditionalControl {
                 condition_source: *condition_source,
                 condition_frame,
-                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                condition,
                 when_true: assign_boolean_control_arm(when_true, architecture)?,
                 when_false: assign_boolean_control_arm(when_false, architecture)?,
             }
@@ -287,14 +283,12 @@ fn assign_boolean_control(
             source_value,
             expression,
         } => {
-            let locations = boolean_expression_parameter_locations(expression)?;
-            let (frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (frame, expression) = assign_boolean_expression_frame(expression, architecture)?;
             TerminalAssignedBooleanControl::ReturnExpression {
                 psi_return_edge: *psi_return_edge,
                 source_value: *source_value,
                 frame,
-                expression: assign_boolean_expression(expression, &assigned_locations)?,
+                expression,
             }
         }
         TerminalTargetBooleanControl::Conditional {
@@ -320,13 +314,12 @@ fn assign_boolean_control(
             when_true,
             when_false,
         } => {
-            let locations = boolean_expression_parameter_locations(condition)?;
-            let (condition_frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (condition_frame, condition) =
+                assign_boolean_expression_frame(condition, architecture)?;
             TerminalAssignedBooleanControl::ConditionalExpression {
                 condition_source: *condition_source,
                 condition_frame,
-                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                condition,
                 when_true: assign_boolean_control_arm(when_true, architecture)?,
                 when_false: assign_boolean_control_arm(when_false, architecture)?,
             }
@@ -365,14 +358,12 @@ fn assign_integer_control(
             source_value,
             expression,
         } => {
-            let locations = expression_parameter_locations(expression)?;
-            let (frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (frame, expression) = assign_integer_expression_frame(expression, architecture)?;
             TerminalAssignedIntegerControl::Return {
                 psi_return_edge: *psi_return_edge,
                 source_value: *source_value,
                 frame,
-                expression: assign_expression(expression, &assigned_locations)?,
+                expression,
             }
         }
         TerminalTargetIntegerControl::Conditional {
@@ -398,13 +389,12 @@ fn assign_integer_control(
             when_true,
             when_false,
         } => {
-            let locations = boolean_expression_parameter_locations(condition)?;
-            let (condition_frame, assigned_locations) =
-                assign_expression_locations(architecture, &locations)?;
+            let (condition_frame, condition) =
+                assign_boolean_expression_frame(condition, architecture)?;
             TerminalAssignedIntegerControl::ConditionalExpression {
                 condition_source: *condition_source,
                 condition_frame,
-                condition: assign_boolean_expression(condition, &assigned_locations)?,
+                condition,
                 when_true: assign_control_arm(when_true, architecture)?,
                 when_false: assign_control_arm(when_false, architecture)?,
             }
@@ -431,6 +421,7 @@ fn assign_direct_location(
 fn assign_expression_locations(
     architecture: Architecture,
     locations: &BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
+    force_register_spills: bool,
 ) -> Result<
     (
         TerminalExpressionFrame,
@@ -450,7 +441,8 @@ fn assign_expression_locations(
                         register,
                     });
                 }
-                if architecture == Architecture::Aarch64
+                if force_register_spills
+                    || architecture == Architecture::Aarch64
                     || x86_expression_scratch_conflict(register)
                 {
                     let byte_offset = u32::try_from(register_spills.len())
@@ -502,15 +494,216 @@ fn assign_expression_locations(
     ))
 }
 
+fn assign_integer_expression_frame(
+    expression: &TerminalTargetIntegerExpression,
+    architecture: Architecture,
+) -> Result<(TerminalExpressionFrame, TerminalAssignedIntegerExpression), AssignmentError> {
+    let locations = expression_parameter_locations(expression)?;
+    let (mut frame, assigned_locations) = assign_expression_locations(
+        architecture,
+        &locations,
+        integer_expression_contains_call(expression),
+    )?;
+    let mut next_spill = frame.byte_size;
+    let expression = assign_expression(
+        expression,
+        &assigned_locations,
+        architecture,
+        &mut next_spill,
+    )?;
+    frame.byte_size = aligned_frame_size(next_spill)?;
+    Ok((frame, expression))
+}
+
+fn assign_boolean_expression_frame(
+    expression: &TerminalTargetBooleanExpression,
+    architecture: Architecture,
+) -> Result<(TerminalExpressionFrame, TerminalAssignedBooleanExpression), AssignmentError> {
+    let locations = boolean_expression_parameter_locations(expression)?;
+    let (mut frame, assigned_locations) = assign_expression_locations(
+        architecture,
+        &locations,
+        boolean_expression_contains_call(expression),
+    )?;
+    let mut next_spill = frame.byte_size;
+    let expression = assign_boolean_expression(
+        expression,
+        &assigned_locations,
+        architecture,
+        &mut next_spill,
+    )?;
+    frame.byte_size = aligned_frame_size(next_spill)?;
+    Ok((frame, expression))
+}
+
+fn aligned_frame_size(used_bytes: u32) -> Result<u32, AssignmentError> {
+    let byte_size = used_bytes
+        .checked_add(15)
+        .map(|bytes| bytes & !15)
+        .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?;
+    if byte_size > 0xfff {
+        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+    }
+    Ok(byte_size)
+}
+
+fn integer_expression_contains_call(expression: &TerminalTargetIntegerExpression) -> bool {
+    match expression {
+        TerminalTargetIntegerExpression::Call { .. } => true,
+        TerminalTargetIntegerExpression::Immediate { .. }
+        | TerminalTargetIntegerExpression::Parameter { .. } => false,
+        TerminalTargetIntegerExpression::BitwiseNot { operand, .. }
+        | TerminalTargetIntegerExpression::IntegerWiden { operand, .. }
+        | TerminalTargetIntegerExpression::IntegerExactCast { operand, .. } => {
+            integer_expression_contains_call(operand)
+        }
+        TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalTargetIntegerExpression::BitwiseAnd { left, right, .. }
+        | TerminalTargetIntegerExpression::BitwiseOr { left, right, .. }
+        | TerminalTargetIntegerExpression::BitwiseXor { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalTargetIntegerExpression::WrappingShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalTargetIntegerExpression::ExactShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalTargetIntegerExpression::ExactShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. }
+        | TerminalTargetIntegerExpression::ExactDivide { left, right, .. }
+        | TerminalTargetIntegerExpression::ExactRemainder { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingDivide { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingRemainder { left, right, .. }
+        | TerminalTargetIntegerExpression::SaturatingDivide { left, right, .. }
+        | TerminalTargetIntegerExpression::SaturatingRemainder { left, right, .. } => {
+            integer_expression_contains_call(left) || integer_expression_contains_call(right)
+        }
+    }
+}
+
+fn boolean_expression_contains_call(expression: &TerminalTargetBooleanExpression) -> bool {
+    match expression {
+        TerminalTargetBooleanExpression::Call { .. } => true,
+        TerminalTargetBooleanExpression::Immediate { .. }
+        | TerminalTargetBooleanExpression::Parameter { .. } => false,
+        TerminalTargetBooleanExpression::Not { operand, .. } => {
+            boolean_expression_contains_call(operand)
+        }
+        TerminalTargetBooleanExpression::Equal { left, right, .. } => {
+            boolean_expression_contains_call(left) || boolean_expression_contains_call(right)
+        }
+        TerminalTargetBooleanExpression::IntegerEqual { left, right, .. }
+        | TerminalTargetBooleanExpression::IntegerLessThan { left, right, .. }
+        | TerminalTargetBooleanExpression::IntegerLessOrEqual { left, right, .. } => {
+            integer_expression_contains_call(left) || integer_expression_contains_call(right)
+        }
+    }
+}
+
+fn assign_call_arguments(
+    arguments: &[TerminalTargetCallArgument],
+    locations: &BTreeMap<usize, TerminalAssignedScalarLocation>,
+    architecture: Architecture,
+    next_spill: &mut u32,
+) -> Result<Vec<TerminalAssignedCallArgument>, AssignmentError> {
+    arguments
+        .iter()
+        .map(|argument| {
+            let expression = match &argument.expression {
+                TerminalTargetScalarExpression::Boolean(expression) => {
+                    TerminalAssignedScalarExpression::Boolean(assign_boolean_expression(
+                        expression,
+                        locations,
+                        architecture,
+                        next_spill,
+                    )?)
+                }
+                TerminalTargetScalarExpression::Integer {
+                    scalar_type,
+                    expression,
+                } => TerminalAssignedScalarExpression::Integer {
+                    scalar_type: *scalar_type,
+                    expression: assign_expression(expression, locations, architecture, next_spill)?,
+                },
+            };
+            let destination = match argument.location {
+                TerminalScalarParameterLocation::Register(register) => {
+                    let valid = match architecture {
+                        Architecture::Aarch64 => {
+                            matches!(register, MachineRegister::Aarch64X(0..=30))
+                        }
+                        Architecture::X86_64 => matches!(
+                            register,
+                            MachineRegister::X86Rax
+                                | MachineRegister::X86Rcx
+                                | MachineRegister::X86Rdx
+                                | MachineRegister::X86Rbx
+                                | MachineRegister::X86Rsp
+                                | MachineRegister::X86Rbp
+                                | MachineRegister::X86Rsi
+                                | MachineRegister::X86Rdi
+                                | MachineRegister::X86R8
+                                | MachineRegister::X86R9
+                                | MachineRegister::X86R10
+                                | MachineRegister::X86R11
+                                | MachineRegister::X86R12
+                                | MachineRegister::X86R13
+                                | MachineRegister::X86R14
+                                | MachineRegister::X86R15
+                        ),
+                    };
+                    if !valid || register == MachineRegister::X86Rsp {
+                        return Err(AssignmentError::UnsupportedCallArgumentRegister(register));
+                    }
+                    register
+                }
+                TerminalScalarParameterLocation::IncomingStack { .. } => {
+                    return Err(AssignmentError::CallStackArgumentNotYetSupported);
+                }
+            };
+            let spill_byte_offset = *next_spill;
+            *next_spill = next_spill
+                .checked_add(8)
+                .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?;
+            Ok(TerminalAssignedCallArgument {
+                scalar_type: argument.scalar_type,
+                destination,
+                spill_byte_offset,
+                expression,
+            })
+        })
+        .collect()
+}
+
 fn assign_expression(
     expression: &TerminalTargetIntegerExpression,
     locations: &BTreeMap<usize, TerminalAssignedScalarLocation>,
+    architecture: Architecture,
+    next_spill: &mut u32,
 ) -> Result<TerminalAssignedIntegerExpression, AssignmentError> {
     fn binary(
         psi_operation: OperationId,
         left: &TerminalTargetIntegerExpression,
         right: &TerminalTargetIntegerExpression,
         locations: &BTreeMap<usize, TerminalAssignedScalarLocation>,
+        architecture: Architecture,
+        next_spill: &mut u32,
         constructor: fn(
             OperationId,
             Box<TerminalAssignedIntegerExpression>,
@@ -519,11 +712,32 @@ fn assign_expression(
     ) -> Result<TerminalAssignedIntegerExpression, AssignmentError> {
         Ok(constructor(
             psi_operation,
-            Box::new(assign_expression(left, locations)?),
-            Box::new(assign_expression(right, locations)?),
+            Box::new(assign_expression(
+                left,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            Box::new(assign_expression(
+                right,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         ))
     }
     match expression {
+        TerminalTargetIntegerExpression::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+        } => Ok(TerminalAssignedIntegerExpression::Call {
+            psi_operation: *psi_operation,
+            source_value: *source_value,
+            callee: *callee,
+            arguments: assign_call_arguments(arguments, locations, architecture, next_spill)?,
+        }),
         TerminalTargetIntegerExpression::Immediate {
             source_value,
             value,
@@ -550,7 +764,12 @@ fn assign_expression(
             operand,
         } => Ok(TerminalAssignedIntegerExpression::BitwiseNot {
             psi_operation: *psi_operation,
-            operand: Box::new(assign_expression(operand, locations)?),
+            operand: Box::new(assign_expression(
+                operand,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::IntegerWiden {
             psi_operation,
@@ -559,7 +778,12 @@ fn assign_expression(
         } => Ok(TerminalAssignedIntegerExpression::IntegerWiden {
             psi_operation: *psi_operation,
             source_type: *source_type,
-            operand: Box::new(assign_expression(operand, locations)?),
+            operand: Box::new(assign_expression(
+                operand,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::IntegerExactCast {
             psi_operation,
@@ -568,7 +792,12 @@ fn assign_expression(
         } => Ok(TerminalAssignedIntegerExpression::IntegerExactCast {
             psi_operation: *psi_operation,
             source_type: *source_type,
-            operand: Box::new(assign_expression(operand, locations)?),
+            operand: Box::new(assign_expression(
+                operand,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::BitwiseAnd {
             psi_operation,
@@ -579,6 +808,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::BitwiseAnd {
                 psi_operation,
                 left,
@@ -594,6 +825,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::BitwiseOr {
                 psi_operation,
                 left,
@@ -609,6 +842,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::BitwiseXor {
                 psi_operation,
                 left,
@@ -623,8 +858,18 @@ fn assign_expression(
         } => Ok(TerminalAssignedIntegerExpression::WrappingShiftLeft {
             psi_operation: *psi_operation,
             count_type: *count_type,
-            value: Box::new(assign_expression(value, locations)?),
-            count: Box::new(assign_expression(count, locations)?),
+            value: Box::new(assign_expression(
+                value,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            count: Box::new(assign_expression(
+                count,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::WrappingShiftRight {
             psi_operation,
@@ -634,8 +879,18 @@ fn assign_expression(
         } => Ok(TerminalAssignedIntegerExpression::WrappingShiftRight {
             psi_operation: *psi_operation,
             count_type: *count_type,
-            value: Box::new(assign_expression(value, locations)?),
-            count: Box::new(assign_expression(count, locations)?),
+            value: Box::new(assign_expression(
+                value,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            count: Box::new(assign_expression(
+                count,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::ExactShiftRight {
             psi_operation,
@@ -645,8 +900,18 @@ fn assign_expression(
         } => Ok(TerminalAssignedIntegerExpression::ExactShiftRight {
             psi_operation: *psi_operation,
             count_type: *count_type,
-            value: Box::new(assign_expression(value, locations)?),
-            count: Box::new(assign_expression(count, locations)?),
+            value: Box::new(assign_expression(
+                value,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            count: Box::new(assign_expression(
+                count,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::ExactShiftLeft {
             psi_operation,
@@ -656,8 +921,18 @@ fn assign_expression(
         } => Ok(TerminalAssignedIntegerExpression::ExactShiftLeft {
             psi_operation: *psi_operation,
             count_type: *count_type,
-            value: Box::new(assign_expression(value, locations)?),
-            count: Box::new(assign_expression(count, locations)?),
+            value: Box::new(assign_expression(
+                value,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            count: Box::new(assign_expression(
+                count,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetIntegerExpression::WrappingAdd {
             psi_operation,
@@ -668,6 +943,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingAdd {
                 psi_operation,
                 left,
@@ -683,6 +960,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingAdd {
                 psi_operation,
                 left,
@@ -698,6 +977,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingSubtract {
                 psi_operation,
                 left,
@@ -713,6 +994,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingSubtract {
                 psi_operation,
                 left,
@@ -728,6 +1011,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingMultiply {
                 psi_operation,
                 left,
@@ -743,6 +1028,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingMultiply {
                 psi_operation,
                 left,
@@ -758,6 +1045,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactDivide {
                 psi_operation,
                 left,
@@ -773,6 +1062,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactRemainder {
                 psi_operation,
                 left,
@@ -788,6 +1079,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingDivide {
                 psi_operation,
                 left,
@@ -803,6 +1096,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingRemainder {
                 psi_operation,
                 left,
@@ -818,6 +1113,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingDivide {
                 psi_operation,
                 left,
@@ -833,6 +1130,8 @@ fn assign_expression(
             left,
             right,
             locations,
+            architecture,
+            next_spill,
             |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingRemainder {
                 psi_operation,
                 left,
@@ -845,8 +1144,21 @@ fn assign_expression(
 fn assign_boolean_expression(
     expression: &TerminalTargetBooleanExpression,
     locations: &BTreeMap<usize, TerminalAssignedScalarLocation>,
+    architecture: Architecture,
+    next_spill: &mut u32,
 ) -> Result<TerminalAssignedBooleanExpression, AssignmentError> {
     match expression {
+        TerminalTargetBooleanExpression::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+        } => Ok(TerminalAssignedBooleanExpression::Call {
+            psi_operation: *psi_operation,
+            source_value: *source_value,
+            callee: *callee,
+            arguments: assign_call_arguments(arguments, locations, architecture, next_spill)?,
+        }),
         TerminalTargetBooleanExpression::Immediate {
             source_value,
             value,
@@ -873,7 +1185,12 @@ fn assign_boolean_expression(
             operand,
         } => Ok(TerminalAssignedBooleanExpression::Not {
             psi_operation: *psi_operation,
-            operand: Box::new(assign_boolean_expression(operand, locations)?),
+            operand: Box::new(assign_boolean_expression(
+                operand,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetBooleanExpression::Equal {
             psi_operation,
@@ -881,8 +1198,18 @@ fn assign_boolean_expression(
             right,
         } => Ok(TerminalAssignedBooleanExpression::Equal {
             psi_operation: *psi_operation,
-            left: Box::new(assign_boolean_expression(left, locations)?),
-            right: Box::new(assign_boolean_expression(right, locations)?),
+            left: Box::new(assign_boolean_expression(
+                left,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            right: Box::new(assign_boolean_expression(
+                right,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetBooleanExpression::IntegerEqual {
             psi_operation,
@@ -892,8 +1219,18 @@ fn assign_boolean_expression(
         } => Ok(TerminalAssignedBooleanExpression::IntegerEqual {
             psi_operation: *psi_operation,
             scalar_type: *scalar_type,
-            left: Box::new(assign_expression(left, locations)?),
-            right: Box::new(assign_expression(right, locations)?),
+            left: Box::new(assign_expression(
+                left,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            right: Box::new(assign_expression(
+                right,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetBooleanExpression::IntegerLessThan {
             psi_operation,
@@ -903,8 +1240,18 @@ fn assign_boolean_expression(
         } => Ok(TerminalAssignedBooleanExpression::IntegerLessThan {
             psi_operation: *psi_operation,
             scalar_type: *scalar_type,
-            left: Box::new(assign_expression(left, locations)?),
-            right: Box::new(assign_expression(right, locations)?),
+            left: Box::new(assign_expression(
+                left,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            right: Box::new(assign_expression(
+                right,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
         TerminalTargetBooleanExpression::IntegerLessOrEqual {
             psi_operation,
@@ -914,8 +1261,18 @@ fn assign_boolean_expression(
         } => Ok(TerminalAssignedBooleanExpression::IntegerLessOrEqual {
             psi_operation: *psi_operation,
             scalar_type: *scalar_type,
-            left: Box::new(assign_expression(left, locations)?),
-            right: Box::new(assign_expression(right, locations)?),
+            left: Box::new(assign_expression(
+                left,
+                locations,
+                architecture,
+                next_spill,
+            )?),
+            right: Box::new(assign_expression(
+                right,
+                locations,
+                architecture,
+                next_spill,
+            )?),
         }),
     }
 }
@@ -928,6 +1285,19 @@ fn expression_parameter_locations(
         locations: &mut BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
     ) -> Result<(), AssignmentError> {
         match expression {
+            TerminalTargetIntegerExpression::Call { arguments, .. } => {
+                for argument in arguments {
+                    let nested = match &argument.expression {
+                        TerminalTargetScalarExpression::Boolean(expression) => {
+                            boolean_expression_parameter_locations(expression)?
+                        }
+                        TerminalTargetScalarExpression::Integer { expression, .. } => {
+                            expression_parameter_locations(expression)?
+                        }
+                    };
+                    merge_expression_locations(locations, nested)?;
+                }
+            }
             TerminalTargetIntegerExpression::Immediate { .. } => {}
             TerminalTargetIntegerExpression::Parameter {
                 source_value,
@@ -1026,6 +1396,19 @@ fn boolean_expression_parameter_locations(
         locations: &mut BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
     ) -> Result<(), AssignmentError> {
         match expression {
+            TerminalTargetBooleanExpression::Call { arguments, .. } => {
+                for argument in arguments {
+                    let nested = match &argument.expression {
+                        TerminalTargetScalarExpression::Boolean(expression) => {
+                            boolean_expression_parameter_locations(expression)?
+                        }
+                        TerminalTargetScalarExpression::Integer { expression, .. } => {
+                            expression_parameter_locations(expression)?
+                        }
+                    };
+                    merge_expression_locations(locations, nested)?;
+                }
+            }
             TerminalTargetBooleanExpression::Immediate { .. } => {}
             TerminalTargetBooleanExpression::Parameter {
                 source_value,
@@ -1053,22 +1436,8 @@ fn boolean_expression_parameter_locations(
             TerminalTargetBooleanExpression::IntegerEqual { left, right, .. }
             | TerminalTargetBooleanExpression::IntegerLessThan { left, right, .. }
             | TerminalTargetBooleanExpression::IntegerLessOrEqual { left, right, .. } => {
-                for (parameter_index, (source_value, location)) in
-                    expression_parameter_locations(left)?
-                        .into_iter()
-                        .chain(expression_parameter_locations(right)?)
-                {
-                    if let Some((_, established)) = locations.get(&parameter_index) {
-                        if established != &location {
-                            return Err(AssignmentError::ExpressionParameterLocationConflict {
-                                value: source_value,
-                                parameter_index,
-                            });
-                        }
-                    } else {
-                        locations.insert(parameter_index, (source_value, location));
-                    }
-                }
+                merge_expression_locations(locations, expression_parameter_locations(left)?)?;
+                merge_expression_locations(locations, expression_parameter_locations(right)?)?;
             }
         }
         Ok(())
@@ -1077,6 +1446,25 @@ fn boolean_expression_parameter_locations(
     let mut locations = BTreeMap::new();
     collect(expression, &mut locations)?;
     Ok(locations)
+}
+
+fn merge_expression_locations(
+    locations: &mut BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
+    nested: BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
+) -> Result<(), AssignmentError> {
+    for (parameter_index, (source_value, location)) in nested {
+        if let Some((_, established)) = locations.get(&parameter_index) {
+            if established != &location {
+                return Err(AssignmentError::ExpressionParameterLocationConflict {
+                    value: source_value,
+                    parameter_index,
+                });
+            }
+        } else {
+            locations.insert(parameter_index, (source_value, location));
+        }
+    }
+    Ok(())
 }
 
 fn require_register_architecture(
@@ -1145,6 +1533,8 @@ pub enum AssignmentError {
         value: ValueId,
         register: MachineRegister,
     },
+    UnsupportedCallArgumentRegister(MachineRegister),
+    CallStackArgumentNotYetSupported,
 }
 
 impl std::fmt::Display for AssignmentError {
@@ -1161,13 +1551,13 @@ mod tests {
     use omega_target::NativeTarget;
     use omega_terminal_assigned_target_operations::{
         TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-        TerminalAssignedScalarLocation,
+        TerminalAssignedScalarExpression, TerminalAssignedScalarLocation,
     };
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalTargetFunction, TerminalTargetIntegerExpression,
-        TerminalTargetOperation,
+        TerminalPsiProvenance, TerminalTargetCallArgument, TerminalTargetFunction,
+        TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetScalarExpression,
     };
-    use psi_core::{EdgeId, IntegerSign, IntegerType, OperationId};
+    use psi_core::{EdgeId, IntegerSign, IntegerType, OperationId, ScalarType};
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     #[test]
@@ -1264,6 +1654,81 @@ mod tests {
         };
         assert!(matches!(
             left.as_ref(),
+            TerminalAssignedIntegerExpression::Parameter {
+                location: TerminalAssignedScalarLocation::FrameSpill { byte_offset: 0 },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn x86_calling_expression_spills_live_caller_registers() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let mut plan = expression_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+        );
+        let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        *expression = TerminalTargetIntegerExpression::WrappingAdd {
+            psi_operation: OperationId::new(8).unwrap(),
+            left: Box::new(TerminalTargetIntegerExpression::Call {
+                psi_operation: OperationId::new(7).unwrap(),
+                source_value: ValueId::new(4).unwrap(),
+                callee: MachineId::new(2).unwrap(),
+                arguments: vec![TerminalTargetCallArgument {
+                    scalar_type: ScalarType::Integer(scalar_type),
+                    location: TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                    expression: TerminalTargetScalarExpression::Integer {
+                        scalar_type,
+                        expression: TerminalTargetIntegerExpression::Parameter {
+                            source_value: ValueId::new(1).unwrap(),
+                            parameter_index: 0,
+                            location: TerminalScalarParameterLocation::Register(
+                                MachineRegister::X86Rdi,
+                            ),
+                        },
+                    },
+                }],
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(1).unwrap(),
+                parameter_index: 0,
+                location: TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+            }),
+        };
+
+        let assigned = assign_registers(&plan).expect("assign call-preserved parameter");
+        let TerminalAssignedOperation::ReturnIntegerExpression {
+            frame, expression, ..
+        } = &assigned.functions[0].operation
+        else {
+            unreachable!()
+        };
+        assert_eq!(frame.byte_size, 32);
+        assert_eq!(frame.register_spills.len(), 1);
+        let TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. } = expression else {
+            unreachable!()
+        };
+        let TerminalAssignedIntegerExpression::Call { arguments, .. } = left.as_ref() else {
+            unreachable!()
+        };
+        assert!(matches!(
+            &arguments[0].expression,
+            TerminalAssignedScalarExpression::Integer {
+                expression: TerminalAssignedIntegerExpression::Parameter {
+                    location: TerminalAssignedScalarLocation::FrameSpill { byte_offset: 0 },
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(matches!(
+            right.as_ref(),
             TerminalAssignedIntegerExpression::Parameter {
                 location: TerminalAssignedScalarLocation::FrameSpill { byte_offset: 0 },
                 ..

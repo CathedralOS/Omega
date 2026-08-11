@@ -79,7 +79,7 @@ pub fn verify_module<'module>(
         let context = validated
             .value_context(machine)
             .map_err(VerificationError::Module)?;
-        let semantics = reconstruct_machine_semantics(machine);
+        let semantics = reconstruct_machine_semantics(module, machine);
         for site in &semantics.operation_obligations {
             let route = evidence
                 .remove(&site.obligation.id)
@@ -143,7 +143,7 @@ pub fn reconstruct_operation_obligations(
     Ok(module
         .machines
         .iter()
-        .flat_map(|machine| reconstruct_machine_semantics(machine).operation_obligations)
+        .flat_map(|machine| reconstruct_machine_semantics(module, machine).operation_obligations)
         .collect())
 }
 
@@ -151,12 +151,16 @@ pub fn reconstruct_operation_obligations(
 /// on every return path. A true conditional edge establishes the predicate
 /// computed by its condition operation; edge bindings rewrite those facts to
 /// successor parameters. Merge and return facts remain intersection-only.
-fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMachineSemantics {
+fn reconstruct_machine_semantics(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> ReconstructedMachineSemantics {
     let reconstruct_path_facts = machine.blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
             matches!(
-                operation.kind,
-                OperationKind::IntegerExactCast { .. }
+                &operation.kind,
+                OperationKind::Call { .. }
+                    | OperationKind::IntegerExactCast { .. }
                     | OperationKind::ExactIntegerShiftLeft { .. }
                     | OperationKind::ExactIntegerShiftRight { .. }
                     | OperationKind::ExactIntegerAdd { .. }
@@ -193,6 +197,11 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
         .blocks
         .iter()
         .map(|block| (block.id, block))
+        .collect::<BTreeMap<_, _>>();
+    let machines = module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
     let value_term = |id: ValueId| {
         ScalarTerm::value(
@@ -272,7 +281,45 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
             axioms.retain(|fact| path.contains(fact));
         }
         for operation in &block.operations {
-            match operation.kind {
+            match operation.kind.clone() {
+                OperationKind::Call {
+                    callee,
+                    arguments,
+                    requirement_obligations,
+                } => {
+                    let callee = machines
+                        .get(&callee)
+                        .copied()
+                        .expect("validated call target exists");
+                    let mut substitutions = callee
+                        .parameters
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(parameter, argument)| (parameter.id, value_term(*argument)))
+                        .collect::<BTreeMap<_, _>>();
+                    substitutions.insert(callee.result.id, value_term(operation.result.id));
+                    for (required, obligation) in
+                        callee.contract.requires.iter().zip(requirement_obligations)
+                    {
+                        operation_obligations.push(ReconstructedOperationObligation {
+                            obligation: Obligation {
+                                id: obligation,
+                                proposition: substitute_proposition_values(
+                                    required,
+                                    &substitutions,
+                                ),
+                                class: ObligationClass::Derivable,
+                            },
+                            semantic_axioms: axioms.clone(),
+                        });
+                    }
+                    for guarantee in &callee.contract.ensures {
+                        push_unique(
+                            &mut axioms,
+                            substitute_proposition_values(&guarantee.proposition, &substitutions),
+                        );
+                    }
+                }
                 OperationKind::IntegerConstant { value } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires integer constant result type");
@@ -389,7 +436,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         unreachable!("validator requires bitwise integer result type")
                     };
-                    let result = match operation.kind {
+                    let result = match operation.kind.clone() {
                         OperationKind::IntegerBitwiseAnd { .. } => ScalarTerm::integer_bitwise_and(
                             integer_type,
                             value_term(left),
@@ -418,7 +465,7 @@ fn reconstruct_machine_semantics(machine: &TerminalMachine) -> ReconstructedMach
                     let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
                         unreachable!("validator requires wrapping-shift integer count type")
                     };
-                    let result = match operation.kind {
+                    let result = match operation.kind.clone() {
                         OperationKind::WrappingIntegerShiftLeft { .. } => {
                             ScalarTerm::wrapping_integer_shift_left(
                                 value_type,

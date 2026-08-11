@@ -16,9 +16,10 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-    TerminalTargetBooleanExpression, TerminalTargetConditionalBooleanArm,
-    TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
-    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetBooleanExpression, TerminalTargetCallArgument,
+    TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
+    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+    TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
 };
 use psi_core::{
     BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
@@ -35,6 +36,11 @@ pub fn lower_to_target_operations(
     {
         return Err(LoweringError::EntryFunctionMissing(plan.entry));
     }
+    let functions_by_machine = plan
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<BTreeMap<_, _>>();
     Ok(TerminalTargetOperationPlan {
         terminal_psi: plan.terminal_psi,
         target,
@@ -42,7 +48,7 @@ pub fn lower_to_target_operations(
         functions: plan
             .functions
             .iter()
-            .map(|function| lower_function(function, target))
+            .map(|function| lower_function(function, target, &functions_by_machine))
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
@@ -50,6 +56,7 @@ pub fn lower_to_target_operations(
 fn lower_function(
     function: &TerminalAbstractFunction,
     target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
     let mut values = BTreeMap::new();
     let mut provenance = TerminalPsiProvenance::default();
@@ -117,6 +124,86 @@ fn lower_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::Call {
+                psi_operation,
+                result,
+                scalar_type,
+                callee,
+                arguments,
+            } => {
+                let callee_function = functions
+                    .get(callee)
+                    .copied()
+                    .ok_or(LoweringError::UnknownCallTarget(*callee))?;
+                let callee_signature = CallSignature {
+                    parameters: callee_function
+                        .parameters
+                        .iter()
+                        .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
+                        .collect::<Result<Vec<_>, _>>()?,
+                    result: Some(scalar_shape(
+                        callee_function.result.value,
+                        callee_function.result.scalar_type,
+                        false,
+                    )?),
+                };
+                let callee_call_plan =
+                    evaluate_call_plan(CallingPolicy::native_for_target(target), &callee_signature)
+                        .map_err(LoweringError::AbiPlan)?;
+                if arguments.len() != callee_function.parameters.len()
+                    || arguments.len() != callee_call_plan.parameters.len()
+                {
+                    return Err(LoweringError::CallArgumentCountMismatch {
+                        callee: *callee,
+                        expected: callee_function.parameters.len(),
+                        actual: arguments.len(),
+                    });
+                }
+                let arguments = arguments
+                    .iter()
+                    .zip(&callee_function.parameters)
+                    .zip(&callee_call_plan.parameters)
+                    .map(|((argument, parameter), placement)| {
+                        let expression = values
+                            .get(argument)
+                            .cloned()
+                            .ok_or(LoweringError::UnknownValue(*argument))?
+                            .into_expression(*argument)?;
+                        if expression.scalar_type() != parameter.scalar_type {
+                            return Err(LoweringError::CallArgumentTypeMismatch {
+                                callee: *callee,
+                                argument: *argument,
+                            });
+                        }
+                        Ok(TerminalTargetCallArgument {
+                            scalar_type: parameter.scalar_type,
+                            location: scalar_parameter_location(parameter, placement)?,
+                            expression,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value = match scalar_type {
+                    ScalarType::Boolean => {
+                        KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Call {
+                            psi_operation: *psi_operation,
+                            source_value: *result,
+                            callee: *callee,
+                            arguments,
+                        })
+                    }
+                    ScalarType::Integer(scalar_type) => KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Call {
+                            psi_operation: *psi_operation,
+                            source_value: *result,
+                            callee: *callee,
+                            arguments,
+                        }),
+                    },
+                };
+                insert_value(&mut values, *result, value)?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::IntegerConstant {
                 psi_operation,
                 result,
@@ -2905,6 +2992,25 @@ impl KnownScalar {
             value @ (Self::Boolean(_) | Self::BooleanRuntime(_)) => value,
         }
     }
+
+    fn into_expression(
+        self,
+        source_value: ValueId,
+    ) -> Result<TerminalTargetScalarExpression, LoweringError> {
+        Ok(match self {
+            Self::Boolean(value) => TerminalTargetScalarExpression::Boolean(
+                TerminalTargetBooleanExpression::Immediate {
+                    source_value,
+                    value,
+                },
+            ),
+            Self::BooleanRuntime(expression) => TerminalTargetScalarExpression::Boolean(expression),
+            Self::Integer { scalar_type, value } => TerminalTargetScalarExpression::Integer {
+                scalar_type,
+                expression: value.into_expression(source_value),
+            },
+        })
+    }
 }
 
 fn negate_boolean(
@@ -3114,7 +3220,8 @@ fn conditional_provenance(
     let mut provenance = TerminalPsiProvenance::default();
     for operation in &function.operations {
         let psi_operation = match operation {
-            TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
+            TerminalAbstractOperation::Call { psi_operation, .. }
+            | TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
             | TerminalAbstractOperation::BooleanEqual { psi_operation, .. }
@@ -3204,6 +3311,16 @@ pub enum LoweringError {
     ConditionalConditionMustBeBoolean(ValueId),
     ConditionalArmBindingTypeMismatch(psi_core::EdgeId),
     DuplicateValue(ValueId),
+    UnknownCallTarget(MachineId),
+    CallArgumentCountMismatch {
+        callee: MachineId,
+        expected: usize,
+        actual: usize,
+    },
+    CallArgumentTypeMismatch {
+        callee: MachineId,
+        argument: ValueId,
+    },
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),
     UnsupportedRuntimeBooleanCondition(ValueId),
@@ -3226,10 +3343,16 @@ pub enum LoweringError {
     WrappingRemainderOperandTypeMismatch(ValueId),
     SaturatingDivideOperandTypeMismatch(ValueId),
     SaturatingRemainderOperandTypeMismatch(ValueId),
-    ParameterWidthNotNativelySupported { value: ValueId, bits: u16 },
+    ParameterWidthNotNativelySupported {
+        value: ValueId,
+        bits: u16,
+    },
     UnsupportedScalarParameterPlacement(ValueId),
     AbiPlan(PlanDiagnostic),
-    AbiParameterCountMismatch { expected: usize, actual: usize },
+    AbiParameterCountMismatch {
+        expected: usize,
+        actual: usize,
+    },
 }
 
 impl std::fmt::Display for LoweringError {

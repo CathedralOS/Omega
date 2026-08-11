@@ -141,6 +141,36 @@ not an ordinary value that requires constant folding before verification.
 Additional sound proof lemmas may be published without changing operation or
 program identity.
 
+### Direct scalar call slice
+
+The current `Call` operation names one canonical callee, carries positional
+scalar arguments, and carries exactly one caller obligation identity for each
+published callee `requires` clause. Validation checks the complete signature,
+argument definedness and types, result type, obligation arity, and global
+obligation uniqueness. Verification substitutes the positional arguments into
+the callee requirements and guarantees: requirements become caller proof
+obligations, while verified guarantees enter the caller's semantic axioms.
+
+This first call slice is deliberately crash-free and value-only. A callee with
+published crash routes or structural/content contracts rejects because silently
+discarding its crash continuation or custody effects would change the program.
+Those shapes require their own control and structural vertical slices; they are
+not flags on the scalar operation.
+
+The interpreter uses owned call frames and charges the call before entering the
+callee. Sponsor exhaustion in the callee resumes without replaying that paid
+call. Validation rejects recursive call graphs until terminal Psi can carry and
+verify the required tail-position and ranking evidence. Fixed-fuel derivation
+includes complete acyclic callee bounds and retains its own cycle rejection as
+defense in depth.
+
+Omega selects each callee's native calling plan, evaluates arguments into
+disjoint frame spills before filling ABI registers, preserves the AArch64 link
+register, honors Microsoft x64 shadow space and x86 stack alignment, and emits a
+typed internal-call relocation tied to the exact Psi operation and callee.
+Stack-passed scalar arguments and calls inside conditional-control lowering are
+remaining engineering coverage, not unresolved language design.
+
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends
 on them. Concrete proposition and operation vocabularies are then co-designed
@@ -321,12 +351,13 @@ unpaid site without replay or double charging; a completed crash edge is not
 charged again.
 
 `psi-terminal-fixed-fuel` derives certificates from verified terminal control.
-For acyclic graphs it computes the greatest entry-to-exit path, taking the
-maximum rather than the sum at exclusive branches. Entry and segment
+For acyclic control and call graphs it computes the greatest entry-to-exit path,
+taking the maximum rather than the sum at exclusive branches and including the
+complete bound of each reached callee. Entry and segment
 certificates bind the exact terminal identity, schedule, endpoints, and ceiling;
 validation reconstructs those fields and the complete reachable segment
-partition. Loops and relevant-precondition refinements require later vertical
-slices.
+partition. Ranked tail calls, loops, and relevant-precondition refinements
+require later vertical slices.
 
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi

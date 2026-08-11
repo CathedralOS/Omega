@@ -61,13 +61,79 @@ pub fn validate_module(
             machine.contract.id,
             ModuleError::DuplicateContract,
         )?;
-        validate_machine(machine, &mut registry)?;
     }
+    let machines = module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect::<BTreeMap<_, _>>();
+    for machine in &module.machines {
+        validate_machine(machine, &machines, &mut registry)?;
+    }
+    validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));
     }
 
     Ok(ValidatedTerminalModule { module })
+}
+
+fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
+    let calls = module
+        .machines
+        .iter()
+        .map(|machine| {
+            let callees = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| match &operation.kind {
+                    OperationKind::Call { callee, .. } => Some(*callee),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>();
+            (machine.id, callees)
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut indegree = calls
+        .keys()
+        .copied()
+        .map(|machine| (machine, 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    for callees in calls.values() {
+        for callee in callees {
+            let count = indegree
+                .get_mut(callee)
+                .expect("validated call target is registered");
+            *count += 1;
+        }
+    }
+    let mut ready = indegree
+        .iter()
+        .filter_map(|(machine, count)| (*count == 0).then_some(*machine))
+        .collect::<BTreeSet<_>>();
+    let mut completed = 0_usize;
+    while let Some(machine) = ready.pop_first() {
+        completed += 1;
+        for callee in &calls[&machine] {
+            let count = indegree
+                .get_mut(callee)
+                .expect("validated call target has an indegree");
+            *count -= 1;
+            if *count == 0 {
+                ready.insert(*callee);
+            }
+        }
+    }
+    if completed != calls.len() {
+        let machine = indegree
+            .into_iter()
+            .find_map(|(machine, count)| (count != 0).then_some(machine))
+            .expect("incomplete topological order has a cyclic remainder");
+        return Err(ModuleError::RecursiveCallSliceNotYetSupported(machine));
+    }
+    Ok(())
 }
 
 fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), ModuleError> {
@@ -202,6 +268,7 @@ enum StructuralRootKey {
 
 fn validate_machine(
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     registry: &mut IdRegistry,
 ) -> Result<(), ModuleError> {
     if machine.blocks.is_empty() {
@@ -265,7 +332,70 @@ fn validate_machine(
                 operation.result.id,
                 operation.result.scalar_type,
             )?;
-            match operation.kind {
+            match operation.kind.clone() {
+                OperationKind::Call {
+                    callee,
+                    requirement_obligations,
+                    ..
+                } => {
+                    let callee =
+                        machines
+                            .get(&callee)
+                            .copied()
+                            .ok_or(ModuleError::UnknownCallTarget {
+                                operation: operation.id,
+                                callee,
+                            })?;
+                    if !callee.contract.crash_routes.is_empty() {
+                        return Err(ModuleError::CallTargetMayCrash {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    }
+                    if !callee.structural_places.is_empty()
+                        || !callee.content_entry_claims.is_empty()
+                        || !callee.content_identity_reshuffles.is_empty()
+                        || !callee.content_partition_compositions.is_empty()
+                        || callee
+                            .contract
+                            .requires
+                            .iter()
+                            .chain(
+                                callee
+                                    .contract
+                                    .ensures
+                                    .iter()
+                                    .map(|clause| &clause.proposition),
+                            )
+                            .any(proposition_contains_content)
+                    {
+                        return Err(ModuleError::CallTargetHasStructuralContract {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    }
+                    if operation.result.scalar_type != callee.result.scalar_type {
+                        return Err(ModuleError::CallResultTypeMismatch {
+                            operation: operation.id,
+                            expected: callee.result.scalar_type,
+                            actual: operation.result.scalar_type,
+                        });
+                    }
+                    if requirement_obligations.len() != callee.contract.requires.len() {
+                        return Err(ModuleError::CallRequirementArityMismatch {
+                            operation: operation.id,
+                            expected: callee.contract.requires.len(),
+                            actual: requirement_obligations.len(),
+                        });
+                    }
+                    for obligation in requirement_obligations {
+                        insert_unique(
+                            &mut registry.obligations,
+                            obligation,
+                            ModuleError::DuplicateObligation,
+                        )?;
+                    }
+                }
                 OperationKind::IntegerConstant { value } => {
                     let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                         return Err(ModuleError::IntegerConstantRequiresIntegerResult(
@@ -597,7 +727,7 @@ fn validate_machine(
         )?;
     }
 
-    validate_control_flow(machine, &blocks, &value_types)
+    validate_control_flow(machine, machines, &blocks, &value_types)
 }
 
 fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError> {
@@ -1281,6 +1411,7 @@ fn validate_term_scope(
 
 fn validate_control_flow(
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
 ) -> Result<(), ModuleError> {
@@ -1423,7 +1554,7 @@ fn validate_control_flow(
             (*definition != block_id && block_dominators.contains(definition)).then_some(*value)
         }));
         for operation in &block.operations {
-            validate_operation_operands(operation, value_types, &defined)?;
+            validate_operation_operands(operation, machines, value_types, &defined)?;
             defined.insert(operation.result.id);
         }
         match &block.terminator {
@@ -1483,10 +1614,40 @@ fn validate_control_flow(
 
 fn validate_operation_operands(
     operation: &psi_terminal::Operation,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
-    if let OperationKind::IntegerExactCast { operand, .. } = operation.kind {
+    if let OperationKind::Call {
+        callee, arguments, ..
+    } = &operation.kind
+    {
+        let callee = machines
+            .get(callee)
+            .copied()
+            .expect("call target was validated during operation registration");
+        if arguments.len() != callee.parameters.len() {
+            return Err(ModuleError::CallArgumentArityMismatch {
+                operation: operation.id,
+                expected: callee.parameters.len(),
+                actual: arguments.len(),
+            });
+        }
+        for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
+            require_defined(*argument, value_types, defined)?;
+            let actual = value_types[argument];
+            if actual != parameter.scalar_type {
+                return Err(ModuleError::CallArgumentTypeMismatch {
+                    operation: operation.id,
+                    argument: *argument,
+                    expected: parameter.scalar_type,
+                    actual,
+                });
+            }
+        }
+        return Ok(());
+    }
+    if let OperationKind::IntegerExactCast { operand, .. } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
         let expected = operation.result.scalar_type;
@@ -1506,7 +1667,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::IntegerWiden { operand } = operation.kind {
+    if let OperationKind::IntegerWiden { operand } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
         let expected = operation.result.scalar_type;
@@ -1526,7 +1687,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::IntegerBitwiseNot { operand } = operation.kind {
+    if let OperationKind::IntegerBitwiseNot { operand } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
         let expected = operation.result.scalar_type;
         let actual = value_types[&operand];
@@ -1539,7 +1700,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::BooleanNot { operand } = operation.kind {
+    if let OperationKind::BooleanNot { operand } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
         if actual != ScalarType::Boolean {
@@ -1551,7 +1712,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::BooleanEqual { left, right } = operation.kind {
+    if let OperationKind::BooleanEqual { left, right } = operation.kind.clone() {
         for operand in [left, right] {
             require_defined(operand, value_types, defined)?;
             let actual = value_types[&operand];
@@ -1565,7 +1726,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::IntegerEqual { left, right } = operation.kind {
+    if let OperationKind::IntegerEqual { left, right } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let left_type = value_types[&left];
@@ -1580,7 +1741,7 @@ fn validate_operation_operands(
         return Ok(());
     }
     if let OperationKind::IntegerLessThan { left, right }
-    | OperationKind::IntegerLessOrEqual { left, right } = operation.kind
+    | OperationKind::IntegerLessOrEqual { left, right } = operation.kind.clone()
     {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
@@ -1597,7 +1758,7 @@ fn validate_operation_operands(
     }
     if let OperationKind::IntegerBitwiseAnd { left, right }
     | OperationKind::IntegerBitwiseOr { left, right }
-    | OperationKind::IntegerBitwiseXor { left, right } = operation.kind
+    | OperationKind::IntegerBitwiseXor { left, right } = operation.kind.clone()
     {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
@@ -1618,7 +1779,7 @@ fn validate_operation_operands(
         return Ok(());
     }
     if let OperationKind::WrappingIntegerShiftLeft { value, count }
-    | OperationKind::WrappingIntegerShiftRight { value, count } = operation.kind
+    | OperationKind::WrappingIntegerShiftRight { value, count } = operation.kind.clone()
     {
         require_defined(value, value_types, defined)?;
         require_defined(count, value_types, defined)?;
@@ -1639,7 +1800,7 @@ fn validate_operation_operands(
         return Ok(());
     }
     if let OperationKind::ExactIntegerShiftLeft { value, count, .. }
-    | OperationKind::ExactIntegerShiftRight { value, count, .. } = operation.kind
+    | OperationKind::ExactIntegerShiftRight { value, count, .. } = operation.kind.clone()
     {
         require_defined(value, value_types, defined)?;
         require_defined(count, value_types, defined)?;
@@ -1659,7 +1820,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::ExactIntegerAdd { left, right, .. } = operation.kind {
+    if let OperationKind::ExactIntegerAdd { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1678,7 +1839,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::ExactIntegerSubtract { left, right, .. } = operation.kind {
+    if let OperationKind::ExactIntegerSubtract { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1697,7 +1858,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::ExactIntegerMultiply { left, right, .. } = operation.kind {
+    if let OperationKind::ExactIntegerMultiply { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1716,7 +1877,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::ExactIntegerDivide { left, right, .. } = operation.kind {
+    if let OperationKind::ExactIntegerDivide { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1735,7 +1896,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::ExactIntegerRemainder { left, right, .. } = operation.kind {
+    if let OperationKind::ExactIntegerRemainder { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1754,7 +1915,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::WrappingIntegerDivide { left, right, .. } = operation.kind {
+    if let OperationKind::WrappingIntegerDivide { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1773,7 +1934,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::WrappingIntegerRemainder { left, right, .. } = operation.kind {
+    if let OperationKind::WrappingIntegerRemainder { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1792,7 +1953,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::SaturatingIntegerDivide { left, right, .. } = operation.kind {
+    if let OperationKind::SaturatingIntegerDivide { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1811,7 +1972,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    if let OperationKind::SaturatingIntegerRemainder { left, right, .. } = operation.kind {
+    if let OperationKind::SaturatingIntegerRemainder { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
         let expected = operation.result.scalar_type;
@@ -1830,7 +1991,7 @@ fn validate_operation_operands(
         }
         return Ok(());
     }
-    let Some((left, right, arithmetic)) = (match operation.kind {
+    let Some((left, right, arithmetic)) = (match operation.kind.clone() {
         OperationKind::WrappingIntegerAdd { left, right } => {
             Some((left, right, ArithmeticOperandKind::WrappingAdd))
         }
@@ -1875,6 +2036,7 @@ fn validate_operation_operands(
         OperationKind::WrappingIntegerRemainder { .. } => None,
         OperationKind::SaturatingIntegerDivide { .. } => None,
         OperationKind::SaturatingIntegerRemainder { .. } => None,
+        OperationKind::Call { .. } => None,
     }) else {
         return Ok(());
     };
@@ -1939,6 +2101,23 @@ fn validate_operation_operands(
         }
     }
     Ok(())
+}
+
+fn proposition_contains_content(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::ContentConservation(_) => true,
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_contains_content),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_contains_content(premise) || proposition_contains_content(conclusion),
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::Equal(_, _)
+        | Proposition::LessThan(_, _)
+        | Proposition::LessOrEqual(_, _) => false,
+    }
 }
 
 fn require_defined(
@@ -2160,6 +2339,40 @@ pub enum ModuleError {
     UnknownTargetBlock(BlockId),
     UnknownValue(ValueId),
     ValueUsedBeforeDefinition(ValueId),
+    UnknownCallTarget {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    CallTargetMayCrash {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    CallTargetHasStructuralContract {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    CallResultTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    CallArgumentArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    CallArgumentTypeMismatch {
+        operation: OperationId,
+        argument: ValueId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    CallRequirementArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    RecursiveCallSliceNotYetSupported(MachineId),
     IntegerConstantRequiresIntegerResult(OperationId),
     IntegerConstantOutsideResultType(OperationId),
     BooleanConstantRequiresBooleanResult(OperationId),

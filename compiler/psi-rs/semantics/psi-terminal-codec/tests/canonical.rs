@@ -40,6 +40,17 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
+fn scalar_call_round_trips_with_positional_arguments_and_requirement_sites() {
+    let module = call_fixture();
+    let bytes = encode_module(&module).expect("call module should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&decode_module(&bytes).unwrap()),
+        semantic_fingerprint(&module)
+    );
+}
+
+#[test]
 fn crash_round_trips_and_every_semantic_field_enters_identity() {
     let mut module = fixture();
     module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
@@ -671,6 +682,86 @@ fn partition_composition_fixture() -> TerminalModule {
         derived,
     }];
     module
+}
+
+fn call_fixture() -> TerminalModule {
+    let boolean = |id| ValueDeclaration {
+        id: value_id(id),
+        scalar_type: ScalarType::Boolean,
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(100),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(100),
+                parameters: Vec::new(),
+                result: boolean(102),
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(100),
+                blocks: vec![Block {
+                    id: block_id(100),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: operation_id(100),
+                            result: boolean(100),
+                            kind: OperationKind::BooleanConstant { value: true },
+                        },
+                        Operation {
+                            id: operation_id(101),
+                            result: boolean(101),
+                            kind: OperationKind::Call {
+                                callee: machine_id(101),
+                                arguments: vec![value_id(100)],
+                                requirement_obligations: Vec::new(),
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Return {
+                        edge: edge_id(100),
+                        value: value_id(101),
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(100),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(101),
+                parameters: vec![boolean(103)],
+                result: boolean(104),
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(101),
+                blocks: vec![Block {
+                    id: block_id(101),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: edge_id(101),
+                        value: value_id(103),
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(101),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+        ],
+    }
 }
 
 fn i32_type() -> IntegerType {
