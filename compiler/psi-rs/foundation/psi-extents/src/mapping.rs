@@ -854,7 +854,15 @@ mod tests {
     }
 
     fn provider_issuance(seed: u64) -> ExtentProviderIssuance {
-        let base = seed * 16;
+        provider_issuance_for_invocation(seed, seed)
+    }
+
+    fn provider_issuance_for_invocation(
+        issuance_seed: u64,
+        invocation_seed: u64,
+    ) -> ExtentProviderIssuance {
+        let base = issuance_seed * 16;
+        let invocation_base = invocation_seed * 16;
         ExtentProviderIssuance::from_normalized_identities([
             base + 1,
             base + 2,
@@ -864,6 +872,11 @@ mod tests {
             base + 6,
             base + 7,
             base + 8,
+            invocation_base + 9,
+            invocation_base + 10,
+            invocation_base + 11,
+            invocation_base + 12,
+            invocation_base + 13,
         ])
         .expect("normalized provider issuance")
     }
@@ -983,7 +996,7 @@ mod tests {
             true,
             [activation_fact(600)],
         );
-        wrong_issuance.mapping.source_provider_issuance = provider_issuance(99);
+        wrong_issuance.mapping.source_provider_issuance = provider_issuance_for_invocation(1, 99);
         let error = pending
             .complete(wrong_issuance)
             .expect_err("receipt cannot substitute provider issuance evidence");

@@ -85,12 +85,12 @@ Remaining:
 - **ROOT-INTRODUCTION-AND-BACKING.** Give each content root one algebra account.
   Fresh capacity is either compiler-provisioned sealed local capacity or
   selected provider issuance; runtime establishment only transforms an existing
-  account. Provider-issued `Extent` grants now retain issuance, backing,
-  provider, live-issuance premise, custody root, alias class, correspondence,
-  and trust provenance through mint, split, borrow, mapping, rejoin, and entry
-  installation records; differing evidence cannot recompose or replay mapping
-  receipts. Connect those normalized identities to the exact selected-provider
-  invocation, retain route/capacity/qualification beside them, and add the
+  account. Provider-issued `Extent` grants now bind issuance, backing, provider,
+  live-issuance premise, custody root, alias class, correspondence, and trust
+  provenance to one exact selected provider plan/invocation plus establishment
+  route, capacity account, and qualification. The complete record survives
+  mint, split, borrow, mapping, rejoin, and entry installation; differing
+  evidence cannot recompose or replay mapping receipts. Add the
   compiler-provisioned sealed-local source. Reject cross-root recomposition.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
   parameters, entry places, and results. Keep ownership, issuance, custody,
