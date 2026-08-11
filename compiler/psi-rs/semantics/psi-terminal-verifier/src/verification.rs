@@ -212,17 +212,11 @@ fn reconstruct_machine_semantics(
         )
     };
 
-    let mut base_axioms = machine
+    let base_axioms = machine
         .content_identity_reshuffles
         .iter()
         .flat_map(|reshuffle| reshuffle.inferred_propositions())
         .collect::<Vec<_>>();
-    base_axioms.extend(
-        machine
-            .content_partition_compositions
-            .iter()
-            .map(|composition| composition.inferred_proposition()),
-    );
     let mut successors = BTreeMap::<_, Vec<_>>::new();
     let mut indegree = machine
         .blocks
