@@ -97,14 +97,9 @@ The native path runs real programs on macOS ARM64, Windows x64, and Linux
   synthesized structural equality, and plan-generated `compact_binary`
   encoders with byte-exact LEB128 output.
 
-Current known limitations:
-
-- Non-guard statement-call chains can over-execute effectful callees, and
-  self-recursive dispatch with threaded scalar arguments can mis-accumulate;
-  both are diagnosed with minimal repros and tracked in TASKS.md backend
-  residue.
-- Terminal expressions in no-transition machine bodies deliver literals,
-  locals, and field read-backs, but not yet runtime arithmetic results.
+The current implementation queue and its acceptance checks live only in
+[`TASKS.md`](TASKS.md); completed limitations are removed there rather than
+copied into a second status ledger.
 
 Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
 
