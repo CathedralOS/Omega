@@ -436,7 +436,10 @@ can produce installed code; validation binds exact final bytes and placement.
 These entries are pointers, not duplicate specifications.
 
 - **FIXED-OPERATOR-SURFACE-BINDING:** blocked on the source form in owner Q1;
-  named operator identities and operand-directed semantics remain settled.
+  named operator identities and operand-directed semantics remain settled. The
+  parser, core/std sources, and canaries still carry temporary `spelling`
+  clauses solely to bootstrap those semantics; they are not a compatibility
+  surface and must migrate with the Q1 decision.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** the Q2 portion of
   `ENTRY-CONTENT-ROOTS` is blocked on how platform-private handoff values
   compose with the portable semantic root requirement.

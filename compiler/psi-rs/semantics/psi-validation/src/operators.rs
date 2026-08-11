@@ -85,10 +85,10 @@ fn validate_operator_types(
     }
 }
 
-/// Frozen Wave 0 decision #3 ambiguity rule: the same spelling with overlapping
-/// receiver/operand types is a compile error. Spelling is the first-level
-/// resolution discriminator; within a spelling, the operand types must uniquely
-/// pick a candidate, so two candidates sharing operand types are ambiguous.
+/// Settled ambiguity rule: the same fixed token with overlapping
+/// receiver/operand types is a compile error. The token is the first-level
+/// resolution discriminator; within it, operand types must uniquely select a
+/// candidate. This rule does not settle the source binding syntax in owner Q1.
 fn validate_spelling_overlap(
     program: &TypedTrees,
     operators: &[psi_typed_trees::operator::OperatorDefinition],

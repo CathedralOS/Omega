@@ -1,6 +1,6 @@
-// Frozen Wave 0 decision #3: named operators may carry an optional `spelling`
-// clause selecting one of the legal operator spellings. Boundary operators may
-// additionally bind a registered provider.
+// Bootstrap coverage for the parser's temporary fixed-token binding clause.
+// Owner Q1 will replace or approve the source form; only named identities,
+// operand-directed selection, and provider binding are settled.
 
 provider omega::host::canary_indexing : SliceIndexing;
 
