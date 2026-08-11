@@ -1039,6 +1039,33 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
 }
 
 #[test]
+fn accepts_stable_mutable_reborrow_chain_from_local_alias() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Main {
+            cell: Cell;
+        }
+
+        machine write_cell(cell: &mut Cell) {
+            cell.value = 2;
+        }
+
+        machine Main::main(&mut self) {
+            let first: &mut Cell = &mut self.cell;
+            let second: &mut Cell = &mut first;
+            write_cell(second);
+        }
+    "#;
+
+    check_program(source).expect(
+        "a mutable reborrow may derive from its active source alias and retain the ultimate place",
+    );
+}
+
+#[test]
 fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let source = r#"
         data Main {

@@ -1918,7 +1918,8 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
         }
 
         machine Main::touch_other_through_alias(&mut self) {
-            let alias: &mut u32 = &mut self.other;
+            let root: &mut u32 = &mut self.other;
+            let alias: &mut u32 = &mut root;
             transition { _ -> finish(alias) }
             state finish(&mut self, value: &mut u32) {
                 value = 1;
@@ -1987,7 +1988,8 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
         }
 
         machine Main::touch_n_through_alias(&mut self) {
-            let alias: &mut u32 = &mut self.n;
+            let root: &mut u32 = &mut self.n;
+            let alias: &mut u32 = &mut root;
             transition { _ -> finish(alias) }
             state finish(&mut self, value: &mut u32) {
                 value = 9;

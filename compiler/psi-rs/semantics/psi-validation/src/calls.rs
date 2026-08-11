@@ -1368,8 +1368,18 @@ fn summarize_state_written_paths(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        let declared_local_alias_origin = match statement {
+            StatementNode::LocalData(local)
+                if type_may_carry_write(program, local.type_reference) =>
+            {
+                exact_local_mutable_alias_origin(program, local, parameters, &local_alias_origins)
+            }
+            _ => None,
+        };
         for expression in statement_value_expression_roots(program, statement) {
-            if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins) {
+            if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
+                && declared_local_alias_origin.is_none()
+            {
                 return None;
             }
             let mut expression_writes = Vec::new();
@@ -1494,7 +1504,7 @@ fn summarize_state_written_paths(
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
                 if type_may_carry_write(program, local.type_reference) {
-                    let origin = exact_local_mutable_alias_origin(program, local, parameters)?;
+                    let origin = declared_local_alias_origin?;
                     local_alias_origins.push((local.name.as_str().to_owned(), origin));
                 }
                 locals.push(local.name.as_str().to_owned());
@@ -1508,13 +1518,14 @@ fn summarize_state_written_paths(
 
 /// Recover the caller-visible origin of the deliberately narrow local-alias
 /// shape handled by the ordinary frame summarizer. Everything less direct
-/// stays opaque: call-produced references, local alias chains, indexing, and
-/// computed origins all need either richer type evidence or flow-sensitive
-/// origin tracking.
+/// stays opaque: only a bare derived reborrow of an already-stable alias is
+/// flattened; call-produced references, projections while forming the chain,
+/// indexing, and computed origins need richer evidence.
 fn exact_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
+    aliases: &[(String, String)],
 ) -> Option<String> {
     let TypeReferenceNode::Reference {
         is_mutable: true, ..
@@ -1531,12 +1542,20 @@ fn exact_local_mutable_alias_origin(
     // `place_path` admits only Name/Member chains, so indexed and computed
     // origins cannot be accidentally coarsened into an exact alias.
     let origin = arithmetic_domains::place_path(program, *origin)?;
-    let (root, _) = split_place_root(&origin);
-    (root == "self"
+    let (root, suffix) = split_place_root(&origin);
+    if root == "self"
         || parameters
             .iter()
-            .any(|parameter| parameter.name.as_str() == root))
-    .then_some(origin)
+            .any(|parameter| parameter.name.as_str() == root)
+    {
+        return Some(origin);
+    }
+    if suffix.is_empty() {
+        return aliases
+            .iter()
+            .find_map(|(alias, origin)| (alias == root).then(|| origin.clone()));
+    }
+    None
 }
 
 fn rebase_local_alias_path(relative: &str, aliases: &[(String, String)]) -> String {
