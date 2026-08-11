@@ -192,8 +192,11 @@ Remaining:
   Psi verifier. A Psi kernel port alone is insufficient.
 - **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
   add attributed response outcomes only when terminal wait/foreign edges can
-  derive them. Migrate Cathedral hard roots, then add provenance-preserving
-  native metering. Keep WCET and wall-clock conversion separate.
+  derive them. Migrate Cathedral hard roots through a complete attached,
+  unit-returning, linear-parameter effect slice that retains provider/port
+  operations; an admitted or manually counted summary is not source evidence.
+  Then add provenance-preserving native metering. Keep WCET and wall-clock
+  conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. Explicit
   relevance supersedes “recursive means proof-only”; non-layoutable `Type`
