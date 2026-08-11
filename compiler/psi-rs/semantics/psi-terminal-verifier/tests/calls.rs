@@ -7,8 +7,8 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    Operation, OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
@@ -45,6 +45,21 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
     let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("callee requirement and guarantee verify");
     assert_eq!(verified.accepted_facts().len(), 2);
+}
+
+#[test]
+fn scalar_call_cannot_target_a_unit_machine() {
+    let mut module = call_module();
+    module.machines[1].result = TerminalMachineResult::Unit;
+    module.machines[1].blocks[0].terminator = Terminator::ReturnUnit { edge: edge_id(2) };
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::CallTargetReturnsUnit {
+            operation: operation_id(2),
+            callee: machine_id(2),
+        }
+    );
 }
 
 #[test]
@@ -167,7 +182,7 @@ fn call_module() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(1),
                 parameters: Vec::new(),
-                result: boolean_declaration(caller_result),
+                result: TerminalMachineResult::Scalar(boolean_declaration(caller_result)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -208,7 +223,7 @@ fn call_module() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(2),
                 parameters: vec![boolean_declaration(callee_parameter)],
-                result: boolean_declaration(callee_result),
+                result: TerminalMachineResult::Scalar(boolean_declaration(callee_result)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),

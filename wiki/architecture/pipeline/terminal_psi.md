@@ -206,6 +206,24 @@ cannot return along that execution. Omega still resolves the typed call
 relocation and preserves the callee leaf; it does not reinterpret a crash as a
 scalar result.
 
+### Value-less normal return slice
+
+A terminal machine result is either `Scalar`, with one stable result
+pseudo-value, or `Unit`, with no runtime value at all. `ReturnUnit` is a normal
+exit, not a distinguished Boolean or integer: it creates no `ValueId`, result
+structural place, or return-equality axiom. Contracts on a unit machine may
+refer to its parameters but cannot name an absent result. The scalar `Call`
+operation cannot target a unit machine; unit calls require their own complete
+operation slice rather than an ignored result convention.
+
+Canonical encoding, independent verification, interpretation, and fixed-fuel
+derivation implement this distinction. A unit return charges exactly its one
+terminal edge and resumes atomically after sponsor exhaustion. The checked-tree
+producer and Omega native lowering remain explicitly scalar-only, so this is
+artifact-core scaffolding rather than a source-visible unit-entry or Cathedral
+hard-root claim. Attached roots, linear custody, provider/port effects, and
+native unit realization remain gated on their complete vertical slices.
+
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends
 on them. Concrete proposition and operation vocabularies are then co-designed

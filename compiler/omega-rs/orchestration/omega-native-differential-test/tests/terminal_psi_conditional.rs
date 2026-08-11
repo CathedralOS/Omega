@@ -18,7 +18,7 @@ use psi_core::{
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, SuccessorEdge, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -29,8 +29,8 @@ use psi_terminal_fixed_fuel::{
 };
 use psi_terminal_fuel::FuelChargeSite;
 use psi_terminal_interpreter::{
-    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
-    interpret_terminal_artifact_measured,
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecutionResult,
+    TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
 
@@ -119,10 +119,10 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
         .expect("selected conditional arm executes");
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Unsigned(expected),
-            }
+            })
         );
         assert_eq!(measured.usage().total_units(), 2);
         assert_eq!(
@@ -265,10 +265,10 @@ fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
         assert_eq!(measured.usage().total_units(), 3);
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Unsigned(expected),
-            }
+            })
         );
     }
 
@@ -327,10 +327,10 @@ fn conditional_arms_lower_through_computed_jumps_to_a_shared_tail() {
         assert_eq!(measured.usage().total_units(), 5);
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Unsigned(expected),
-            }
+            })
         );
     }
 
@@ -426,10 +426,10 @@ fn compile_known_nested_conditional_folds_inside_a_runtime_arm() {
         assert_eq!(measured.usage().total_units(), fuel);
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Unsigned(expected),
-            }
+            })
         );
     }
 
@@ -522,10 +522,10 @@ fn runtime_nested_conditional_lowers_as_recursive_target_control() {
         assert_eq!(measured.usage().total_units(), fuel);
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Unsigned(expected),
-            }
+            })
         );
     }
     let abstract_plan = lower_verified_artifact(&verified).expect("lower nested requirements");
@@ -622,7 +622,10 @@ fn nested_boolean_result_conditional_reaches_native_control() {
         )
         .expect("nested Boolean-result path executes");
         assert_eq!(measured.usage().total_units(), fuel);
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
     }
 
     let abstract_plan = lower_verified_artifact(&verified).expect("lower Boolean requirements");
@@ -737,7 +740,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                 declaration(2, integer),
                 declaration(3, integer),
             ],
-            result: declaration(4, integer),
+            result: TerminalMachineResult::Scalar(declaration(4, integer)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -810,7 +813,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                 declaration(2, integer),
                 declaration(3, integer),
             ],
-            result: declaration(10, integer),
+            result: TerminalMachineResult::Scalar(declaration(10, integer)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -915,7 +918,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                 declaration(2, integer),
                 declaration(3, integer),
             ],
-            result: declaration(10, integer),
+            result: TerminalMachineResult::Scalar(declaration(10, integer)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1027,7 +1030,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
             parameters: (1..=5).map(declaration).collect(),
-            result: declaration(10),
+            result: TerminalMachineResult::Scalar(declaration(10)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),

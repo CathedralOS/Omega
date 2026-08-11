@@ -8,15 +8,15 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    Operation, OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
-    TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
-    TerminalInterpretError, TerminalScalarValue, interpret_terminal_artifact,
-    interpret_terminal_artifact_measured,
+    TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
+    interpret_terminal_artifact, interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -35,10 +35,10 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let machine = TerminalMachine {
         id: MachineId::new(1).expect("machine"),
         parameters: Vec::new(),
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -151,7 +151,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     )
     .expect("equal artifact execution reproduces deterministic usage");
     assert_eq!(first, second);
-    assert_eq!(first.value(), expected);
+    assert_eq!(first.value(), TerminalExecutionResult::Scalar(expected));
     let artifact_abstract =
         lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
             .expect("artifact-root abstract lowering decodes and verifies first");
@@ -164,7 +164,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             &[],
         )
         .expect("unmeasured artifact entry returns the same result"),
-        expected
+        TerminalExecutionResult::Scalar(expected)
     );
     let mut malformed_semantic = semantic_bytes.clone();
     malformed_semantic.push(0);
@@ -299,7 +299,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     resumable_meter.replenish(1).unwrap();
     assert_eq!(
         execution.resume(&mut resumable_meter).unwrap(),
-        TerminalExecutionStatus::Complete(expected)
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(expected))
     );
     assert_eq!(resumable_meter.usage().total_units(), 3);
     assert_eq!(
@@ -314,7 +314,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let completed_usage = resumable_meter.usage().clone();
     assert_eq!(
         execution.resume(&mut resumable_meter).unwrap(),
-        TerminalExecutionStatus::Complete(expected)
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(expected))
     );
     assert_eq!(resumable_meter.usage(), &completed_usage);
 }
@@ -325,10 +325,10 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),
         parameters: Vec::new(),
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: ValueId::new(90).expect("result"),
             scalar_type: ScalarType::Integer(integer),
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -417,10 +417,10 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             id: parameter,
             scalar_type,
         }],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),

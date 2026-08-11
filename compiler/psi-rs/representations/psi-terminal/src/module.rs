@@ -33,6 +33,39 @@ pub struct ValueDeclaration {
     pub scalar_type: ScalarType,
 }
 
+/// The normal result shape of one terminal machine.
+///
+/// Unit is the absence of a runtime value. It therefore has no `ValueId`, no
+/// scalar type, and no result pseudo-value that contracts can name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalMachineResult {
+    Unit,
+    Scalar(ValueDeclaration),
+}
+
+impl TerminalMachineResult {
+    pub const fn scalar(self) -> Option<ValueDeclaration> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(result) => Some(result),
+        }
+    }
+
+    pub const fn scalar_ref(&self) -> Option<&ValueDeclaration> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(result) => Some(result),
+        }
+    }
+
+    pub fn scalar_mut(&mut self) -> Option<&mut ValueDeclaration> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(result) => Some(result),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
     pub vocabulary_marker: VocabularyMarker,
@@ -98,8 +131,9 @@ pub enum PropositionBinderArgumentKind {
 pub struct TerminalMachine {
     pub id: MachineId,
     pub parameters: Vec<ValueDeclaration>,
-    /// Stable pseudo-value bound by every return edge and used by `ensures`.
-    pub result: ValueDeclaration,
+    /// Unit carries no value; scalar results have a stable pseudo-value bound
+    /// by every scalar return edge and available to `ensures`.
+    pub result: TerminalMachineResult,
     /// Proof-visible roots for structural-place propositions. Runtime scalar
     /// parameters remain independently declared above.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
@@ -463,6 +497,8 @@ pub enum Terminator {
     },
     /// Bind the machine's stable result pseudo-value and finish execution.
     Return { edge: EdgeId, value: ValueId },
+    /// Finish normally without producing or binding a runtime value.
+    ReturnUnit { edge: EdgeId },
     /// Leave checked execution without cleanup or a successor.
     ///
     /// `site_guard` is the canonical conjunction known on every path into this
@@ -490,7 +526,10 @@ impl Terminator {
     /// successor instead of silently treating one arm as the terminator edge.
     pub const fn edge(&self) -> EdgeId {
         match self {
-            Self::Jump { edge, .. } | Self::Return { edge, .. } | Self::Crash { edge, .. } => *edge,
+            Self::Jump { edge, .. }
+            | Self::Return { edge, .. }
+            | Self::ReturnUnit { edge }
+            | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } => {
                 panic!("a conditional terminator has two successor edges")
             }
@@ -499,9 +538,10 @@ impl Terminator {
 
     pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
         let (first, second) = match self {
-            Self::Jump { edge, .. } | Self::Return { edge, .. } | Self::Crash { edge, .. } => {
-                (*edge, None)
-            }
+            Self::Jump { edge, .. }
+            | Self::Return { edge, .. }
+            | Self::ReturnUnit { edge }
+            | Self::Crash { edge, .. } => (*edge, None),
             Self::Conditional {
                 when_true,
                 when_false,

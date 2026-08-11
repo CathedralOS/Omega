@@ -195,8 +195,12 @@ Remaining:
   derive them. Migrate Cathedral hard roots through a complete attached,
   unit-returning, linear-parameter effect slice that retains provider/port
   operations; an admitted or manually counted summary is not source evidence.
-  Then add provenance-preserving native metering. Keep WCET and wall-clock
-  conversion separate.
+  Terminal artifacts now distinguish value-less normal return from scalar
+  return through verification, interpretation, and fixed fuel, but checked
+  source production and Omega realization remain scalar-only. Connect those
+  layers as part of the complete hard-root slice, then add
+  provenance-preserving native metering. Keep WCET and wall-clock conversion
+  separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. Explicit
   relevance supersedes “recursive means proof-only”; non-layoutable `Type`
@@ -293,9 +297,12 @@ customer-shaped compiler concept is introduced.
   transitive boundary wrappers. Preserve facts outside complete frames; opaque
   or unrepresentable frames are conservative fences. Exact finite fixed points
   are live for named state SCCs whose write-capable parameters traverse only
-  bijective permutations, including resolved caller instantiation. Continue
-  with other representable relational candidates; non-bijective or computed
-  cyclic rebinding remains opaque. Do not restore an authored `stores` clause.
+  bijective permutations, including resolved caller instantiation. Stable
+  single-state and direct-self-loop local mutable aliases now substitute exact
+  `self` or state-parameter origins; rebinding, local/computed/indexed origins,
+  alias chains, and named-transition transport remain opaque. Continue with
+  other representable relational candidates; non-bijective or computed cyclic
+  rebinding remains opaque. Do not restore an authored `stores` clause.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.

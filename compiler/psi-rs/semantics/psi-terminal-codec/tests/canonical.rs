@@ -11,7 +11,8 @@ use psi_terminal::{
     MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -31,11 +32,39 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "4c7d98fb82784069361b3f1ff75dac5a3da6f59349bbf245c3ce04d9a3b5d6d6"
+        "25298380ca32ccc158ecb6178e2752d47df917d099708b883d1f7a775d2a98d3"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn unit_result_and_return_have_a_canonical_value_less_encoding() {
+    let module = unit_fixture();
+    let bytes = encode_module(&module).expect("unit terminal module should encode");
+    let decoded = decode_module(&bytes).expect("unit terminal module should decode");
+
+    assert_eq!(decoded, module);
+    assert_eq!(encode_module(&decoded), Ok(bytes));
+    assert_ne!(
+        semantic_fingerprint(&unit_fixture()).unwrap(),
+        semantic_fingerprint(&fixture()).unwrap(),
+        "unit result shape is semantic identity, not an erased scalar convention"
+    );
+}
+
+#[test]
+fn decoder_rejects_an_unknown_machine_result_shape() {
+    let mut bytes = encode_module(&unit_fixture()).expect("unit terminal module should encode");
+    // magic + format + vocabulary + entry + two empty proposition counts +
+    // machine count + machine id + empty parameter count
+    bytes[44] = 0xff;
+
+    assert_eq!(
+        decode_module(&bytes),
+        Err(CodecError::InvalidTag("TerminalMachineResult", 0xff))
     );
 }
 
@@ -409,6 +438,37 @@ fn scalar_term_nesting_has_a_total_bound() {
     );
 }
 
+fn unit_fixture() -> TerminalModule {
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(900),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(900),
+            parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(900),
+            blocks: vec![Block {
+                id: block_id(900),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit { edge: edge_id(900) },
+            }],
+            contract: MachineContract {
+                id: contract_id(900),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
 fn fixture() -> TerminalModule {
     let integer = i32_type();
     let scalar_type = ScalarType::Integer(integer);
@@ -428,10 +488,10 @@ fn fixture() -> TerminalModule {
                 id: value_id(5),
                 scalar_type: ScalarType::Boolean,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(4),
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -552,10 +612,10 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
                 id: value_id(80),
                 scalar_type: ScalarType::Boolean,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(81),
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             structural_places: vec![
                 StructuralPlaceDeclaration {
                     id: parameter_place,
@@ -753,7 +813,7 @@ fn call_fixture() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(100),
                 parameters: Vec::new(),
-                result: boolean(102),
+                result: TerminalMachineResult::Scalar(boolean(102)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -794,7 +854,7 @@ fn call_fixture() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(101),
                 parameters: vec![boolean(103)],
-                result: boolean(104),
+                result: TerminalMachineResult::Scalar(boolean(104)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),

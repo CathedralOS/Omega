@@ -38,7 +38,8 @@ use psi_terminal::{
     OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -536,7 +537,13 @@ fn encode_proposition_application(
 fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), CodecError> {
     writer.id(machine.id);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
-    encode_declaration(writer, machine.result);
+    match machine.result {
+        TerminalMachineResult::Unit => writer.u8(0),
+        TerminalMachineResult::Scalar(result) => {
+            writer.u8(1);
+            encode_declaration(writer, result);
+        }
+    }
     writer.len("structural places", machine.structural_places.len())?;
     for place in &machine.structural_places {
         writer.id(place.id);
@@ -917,6 +924,10 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             writer.u8(2);
             writer.id(*edge);
             writer.id(*value);
+        }
+        Terminator::ReturnUnit { edge } => {
+            writer.u8(5);
+            writer.id(*edge);
         }
         Terminator::Conditional {
             condition,
@@ -1605,7 +1616,11 @@ fn decode_proposition_application(
 fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let parameters = decode_declarations(reader)?;
-    let result = decode_declaration(reader)?;
+    let result = match reader.u8()? {
+        0 => TerminalMachineResult::Unit,
+        1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
+        tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
+    };
     let count = reader.count()?;
     let mut structural_places = Vec::new();
     for _ in 0..count {
@@ -1974,6 +1989,9 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 frontier_lower_bound,
             }
         }
+        5 => Terminator::ReturnUnit {
+            edge: reader.id("EdgeId")?,
+        },
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     };
     Ok(Block {

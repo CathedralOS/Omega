@@ -178,7 +178,7 @@ fn reconstruct_machine_semantics(
     let value_types = machine
         .parameters
         .iter()
-        .chain(std::iter::once(&machine.result))
+        .chain(machine.result.scalar_ref())
         .chain(
             machine
                 .blocks
@@ -231,7 +231,9 @@ fn reconstruct_machine_semantics(
                 when_false,
                 ..
             } => vec![when_true.target, when_false.target],
-            Terminator::Return { .. } | Terminator::Crash { .. } => Vec::new(),
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
             *indegree
@@ -292,7 +294,14 @@ fn reconstruct_machine_semantics(
                         .zip(&arguments)
                         .map(|(parameter, argument)| (parameter.id, value_term(*argument)))
                         .collect::<BTreeMap<_, _>>();
-                    substitutions.insert(callee.result.id, value_term(operation.result.id));
+                    substitutions.insert(
+                        callee
+                            .result
+                            .scalar()
+                            .expect("validated call target has a scalar result")
+                            .id,
+                        value_term(operation.result.id),
+                    );
                     for (required, obligation) in
                         callee.contract.requires.iter().zip(requirement_obligations)
                     {
@@ -939,12 +948,17 @@ fn reconstruct_machine_semantics(
                 }
             }
             Terminator::Return { value, .. } => {
+                let result = machine
+                    .result
+                    .scalar()
+                    .expect("validated scalar return has a scalar machine result");
                 axioms.push(Proposition::Equal(
-                    value_term(machine.result.id),
+                    value_term(result.id),
                     value_term(*value),
                 ));
                 exits.push(axioms);
             }
+            Terminator::ReturnUnit { .. } => exits.push(axioms),
             // A crash establishes no normal-return guarantee. Its explicit
             // frontier record is validated structurally before proof replay.
             Terminator::Crash { .. } => {}

@@ -131,6 +131,9 @@ Optimization may reduce physical work without reducing logical fuel. A
 compiler release may not silently change budget behavior merely because its
 native lowering improved.
 
+A value-less `ReturnUnit` is still one taken normal-return edge. It has the
+same edge charge as a scalar return and no invented value-producing operation.
+
 Build usage remains deterministic for the concrete invocation, target
 description, evaluator/Psi semantics, and fuel schedule. It never depends on
 host load or elapsed time. Long terminating builds remain legal; progress,
