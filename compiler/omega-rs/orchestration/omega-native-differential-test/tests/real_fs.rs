@@ -16,12 +16,24 @@
 //! EACCES reading outside every root -- with the denied files verifiably
 //! absent from real disk afterwards.
 
-use omega_compiler::compile_to_checked;
+use omega_compiler::{CheckedCompilation, compile_to_checked};
 use psi_checked_interpreter::{
-    BuildTimeValue, FilesystemAccess, FsGrants, InterpretOptions,
-    evaluate_build_machine_with_filesystem, interpret, interpret_with_options,
+    BuildTimeValue, FilesystemAccess, FsGrants, InterpretOptions, InterpretOutcome,
+    evaluate_build_machine_with_filesystem, interpret_entry, interpret_entry_with_options,
 };
 use std::path::Path;
+
+fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
+    interpret_entry(checked, checked.program_entry_machine(), stdin)
+}
+
+fn interpret_with_options(
+    checked: &CheckedCompilation,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
+    interpret_entry_with_options(checked, checked.program_entry_machine(), stdin, options)
+}
 
 /// Render a host path for embedding in generated omega source: forward
 /// slashes, so a windows path (`C:\Users\...`) never reads as string escape
