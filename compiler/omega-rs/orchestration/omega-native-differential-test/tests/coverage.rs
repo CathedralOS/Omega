@@ -20,10 +20,14 @@
 //!   only devirtualizes single-impl traits; as of this writing it emits a crashing binary
 //!   for the two-impl program below).
 
-use omega_compiler::compile_to_checked;
-use psi_checked_interpreter::interpret;
+use omega_compiler::{CheckedCompilation, compile_to_checked};
+use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
+    interpret_entry(checked, checked.program_entry_machine(), stdin)
+}
 
 /// Write `source` to a fresh temp dir as `main.omg` and return the path. The dir is keyed
 /// by test name + pid so parallel tests do not collide.
