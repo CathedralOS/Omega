@@ -1183,8 +1183,9 @@ grant, and receipt states. They are implementation debt, not part of this
 language architecture. Cathedral owns its IDT schema, writer lifecycle, and
 installation protocol. The compiler keeps only generic plan validation,
 symbolic/fragment materialization, external-root analysis, provider admission,
-and checked instruction contracts. `TASKS.md` P0 tracks removing the
-customer-shaped specialization.
+and checked instruction contracts. `TASKS.md` P4/P5 own removing the
+customer-shaped specialization while Cathedral replaces it with source-owned
+structures and protocols.
 
 Machine-state admission checks the final footprint against the `StatePlan`.
 Schedule-keyed fixed-fuel provider summaries compose transitively while
