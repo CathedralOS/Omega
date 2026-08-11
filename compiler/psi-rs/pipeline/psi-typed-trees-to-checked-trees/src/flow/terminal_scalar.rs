@@ -1,7 +1,7 @@
 use psi_checked_trees::{
-    CheckedScalarBinding, CheckedScalarGraphPlans, CheckedScalarMachineGraph,
-    CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
+    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarGraphPlans,
+    CheckedScalarMachineGraph, CheckedScalarStateGraph, CheckedScalarStateTerminator,
+    CheckedScalarSuccessor, CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
     CheckedTerminalSignatureEligibility,
 };
 
@@ -97,6 +97,7 @@ fn build_machine_graph(
                     Some(CheckedScalarBinding {
                         statement_ordinal: u32::try_from(statement_index).ok()?,
                         primitive_type: program.primitive_type_reference(local.type_reference)?,
+                        value: checked_binding_value(program, local.initial_value)?,
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;
@@ -167,6 +168,40 @@ fn build_machine_graph(
     Some(CheckedScalarMachineGraph {
         machine: machine.symbol,
         states,
+    })
+}
+
+fn checked_binding_value(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedScalarBindingValue> {
+    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return Some(CheckedScalarBindingValue::Expression);
+    };
+    if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
+        return None;
+    }
+    let target_machine = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == call.target_symbol)
+    })?;
+    Some(CheckedScalarBindingValue::DirectCall {
+        target_machine: target_machine.symbol,
+        target_state: call.target_symbol,
+        // A supported call is the root of its local initializer. Nested calls
+        // cannot acquire scalar argument plans and therefore fail closed.
+        call_ordinal: 0,
+        argument_count: u32::try_from(
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+        )
+        .ok()?,
     })
 }
 

@@ -64,27 +64,39 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             continue;
                         };
                         let binding_ordinal = u32::try_from(locals.len()).ok();
-                        let initializer = lower_return_expression(
-                            program,
-                            operators,
-                            local.initial_value,
-                            parameters,
-                            &parameter_types,
-                            &locals,
-                            primitive_type,
-                            exact_integer_casts,
-                        );
-                        if let (Some(binding_ordinal), Some(initializer)) =
-                            (binding_ordinal, initializer)
-                        {
-                            expressions.push(CheckedLocatedScalarExpression {
-                                state: state.symbol,
+                        if let Some(binding_ordinal) = binding_ordinal {
+                            if let Some(arguments) = lower_direct_call_binding_arguments(
+                                program,
+                                operators,
+                                state.symbol,
                                 statement_ordinal,
-                                role: CheckedScalarExpressionRole::LocalInitializer {
-                                    binding_ordinal,
-                                },
-                                expression: initializer,
-                            });
+                                binding_ordinal,
+                                local.initial_value,
+                                parameters,
+                                &parameter_types,
+                                &locals,
+                                exact_integer_casts,
+                            ) {
+                                expressions.extend(arguments);
+                            } else if let Some(initializer) = lower_return_expression(
+                                program,
+                                operators,
+                                local.initial_value,
+                                parameters,
+                                &parameter_types,
+                                &locals,
+                                primitive_type,
+                                exact_integer_casts,
+                            ) {
+                                expressions.push(CheckedLocatedScalarExpression {
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role: CheckedScalarExpressionRole::LocalInitializer {
+                                        binding_ordinal,
+                                    },
+                                    expression: initializer,
+                                });
+                            }
                         }
                         locals.push(ScalarLocal {
                             symbol: local.symbol,
@@ -187,6 +199,71 @@ pub(crate) fn build_checked_scalar_expression_plans(
         }
     }
     CheckedScalarExpressionPlans { expressions }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_direct_call_binding_arguments(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    state: psi_symbols::SymbolHandle,
+    statement_ordinal: u32,
+    binding_ordinal: u32,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+) -> Option<Vec<CheckedLocatedScalarExpression>> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
+        return None;
+    }
+    program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == call.target_symbol)
+    })?;
+    let target_parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    if target_parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return None;
+    }
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != target_parameters.len() {
+        return None;
+    }
+    arguments
+        .iter()
+        .zip(target_parameters)
+        .enumerate()
+        .map(|(argument_index, (argument, target_parameter))| {
+            let expected_type =
+                program.primitive_type_reference(target_parameter.type_reference)?;
+            Some(CheckedLocatedScalarExpression {
+                state,
+                statement_ordinal,
+                role: CheckedScalarExpressionRole::CallArgument {
+                    binding_ordinal,
+                    argument_ordinal: u32::try_from(argument_index).ok()?,
+                },
+                expression: lower_return_expression(
+                    program,
+                    operators,
+                    *argument,
+                    parameters,
+                    parameter_types,
+                    locals,
+                    expected_type,
+                    exact_integer_casts,
+                )?,
+            })
+        })
+        .collect()
 }
 
 /// Lower a contract predicate in the selected machine's entry-parameter

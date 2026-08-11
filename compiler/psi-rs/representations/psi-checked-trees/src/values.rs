@@ -127,10 +127,18 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
-    LocalInitializer { binding_ordinal: u32 },
+    LocalInitializer {
+        binding_ordinal: u32,
+    },
+    CallArgument {
+        binding_ordinal: u32,
+        argument_ordinal: u32,
+    },
     Return,
     Guard,
-    TransitionArgument { argument_ordinal: u32 },
+    TransitionArgument {
+        argument_ordinal: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
