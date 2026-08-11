@@ -1358,6 +1358,7 @@ fn summarize_state_written_paths(
     }
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
+    let mut local_alias_origins = Vec::<(String, String)>::new();
     let mut written = Vec::new();
 
     let mut nested_diagnostics = Vec::new();
@@ -1368,6 +1369,9 @@ fn summarize_state_written_paths(
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         for expression in statement_value_expression_roots(program, statement) {
+            if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins) {
+                return None;
+            }
             let mut expression_writes = Vec::new();
             collect_expression_call_written_paths(
                 program,
@@ -1379,6 +1383,7 @@ fn summarize_state_written_paths(
                 &mut expression_writes,
             )?;
             for relative in expression_writes {
+                let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
                 {
@@ -1390,6 +1395,19 @@ fn summarize_state_written_paths(
             StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 let relative = coarse_place_path(program, assignment.target)?;
+                if local_alias_origins
+                    .iter()
+                    .any(|(alias, _)| relative == *alias)
+                    && expression_may_rebind_mutable_alias(
+                        program,
+                        machine,
+                        state,
+                        assignment.value,
+                    )
+                {
+                    return None;
+                }
+                let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
                 {
@@ -1431,6 +1449,7 @@ fn summarize_state_written_paths(
                     syntactic_call_written_paths(program, &nested_receiver_members, arguments)
                 })?;
                 for relative in nested_writes {
+                    let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                     if relative_state_path_is_visible(&relative, parameters, &locals)?
                         && !written.contains(&relative)
                     {
@@ -1440,6 +1459,19 @@ fn summarize_state_written_paths(
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
+                    if !local_alias_origins.is_empty()
+                        && target.is_valid()
+                        && matches!(
+                            program.statement_table.transition_target(target),
+                            TransitionTargetNode::Named { .. }
+                        )
+                    {
+                        // This first origin-substitution slice is deliberately
+                        // state-local. Threading an alias binding through a named
+                        // transition needs a graph-level environment; do not let
+                        // the target summary erase a source-local root meanwhile.
+                        return None;
+                    }
                     for relative in summarize_transition_target_written_paths(
                         program,
                         machine,
@@ -1450,6 +1482,7 @@ fn summarize_state_written_paths(
                         complete_state_summaries,
                         &locals,
                     )? {
+                        let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                         if relative_state_path_is_visible(&relative, parameters, &locals)?
                             && !written.contains(&relative)
                         {
@@ -1461,7 +1494,8 @@ fn summarize_state_written_paths(
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
                 if type_may_carry_write(program, local.type_reference) {
-                    return None;
+                    let origin = exact_local_mutable_alias_origin(program, local, parameters)?;
+                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
                 }
                 locals.push(local.name.as_str().to_owned());
             }
@@ -1470,6 +1504,146 @@ fn summarize_state_written_paths(
 
     complete_state_summaries.push((state.symbol, written.clone()));
     Some(written)
+}
+
+/// Recover the caller-visible origin of the deliberately narrow local-alias
+/// shape handled by the ordinary frame summarizer. Everything less direct
+/// stays opaque: call-produced references, local alias chains, indexing, and
+/// computed origins all need either richer type evidence or flow-sensitive
+/// origin tracking.
+fn exact_local_mutable_alias_origin(
+    program: &TypedTrees,
+    local: &psi_typed_trees::statement::TableLocalData,
+    parameters: &[StateParameter],
+) -> Option<String> {
+    let TypeReferenceNode::Reference {
+        is_mutable: true, ..
+    } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    let ExpressionNode::Mutable(origin) = program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    // `place_path` admits only Name/Member chains, so indexed and computed
+    // origins cannot be accidentally coarsened into an exact alias.
+    let origin = arithmetic_domains::place_path(program, *origin)?;
+    let (root, _) = split_place_root(&origin);
+    (root == "self"
+        || parameters
+            .iter()
+            .any(|parameter| parameter.name.as_str() == root))
+    .then_some(origin)
+}
+
+fn rebase_local_alias_path(relative: &str, aliases: &[(String, String)]) -> String {
+    let (root, suffix) = split_place_root(relative);
+    aliases
+        .iter()
+        .find_map(|(alias, origin)| (alias == root).then(|| append_place_suffix(origin, suffix)))
+        .unwrap_or_else(|| relative.to_owned())
+}
+
+fn expression_reborrows_local_alias_binding(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    aliases: &[(String, String)],
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let visit = |child| expression_reborrows_local_alias_binding(program, child, aliases);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            let borrows_binding = arithmetic_domains::place_path(program, *inner)
+                .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
+            borrows_binding || visit(*inner)
+        }
+        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && visit(call.receiver))
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| visit(*argument))
+        }
+        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
+        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| visit(*element)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| visit(field.value)),
+        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
+}
+
+/// A bare write through `alias` (`alias = 1`) targets the borrowed place, but
+/// Psi also permits a mutable-reference local declared with plain `let` to be
+/// rebound (`alias = &mut other`). Accept an exact origin only while the RHS is
+/// proven value-shaped; unknown/reference-shaped replacements fail closed.
+fn expression_may_rebind_mutable_alias(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(_) | ExpressionNode::Call(_) => true,
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            let declared =
+                crate::places::declared_place_type_raw(program, machine, Some(state), expression)
+                    .or_else(|| {
+                        crate::places::declared_indexed_projection_type_raw(
+                            program,
+                            machine,
+                            Some(state),
+                            expression,
+                        )
+                    });
+            declared.is_none_or(|handle| type_reference_is_reference(program, handle))
+        }
+        ExpressionNode::Cast(cast) => type_reference_is_reference(program, cast.target_type),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
+}
+
+fn type_reference_is_reference(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_reference(program, *base_type)
+        }
+        _ => false,
+    }
 }
 
 #[derive(Debug, Clone)]

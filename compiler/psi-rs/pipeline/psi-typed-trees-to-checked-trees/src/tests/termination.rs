@@ -2335,22 +2335,42 @@ fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
 }
 
 #[test]
-fn write_frame_stays_opaque_for_local_exclusive_aliases() {
-    // Until the frame solver substitutes a local alias back to its origin,
-    // dropping the local name would erase a caller-visible write. Cover both
-    // the ordinary acyclic summarizer and the SCC equation fallback directly
-    // at the typed-tree boundary.
+fn write_frame_substitutes_exact_local_exclusive_alias_origins() {
     let source = r#"
-    data Main { value: u64; }
+    data Cell { value: u64; }
+    data Main { value: u64; cell: Cell; }
 
     machine Main::local_alias_acyclic(&mut self) {
         let alias: &mut u64 = &mut self.value;
         alias = 1;
     }
 
-    machine Main::local_alias_cycle(&mut self) {
+    machine Main::local_alias_member(&mut self) {
+        let alias: &mut Cell = &mut self.cell;
+        alias.value = 2;
+    }
+
+    machine write_local_alias(value: &mut u64) {
+        value = 3;
+    }
+
+    machine Main::local_alias_call(&mut self) {
         let alias: &mut u64 = &mut self.value;
-        alias = 2;
+        write_local_alias(alias);
+    }
+
+    machine alias_parameter(value: &mut u64) {
+        let alias: &mut u64 = &mut value;
+        alias = 4;
+    }
+
+    machine Main::call_alias_parameter(&mut self) {
+        alias_parameter(&mut self.value);
+    }
+
+    machine Main::local_alias_self_loop(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        alias = 5;
         transition { _ -> self }
     }
     "#;
@@ -2363,7 +2383,106 @@ fn write_frame_stays_opaque_for_local_exclusive_aliases() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
-    for name in ["Main::local_alias_acyclic", "Main::local_alias_cycle"] {
+    let expected = [
+        ("Main::local_alias_acyclic", "self.value"),
+        ("Main::local_alias_member", "self.cell.value"),
+        ("Main::local_alias_call", "self.value"),
+        ("alias_parameter", "$P0"),
+        ("Main::call_alias_parameter", "self.value"),
+        ("Main::local_alias_self_loop", "self.value"),
+    ];
+    for (name, expected_path) in expected {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some([expected_path.to_owned()].as_slice()),
+            "{name} must substitute the local alias back to its visible origin"
+        );
+    }
+}
+
+#[test]
+fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
+    let source = r#"
+    data Main { value: u64; other: u64; cells: [u64; 2]; }
+
+    machine Main::rebound_alias(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        alias = &mut self.other;
+        alias = 1;
+    }
+
+    machine Main::alias_chain(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        second = 2;
+    }
+
+    machine Main::local_origin(&mut self) {
+        let local: u64 = 0;
+        let alias: &mut u64 = &mut local;
+        alias = 2;
+    }
+
+    machine Main::indexed_alias(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = 3;
+    }
+
+    machine overwrite_alias_binding(value: &mut u64) {
+        value = 5;
+    }
+
+    machine Main::call_rebound_alias(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        overwrite_alias_binding(&mut alias);
+    }
+
+    machine Main::named_alias_acyclic(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        transition { _ -> finish(alias) }
+        state finish(&mut self, value: &mut u64) {
+            value = 4;
+        }
+    }
+
+    machine Main::named_alias_cycle(&mut self) {
+        transition { _ -> cycle() }
+        state cycle(&mut self) {
+            let alias: &mut u64 = &mut self.value;
+            alias = 4;
+            transition { _ -> cycle() }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for name in [
+        "Main::rebound_alias",
+        "Main::alias_chain",
+        "Main::local_origin",
+        "Main::indexed_alias",
+        "Main::call_rebound_alias",
+        "Main::named_alias_acyclic",
+        "Main::named_alias_cycle",
+    ] {
         let machine = typed
             .machines()
             .iter()
@@ -2377,7 +2496,7 @@ fn write_frame_stays_opaque_for_local_exclusive_aliases() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque while local alias origins are not substituted"
+            "{name} must remain opaque without one stable representable local origin"
         );
     }
 }

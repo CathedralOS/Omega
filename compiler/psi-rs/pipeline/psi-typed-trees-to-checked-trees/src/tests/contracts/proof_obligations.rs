@@ -1897,6 +1897,37 @@ fn boundary_witness_survives_disjoint_internal_call_frame() {
 }
 
 #[test]
+fn boundary_witness_survives_disjoint_local_alias_call_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            other: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_other_through_alias();
+            self.small = self.n;
+        }
+
+        machine Main::touch_other_through_alias(&mut self) {
+            let alias: &mut u32 = &mut self.other;
+            alias = 1;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("an exact local-alias frame should preserve the disjoint boundary range witness");
+}
+
+#[test]
 fn boundary_witness_dies_when_internal_call_frame_writes_place() {
     let source = r#"
         boundary trait Firmware {
@@ -1923,6 +1954,42 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("an overlapping internal frame must invalidate the range witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_n_through_alias();
+            self.small = self.n;
+        }
+
+        machine Main::touch_n_through_alias(&mut self) {
+            let alias: &mut u32 = &mut self.n;
+            alias = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an overlapping local-alias frame must invalidate the range witness");
     assert!(
         diagnostics
             .iter()
