@@ -169,13 +169,13 @@ caller-local scalar arguments. Checked scalar graphs also retain direct
 call-valued bindings, their exact call coordinate, and positional scalar
 argument plans. Source production composes the reachable in-module checked
 scalar call closure, consumes each matching crash row, and emits `Call` with
-parameter or computed direct-local substitutions intact. Crash-free calls stage
+parameter or computed direct-local substitutions intact. Calls stage
 short-circuit scalar arguments left-to-right and Omega target lowering accepts
-the resulting calls inside conditional control. Guarded staged arguments remain
-fail-closed until checked invocation rows retain callee-parameter-relative route
-provenance: reverse-matching substituted expressions is not exact when two
-parameters receive equal or overlapping expressions. Wider aggregate/member
-predicates and imported crash capsules also remain fail-closed.
+the resulting calls inside conditional control. A guarded staged call follows
+the checked row's pinned target contract and substitutes its parameter-relative
+routes with the exact terminal argument values; it never reverse-matches caller
+expressions, which would be ambiguous for equal or overlapping arguments. Wider
+aggregate/member predicates and imported crash capsules remain fail-closed.
 Structural/content contracts reject because custody effects require their own
 vertical slice rather than an ordinary scalar flag.
 

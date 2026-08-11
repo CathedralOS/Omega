@@ -157,11 +157,11 @@ Remaining:
   scalar slice. Source-produced direct calls now consume checked
   invocation-specific rows, preserve parameter and computed direct-local
   substitutions, and emit verifier-reconstructed guarded continuations.
-  Crash-free positional calls stage short-circuit arguments left-to-right.
-  Retain callee-parameter-relative route provenance in checked invocation rows
-  so guarded staged arguments can rebind exact terminal argument values; also
-  add wider aggregate/member predicates. Imported crash capsules remain
-  design-blocked on artifact identity and certificate binding.
+  Positional calls stage short-circuit arguments left-to-right; guarded staged
+  calls bind their continuations from the fingerprint-pinned, parameter-relative
+  callee contract to exact terminal argument values. Add wider aggregate/member
+  predicates. Imported crash capsules remain design-blocked on artifact identity
+  and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

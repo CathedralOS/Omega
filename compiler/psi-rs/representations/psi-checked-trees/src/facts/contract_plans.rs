@@ -490,6 +490,9 @@ impl CheckedCrashSite {
 /// summary may be a published ceiling or conservative same-unit checked-body
 /// evidence. `surviving_buckets` are already expressed in the caller's
 /// canonical scalar value namespace, including direct caller-local arguments.
+/// `target_machine` plus `target_contract_fingerprint` also pins the
+/// parameter-relative route origin when terminal control must bind a staged
+/// argument value directly rather than reverse-matching caller expressions.
 /// Exact incoming conjuncts remain distinct
 /// from the sound structural consequences used by ceiling coverage. An empty
 /// surviving set is meaningful evidence that the selected summary is

@@ -201,12 +201,30 @@ crashes Trap
     result
 }
 
-machine terminal_call_short_guarded_unsupported(first: bool, second: bool) -> bool
+machine terminal_call_guarded_first(first: bool, second: bool, third: bool) -> bool
+requires true == true
+ensures true == true
+crashes Trap
+    !third
+{
+    transition !third {
+        true -> fail()
+        _ -> succeed()
+    }
+
+    state fail() -> bool {
+        crash Trap;
+    }
+
+    state succeed() -> bool { false }
+}
+
+machine terminal_call_short_guarded(first: bool, second: bool) -> bool
 requires true == true
 ensures true == true
 crashes Trap
 {
-    let result: bool = terminal_call_guarded_callee(first && second);
+    let result: bool = terminal_call_guarded_first(first, !(first && second), first && second);
     result
 }
 
