@@ -629,6 +629,30 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         installation.image().mapping_era().normalized_identity(),
         102
     );
+    let image_issuance = installation.image().provider_issuance();
+    assert_eq!(image_issuance.issuance().normalized_identity(), 91 * 16 + 1);
+    assert_eq!(image_issuance.backing().normalized_identity(), 91 * 16 + 2);
+    assert_eq!(image_issuance.provider().normalized_identity(), 91 * 16 + 3);
+    assert_eq!(
+        image_issuance.live_issuance_premise().normalized_identity(),
+        91 * 16 + 4
+    );
+    assert_eq!(
+        image_issuance.custody_root().normalized_identity(),
+        91 * 16 + 5
+    );
+    assert_eq!(
+        image_issuance.alias_class().normalized_identity(),
+        91 * 16 + 6
+    );
+    assert_eq!(
+        image_issuance.correspondence().normalized_identity(),
+        91 * 16 + 7
+    );
+    assert_eq!(
+        image_issuance.trust_provenance().normalized_identity(),
+        91 * 16 + 8
+    );
     assert_eq!(
         installation.image().lineage_root().normalized_identity(),
         91
@@ -696,8 +720,22 @@ fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
         constructor(identity).expect("normalized extent identity")
     }
 
+    let issuance_base = lineage * 16;
+    let provider_issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        issuance_base + 1,
+        issuance_base + 2,
+        issuance_base + 3,
+        issuance_base + 4,
+        issuance_base + 5,
+        issuance_base + 6,
+        issuance_base + 7,
+        issuance_base + 8,
+    ])
+    .expect("normalized provider issuance");
+
     ProgramStorageRootInput::new(
         ExtentRootGrant::from_admitted_provider(
+            provider_issuance,
             extent_id(lineage, ExtentLineageId::from_normalized_identity),
             extent_id(100, AddressSpaceId::from_normalized_identity),
             ExtentRights::none(),
