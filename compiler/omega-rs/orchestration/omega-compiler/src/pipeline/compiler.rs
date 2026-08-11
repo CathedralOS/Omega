@@ -409,20 +409,23 @@ impl Compiler {
             &build_config,
             self.options.target_name.as_deref(),
         )?;
-        let program_entry_boundary_plan =
-            if let Some(selected_program_entry) = selected_program_entry {
-                crate::pipeline::build_config::validate_selected_program_entry_shape(
-                    &typed,
-                    selected_program_entry,
-                )?;
-                crate::pipeline::build_config::validate_selected_program_entry_calling_plan(
-                    &typed,
-                    selected_program_entry,
-                    &boundary_calling_plan_realizations,
-                )?
-            } else {
-                None
-            };
+        let program_entry_realization = if let Some(selected_program_entry) = selected_program_entry
+        {
+            crate::pipeline::build_config::validate_selected_program_entry_shape(
+                &typed,
+                selected_program_entry,
+            )?;
+            crate::pipeline::build_config::validate_selected_program_entry_calling_plan(
+                &typed,
+                selected_program_entry,
+                &boundary_calling_plan_realizations,
+            )?
+        } else {
+            None
+        };
+        let program_entry_boundary_plan = program_entry_realization
+            .as_ref()
+            .map(|(plan, _)| plan.clone());
         let entry_machine_name =
             selected_program_entry.map(|selected| selected.machine_name.to_owned());
         let target_provider_defaults =
@@ -588,6 +591,23 @@ impl Compiler {
             workers.handle(),
             &mut timings,
         )?;
+        let program_storage_entry = program_entry_realization
+            .as_ref()
+            .map(|(_, selected)| {
+                let plan = backend.plan.entry_boundary_plan.as_ref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected program-storage entry lost its retained calling plan before backend binding",
+                    )]
+                })?;
+                crate::pipeline::program_storage_entry::bind_generated_program_storage_entry_plan(
+                    selected,
+                    plan,
+                    &backend.plan.runtime_storage,
+                    backend.plan.entry_key,
+                )
+                .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+            })
+            .transpose()?;
         if self.options.write_output {
             write_backend_report(&self.options, &backend_surface, &backend.plan)?;
         }
@@ -619,6 +639,7 @@ impl Compiler {
             root_path: self.options.root_path,
             source_file_count,
             wrote_output: self.options.write_output,
+            program_storage_entry,
         })
     }
 }

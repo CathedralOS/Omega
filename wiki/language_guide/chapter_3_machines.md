@@ -139,9 +139,12 @@ the target schema states how the launch environment supplies those needs.
 > free/receiver source-shape checks, exact UEFI visible-root type/arity checks
 > against `ProgramStorageEntry::enter`, receiver ZII checks, and UEFI
 > source-evaluated calling-plan retention, validation, and inbound lowering are
-> live. Generated bridge integration, actual receiver provisioning, corpus
-> migration, and removal of transitional entry-name discovery remain under
-> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
+> live. The compile report also retains the exact target root slot, checked
+> arrival requirement, calling-plan fingerprint, and generated captures for
+> both storage positions. Physical bridge/grant installation and emitted
+> runtime geometry, actual receiver provisioning, corpus migration, and removal
+> of transitional entry-name discovery remain under `ENTRY-CONTENT-ROOTS` in
+> `TASKS.md`.
 
 ## Parameters And Returns
 

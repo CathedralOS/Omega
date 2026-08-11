@@ -5,6 +5,10 @@ pub struct CompileReport {
     pub root_path: PathBuf,
     pub source_file_count: usize,
     pub wrote_output: bool,
+    /// Exact target root-slot/schema/ABI-capture binding for a program-storage
+    /// entry. Hosted compatibility entries and unmigrated name discovery have
+    /// no such authority-bearing artifact.
+    pub program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
 }
 
 impl CompileReport {

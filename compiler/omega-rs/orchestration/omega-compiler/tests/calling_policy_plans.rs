@@ -1,12 +1,12 @@
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, EntryStack, MachineState, MachineStateSet,
-    Preemption, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    Preemption, ValueShape,
 };
 use omega_compiler::{
-    ProgramStorageRootInput, SelectedExternalRootProviderPlan, bind_program_storage_entry_plan,
-    compile_to_checked, evaluate_calling_policy_plan, install_program_storage_entry_roots,
-    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
+    ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
+    bind_program_storage_entry_plan, compile_to_checked, evaluate_calling_policy_plan,
+    install_program_storage_entry_roots, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -473,15 +473,9 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
 fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let main_path = write_program(
         "program-storage-entry",
-        r#"
-use omega::language::core::extent;
-
-boundary trait TestProcessEntry: ProgramStorageEntry {
-}
-
-data Main { }
-machine Main::main(&mut self) { }
-"#,
+        include_str!(
+            "../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+        ),
     );
     let checked = compile_to_checked(&main_path, None)
         .expect("the core program-storage entry requirement should compile");
@@ -489,8 +483,8 @@ machine Main::main(&mut self) { }
         .typed
         .traits()
         .iter()
-        .find(|definition| definition.name.as_str() == "TestProcessEntry")
-        .expect("test process-entry trait");
+        .find(|definition| definition.name.as_str() == "UefiApplication")
+        .expect("UEFI application entry trait");
     let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, entry)
         .expect("program-storage entry schema");
     let [method] = schema.methods.as_slice() else {
@@ -526,30 +520,54 @@ machine Main::main(&mut self) { }
     );
 
     let shape = ValueShape::integer(16, 8);
-    let boundary = evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::SystemVAMD64,
+    let boundary = evaluate_calling_policy_plan(
+        &checked.typed,
+        "UefiX86_64::plan",
         &CallSignature {
             parameters: vec![shape, shape],
             result: None,
         },
     )
-    .expect("ordinary process-entry plan");
+    .expect("UEFI program-entry plan");
     let storage =
         derive_boundary_entry_storage(boundary.plan(), &[(0, shape), (16, shape)], None, None)
             .expect("generated process-entry captures");
-    let mut selected_schema = schema;
-    selected_schema.methods[0].calling_plan_fingerprint = Some(boundary.contract_fingerprint());
-    let selected = SelectedExternalRootProviderPlan {
+    let selected_schema = schema;
+    let selected_provider = SelectedExternalRootProviderPlan {
         identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
             .expect("selected provider identity"),
-        schema: selected_schema,
+        schema: selected_schema.clone(),
     };
-    let generic_error = selected
-        .entry_claims(&selected.schema.methods[0].requirement_identity)
+    let generic_error = selected_provider
+        .entry_claims(&selected_provider.schema.methods[0].requirement_identity)
         .expect_err("predicate-bearing roots require their specialized installer");
     assert!(generic_error.0.contains("predicate obligations"));
+    let hosted_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::MacosArm64.program_entry_slot(),
+        selected_schema.clone(),
+    )
+    .expect_err("hosted entries cannot claim source-visible program-storage roots");
+    assert!(
+        hosted_error
+            .0
+            .contains("exact program-storage entry contract")
+    );
+    let mut mismatched_schema = selected_schema.clone();
+    mismatched_schema.trait_name = "OtherApplication".into();
+    let mismatched_error = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        mismatched_schema,
+    )
+    .expect_err("a target slot cannot accept a different boundary schema");
+    assert!(mismatched_error.0.contains("requires boundary schema"));
+    let selected = SelectedProgramStorageEntryPlan::from_target_slot(
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+        selected_schema,
+    )
+    .expect("selected target root slot");
     let binding = bind_program_storage_entry_plan(&selected, &boundary, &storage)
         .expect("stable storage positions should bind to selected ABI captures");
+    assert_eq!(binding.root_slot(), selected.root_slot());
     assert_eq!(binding.image().parameter_index(), 0);
     assert_eq!(binding.initial_storage().parameter_index(), 1);
     assert_eq!(

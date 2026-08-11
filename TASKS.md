@@ -56,8 +56,12 @@ Remaining:
   typed root slots around the live target-owned `ProgramEntry` schema carrier
   and exact binding. The UEFI source-visible roots now match the canonical
   typed `ProgramStorageEntry::enter` positions, and the UEFI target now retains,
-  validates, and lowers with its source-evaluated calling policy. `build.omg`
-  names one machine and performs no discovery.
+  validates, and lowers with its source-evaluated calling policy. Its compile
+  report binds the exact target root slot and checked arrival requirement to
+  the generated captures for both semantic root positions. `build.omg` names
+  one machine and performs no discovery.
+  Install the physical arrival bridge and admitted grants, and record their
+  concrete image/runtime geometry and lineage in emitted artifacts.
   Provision a receiver only for a ZII-valid `&mut self` entry, under admitted
   storage and for one activation. Record image/runtime placement, derive image
   subextents, migrate the corpus, and delete `main`/`Main::run` fallback

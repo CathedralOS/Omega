@@ -42798,6 +42798,30 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
 }
 
 #[test]
+fn uefi_program_entry_retains_exact_storage_root_binding() {
+    let canary = pass_canary("build/uefi_program_entry_storage_roots");
+    let report = compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: None,
+        target_name: Some("uefi_x64".into()),
+        write_output: false,
+    })
+    .expect("UEFI program-storage entry should bind its generated captures");
+    let binding = report
+        .program_storage_entry
+        .expect("UEFI entry should retain a program-storage binding");
+
+    assert!(
+        binding
+            .requirement_identity()
+            .contains("ProgramStorageEntry")
+    );
+    assert_eq!(binding.image().parameter_index(), 0);
+    assert_eq!(binding.initial_storage().parameter_index(), 1);
+    assert_ne!(binding.boundary_contract_fingerprint(), 0);
+}
+
+#[test]
 fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
     let canary = pass_canary("inline_asm/asm_fences_compile");
     let build_dir =
