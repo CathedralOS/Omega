@@ -169,9 +169,10 @@ disjoint frame spills before filling their ABI homes. Assignment retains
 explicit register or outgoing-stack destinations. Emission materializes the
 complete outgoing area, including Microsoft x64 shadow space, preserves x86
 call alignment and the AArch64 link register, and emits a typed internal-call
-relocation tied to the exact Psi operation and callee. Calls inside
-conditional-control lowering remain engineering coverage, not unresolved
-language design.
+relocation tied to the exact Psi operation and callee. Conditional-control
+emission preserves live entry registers across condition calls and rebases
+relocations from independently encoded conditions and arms into final function
+order.
 
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends
