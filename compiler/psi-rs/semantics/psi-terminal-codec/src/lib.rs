@@ -270,7 +270,7 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
 }
 
 fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
-    !routes.windows(2).any(|pair| pair[0] >= pair[1])
+    !routes.windows(2).any(|pair| pair[0].cause >= pair[1].cause)
         && routes.iter().all(|bucket| {
             !bucket.alternatives.is_empty()
                 && !bucket
