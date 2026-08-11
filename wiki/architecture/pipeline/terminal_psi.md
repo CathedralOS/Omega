@@ -169,8 +169,8 @@ caller-local scalar arguments. Checked scalar graphs also retain direct
 call-valued bindings, their exact call coordinate, and positional scalar
 argument plans. Source production composes the reachable in-module checked
 scalar call closure, consumes each matching crash row, and emits `Call` with
-parameter or direct-local substitutions intact. Computed caller-local
-implication remains outside this accepted slice, and imported crash capsules
+parameter or computed direct-local substitutions intact. Short-circuit call
+arguments, wider aggregate/member predicates, and imported crash capsules
 remain fail-closed. Structural/content contracts also reject because custody
 effects require their own vertical slice rather than an ordinary scalar flag.
 

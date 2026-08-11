@@ -181,7 +181,7 @@ requires true == true
 ensures true == true
 crashes Trap
 {
-    let forwarded: bool = flag;
+    let forwarded: bool = !flag;
     let result: bool = terminal_call_guarded_callee(forwarded);
     result
 }

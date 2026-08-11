@@ -3093,6 +3093,13 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         risky(forwarded)
     }
 
+    machine computed_local_forwarded(flag: bool) -> i32
+    crashes Trap
+    {
+        let forwarded: bool = !flag;
+        risky(forwarded)
+    }
+
     machine conditioned(flag: bool) -> i32
     crashes Trap
         flag
@@ -3189,6 +3196,23 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         local_forwarded_route.scalar_expression(),
         Some(&psi_checked_trees::CheckedBooleanExpression::Local { position: 1 }),
         "direct refinement should retain the caller-local value position assigned after its one parameter",
+    );
+
+    let [computed_local_call] = plan("computed_local_forwarded").crash.checked_calls() else {
+        panic!("the computed-local invocation should retain one checked call row")
+    };
+    let [computed_local_bucket] = computed_local_call.surviving_buckets() else {
+        panic!("the computed-local route should survive")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(computed_local_route)] =
+        computed_local_bucket.alternative_guards()
+    else {
+        panic!("the computed-local route should remain a predicate")
+    };
+    assert_eq!(
+        computed_local_route.scalar_expression(),
+        Some(&psi_checked_trees::CheckedBooleanExpression::Local { position: 1 }),
+        "computed refinement should retain the caller-local value position",
     );
 
     let [conditioned_call] = plan("conditioned").crash.checked_calls() else {
