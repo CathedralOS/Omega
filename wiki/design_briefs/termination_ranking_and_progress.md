@@ -98,23 +98,22 @@ current `terminates by` spelling exclusively, and even the directed rejection
 of a retired subtraction subject is reconstructed from the normalized witness,
 not from authored compatibility spans.
 
-Checked-artifact status (2026-07-17): every acyclic body records a local
-`Terminates` summary, including an unannotated private body. The
+Every acyclic body records a local `Terminates` summary, including an
+unannotated private body. The
 normalized machine contract independently records only the authored promise;
-omission therefore remains published `NoGuarantee`. One regression test pins
-both halves so body inference cannot silently become interface authorship.
+omission therefore remains published `NoGuarantee`, so body inference cannot
+become interface authorship.
 
 The normalized enum, snapshots, and artifact discriminator spell this positive
 case `Terminates`. There is no second completion guarantee behind that name.
 
-Visual artifact status (2026-07-17): `05_machine_contracts.json` serializes
-that split explicitly. Each machine has an authored `contract` object
+`05_machine_contracts.json` serializes that split explicitly. Each machine has
+an authored `contract` object
 (fingerprint, supply, canonical service-reach and operational ceilings,
 published termination) and a sibling `implementation` object (checked summary
-and private normalized ranking witness). Requirement-binding and component tooling can
-pin the former without parsing or accidentally incorporating proof-local
-material from the latter. Proof-cache storage and complete Merkle-key mechanics
-remain deferred to the dedicated theoretical proof-caching brief.
+and private normalized ranking witness). Requirement-binding and component
+tooling pin the former without incorporating proof-local material from the
+latter.
 
 Mutually recursive or mutually cyclic machines use one joint ranking for the
 strongly connected component, and every cyclic edge must decrease it. The
