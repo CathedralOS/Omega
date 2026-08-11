@@ -1076,15 +1076,93 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
 }
 
 #[test]
-fn checked_source_guarded_short_circuit_call_argument_fails_closed() {
+fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("the guarded short-circuit call canary should compile");
+    let lowered = lower_machine(&checked, "terminal_call_short_guarded")
+        .expect("callee-relative crash routes should bind the staged terminal argument");
+    let call = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .expect("the staged guarded caller should contain one terminal call");
+    let OperationKind::Call {
+        arguments,
+        crash_continuations,
+        ..
+    } = &call.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(arguments.len(), 3);
+    let [continuation] = crash_continuations.as_slice() else {
+        panic!("the staged invocation should retain one guarded crash bucket")
+    };
+    let [psi_terminal::CrashRouteGuard::Predicate(predicate)] =
+        continuation.alternatives.as_slice()
+    else {
+        panic!("the staged crash route should remain conditional")
+    };
+    let predicate_value = match predicate.proposition() {
+        psi_core::Proposition::Equal(left, right) => [left, right]
+            .into_iter()
+            .find_map(|term| match term {
+                psi_core::ScalarTerm::BooleanNot { operand } => match operand.as_ref() {
+                    psi_core::ScalarTerm::Value {
+                        id,
+                        scalar_type: ScalarType::Boolean,
+                    } => Some(*id),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .expect("the staged continuation should negate its first call argument"),
+        other => panic!("unexpected staged guarded continuation term: {other:?}"),
+    };
     assert_eq!(
-        lower_machine(&checked, "terminal_call_short_guarded_unsupported")
-            .expect_err("guarded staged arguments need argument-relative checked crash rows"),
-        LoweringError::Unsupported(
-            "guarded short-circuit call arguments require terminal argument-relative crash rows"
-        ),
+        predicate_value, arguments[2],
+        "the callee parameter must bind the exact staged terminal value",
+    );
+    assert_ne!(
+        predicate_value, arguments[1],
+        "an overlapping argument expression must not erase callee parameter position",
+    );
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the guarded staged source-call closure should verify");
+    let mut execution = start_verified_artifact(
+        &verified,
+        &[
+            TerminalScalarValue::Boolean(false),
+            TerminalScalarValue::Boolean(true),
+        ],
+    )
+    .expect("start the true staged guarded invocation");
+    assert!(matches!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("the staged callee crash should execute"),
+        TerminalExecutionStatus::Crashed(psi_terminal_interpreter::TerminalCrash {
+            cause: CrashCause::Trap,
+            ..
+        })
+    ));
+    assert_eq!(
+        interpret_verified_artifact(
+            &verified,
+            &[
+                TerminalScalarValue::Boolean(true),
+                TerminalScalarValue::Boolean(true),
+            ],
+        )
+        .expect("a false staged guard should return")
+        .value(),
+        TerminalScalarValue::Boolean(false),
     );
 }
 

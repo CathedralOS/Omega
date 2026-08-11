@@ -264,6 +264,7 @@ struct LoweredDirectCallBinding {
     result_type: ScalarType,
     arguments: Vec<LoweredDirectExpression>,
     crash_continuations: Vec<psi_checked_trees::CrashRouteBucket>,
+    parameter_relative_crash_routes: Vec<psi_checked_trees::CrashRouteBucket>,
 }
 
 struct PreparedScalarMachine {
@@ -2274,6 +2275,16 @@ fn lower_checked_direct_call_binding(
     {
         return unsupported("checked scalar call target disagrees with crash refinement");
     }
+    let target_contract = checked
+        .facts
+        .contract_plans
+        .for_machine(target_machine)
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call target has no checked contract plan",
+        ))?;
+    if checked_call.target_contract_fingerprint() != target_contract.fingerprint {
+        return unsupported("checked scalar call target contract fingerprint disagrees");
+    }
     if checked_call.surviving_buckets().iter().any(|bucket| {
         bucket.alternative_guards().iter().any(|guard| {
             matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
@@ -2282,20 +2293,12 @@ fn lower_checked_direct_call_binding(
     }) {
         return unsupported("direct scalar call crash continuation lacks a checked scalar term");
     }
-    if !checked_call.surviving_buckets().is_empty()
-        && arguments
-            .iter()
-            .any(direct_expression_contains_short_circuit)
-    {
-        return unsupported(
-            "guarded short-circuit call arguments require terminal argument-relative crash rows",
-        );
-    }
     Ok(LoweredDirectCallBinding {
         target_machine,
         result_type,
         arguments,
         crash_continuations: checked_call.surviving_buckets().to_vec(),
+        parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
     })
 }
 
@@ -5420,14 +5423,16 @@ fn emit_scalar_binding(
     let arguments = call
         .arguments
         .iter()
-        .map(|argument| {
-            emit_direct_expression(argument, parameters, next_value_identity, operations)
+        .map(|argument| ValueDeclaration {
+            id: emit_direct_expression(argument, parameters, next_value_identity, operations),
+            scalar_type: argument.scalar_type(),
         })
         .collect::<Vec<_>>();
     emit_direct_call_operation(
         call,
+        &call.crash_continuations,
         parameters,
-        arguments,
+        &arguments,
         next_value_identity,
         operations,
         call_emission,
@@ -5568,14 +5573,12 @@ fn emit_staged_scalar_call_binding(
         .checked_add(1)
         .expect("staged call continuation block identities advance");
     let operation_start = operations.len();
-    let arguments = current_parameters[caller_value_count..]
-        .iter()
-        .map(|parameter| parameter.id)
-        .collect::<Vec<_>>();
+    let arguments = current_parameters[caller_value_count..].to_vec();
     let result = emit_direct_call_operation(
         call,
-        &current_parameters[..caller_value_count],
-        arguments,
+        &call.parameter_relative_crash_routes,
+        &arguments,
+        &arguments,
         next_value_identity,
         operations,
         call_emission,
@@ -5604,8 +5607,9 @@ fn emit_staged_scalar_call_binding(
 
 fn emit_direct_call_operation(
     call: &LoweredDirectCallBinding,
-    caller_values: &[ValueDeclaration],
-    arguments: Vec<ValueId>,
+    crash_routes: &[psi_checked_trees::CrashRouteBucket],
+    crash_values: &[ValueDeclaration],
+    arguments: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
@@ -5617,8 +5621,7 @@ fn emit_direct_call_operation(
         .ok_or(LoweringError::Unsupported(
             "direct scalar call target is absent from the terminal closure",
         ))?;
-    let crash_continuations =
-        lower_checked_crash_route_buckets(&call.crash_continuations, caller_values)?;
+    let crash_continuations = lower_checked_crash_route_buckets(crash_routes, crash_values)?;
     let requirement_count = call_emission
         .requirement_counts
         .iter()
@@ -5642,7 +5645,7 @@ fn emit_direct_call_operation(
         },
         kind: OperationKind::Call {
             callee,
-            arguments,
+            arguments: arguments.iter().map(|argument| argument.id).collect(),
             requirement_obligations,
             crash_continuations,
         },
