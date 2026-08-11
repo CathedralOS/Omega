@@ -1,4 +1,4 @@
-// Frozen Wave 0 decision #3 ambiguity rule: the same spelling with overlapping
+// Settled ambiguity rule: the same fixed token with overlapping
 // receiver/operand types is a compile error. Both operators spell `+` over the
 // same `(i32, i32)` operand types, so they are ambiguous.
 

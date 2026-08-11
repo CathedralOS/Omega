@@ -281,9 +281,10 @@ operator FloatSemantics::fused_multiply_add_toward_negative(
     addend: FloatMeaning
 ) -> FloatMeaning;
 
-// Primitive spelling identities. Selection is operand-driven and recorded in
-// checked operator evidence; the result contract is equality with the one
-// executable semantic definition above.
+// Primitive fixed-token identities. Selection is operand-driven and recorded
+// in checked operator evidence; the result contract is equality with the one
+// executable semantic definition above. The `spelling` clauses are temporary
+// bootstrap bindings pending owner Q1, not accepted source syntax.
 boundary operator Float::add(left: f32, right: f32) -> f32
 spelling +
 ensures

@@ -1,10 +1,12 @@
-//! Single source of truth for the legal set of operator spellings (frozen Wave
-//! 0 decision #3) and boundary provider categories (decision #4).
+//! Fixed operator-token identities and boundary provider categories.
+//!
+//! The token set and operand-directed semantics are settled. The source clause
+//! binding one of these tokens to a named declaration is not: the parser's
+//! current `spelling` clause is temporary bootstrap syntax pending owner Q1.
 
-/// The legal set of operator spellings. A named `operator` may carry an
-/// optional `spelling <symbol>` clause selecting one of these. Spelling is the
-/// first-level overload resolution discriminator; receiver/operand machinery
-/// then picks the unique candidate.
+/// The legal fixed operator tokens. A named operator may be associated with
+/// one token; receiver/operand machinery then picks the unique candidate. The
+/// source form for that association is deliberately not defined here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OperatorSpelling {
     Add,

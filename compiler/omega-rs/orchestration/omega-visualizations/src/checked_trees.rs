@@ -343,8 +343,8 @@ pub fn qualification_evidence_manifest_json(
 /// Render the authored owner of an exact inherited requirement. The selected
 /// schema is the deployment boundary and may be a descendant that only refines
 /// calling policy, so reconstructing `Schema::method` would misattribute the
-/// semantic requirement. Legacy singleton schemas have no exact identity and
-/// retain the compatibility spelling.
+/// semantic requirement. Transitional singleton schemas have no exact identity
+/// and retain their existing display label.
 fn service_requirement_label(
     plan: &omega_effects::provider_plan::ProviderPlan,
     method: &omega_effects::provider_plan::ServiceMethod,
