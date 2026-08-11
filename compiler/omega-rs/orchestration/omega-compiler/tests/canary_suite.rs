@@ -42879,6 +42879,10 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/inductive_gauss_sum_false_twin",
     "proofs/inductive_gauss_sum_step_false_twin",
     "proofs/inductive_climbing_sum_step_false_twin",
+    "proofs/nat_unmeasured_recursion_rejected",
+    "proofs/nat_nondescending_recursion_rejected",
+    "proofs/integer_measured_nat_recursion_stalled",
+    "proofs/nat_substate_nondescending_rejected",
 ];
 
 #[test]
@@ -48682,9 +48686,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/rat_scaled_triangle_false_rejected",
     "proofs/static_machine_selection_false_equality_rejected",
     "proofs/value_call_refuted_inequality_rejected",
-    "proofs/nat_unmeasured_recursion_rejected",
-    "proofs/nat_nondescending_recursion_rejected",
-    "proofs/integer_measured_nat_recursion_stalled",
     "proofs/integer_measured_nat_claim_refuted",
     "proofs/structural_ensures_unjudged_rejected",
     "proofs/record_false_comm_rejected",
@@ -48702,7 +48703,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/zero_value_wrong_home_case_rejected",
     "proofs/zero_value_gated_home_rejected",
     "proofs/zero_value_executable_rejected",
-    "proofs/nat_substate_nondescending_rejected",
     "boundary/entry_typed_params_unmarked",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",
