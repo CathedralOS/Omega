@@ -1066,6 +1066,40 @@ fn accepts_stable_mutable_reborrow_chain_from_local_alias() {
 }
 
 #[test]
+fn accepts_stable_mutable_aliases_from_fixed_and_dynamic_indexed_places() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Main {
+            cells: [Cell; 2];
+        }
+
+        machine write_cell(cell: &mut Cell) {
+            cell.value = 2;
+        }
+
+        machine Main::fixed(&mut self) {
+            let cell: &mut Cell = &mut self.cells[0];
+            write_cell(cell);
+        }
+
+        machine Main::dynamic(&mut self, index: u64)
+        requires
+            index < 2
+        {
+            let cell: &mut Cell = &mut self.cells[index];
+            write_cell(cell);
+        }
+    "#;
+
+    check_program(source).expect(
+        "fixed and range-checked dynamic indexed places may back stable local mutable aliases",
+    );
+}
+
+#[test]
 fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let source = r#"
         data Main {
