@@ -350,7 +350,7 @@ is followed by a target boot protocol; it is not runtime code generation. A
 dormant/local target needs local completion, while a future remote fetcher needs
 visibility completion before entry. Code that may already be executing instead
 requires quiescence/component replacement. Visibility and quiescence are
-distinct linear obligations with opposite lifecycle roles. V1 completes
+distinct linear obligations with opposite lifecycle roles. The loader completes
 visibility inside the loader; it exposes no asynchronous token without a real
 provider customer.
 

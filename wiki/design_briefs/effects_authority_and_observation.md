@@ -197,7 +197,7 @@ of the isolation and restart plan. In the absence of that independent proof an
 uncontained crash terminates the execution domain. Ordinary crash contracts do
 not carry containment scopes or recovery promises.
 
-## V1 composition algebra
+## Composition algebra
 
 Service reach normalizes by deterministic, idempotent set union plus trait-
 parent closure:
@@ -377,7 +377,7 @@ law.
 
 ## No laundering, masking, or handlers
 
-V1 has no service subtraction, masking, scoped allowance, or algebraic effect
+The language has no service subtraction, masking, scoped allowance, or algebraic effect
 handlers. Under reach semantics, a call through `Readable` has reached that
 abstract service even when a checked in-memory provider supplies it. Provider
 substitution can remove trust expenditure and refine suspension/blocking
@@ -410,7 +410,7 @@ sugar later, but authority remains possessed and transferred as values.
 
 ### Resources
 
-V1 resource bounds remain contracts on explicit resource capabilities:
+Resource bounds remain contracts on explicit resource capabilities:
 
 ```omega
 machine parse(heap: &mut HeapBudget, input: &[u8]) -> ParseResult
