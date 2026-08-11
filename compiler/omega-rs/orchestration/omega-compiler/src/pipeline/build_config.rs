@@ -247,10 +247,10 @@ pub(crate) fn validate_selected_program_entry_shape(
         == omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
         && visible.len() == 2
     {
-        match arrival_requirement_parameter_types(typed, selected.slot.arrival_requirement) {
-            Ok(required) if required.len() == visible.len() => {
+        match arrival_requirement_contract(typed, selected.slot.arrival_requirement) {
+            Ok(required) if required.parameters.len() == visible.len() => {
                 for (index, (actual, required)) in
-                    visible.iter().zip(required.iter()).enumerate()
+                    visible.iter().zip(required.parameters.iter()).enumerate()
                 {
                     if typed.normalized_type_identity(actual.type_reference) != required.identity {
                         diagnostics.push(Diagnostic::error(format!(
@@ -269,7 +269,7 @@ pub(crate) fn validate_selected_program_entry_shape(
                 selected.slot.owner.root_slot_owner_name(),
                 selected.slot.slot_name,
                 selected.slot.arrival_requirement,
-                required.len(),
+                required.parameters.len(),
                 visible.len(),
             ))),
             Err(diagnostic) => diagnostics.push(diagnostic),
@@ -283,18 +283,88 @@ pub(crate) fn validate_selected_program_entry_shape(
     }
 }
 
+pub(crate) fn validate_selected_program_entry_calling_plan(
+    typed: &TypedTrees,
+    selected: SelectedProgramEntry<'_>,
+    realizations: &[super::calling_policy_plans::BoundaryCallingPlanRealization],
+) -> Result<Option<omega_calling_conventions::BoundaryEntryPlan>, Vec<Diagnostic>> {
+    let (Some(schema_name), Some(required_convention)) = (
+        selected.slot.boundary_schema,
+        selected.slot.calling_convention,
+    ) else {
+        if selected.slot.boundary_schema.is_some() || selected.slot.calling_convention.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "target root slot `{}::{}` has an incomplete boundary-schema calling-policy declaration",
+                selected.slot.owner.root_slot_owner_name(),
+                selected.slot.slot_name,
+            ))]);
+        }
+        return Ok(None);
+    };
+    let schemas = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary && definition.name.as_str() == schema_name)
+        .collect::<Vec<_>>();
+    let [schema] = schemas.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "target root slot `{}::{}` requires exactly one loaded `{schema_name}` boundary schema, but found {}",
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            schemas.len(),
+        ))]);
+    };
+    let arrival = arrival_requirement_contract(typed, selected.slot.arrival_requirement)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let matching = realizations
+        .iter()
+        .filter(|realization| {
+            realization.boundary_trait == schema.symbol
+                && realization.requirement_machine == arrival.signature
+        })
+        .collect::<Vec<_>>();
+    let [realization] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` retains {} evaluated calling plans for `{}` instead of exactly one",
+            matching.len(),
+            selected.slot.arrival_requirement,
+        ))]);
+    };
+    let expected = match required_convention {
+        omega_target::ProgramEntryCallingConvention::MicrosoftX64 => {
+            omega_calling_conventions::CallingPolicy::MicrosoftX64
+        }
+    };
+    if realization.boundary_entry_plan.call.policy != expected {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` evaluates `{}` with {:?}, but `{}::{}` requires {:?}",
+            selected.slot.arrival_requirement,
+            realization.boundary_entry_plan.call.policy,
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            expected,
+        ))]);
+    }
+    Ok(Some(realization.boundary_entry_plan.clone()))
+}
+
 struct ArrivalRequirementParameterType {
     identity: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     display: String,
 }
 
+struct ArrivalRequirementContract {
+    signature: psi_symbols::SymbolHandle,
+    parameters: Vec<ArrivalRequirementParameterType>,
+}
+
 /// Resolve the target declaration back to its core-owned typed requirement.
 /// The result is deliberately taken from Psi's normalized identities rather
 /// than reconstructed from display strings in the Omega orchestrator.
-fn arrival_requirement_parameter_types(
+fn arrival_requirement_contract(
     typed: &TypedTrees,
     requirement: &str,
-) -> Result<Vec<ArrivalRequirementParameterType>, Diagnostic> {
+) -> Result<ArrivalRequirementContract, Diagnostic> {
     let Some((owner, method)) = requirement.split_once("::") else {
         return Err(Diagnostic::error(format!(
             "target entry arrival requirement `{requirement}` is not an exact `Trait::machine` identity"
@@ -322,15 +392,18 @@ fn arrival_requirement_parameter_types(
             signatures.len()
         )));
     };
-    Ok(typed
-        .state_signature_parameters(signature)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .map(|parameter| ArrivalRequirementParameterType {
-            identity: typed.normalized_type_identity(parameter.type_reference),
-            display: typed.display_type_reference_with_constraints(parameter.type_reference),
-        })
-        .collect())
+    Ok(ArrivalRequirementContract {
+        signature: signature.symbol,
+        parameters: typed
+            .state_signature_parameters(signature)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .map(|parameter| ArrivalRequirementParameterType {
+                identity: typed.normalized_type_identity(parameter.type_reference),
+                display: typed.display_type_reference_with_constraints(parameter.type_reference),
+            })
+            .collect(),
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

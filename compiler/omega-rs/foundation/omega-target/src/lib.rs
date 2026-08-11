@@ -48,6 +48,11 @@ pub enum ProgramEntryReceiverProvisioning {
     NoneOrProvisionedZii,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramEntryCallingConvention {
+    MicrosoftX64,
+}
+
 /// Target-owned declaration of the first environment-to-program root slot.
 /// The source binding supplies only `machine`; every other field belongs to
 /// the selected target profile.
@@ -57,6 +62,11 @@ pub struct ProgramEntrySlotDeclaration {
     pub slot_name: &'static str,
     pub schema: ProgramEntrySchema,
     pub arrival_requirement: &'static str,
+    /// Source boundary schema whose evaluated Calling<C> plan owns the
+    /// physical entry contract. `None` marks a profile not yet migrated from
+    /// its hosted compatibility bridge.
+    pub boundary_schema: Option<&'static str>,
+    pub calling_convention: Option<ProgramEntryCallingConvention>,
     pub visible_parameters: ProgramEntryVisibleParameters,
     pub receiver: ProgramEntryReceiverProvisioning,
 }
@@ -145,14 +155,18 @@ impl TargetProfile {
     }
 
     pub const fn program_entry_slot(self) -> ProgramEntrySlotDeclaration {
-        let (schema, visible_parameters) = match self {
+        let (schema, visible_parameters, boundary_schema, calling_convention) = match self {
             Self::UefiX64 => (
                 ProgramEntrySchema::ProgramStorageApplication,
                 ProgramEntryVisibleParameters::ImageAndInitialStorage,
+                Some("UefiApplication"),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
+                None,
+                None,
             ),
         };
         ProgramEntrySlotDeclaration {
@@ -160,6 +174,8 @@ impl TargetProfile {
             slot_name: "ProgramEntry",
             schema,
             arrival_requirement: "ProgramStorageEntry::enter",
+            boundary_schema,
+            calling_convention,
             visible_parameters,
             receiver: ProgramEntryReceiverProvisioning::NoneOrProvisionedZii,
         }
@@ -276,6 +292,8 @@ mod tests {
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.arrival_requirement, "ProgramStorageEntry::enter");
+        assert_eq!(slot.boundary_schema, None);
+        assert_eq!(slot.calling_convention, None);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
     }
 
@@ -283,6 +301,11 @@ mod tests {
     fn uefi_program_entry_slot_exposes_exact_storage_root_shape() {
         let slot = TargetProfile::UefiX64.program_entry_slot();
         assert_eq!(slot.schema, ProgramEntrySchema::ProgramStorageApplication);
+        assert_eq!(slot.boundary_schema, Some("UefiApplication"));
+        assert_eq!(
+            slot.calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
         assert_eq!(
             slot.visible_parameters,
             ProgramEntryVisibleParameters::ImageAndInitialStorage

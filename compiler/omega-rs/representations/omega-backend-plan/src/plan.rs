@@ -1,7 +1,7 @@
 use crate::{BackendArtifactRoots, BackendPlanPhaseTiming};
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
-use omega_calling_conventions::HostAbiPlan;
+use omega_calling_conventions::{BoundaryEntryPlan, HostAbiPlan};
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
 use omega_platform_interface::HostCallPlan;
@@ -48,6 +48,10 @@ pub struct BackendPlan {
     pub runtime_text: RuntimeTextPlan,
     pub layouts: Arc<LayoutPlan>,
     pub entry_key: StateKey,
+    /// Exact source-evaluated plan selected by an explicit target-owned entry
+    /// slot. Legacy name-discovered entries retain `None` until corpus
+    /// migration removes that compatibility path.
+    pub entry_boundary_plan: Option<BoundaryEntryPlan>,
     /// Per-DISPATCH-INDEX receiver storage base (indexed by the runtime-flow
     /// state's arena index): `Some(base)` when the dispatch case's clone
     /// context was minted by a call through a CONTAINED receiver whose true
