@@ -58,3 +58,21 @@ define whether it provisions one root or a declared family of roots, and bind
 the resulting account to an exact qualification and establishment route.
 Ordinary construction, proof terms, and firing a checked runtime route must not
 be able to reproduce the provisioning evidence.
+
+## Q4 — Write-only memory view
+
+Foreign providers sometimes receive storage they may initialize or overwrite
+but must not read. Omega's settled reference surface has only shared read and
+exclusive read/write borrows, while placed-field accessors model individual
+write-only operations rather than a contiguous memory view. Treating a
+write-only foreign parameter as `&mut T` would therefore grant more authority
+than the binding declares and may expose preexisting or uninitialized bytes.
+
+Choose the core representation and source form for a write-only memory view.
+The decision must settle whether it is a third borrow kind, a nominal core view,
+or an operation-capability value; how it projects and subdivides; whether and
+when it may cover uninitialized storage; and what evidence turns a complete or
+partial provider write into readable initialized content. It must preserve
+ordinary lifetime and nonaliasing checks without implying provider read
+authority, and it must remain distinct from `Placed<P, T>` field accessors and
+from durable custody transfer.
