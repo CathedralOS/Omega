@@ -1199,6 +1199,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"compiler_function_validation\": {")
             && executable_regions.contains("\"function_count\": 1")
             && executable_regions.contains("\"instruction_count\": ")
+            && executable_regions.contains("\"checked_assembly_instruction_count\": ")
             && executable_regions.contains("\"fixed_mechanics_instruction_count\": 2")
             && executable_regions.contains("\"fixed_mechanics_validation_fingerprint\": \"0x")
             && executable_regions.contains("\"fixed_mechanics_boundary_contract_fingerprint\": \"0x")
