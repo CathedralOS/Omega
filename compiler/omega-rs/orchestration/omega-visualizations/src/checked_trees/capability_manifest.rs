@@ -3,15 +3,25 @@ use psi_checked_trees::CheckedTrees;
 use psi_effects::CapabilityFlowKind;
 use psi_symbols::SymbolHandle;
 
-pub fn capability_manifest_html(program: &CheckedTrees) -> String {
+/// Render capabilities for the exact Build-selected entry. `None` alone
+/// enables transitional corpus name discovery.
+pub fn capability_manifest_html(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+) -> String {
     crate::phase_diagram::text_report_html(
         "capability_manifest",
-        &capability_manifest_text(program),
+        &capability_manifest_text(program, selected_entry_machine),
     )
 }
 
-pub fn capability_manifest_json(program: &CheckedTrees) -> String {
-    let manifest = entry_capability_manifest(program);
+/// Render capabilities for the exact Build-selected entry. `None` alone
+/// enables transitional corpus name discovery.
+pub fn capability_manifest_json(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+) -> String {
+    let manifest = entry_capability_manifest(program, selected_entry_machine);
 
     let mut json = String::new();
     json.push_str("{\n");
@@ -47,8 +57,11 @@ pub fn capability_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
-fn capability_manifest_text(program: &CheckedTrees) -> String {
-    let manifest = entry_capability_manifest(program);
+fn capability_manifest_text(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+) -> String {
+    let manifest = entry_capability_manifest(program, selected_entry_machine);
     let mut report = String::new();
 
     report.push_str("Executable Capability Manifest\n");
@@ -94,8 +107,13 @@ struct EntryCapabilityManifest {
     capability_flow_counts: [(CapabilityFlowKind, usize); 5],
 }
 
-fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest {
-    let Some((machine_symbol, machine_name, state_name)) = entry_machine(program) else {
+fn entry_capability_manifest(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+) -> EntryCapabilityManifest {
+    let Some((machine_symbol, machine_name, state_name)) =
+        entry_machine(program, selected_entry_machine)
+    else {
         return EntryCapabilityManifest {
             entry_machine: "<missing>".to_owned(),
             entry_state: "<missing>".to_owned(),
@@ -135,9 +153,32 @@ fn capability_flow_counts(program: &CheckedTrees) -> [(CapabilityFlowKind, usize
     CapabilityFlowKind::ALL.map(|kind| (kind, program.facts.capabilities.count_by_kind(kind)))
 }
 
-fn entry_machine(program: &CheckedTrees) -> Option<(SymbolHandle, String, String)> {
-    entry_machine_with_state(program, "Main::main", "main")
-        .or_else(|| entry_machine_with_state(program, "main", "entry"))
+fn entry_machine(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+) -> Option<(SymbolHandle, String, String)> {
+    match selected_entry_machine {
+        Some(name) => entry_machine_named(program, name),
+        None => entry_machine_with_state(program, "Main::main", "main")
+            .or_else(|| entry_machine_with_state(program, "Main::run", "run"))
+            .or_else(|| entry_machine_with_state(program, "main", "entry")),
+    }
+}
+
+fn entry_machine_named(
+    program: &CheckedTrees,
+    machine_name: &str,
+) -> Option<(SymbolHandle, String, String)> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)?;
+    let state = program.machine_states(machine).first()?;
+    Some((
+        machine.symbol,
+        machine.name.as_str().to_owned(),
+        state.name.as_str().to_owned(),
+    ))
 }
 
 fn entry_machine_with_state(
@@ -183,7 +224,7 @@ mod tests {
 
         let mut machine = Machine {
             symbol: machine_symbol,
-            name: Identifier::generated("Main::main"),
+            name: Identifier::generated("Application::launch"),
             ..Default::default()
         };
         program.typed.push_machine_state(
@@ -195,6 +236,20 @@ mod tests {
             },
         );
         program.typed.push_machine(machine);
+        let mut legacy = Machine {
+            symbol: SymbolHandle::from_arena_index(12),
+            name: Identifier::generated("Main::main"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut legacy,
+            State {
+                symbol: SymbolHandle::from_arena_index(13),
+                name: Identifier::generated("main"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(legacy);
 
         let services = &mut program.facts.service_reaches;
         let machine_control = services
@@ -234,9 +289,10 @@ mod tests {
                 fingerprint: 0,
             });
 
-        let json = capability_manifest_json(&program);
-        let text = capability_manifest_text(&program);
+        let json = capability_manifest_json(&program, Some("Application::launch"));
+        let text = capability_manifest_text(&program, Some("Application::launch"));
 
+        assert!(json.contains("\"entry_machine\": \"Application::launch\""));
         assert!(json.contains("\"service_reach\": [\"MachineControl\", \"PortIo\"]"));
         assert!(json.contains("\"may_suspend\": true"));
         assert!(json.contains("\"may_block\": false"));

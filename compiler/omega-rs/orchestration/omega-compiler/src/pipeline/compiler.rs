@@ -555,11 +555,13 @@ impl Compiler {
         write_checked_snapshot(
             &self.options,
             &checked.program,
+            entry_machine_name.as_deref(),
             &checked.selected_provider_plans,
             &checked.task_activations,
         )?;
         write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
-        let backend_surface = build_backend_surface_report(&checked.program);
+        let backend_surface =
+            build_backend_surface_report(&checked.program, entry_machine_name.as_deref());
 
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;
         write_state_graph_snapshot(&self.options, &state_graph)?;

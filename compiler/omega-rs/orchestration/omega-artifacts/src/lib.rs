@@ -1984,11 +1984,26 @@ pub struct UncheckedBoundaryPolicy {
     pub name: String,
 }
 
-pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceReport {
+/// Build the source/backend audit surface around the exact Build-selected
+/// entry. `None` alone enables transitional corpus name discovery.
+pub fn build_backend_surface_report(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+) -> BackendSurfaceReport {
     let mut report = BackendSurfaceReport::default();
 
     for machine in program.machines() {
         collect_machine(&mut report, program, machine);
+    }
+
+    let selected = match selected_entry_machine {
+        Some(name) => entry_point_for_machine(program, name),
+        None => entry_point_with_state(program, "Main::main", "main")
+            .or_else(|| entry_point_with_state(program, "Main::run", "run"))
+            .or_else(|| entry_point_with_state(program, "main", "entry")),
+    };
+    if let Some(entry) = selected {
+        report.entry_points.insert(entry);
     }
 
     report
@@ -2005,28 +2020,37 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, ma
         owned_data: program.machine_owned_data(machine).len(),
         states: program.machine_states(machine).len(),
     });
+}
 
-    if machine.name.as_str() == "Main::main"
-        && program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.name.as_str() == "main")
-    {
-        report.entry_points.insert(BackendEntryPoint {
-            machine: "Main::main".to_owned(),
-            state: "main".to_owned(),
-        });
-    } else if machine.name.as_str() == "main"
-        && program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.name.as_str() == "entry")
-    {
-        report.entry_points.insert(BackendEntryPoint {
-            machine: "main".to_owned(),
-            state: "entry".to_owned(),
-        });
-    }
+fn entry_point_for_machine(program: &CheckedTrees, name: &str) -> Option<BackendEntryPoint> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)?;
+    let state = program.machine_states(machine).first()?;
+    Some(BackendEntryPoint {
+        machine: machine.name.as_str().to_owned(),
+        state: state.name.as_str().to_owned(),
+    })
+}
+
+fn entry_point_with_state(
+    program: &CheckedTrees,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<BackendEntryPoint> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)?;
+    program
+        .machine_states(machine)
+        .iter()
+        .any(|state| state.name.as_str() == state_name)
+        .then(|| BackendEntryPoint {
+            machine: machine_name.to_owned(),
+            state: state_name.to_owned(),
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2257,10 +2281,39 @@ mod tests {
         );
         program.typed.push_machine(machine);
 
-        let report = build_backend_surface_report(&program);
+        let report = build_backend_surface_report(&program, None);
 
         assert_eq!(report.entry_points.len(), 1);
         assert_eq!(report.machines.len(), 1);
+    }
+
+    #[test]
+    fn explicit_entry_selection_overrides_legacy_names_in_surface_report() {
+        let mut program = CheckedTrees::default();
+        for (machine_name, state_name) in [("Main::main", "main"), ("Application::launch", "start")]
+        {
+            let mut machine = Machine {
+                name: Identifier::generated(machine_name),
+                ..Default::default()
+            };
+            program.typed.push_machine_state(
+                &mut machine,
+                State {
+                    name: Identifier::generated(state_name),
+                    ..Default::default()
+                },
+            );
+            program.typed.push_machine(machine);
+        }
+
+        let report = build_backend_surface_report(&program, Some("Application::launch"));
+        let entries = report
+            .entry_points
+            .iter()
+            .map(|(_, entry)| (entry.machine.as_str(), entry.state.as_str()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(entries, [("Application::launch", "start")]);
     }
 
     #[test]
@@ -2338,7 +2391,7 @@ mod tests {
             },
         );
 
-        let report = build_backend_surface_report(&program);
+        let report = build_backend_surface_report(&program, None);
         let main = report
             .machines
             .iter()
