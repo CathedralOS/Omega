@@ -168,8 +168,9 @@ that callee edge's fuel charge; call composition records the surviving route
 without fabricating or double-charging another executable crash. Validation
 rejects recursive call graphs until terminal Psi can carry and verify the
 required tail-position and ranking evidence. Fixed-fuel derivation includes
-complete acyclic callee bounds and retains its own cycle rejection as defense
-in depth.
+separate acyclic callee return/crash bounds: caller tails compose only with
+normal returns, while callee crash paths terminate at their own edge. It retains
+its own cycle rejection as defense in depth.
 
 Omega selects each callee's native calling plan and evaluates arguments into
 disjoint frame spills before filling their ABI homes. Assignment retains
@@ -369,11 +370,13 @@ charged again.
 `psi-terminal-fixed-fuel` derives certificates from verified terminal control.
 For acyclic control and call graphs it computes the greatest entry-to-exit path,
 taking the maximum rather than the sum at exclusive branches and including the
-complete bound of each reached callee. Entry and segment
-certificates bind the exact terminal identity, schedule, endpoints, and ceiling;
-validation reconstructs those fields and the complete reachable segment
-partition. Ranked tail calls, loops, and relevant-precondition refinements
-require later vertical slices.
+outcome-specific bound of each reached callee. A callee crash does not acquire
+the cost of an unreachable caller tail; a caller segment ending after a call
+uses only the callee's normal-return bound. Entry and segment certificates bind
+the exact terminal identity, schedule, endpoints, and ceiling; validation
+reconstructs those fields and the complete reachable segment partition. Ranked
+tail calls, loops, and relevant-precondition refinements require later vertical
+slices.
 
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi
