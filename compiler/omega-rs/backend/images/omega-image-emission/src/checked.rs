@@ -138,6 +138,12 @@ pub fn emit_checked_executable_image(
                 .body_specification_footprint_fingerprint
                 .to_le_bytes(),
         );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .composed_footprint_fingerprint
+                .to_le_bytes(),
+        );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
@@ -9498,6 +9504,8 @@ fn validate_compiler_function_instruction_boundaries(
         semantics,
         &compiler_instruction_footprints,
     )?;
+    let composed_footprint_fingerprint =
+        validate_compiler_composed_footprint(semantics, &compiler_instruction_footprints)?;
 
     Ok(CompilerFunctionValidationEvidence {
         function_count: code.functions.len(),
@@ -9511,6 +9519,7 @@ fn validate_compiler_function_instruction_boundaries(
         body_specification_validation_fingerprint,
         body_specification_boundary_contract_fingerprint,
         body_specification_footprint_fingerprint,
+        composed_footprint_fingerprint,
         validation_fingerprint: fingerprint,
     })
 }
@@ -11707,6 +11716,25 @@ fn require_compiler_instruction_footprint(
             "compiler instruction #{selected_instruction_index} has a retained final-byte validation identity but no target footprint derivation"
         ))
     })
+}
+
+fn validate_compiler_composed_footprint(
+    semantics: &omega_machine_bytes::EncodedMachineSemanticSummary,
+    derived: &[(
+        omega_machine_instructions::BoundaryFootprintFragmentOrigin,
+        omega_calling_conventions::StateFootprintEvidence,
+    )],
+) -> Result<u64, Diagnostic> {
+    let final_footprint = omega_calling_conventions::compose_state_footprints(
+        derived.iter().map(|(_, evidence)| evidence),
+    );
+    let retained_footprint = semantics.boundaries.footprints.composed_evidence();
+    if final_footprint != retained_footprint {
+        return Err(Diagnostic::error(format!(
+            "complete final compiler-row footprint does not equal the StatePlan-validated semantic union: retained={retained_footprint:?}, replayed={final_footprint:?}"
+        )));
+    }
+    Ok(final_footprint.evidence_fingerprint())
 }
 
 fn validate_compiler_body_specification_footprints(
@@ -19951,6 +19979,14 @@ mod tests {
         assert_ne!(evidence.fixed_mechanics_footprint_fingerprint, 0);
         assert_eq!(evidence.body_specification_instruction_count, 2);
         assert_ne!(evidence.body_specification_footprint_fingerprint, 0);
+        assert_eq!(
+            evidence.composed_footprint_fingerprint,
+            semantics
+                .boundaries
+                .footprints
+                .composed_evidence()
+                .evidence_fingerprint()
+        );
 
         let mut mismatched_mechanics = semantics.clone();
         mismatched_mechanics
