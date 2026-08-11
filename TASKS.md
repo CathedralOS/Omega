@@ -209,9 +209,6 @@ Owners:
 
 #### ENT2c — normalized ABI lowering
 
-- Remove production ABI reconstruction from target catalogs; layout, emission,
-  and relocation must consume the selected `CallPlan + StatePlan`. Keep no-plan
-  encoders only as differential oracles.
 - Finish foreign-storage custody and provider-view invalidation. Borrowed
   custody ends at return; durable retention consumes an owned claim and ends
   through a receipt. Add an explicit write-only view.
