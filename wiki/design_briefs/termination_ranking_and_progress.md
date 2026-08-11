@@ -180,7 +180,7 @@ Neither service reach nor a `suspends` declaration identifies the premise under
 which a suspended operation makes progress. Pinned operation and provider
 contracts supply those premises and guarantees.
 
-V1 progress profiles are named, opaque semantic domains over boundary-provider
+Progress profiles are named, opaque semantic domains over boundary-provider
 capability values. They use ordinary domain declaration syntax, for example:
 
 ```omega

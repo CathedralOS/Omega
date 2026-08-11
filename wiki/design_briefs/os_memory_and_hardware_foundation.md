@@ -283,7 +283,7 @@ cross-core invalidation, reuse remains gated by a linear shootdown/quiescence
 token. Its completion operation carries the provider's ordinary suspension or
 blocking ceiling, so an interrupt root cannot hide an illegal wait.
 
-V1 has no per-access generation probe. Reclamation requires exclusive ownership
+There is no per-access generation probe. Reclamation requires exclusive ownership
 back and therefore no live in-language views. Forced asynchronous revocation of
 unreclaimed loans is deferred to provider quiescence/lifecycle machinery when a
 customer requires it; translation edits, shootdowns, and process teardown remain
@@ -1226,7 +1226,7 @@ deliberately promises replacement without reprovisioning. Otherwise a changed
 realized demand changes the candidate artifact/report and requires fresh
 provisioning; it does not change the semantic requirement.
 
-Fixed IR work is not WCET. V1 proves that a hard root has no
+Fixed IR work is not WCET. The current contract proves that a hard root has no
 workload-dependent unbounded path under its admitted provider summaries and
 fits its logical fuel provision. Exact cycles, deadlines, cache behavior, and
 MMIO latency require a target analysis that re-searches native paths under its

@@ -171,7 +171,7 @@ classification from the termination guarantee, reachable outcomes, and
 explicit premises without adding phantom `Completes<...>` surface syntax.
 
 Pinned operations and providers, not reach rows, identify positive progress
-premises. V1 boundary progress profiles are opaque, sealed commitments using
+premises. Boundary progress profiles are opaque, sealed commitments using
 the existing grant/receipt machinery; they participate in deterministic slot
 admission and appear through ordinary requirements such as
 `requires scheduler in WeakFair`, but do not entail proof facts. General trace
