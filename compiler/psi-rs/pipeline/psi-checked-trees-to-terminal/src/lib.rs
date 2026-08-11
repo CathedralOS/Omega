@@ -246,7 +246,7 @@ struct LoweredScalarBranchState {
 struct PendingConditionalBindingBlock {
     id: BlockId,
     parameters: Vec<ValueDeclaration>,
-    target: usize,
+    target: BlockId,
     arguments: Vec<LoweredDirectExpression>,
 }
 
@@ -257,6 +257,50 @@ struct PendingMixedTupleBindingBlocks {
     arguments: Vec<LoweredDirectExpression>,
     stage_parameters: Vec<Vec<ValueDeclaration>>,
     target: BlockId,
+}
+
+const TERMINAL_MACHINE_IDENTITY_STRIDE: u64 = 1_u64 << 32;
+
+/// Module-wide operation identities for one machine namespace. Machine zero
+/// uses the historical one-based range; additional machines receive disjoint
+/// ranges when source call-closure production composes them.
+struct OperationBuffer {
+    next_identity: u64,
+    operations: Vec<Operation>,
+}
+
+impl OperationBuffer {
+    fn new(identity_base: u64) -> Self {
+        Self {
+            next_identity: identity_base
+                .checked_add(1)
+                .expect("operation identity base admits one-based identities"),
+            operations: Vec::new(),
+        }
+    }
+
+    fn allocate(&mut self) -> OperationId {
+        let id = operation_id(self.next_identity);
+        self.next_identity = self
+            .next_identity
+            .checked_add(1)
+            .expect("terminal operation identities advance");
+        id
+    }
+}
+
+impl std::ops::Deref for OperationBuffer {
+    type Target = Vec<Operation>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.operations
+    }
+}
+
+impl std::ops::DerefMut for OperationBuffer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.operations
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1879,6 +1923,8 @@ fn lower_scalar_graph_machine(
         lower_checked_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
+        machine_id(1),
+        0,
     )
 }
 
@@ -2830,7 +2876,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
     first_block_identity: u64,
     next_value_identity: &mut u64,
     next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
+    all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
     match decision {
@@ -2930,7 +2976,7 @@ fn emit_reserved_boolean_value_blocks(
     first_block_identity: u64,
     next_value_identity: &mut u64,
     next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
+    all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     let block_index = blocks.len();
@@ -3042,7 +3088,7 @@ fn emit_inlined_boolean_value_blocks(
     first_synthetic_block: BlockId,
     next_value_identity: &mut u64,
     next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
+    all_operations: &mut OperationBuffer,
 ) -> (Block, Vec<Block>) {
     let first_reserved_identity = first_synthetic_block
         .get()
@@ -3082,7 +3128,7 @@ fn emit_inlined_boolean_guard_blocks(
     first_synthetic_block: BlockId,
     next_value_identity: &mut u64,
     next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
+    all_operations: &mut OperationBuffer,
 ) -> (Block, Vec<Block>) {
     let first_reserved_identity = first_synthetic_block
         .get()
@@ -3123,7 +3169,7 @@ fn emit_reserved_boolean_tuple_stage_blocks(
     first_block_identity: u64,
     next_value_identity: &mut u64,
     next_edge_identity: &mut u64,
-    all_operations: &mut Vec<Operation>,
+    all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     let block_index = blocks.len();
@@ -3237,6 +3283,7 @@ fn build_scalar_conditional_target(
     next_block_identity: &mut u64,
     next_value_identity: &mut u64,
     pending_blocks: &mut Vec<PendingNestedBlockGroup>,
+    identity_base: u64,
 ) -> LoweredBooleanDecisionTarget {
     let direct_arguments = arguments
         .iter()
@@ -3261,12 +3308,7 @@ fn build_scalar_conditional_target(
         .collect::<Option<Vec<_>>>();
     if let Some(arguments) = direct_arguments {
         return LoweredBooleanDecisionTarget {
-            block: block_id(
-                u64::try_from(target)
-                    .expect("state index fits a semantic identity")
-                    .checked_add(1)
-                    .expect("block identity is nonzero"),
-            ),
+            block: scalar_source_block(identity_base, target),
             arguments,
         };
     }
@@ -3324,12 +3366,7 @@ fn build_scalar_conditional_target(
                 original_parameter_count: current_parameters.len(),
                 arguments: arguments.to_vec(),
                 stage_parameters,
-                target: block_id(
-                    u64::try_from(target)
-                        .expect("state index fits a semantic identity")
-                        .checked_add(1)
-                        .expect("block identity is nonzero"),
-                ),
+                target: scalar_source_block(identity_base, target),
             },
         ));
         return LoweredBooleanDecisionTarget {
@@ -3362,7 +3399,7 @@ fn build_scalar_conditional_target(
         PendingConditionalBindingBlock {
             id,
             parameters,
-            target,
+            target: scalar_source_block(identity_base, target),
             arguments: arguments.to_vec(),
         },
     ));
@@ -3373,6 +3410,15 @@ fn build_scalar_conditional_target(
             .map(|parameter| parameter.id)
             .collect(),
     }
+}
+
+fn scalar_source_block(identity_base: u64, state: usize) -> BlockId {
+    block_id(
+        identity_base
+            .checked_add(u64::try_from(state).expect("state index fits a semantic identity"))
+            .and_then(|identity| identity.checked_add(1))
+            .expect("state block identity fits the machine namespace"),
+    )
 }
 
 fn lower_checked_crash_route_buckets(
@@ -3813,6 +3859,8 @@ fn build_scalar_graph_module(
     crash_routes: Vec<psi_checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
+    terminal_machine: MachineId,
+    identity_base: u64,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let parameters = states[0]
         .parameter_types
@@ -3820,8 +3868,11 @@ fn build_scalar_graph_module(
         .enumerate()
         .map(|(index, scalar_type)| ValueDeclaration {
             id: value_id(
-                u64::try_from(index)
-                    .expect("parameter index fits a semantic identity")
+                identity_base
+                    .checked_add(
+                        u64::try_from(index).expect("parameter index fits a semantic identity"),
+                    )
+                    .expect("parameter identity base admits the parameter index")
                     .checked_add(1)
                     .expect("parameter identity is nonzero"),
             ),
@@ -3829,8 +3880,11 @@ fn build_scalar_graph_module(
         })
         .collect::<Vec<_>>();
     let crash_routes = lower_checked_crash_route_buckets(&crash_routes, &parameters)?;
-    let mut next_value_identity = u64::try_from(parameters.len())
-        .expect("parameter count fits a semantic identity")
+    let mut next_value_identity = identity_base
+        .checked_add(
+            u64::try_from(parameters.len()).expect("parameter count fits a semantic identity"),
+        )
+        .expect("parameter count fits the machine identity namespace")
         .checked_add(1)
         .expect("generated identities follow parameter identities");
     let mut state_parameters = Vec::with_capacity(states.len());
@@ -3854,10 +3908,13 @@ fn build_scalar_graph_module(
         );
     }
 
-    let mut all_operations = Vec::new();
-    let mut next_edge_identity = 1_u64;
-    let mut next_block_identity = u64::try_from(states.len())
-        .expect("state count fits a semantic identity")
+    let mut all_operations = OperationBuffer::new(identity_base);
+    let mut next_edge_identity = identity_base
+        .checked_add(1)
+        .expect("edge identity base admits one-based identities");
+    let mut next_block_identity = identity_base
+        .checked_add(u64::try_from(states.len()).expect("state count fits a semantic identity"))
+        .expect("state count fits the machine identity namespace")
         .checked_add(1)
         .expect("conditional binding blocks follow source blocks");
     let mut pending_blocks = Vec::new();
@@ -3867,8 +3924,9 @@ fn build_scalar_graph_module(
         let operation_start = all_operations.len();
         let current_parameters = &state_parameters[index];
         let source_block = block_id(
-            u64::try_from(index)
-                .expect("state index fits a semantic identity")
+            identity_base
+                .checked_add(u64::try_from(index).expect("state index fits a semantic identity"))
+                .expect("state index fits the machine identity namespace")
                 .checked_add(1)
                 .expect("block identity is nonzero"),
         );
@@ -4046,12 +4104,7 @@ fn build_scalar_graph_module(
                             .expect("staged Boolean jump child count fits a semantic identity"),
                     )
                     .expect("staged Boolean jump block identities advance");
-                let target = block_id(
-                    u64::try_from(*target)
-                        .expect("state index fits a semantic identity")
-                        .checked_add(1)
-                        .expect("block identity is nonzero"),
-                );
+                let target = scalar_source_block(identity_base, *target);
                 let (root, children) = emit_inlined_boolean_value_blocks(
                     &decision,
                     &stage_parameters,
@@ -4102,6 +4155,7 @@ fn build_scalar_graph_module(
                     &mut next_block_identity,
                     &mut next_value_identity,
                     &mut pending_blocks,
+                    identity_base,
                 );
                 let when_false = build_scalar_conditional_target(
                     *when_false_target,
@@ -4111,6 +4165,7 @@ fn build_scalar_graph_module(
                     &mut next_block_identity,
                     &mut next_value_identity,
                     &mut pending_blocks,
+                    identity_base,
                 );
                 let (root, children) = emit_inlined_boolean_guard_blocks(
                     &decision,
@@ -4165,6 +4220,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     let when_false = build_scalar_conditional_target(
                         when_false_target,
@@ -4174,6 +4230,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     let when_true_edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
@@ -4214,6 +4271,7 @@ fn build_scalar_graph_module(
                             &mut next_block_identity,
                             &mut next_value_identity,
                             &mut pending_blocks,
+                            identity_base,
                         );
                         Terminator::Jump {
                             edge,
@@ -4234,12 +4292,7 @@ fn build_scalar_graph_module(
                             .collect();
                         Terminator::Jump {
                             edge,
-                            target: block_id(
-                                u64::try_from(target)
-                                    .expect("state index fits a semantic identity")
-                                    .checked_add(1)
-                                    .expect("block identity is nonzero"),
-                            ),
+                            target: scalar_source_block(identity_base, target),
                             arguments,
                         }
                     }
@@ -4293,12 +4346,7 @@ fn build_scalar_graph_module(
                                 .expect("Boolean binding child count fits a semantic identity"),
                         )
                         .expect("Boolean binding block identities advance");
-                    let target = block_id(
-                        u64::try_from(*target)
-                            .expect("state index fits a semantic identity")
-                            .checked_add(1)
-                            .expect("block identity is nonzero"),
-                    );
+                    let target = scalar_source_block(identity_base, *target);
                     let (root, children) = emit_inlined_boolean_value_blocks(
                         &decision,
                         &current_values,
@@ -4332,6 +4380,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     let edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
@@ -4360,12 +4409,7 @@ fn build_scalar_graph_module(
                         .expect("scalar graph jump edge identities advance");
                     Terminator::Jump {
                         edge,
-                        target: block_id(
-                            u64::try_from(*target)
-                                .expect("state index fits a semantic identity")
-                                .checked_add(1)
-                                .expect("block identity is nonzero"),
-                        ),
+                        target: scalar_source_block(identity_base, *target),
                         arguments,
                     }
                 }
@@ -4404,6 +4448,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     let when_false = build_scalar_conditional_target(
                         *when_false_target,
@@ -4413,6 +4458,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     let (root, children) = emit_inlined_boolean_guard_blocks(
                         &decision,
@@ -4459,6 +4505,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     let when_false = build_scalar_conditional_target(
                         *when_false_target,
@@ -4468,6 +4515,7 @@ fn build_scalar_graph_module(
                         &mut next_block_identity,
                         &mut next_value_identity,
                         &mut pending_blocks,
+                        identity_base,
                     );
                     Terminator::Conditional {
                         condition,
@@ -4580,12 +4628,7 @@ fn build_scalar_graph_module(
                     operations: all_operations[operation_start..].to_vec(),
                     terminator: Terminator::Jump {
                         edge,
-                        target: block_id(
-                            u64::try_from(pending.target)
-                                .expect("state index fits a semantic identity")
-                                .checked_add(1)
-                                .expect("block identity is nonzero"),
-                        ),
+                        target: pending.target,
                         arguments,
                     },
                 });
@@ -4698,7 +4741,11 @@ fn build_scalar_graph_module(
         (ScalarType::Boolean, Some(KnownDirectScalar::Boolean(value))) => {
             let literal = ScalarTerm::boolean(value);
             let goal = Proposition::Equal(literal.clone(), literal);
-            let obligation = obligation_id(1);
+            let obligation = obligation_id(
+                identity_base
+                    .checked_add(1)
+                    .expect("contract obligation identity is one-based"),
+            );
             (
                 vec![goal.clone()],
                 vec![ContractClause {
@@ -4715,7 +4762,11 @@ fn build_scalar_graph_module(
             let literal = ScalarTerm::integer(integer_type, value)
                 .expect("validated source contract fits the result type");
             let goal = Proposition::Equal(literal.clone(), literal);
-            let obligation = obligation_id(1);
+            let obligation = obligation_id(
+                identity_base
+                    .checked_add(1)
+                    .expect("contract obligation identity is one-based"),
+            );
             (
                 vec![goal.clone()],
                 vec![ContractClause {
@@ -4743,11 +4794,11 @@ fn build_scalar_graph_module(
     let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: machine_id(1),
+            entry: terminal_machine,
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
-                id: machine_id(1),
+                id: terminal_machine,
                 parameters,
                 result,
                 structural_places: structural_places
@@ -4757,10 +4808,14 @@ fn build_scalar_graph_module(
                 content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
+                entry: block_id(
+                    identity_base
+                        .checked_add(1)
+                        .expect("machine entry block identity is one-based"),
+                ),
                 blocks,
                 contract: MachineContract {
-                    id: contract_id(1),
+                    id: contract_id(terminal_machine.get()),
                     crash_routes,
                     requires,
                     ensures,
@@ -4827,7 +4882,7 @@ fn emit_boolean_expression(
     expression: &LoweredBooleanReturnExpression,
     parameters: &[ValueDeclaration],
     next_value_identity: &mut u64,
-    operations: &mut Vec<Operation>,
+    operations: &mut OperationBuffer,
 ) -> ValueId {
     match expression {
         LoweredBooleanReturnExpression::Constant { value } => {
@@ -4835,13 +4890,9 @@ fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after a Boolean literal");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
@@ -4857,13 +4908,9 @@ fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after integer comparison");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
@@ -4881,13 +4928,9 @@ fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after Boolean negation");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
@@ -4903,13 +4946,9 @@ fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after Boolean equality");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
@@ -4928,7 +4967,7 @@ fn emit_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[ValueDeclaration],
     next_value_identity: &mut u64,
-    operations: &mut Vec<Operation>,
+    operations: &mut OperationBuffer,
 ) -> ValueId {
     match expression {
         LoweredDirectExpression::Parameter { position, .. }
@@ -4938,13 +4977,9 @@ fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after a literal");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
@@ -4965,12 +5000,7 @@ fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after a binary operation");
-            let operation = operation_id(
-                u64::try_from(operations.len())
-                    .expect("operation count fits a semantic identity")
-                    .checked_add(1)
-                    .expect("operation identity is nonzero"),
-            );
+            let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
                 result: ValueDeclaration {
@@ -4991,13 +5021,9 @@ fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after bitwise complement");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
@@ -5016,13 +5042,9 @@ fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after integer widening");
+            let operation = operations.allocate();
             operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
+                id: operation,
                 result: ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
@@ -5041,12 +5063,7 @@ fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after an exact integer cast");
-            let operation = operation_id(
-                u64::try_from(operations.len())
-                    .expect("operation count fits a semantic identity")
-                    .checked_add(1)
-                    .expect("operation identity is nonzero"),
-            );
+            let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
                 result: ValueDeclaration {
@@ -5375,6 +5392,54 @@ mod tests {
                     .collect(),
             },
         }
+    }
+
+    #[test]
+    fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
+        let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
+        let lowered = build_scalar_graph_module(
+            &[LoweredScalarBranchState {
+                parameter_types: vec![ScalarType::Boolean],
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Return {
+                    expression: LoweredDirectExpression::Boolean {
+                        expression: Box::new(LoweredBooleanReturnExpression::Parameter {
+                            position: 0,
+                        }),
+                    },
+                },
+            }],
+            ScalarType::Boolean,
+            None,
+            Vec::new(),
+            LoweredContentIdentityReshuffles {
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                reshuffles: Vec::new(),
+                source_claims: Vec::new(),
+            },
+            LoweredContentPartitionCompositions {
+                structural_places: Vec::new(),
+                compositions: Vec::new(),
+            },
+            machine_id(2),
+            identity_base,
+        )
+        .expect("a nonentry machine should lower in its disjoint identity range");
+
+        let [machine] = lowered.semantic_module.machines.as_slice() else {
+            panic!("the isolated builder emits one machine")
+        };
+        assert_eq!(machine.id, machine_id(2));
+        assert_eq!(machine.contract.id, contract_id(2));
+        assert_eq!(machine.entry, block_id(identity_base + 1));
+        assert_eq!(machine.parameters[0].id, value_id(identity_base + 1));
+        assert_eq!(machine.result.id, value_id(identity_base + 2));
+        let Terminator::Return { edge, value } = machine.blocks[0].terminator else {
+            panic!("the fixture should retain its scalar return")
+        };
+        assert_eq!(edge, edge_id(identity_base + 1));
+        assert_eq!(value, value_id(identity_base + 1));
     }
 
     fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {
