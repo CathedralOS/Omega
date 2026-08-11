@@ -12,7 +12,9 @@ mod scalar;
 mod statement;
 mod transition;
 
-pub(crate) use scalar::build_checked_scalar_expression_plans;
+pub(crate) use scalar::{
+    build_checked_scalar_expression_plans, lower_machine_parameter_boolean_expression,
+};
 
 pub(crate) fn build_value_facts(
     program: &TypedTrees,

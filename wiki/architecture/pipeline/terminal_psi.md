@@ -162,11 +162,12 @@ not producer-authored identity bytes. The verifier substitutes every callee
 parameter `ValueId` with the corresponding arbitrary caller-local argument,
 reconstructs the surviving continuation set, and requires coverage by the
 caller's published ceiling; an empty or untranslated set therefore cannot erase
-a crash. The checked-tree producer still fails closed when a guarded byte join
-key has not yet been lowered into that structured terminal term. Imported crash
-capsules remain fail-closed. Structural/content contracts also still reject
-because custody effects require their own vertical slice rather than an
-ordinary scalar flag.
+a crash. Checked scalar contracts and body crash sites retain structured
+predicate meaning through terminal lowering. Invocation-specific guarded call
+rows still fail closed until their substituted checked predicates carry that
+same structure. Imported crash capsules remain fail-closed. Structural/content
+contracts also still reject because custody effects require their own vertical
+slice rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

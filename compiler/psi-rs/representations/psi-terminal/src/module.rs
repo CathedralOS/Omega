@@ -217,10 +217,9 @@ pub enum CrashRouteGuard {
 
 /// Canonical source-independent term for one normalized crash predicate.
 ///
-/// Unlike the checked-tree producer's temporary byte join keys, terminal Psi
-/// retains the proposition itself. The verifier can therefore type-check it,
-/// substitute callee values at a call, and reconstruct the exact surviving
-/// continuation without trusting producer-authored identity bytes.
+/// Terminal Psi retains the proposition itself. The verifier can therefore
+/// type-check it, substitute callee values at a call, and reconstruct the exact
+/// surviving continuation without trusting producer-authored identity bytes.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CrashPredicateTerm(Proposition);
 

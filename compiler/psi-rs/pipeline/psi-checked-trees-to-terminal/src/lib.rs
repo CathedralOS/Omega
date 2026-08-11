@@ -231,7 +231,7 @@ enum LoweredScalarBranchTerminator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredCrashExit {
     cause: TerminalCrashCause,
-    site_guard: Vec<psi_terminal::CrashPredicateTerm>,
+    site_guard: Vec<CheckedBooleanExpression>,
     frontier_lower_bound: Vec<ClaimId>,
 }
 
@@ -1465,7 +1465,7 @@ fn lower_checked_crash_frontier(
 fn lower_checked_crash_routes(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
-) -> Result<Vec<psi_terminal::CrashRouteBucket>, LoweringError> {
+) -> Result<Vec<psi_checked_trees::CrashRouteBucket>, LoweringError> {
     checked
         .facts
         .contract_plans
@@ -1476,25 +1476,15 @@ fn lower_checked_crash_routes(
                 .published()
                 .iter()
                 .map(|bucket| {
-                    let alternatives = bucket
-                        .alternative_guards()
-                        .iter()
-                        .map(|guard| match guard {
-                            psi_checked_trees::CrashRouteGuard::Truth => {
-                                Ok(psi_terminal::CrashRouteGuard::Truth)
-                            }
-                            psi_checked_trees::CrashRouteGuard::Predicate(_) => unsupported(
-                                "guarded crash routes require structured terminal predicate lowering",
-                            ),
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok(psi_terminal::CrashRouteBucket {
-                        cause: match bucket.cause() {
-                            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
-                        },
-                        alternatives,
-                    })
+                    if bucket.alternative_guards().iter().any(|guard| {
+                        matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
+                            if predicate.scalar_expression().is_none())
+                    }) {
+                        return unsupported(
+                            "guarded crash route is outside structured scalar predicate lowering",
+                        );
+                    }
+                    Ok(bucket.clone())
                 })
                 .collect::<Result<Vec<_>, _>>()
         })
@@ -1523,22 +1513,49 @@ fn lower_checked_crash_exit(
         .covering_buckets_for_site(checked_site)
         .map(|(_, bucket)| bucket)
         .collect::<Vec<_>>();
-    let [_covering_bucket] = matching_contracts.as_slice() else {
+    let [covering_bucket] = matching_contracts.as_slice() else {
         return unsupported(
             "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket",
         );
     };
-    if !checked_site.path_guard_conjuncts().is_empty()
-        || !checked_site.path_guard_consequences().is_empty()
+    let site_identities = checked_site
+        .path_guard_conjuncts()
+        .iter()
+        .chain(checked_site.path_guard_consequences())
+        .collect::<BTreeSet<_>>();
+    let site_guard = covering_bucket
+        .alternative_guards()
+        .iter()
+        .filter_map(|guard| match guard {
+            psi_checked_trees::CrashRouteGuard::Truth => None,
+            psi_checked_trees::CrashRouteGuard::Predicate(predicate)
+                if site_identities.contains(predicate) =>
+            {
+                Some(
+                    predicate
+                        .scalar_expression()
+                        .cloned()
+                        .ok_or(LoweringError::Unsupported(
+                            "guarded crash site is outside structured scalar predicate lowering",
+                        )),
+                )
+            }
+            psi_checked_trees::CrashRouteGuard::Predicate(_) => None,
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if !covering_bucket
+        .alternative_guards()
+        .contains(&psi_checked_trees::CrashRouteGuard::Truth)
+        && site_guard.is_empty()
     {
-        return unsupported("guarded crash sites require structured terminal predicate lowering");
+        return unsupported("guarded crash site has no structured covering predicate");
     }
     Ok(LoweredCrashExit {
         cause: match checked_site.cause() {
             psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
             psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
         },
-        site_guard: Vec::new(),
+        site_guard,
         frontier_lower_bound: lower_checked_crash_frontier(
             checked_site.frontier_lower_bound(),
             source_claims,
@@ -3358,12 +3375,442 @@ fn build_scalar_conditional_target(
     }
 }
 
+fn lower_checked_crash_route_buckets(
+    buckets: &[psi_checked_trees::CrashRouteBucket],
+    parameters: &[ValueDeclaration],
+) -> Result<Vec<psi_terminal::CrashRouteBucket>, LoweringError> {
+    buckets
+        .iter()
+        .map(|bucket| {
+            let mut alternatives = bucket
+                .alternative_guards()
+                .iter()
+                .map(|guard| match guard {
+                    psi_checked_trees::CrashRouteGuard::Truth => {
+                        Ok(psi_terminal::CrashRouteGuard::Truth)
+                    }
+                    psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                        let expression = predicate.scalar_expression().ok_or(
+                            LoweringError::Unsupported(
+                                "guarded crash route is outside structured scalar predicate lowering",
+                            ),
+                        )?;
+                        Ok(psi_terminal::CrashRouteGuard::Predicate(
+                            psi_terminal::CrashPredicateTerm::new(
+                                checked_boolean_proposition(expression, parameters)?,
+                            ),
+                        ))
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            alternatives.sort();
+            alternatives.dedup();
+            Ok(psi_terminal::CrashRouteBucket {
+                cause: match bucket.cause() {
+                    psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                    psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+                },
+                alternatives,
+            })
+        })
+        .collect()
+}
+
+fn lower_checked_crash_predicates(
+    predicates: &[CheckedBooleanExpression],
+    values: &[ValueDeclaration],
+) -> Result<Vec<psi_terminal::CrashPredicateTerm>, LoweringError> {
+    let mut predicates = predicates
+        .iter()
+        .map(|predicate| {
+            checked_boolean_proposition(predicate, values)
+                .map(psi_terminal::CrashPredicateTerm::new)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    predicates.sort();
+    predicates.dedup();
+    Ok(predicates)
+}
+
+fn checked_boolean_proposition(
+    expression: &CheckedBooleanExpression,
+    values: &[ValueDeclaration],
+) -> Result<Proposition, LoweringError> {
+    match expression {
+        CheckedBooleanExpression::Constant(_) => {
+            unsupported("constant crash predicates must normalize before terminal lowering")
+        }
+        CheckedBooleanExpression::And { left, right } => Ok(Proposition::Conjunction(vec![
+            checked_boolean_proposition(left, values)?,
+            checked_boolean_proposition(right, values)?,
+        ])),
+        CheckedBooleanExpression::Or { .. } => unsupported(
+            "disjunctive scalar crash predicates require terminal proposition disjunction",
+        ),
+        expression => {
+            let mut left = checked_boolean_scalar_term(expression, values)?;
+            let mut right = ScalarTerm::boolean(true);
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Ok(Proposition::Equal(left, right))
+        }
+    }
+}
+
+fn checked_boolean_scalar_term(
+    expression: &CheckedBooleanExpression,
+    values: &[ValueDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    Ok(match expression {
+        CheckedBooleanExpression::Constant(value) => ScalarTerm::boolean(*value),
+        CheckedBooleanExpression::Parameter { position }
+        | CheckedBooleanExpression::Local { position } => {
+            let value = values.get(*position).ok_or(LoweringError::Unsupported(
+                "crash predicate value position is outside the selected scalar namespace",
+            ))?;
+            if value.scalar_type != ScalarType::Boolean {
+                return unsupported("crash predicate Boolean value has a non-Boolean type");
+            }
+            ScalarTerm::value(value.id, value.scalar_type)
+        }
+        CheckedBooleanExpression::Not(operand) => {
+            ScalarTerm::boolean_not(checked_boolean_scalar_term(operand, values)?)
+                .map_err(LoweringError::InvalidCrashPredicate)?
+        }
+        CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
+            checked_boolean_scalar_term(left, values)?,
+            checked_boolean_scalar_term(right, values)?,
+        )
+        .map_err(LoweringError::InvalidCrashPredicate)?,
+        CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+            let left = checked_scalar_term(left, values)?;
+            let right = checked_scalar_term(right, values)?;
+            let ScalarType::Integer(integer_type) = left.scalar_type() else {
+                return unsupported("crash comparison operand is not an integer");
+            };
+            match kind {
+                CheckedIntegerComparisonKind::Equal => {
+                    ScalarTerm::integer_equal(integer_type, left, right)
+                }
+                CheckedIntegerComparisonKind::LessThan => {
+                    ScalarTerm::integer_less_than(integer_type, left, right)
+                }
+                CheckedIntegerComparisonKind::LessOrEqual => {
+                    ScalarTerm::integer_less_or_equal(integer_type, left, right)
+                }
+            }
+            .map_err(LoweringError::InvalidCrashPredicate)?
+        }
+        CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => {
+            return unsupported(
+                "short-circuit Boolean crash predicate is not one scalar terminal term",
+            );
+        }
+    })
+}
+
+fn checked_scalar_term(
+    expression: &CheckedScalarExpression,
+    values: &[ValueDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    let expression = lower_checked_scalar_expression(expression)?;
+    lowered_direct_scalar_term(&expression, values)
+}
+
+fn lowered_direct_scalar_term(
+    expression: &LoweredDirectExpression,
+    values: &[ValueDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    Ok(match expression {
+        LoweredDirectExpression::Parameter {
+            position,
+            scalar_type,
+        }
+        | LoweredDirectExpression::Local {
+            position,
+            scalar_type,
+        } => {
+            let value = values.get(*position).ok_or(LoweringError::Unsupported(
+                "crash predicate value position is outside the selected scalar namespace",
+            ))?;
+            if value.scalar_type != *scalar_type {
+                return unsupported("crash predicate value type does not match its checked plan");
+            }
+            ScalarTerm::value(value.id, *scalar_type)
+        }
+        LoweredDirectExpression::IntegerLiteral { value, scalar_type } => {
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return unsupported("crash predicate integer literal has a non-integer type");
+            };
+            ScalarTerm::integer(*integer_type, *value)
+                .map_err(LoweringError::InvalidCrashPredicate)?
+        }
+        LoweredDirectExpression::IntegerBinary {
+            kind,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return unsupported("crash predicate arithmetic has a non-integer type");
+            };
+            let left = Box::new(lowered_direct_scalar_term(left, values)?);
+            let right = Box::new(lowered_direct_scalar_term(right, values)?);
+            match kind {
+                LoweredIntegerBinaryKind::BitwiseAnd => ScalarTerm::IntegerBitwiseAnd {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::BitwiseOr => ScalarTerm::IntegerBitwiseOr {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::BitwiseXor => ScalarTerm::IntegerBitwiseXor {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::WrappingShiftLeft => {
+                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                        return unsupported("crash shift count is not an integer");
+                    };
+                    ScalarTerm::WrappingIntegerShiftLeft {
+                        value_type: *integer_type,
+                        count_type,
+                        value: left,
+                        count: right,
+                    }
+                }
+                LoweredIntegerBinaryKind::WrappingShiftRight => {
+                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                        return unsupported("crash shift count is not an integer");
+                    };
+                    ScalarTerm::WrappingIntegerShiftRight {
+                        value_type: *integer_type,
+                        count_type,
+                        value: left,
+                        count: right,
+                    }
+                }
+                LoweredIntegerBinaryKind::ExactShiftLeft => {
+                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                        return unsupported("crash shift count is not an integer");
+                    };
+                    ScalarTerm::ExactIntegerShiftLeft {
+                        value_type: *integer_type,
+                        count_type,
+                        value: left,
+                        count: right,
+                    }
+                }
+                LoweredIntegerBinaryKind::ExactShiftRight => {
+                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                        return unsupported("crash shift count is not an integer");
+                    };
+                    ScalarTerm::ExactIntegerShiftRight {
+                        value_type: *integer_type,
+                        count_type,
+                        value: left,
+                        count: right,
+                    }
+                }
+                LoweredIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::ExactSubtract => ScalarTerm::ExactIntegerSubtract {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::ExactMultiply => ScalarTerm::ExactIntegerMultiply {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::ExactDivide => ScalarTerm::ExactIntegerDivide {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::ExactRemainder => ScalarTerm::ExactIntegerRemainder {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::WrappingDivide => ScalarTerm::WrappingIntegerDivide {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::WrappingRemainder => {
+                    ScalarTerm::WrappingIntegerRemainder {
+                        scalar_type: *integer_type,
+                        left,
+                        right,
+                    }
+                }
+                LoweredIntegerBinaryKind::SaturatingDivide => ScalarTerm::SaturatingIntegerDivide {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::SaturatingRemainder => {
+                    ScalarTerm::SaturatingIntegerRemainder {
+                        scalar_type: *integer_type,
+                        left,
+                        right,
+                    }
+                }
+                LoweredIntegerBinaryKind::WrappingAdd => ScalarTerm::WrappingIntegerAdd {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::SaturatingAdd => ScalarTerm::SaturatingIntegerAdd {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::WrappingSubtract => ScalarTerm::WrappingIntegerSubtract {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::SaturatingSubtract => {
+                    ScalarTerm::SaturatingIntegerSubtract {
+                        scalar_type: *integer_type,
+                        left,
+                        right,
+                    }
+                }
+                LoweredIntegerBinaryKind::WrappingMultiply => ScalarTerm::WrappingIntegerMultiply {
+                    scalar_type: *integer_type,
+                    left,
+                    right,
+                },
+                LoweredIntegerBinaryKind::SaturatingMultiply => {
+                    ScalarTerm::SaturatingIntegerMultiply {
+                        scalar_type: *integer_type,
+                        left,
+                        right,
+                    }
+                }
+            }
+        }
+        LoweredDirectExpression::IntegerBitwiseNot {
+            scalar_type,
+            operand,
+        } => {
+            let ScalarType::Integer(integer_type) = scalar_type else {
+                return unsupported("crash predicate bitwise-not has a non-integer type");
+            };
+            ScalarTerm::IntegerBitwiseNot {
+                scalar_type: *integer_type,
+                operand: Box::new(lowered_direct_scalar_term(operand, values)?),
+            }
+        }
+        LoweredDirectExpression::IntegerWiden {
+            scalar_type,
+            operand,
+        } => {
+            let ScalarType::Integer(target_type) = scalar_type else {
+                return unsupported("crash predicate widen has a non-integer target");
+            };
+            let operand = lowered_direct_scalar_term(operand, values)?;
+            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+                return unsupported("crash predicate widen has a non-integer operand");
+            };
+            ScalarTerm::IntegerWiden {
+                source_type,
+                target_type: *target_type,
+                operand: Box::new(operand),
+            }
+        }
+        LoweredDirectExpression::IntegerExactCast {
+            scalar_type,
+            operand,
+        } => {
+            let ScalarType::Integer(target_type) = scalar_type else {
+                return unsupported("crash predicate cast has a non-integer target");
+            };
+            let operand = lowered_direct_scalar_term(operand, values)?;
+            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+                return unsupported("crash predicate cast has a non-integer operand");
+            };
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type: *target_type,
+                operand: Box::new(operand),
+            }
+        }
+        LoweredDirectExpression::Boolean { expression } => {
+            return checked_boolean_scalar_term_from_lowered(expression, values);
+        }
+    })
+}
+
+fn checked_boolean_scalar_term_from_lowered(
+    expression: &LoweredBooleanReturnExpression,
+    values: &[ValueDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { value } => Ok(ScalarTerm::boolean(*value)),
+        LoweredBooleanReturnExpression::Parameter { position }
+        | LoweredBooleanReturnExpression::Local { position } => {
+            let value = values.get(*position).ok_or(LoweringError::Unsupported(
+                "crash predicate value position is outside the selected scalar namespace",
+            ))?;
+            (value.scalar_type == ScalarType::Boolean)
+                .then(|| ScalarTerm::value(value.id, value.scalar_type))
+                .ok_or(LoweringError::Unsupported(
+                    "crash predicate Boolean value has a non-Boolean type",
+                ))
+        }
+        LoweredBooleanReturnExpression::Not { operand } => {
+            ScalarTerm::boolean_not(checked_boolean_scalar_term_from_lowered(operand, values)?)
+                .map_err(LoweringError::InvalidCrashPredicate)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right } => ScalarTerm::boolean_equal(
+            checked_boolean_scalar_term_from_lowered(left, values)?,
+            checked_boolean_scalar_term_from_lowered(right, values)?,
+        )
+        .map_err(LoweringError::InvalidCrashPredicate),
+        LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
+            let left = lowered_direct_scalar_term(left, values)?;
+            let right = lowered_direct_scalar_term(right, values)?;
+            let ScalarType::Integer(integer_type) = left.scalar_type() else {
+                return unsupported("crash comparison operand is not an integer");
+            };
+            match kind {
+                LoweredIntegerComparisonKind::Equal => {
+                    ScalarTerm::integer_equal(integer_type, left, right)
+                }
+                LoweredIntegerComparisonKind::LessThan => {
+                    ScalarTerm::integer_less_than(integer_type, left, right)
+                }
+                LoweredIntegerComparisonKind::LessOrEqual => {
+                    ScalarTerm::integer_less_or_equal(integer_type, left, right)
+                }
+            }
+            .map_err(LoweringError::InvalidCrashPredicate)
+        }
+        LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
+            unsupported("short-circuit Boolean crash predicate is not one scalar terminal term")
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     result_type: ScalarType,
     contract_value: Option<KnownDirectScalar>,
-    crash_routes: Vec<psi_terminal::CrashRouteBucket>,
+    crash_routes: Vec<psi_checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
@@ -3381,6 +3828,7 @@ fn build_scalar_graph_module(
             scalar_type: *scalar_type,
         })
         .collect::<Vec<_>>();
+    let crash_routes = lower_checked_crash_route_buckets(&crash_routes, &parameters)?;
     let mut next_value_identity = u64::try_from(parameters.len())
         .expect("parameter count fits a semantic identity")
         .checked_add(1)
@@ -3804,7 +4252,7 @@ fn build_scalar_graph_module(
                     Terminator::Crash {
                         edge,
                         cause: crash.cause,
-                        site_guard: crash.site_guard,
+                        site_guard: lower_checked_crash_predicates(&crash.site_guard, &parameters)?,
                         frontier_lower_bound: crash.frontier_lower_bound,
                     }
                 }
@@ -4092,7 +4540,7 @@ fn build_scalar_graph_module(
                 Terminator::Crash {
                     edge,
                     cause: crash.cause,
-                    site_guard: crash.site_guard.clone(),
+                    site_guard: lower_checked_crash_predicates(&crash.site_guard, &parameters)?,
                     frontier_lower_bound: crash.frontier_lower_bound.clone(),
                 }
             }
@@ -4879,6 +5327,7 @@ pub enum LoweringError {
         second: StructuralPlaceKind,
     },
     InvalidContentProposition(PropositionError),
+    InvalidCrashPredicate(PropositionError),
 }
 
 impl std::fmt::Display for LoweringError {
