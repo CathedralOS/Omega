@@ -1192,50 +1192,6 @@ surface (`Self::fields`, the field splice `self.[field]`, what reflection
 over sums/cases/payloads looks like), constant-position rules for const
 evaluation, and how the proof system sees expanded bodies are all open.
 
-## One-Off Requirements
-
-Traits are useful when a requirement needs a name. Sometimes it does not.
-
-Suppose a generic helper only needs one operation:
-
-```omega
-machine DriverLoop::poll_once<T>(
-    device: &mut T
-)
-where
-    machine T::poll(&mut self, out: &mut PollResult)
-{
-    let result: PollResult;
-    device.poll(&mut result);
-}
-```
-
-That `where machine ...` line is a one-off machine requirement. It means:
-
-- `T` must have a compatible `T::poll` machine.
-- The compiler may statically resolve `device.poll`.
-- No named trait is necessary.
-
-If the same requirement appears repeatedly, lift it into a trait:
-
-```omega
-trait Pollable {
-    machine Self::poll(&mut self, out: &mut PollResult);
-}
-
-machine DriverLoop::poll_once<T, Polling: T satisfies Pollable>(
-    device: &mut T
-)
-{
-    let result: PollResult;
-    Polling::poll(device, &mut result);
-}
-```
-
-One-off requirements are the escape hatch that keeps traits from becoming
-ceremonial. Trait bundles are for named concepts; direct machine requirements
-are for local constraints.
-
 ## What Traits Are Not
 
 Traits should not become:
@@ -1248,10 +1204,3 @@ Traits should not become:
 
 If the behavior is real, it should be a machine. If a group of machines forms a
 reusable contract, that group can be a trait.
-
-## Open Questions
-
-- Are associated data slots needed soon, or are trait parameters enough for the
-  first implementation?
-- Is `where machine T::poll(...)` the right spelling for a one-off machine
-  requirement?

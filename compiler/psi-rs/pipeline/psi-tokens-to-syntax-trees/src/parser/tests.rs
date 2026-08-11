@@ -3522,6 +3522,31 @@ fn parses_machine_parameter_with_mandatory_contract() {
 }
 
 #[test]
+fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
+    let source = r#"
+        data Device {}
+
+        machine poll_once<T>(device: &mut T)
+        where machine T::poll(&mut self)
+        {
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("a one-off member requirement has no semantic carrier and must reject");
+    assert!(
+        error
+            .message
+            .contains("one-off `where machine T::member(...)` requirements are unsupported"),
+        "unexpected diagnostic: {}",
+        error.message
+    );
+}
+
+#[test]
 fn parses_higher_order_machine_parameter_contract() {
     let source = r#"
         machine apply<machine Schema, machine Sample>(value: u64) -> u64
