@@ -42817,6 +42817,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/quotient_respect_lift_compile",
     "proofs/quotient_attached_respect_lift_compile",
     "proofs/higher_order_machine_schema_compile",
+    "proofs/machine_parameterized_data_compile",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -42843,6 +42844,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/quotient_attached_lift_missing_respect",
     "proofs/higher_order_machine_forwarded_contract_mismatch",
     "proofs/higher_order_machine_schema_contract_mismatch",
+    "proofs/machine_parameterized_data_contract_mismatch",
+    "proofs/machine_parameterized_runtime_data_rejected",
 ];
 
 #[test]
@@ -47977,7 +47980,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_nat_structural_recursion_exit",
     "proofs/integer_measured_nat_induction_compile",
     "proofs/runtime_core_roster_ops_exit",
-    "proofs/machine_parameterized_data_compile",
     "build/runtime_depend_mapping_exit",
     "build/static_machine_parameter_config_compile",
     "recast/runtime_record_view_exit",
@@ -48674,8 +48676,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/semantic_cast_unknown_domain",
     "proofs/nat_structural_disproof_refuted",
     "proofs/runtime_attached_machine_proof_parameter_rejected",
-    "proofs/machine_parameterized_data_contract_mismatch",
-    "proofs/machine_parameterized_runtime_data_rejected",
     "proofs/nat_payload_disjointness_refuted",
     "proofs/nat_ground_compute_refuted",
     "proofs/nat_inductive_claim_refuted",
