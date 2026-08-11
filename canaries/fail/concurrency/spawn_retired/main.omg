@@ -2,6 +2,6 @@
 // detach spellings are retired. Activation is an ordinary provider call:
 // runtime.start<Worker::run>(...) returns a linear Task<T>.
 machine Worker::run() {}
-machine main() {
+machine Main::run() {
     spawn { Worker::run(); }
 }
