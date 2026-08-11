@@ -280,10 +280,6 @@ Mixed shapes are live (see the rules above). Still pending:
 the conformance block). Bounded byte carriers participate in synthesized
 equality through their live length and bytes.[^case-members]
 
-The implementation migration to the conformance-block declaration surface is
-tracked in `TASKS.md`; the synthesis rule described here is the language
-surface.
-
 [^case-members]: Payload binding in `transition` arms uses the ordinary
 data-pattern machinery (`Case { field, fixed: value }`); a future `match`
 statement must reuse that spelling rather than inventing another pattern
