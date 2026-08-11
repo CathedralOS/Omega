@@ -191,12 +191,22 @@ mod host_stat_offsets {
     pub const BLKSIZE: usize = 96;
 }
 
-pub(crate) fn run(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
-    run_with_options(checked, stdin, InterpretOptions::default())
+pub(crate) fn run(
+    checked: &CheckedTrees,
+    entry_machine_name: &str,
+    stdin: &[u8],
+) -> InterpretOutcome {
+    run_with_options(
+        checked,
+        entry_machine_name,
+        stdin,
+        InterpretOptions::default(),
+    )
 }
 
 pub(crate) fn run_with_options(
     checked: &CheckedTrees,
+    entry_machine_name: &str,
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
@@ -207,7 +217,9 @@ pub(crate) fn run_with_options(
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, || run_on_current_thread(checked, stdin, options))
+            .spawn_scoped(scope, || {
+                run_on_current_thread(checked, entry_machine_name, stdin, options)
+            })
             .expect("spawn interpreter worker thread")
             .join()
             .unwrap_or_else(|_| {
@@ -413,6 +425,7 @@ pub(crate) fn run_granted_build_machine_arguments(
 
 fn run_on_current_thread(
     checked: &CheckedTrees,
+    entry_machine_name: &str,
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
@@ -426,7 +439,7 @@ fn run_on_current_thread(
             evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
         }
     }
-    let result = evaluator.run_entry();
+    let result = evaluator.run_entry(entry_machine_name);
     let usage = evaluator.usage;
     match result {
         Ok(()) => {
@@ -755,23 +768,25 @@ impl<'program> Evaluator<'program> {
 
     // ---- entry --------------------------------------------------------------
 
-    fn run_entry(&mut self) -> EvalResult<()> {
+    fn run_entry(&mut self, entry_machine_name: &str) -> EvalResult<()> {
         let entry_machine = self
-            .find_machine_by_name("Main::main")
-            .or_else(|| self.find_machine_by_name("main"))
-            .ok_or_else(|| Halt::Unsupported("no entry machine `Main::main`".to_owned()))?;
-        let entry_state_name = if self.find_state(entry_machine, "main").is_some() {
-            "main"
-        } else {
-            "entry"
-        };
+            .find_machine_by_name(entry_machine_name)
+            .ok_or_else(|| Halt::Unsupported(format!("no entry machine `{entry_machine_name}`")))?
+            .clone();
+        let entry_state_name = self
+            .machine_entry_state_name(&entry_machine)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "entry machine `{entry_machine_name}` has no executable state"
+                ))
+            })?;
 
-        let instance = self.instantiate_machine(entry_machine)?;
+        let instance = self.instantiate_machine(&entry_machine)?;
         // The entry machine's value (its terminal `Value` transition / final expression)
         // becomes the process exit code when it has no explicit `exit_process`. Mirrors the
         // backend: `machine Main::main(...) -> i32` returns the exit status.
         let returned =
-            self.run_state_collect(entry_machine, entry_state_name, instance, Vec::new())?;
+            self.run_state_collect(&entry_machine, &entry_state_name, instance, Vec::new())?;
         if let Some(value) = returned {
             if let Some(code) = value.as_int() {
                 return Err(Halt::Exit(code as i32));

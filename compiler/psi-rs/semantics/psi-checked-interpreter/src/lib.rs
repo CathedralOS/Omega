@@ -22,8 +22,10 @@
 //! bug instantly.
 //!
 //! ## Execution model
-//! The entry is the `Main::main` machine / `main` state (mirroring the backend's entry
-//! selection). A machine instance is a [`Value::Struct`] with default-initialized
+//! [`interpret_entry`] runs the exact machine selected by its caller. [`interpret`]
+//! temporarily selects `Main::main` for corpus callers that have not migrated yet; it
+//! does not search lowercase or alternate names. A machine instance is a
+//! [`Value::Struct`] with default-initialized
 //! fields. A state has parameters + a sequence of statements + guarded transitions; the
 //! first transition whose guard holds determines the next state (or the returned value /
 //! terminal). Host-boundary calls (`exit_process`, `write`, `write_line`) on a
@@ -260,7 +262,19 @@ impl InterpretOutcome {
 /// Interpret a checked program, returning its exit code and stdout. `stdin` provides the
 /// bytes a `read_line` host call would consume (unused in the first milestone).
 pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
-    evaluator::run(checked, stdin)
+    interpret_entry(checked, "Main::main", stdin)
+}
+
+/// Interpret a checked program from one exact machine identity.
+///
+/// Build/target selection owns this identity. The interpreter neither discovers
+/// an entry from source spelling nor retries alternate names.
+pub fn interpret_entry(
+    checked: &CheckedTrees,
+    entry_machine_name: &str,
+    stdin: &[u8],
+) -> InterpretOutcome {
+    evaluator::run(checked, entry_machine_name, stdin)
 }
 
 /// How the interpreter serves a program's `Filesystem` capability.
@@ -314,7 +328,17 @@ pub fn interpret_with_options(
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
-    evaluator::run_with_options(checked, stdin, options)
+    interpret_entry_with_options(checked, "Main::main", stdin, options)
+}
+
+/// [`interpret_entry`] with explicit [`InterpretOptions`].
+pub fn interpret_entry_with_options(
+    checked: &CheckedTrees,
+    entry_machine_name: &str,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
+    evaluator::run_with_options(checked, entry_machine_name, stdin, options)
 }
 
 /// CONST EVALUATION (comptime stage 1): evaluate the zero-argument machine
