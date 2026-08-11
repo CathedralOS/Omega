@@ -141,10 +141,12 @@ the target schema states how the launch environment supplies those needs.
 > source-evaluated calling-plan retention, validation, and inbound lowering are
 > live. The compile report also retains the exact target root slot, checked
 > arrival requirement, calling-plan fingerprint, and generated captures for
-> both storage positions. Physical bridge/grant installation and emitted
-> runtime geometry, actual receiver provisioning, corpus migration, and removal
-> of transitional entry-name discovery remain under `ENTRY-CONTENT-ROOTS` in
-> `TASKS.md`.
+> both storage positions; the machine-readable program-storage artifact renders
+> their semantic roles, normalized ABI placements, frame capture ranges, strict
+> carry, and the pending two-grant installation rule. Physical bridge/grant
+> installation and provider-supplied runtime geometry/lineage, actual receiver
+> provisioning, corpus migration, and removal of transitional entry-name
+> discovery remain under `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
 ## Parameters And Returns
 

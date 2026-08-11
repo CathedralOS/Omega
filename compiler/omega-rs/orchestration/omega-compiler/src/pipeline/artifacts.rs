@@ -353,6 +353,124 @@ pub(super) fn write_backend_report(
     )
 }
 
+pub(super) fn write_program_storage_entry_snapshot(
+    options: &CompileOptions,
+    binding: &super::ProgramStorageEntryPlanBinding,
+) -> Result<(), Vec<Diagnostic>> {
+    write_phase_json(
+        options,
+        "10_program_storage_entry.json",
+        &program_storage_entry_manifest_json(binding),
+    )
+}
+
+fn program_storage_entry_manifest_json(binding: &super::ProgramStorageEntryPlanBinding) -> String {
+    let mut output = String::from("{\n  \"root_slot\": \"");
+    output.push_str(&format!(
+        "0x{:016x}",
+        binding.root_slot().normalized_identity()
+    ));
+    output.push_str("\",\n  \"requirement\": ");
+    push_json_string(&mut output, binding.requirement_identity());
+    output.push_str(",\n  \"calling_plan_fingerprint\": \"");
+    output.push_str(&format!(
+        "0x{:016x}",
+        binding.boundary_contract_fingerprint()
+    ));
+    output.push_str("\",\n  \"parameters\": [\n    ");
+    push_program_storage_parameter_json(&mut output, "image", binding.image());
+    output.push_str(",\n    ");
+    push_program_storage_parameter_json(&mut output, "initial_storage", binding.initial_storage());
+    output.push_str(
+        "\n  ],\n  \"runtime_installation\": {\n    \"status\": \"required\",\n    \"geometry_source\": \"selected_entry_provider\",\n    \"predicate\": \"no_wrap\",\n    \"admission_order\": \"validate_both_before_consuming_either_grant\"\n  }\n}\n",
+    );
+    output
+}
+
+fn push_program_storage_parameter_json(
+    output: &mut String,
+    role: &str,
+    parameter: &super::ProgramStorageEntryParameter,
+) {
+    output.push_str("{\"role\": ");
+    push_json_string(output, role);
+    output.push_str(", \"parameter_index\": ");
+    output.push_str(&parameter.parameter_index().to_string());
+    output.push_str(", \"type_identity\": ");
+    push_json_string(output, parameter.parameter_type_identity());
+    output.push_str(", \"domain\": ");
+    push_json_string(output, parameter.domain());
+    output.push_str(", \"effective_carry\": ");
+    push_carry_policy_json(output, parameter.effective_carry());
+    output.push_str(", \"calling_placement\": ");
+    output.push_str(&omega_artifacts::value_placement_json(
+        parameter.placement(),
+    ));
+    output.push_str(", \"capture\": {\"destination_byte_offset\": ");
+    output.push_str(&parameter.destination_byte_offset().to_string());
+    output.push_str(", \"write_range\": {\"start\": ");
+    output.push_str(&parameter.write_range().start.to_string());
+    output.push_str(", \"end\": ");
+    output.push_str(&parameter.write_range().end.to_string());
+    output.push_str("}}}");
+}
+
+fn push_carry_policy_json(output: &mut String, policy: psi_language_semantics::CarryPolicy) {
+    use psi_language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
+
+    output.push_str("{\"suspension\": ");
+    push_json_string(
+        output,
+        match policy.suspension {
+            CarrySuspension::Forbidden => "forbidden",
+            CarrySuspension::Allowed => "allowed",
+        },
+    );
+    output.push_str(", \"cpu\": ");
+    push_json_string(
+        output,
+        match policy.cpu {
+            CarryCpu::Origin => "same",
+            CarryCpu::Any => "any",
+        },
+    );
+    output.push_str(", \"thread\": ");
+    push_json_string(
+        output,
+        match policy.host_thread {
+            CarryHostThread::Origin => "same",
+            CarryHostThread::Any => "any",
+        },
+    );
+    output.push_str(", \"address\": ");
+    push_json_string(
+        output,
+        match policy.address {
+            CarryAddress::Stable => "stable",
+            CarryAddress::Movable => "movable",
+        },
+    );
+    output.push('}');
+}
+
+fn push_json_string(output: &mut String, value: &str) {
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character.is_control() => {
+                output.push_str(&format!("\\u{:04x}", character as u32));
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+}
+
 pub(super) fn write_emission_plan(
     options: &CompileOptions,
     plan: &omega_backend_plan::BackendPlan,
@@ -469,6 +587,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "08_boundary_footprints.json",
             "09_target_operations.html",
             "10_assigned_target_operations.html",
+            "10_program_storage_entry.json",
             "11_machine_instructions.html",
             "backend_report.html",
             "10_boundary.txt",

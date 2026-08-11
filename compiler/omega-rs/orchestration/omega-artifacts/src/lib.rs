@@ -1196,6 +1196,15 @@ fn push_value_placement_json(output: &mut String, placement: &ValuePlacement) {
     output.push_str("]}");
 }
 
+/// Machine-readable form of one already-normalized calling-plan placement.
+/// Consumers may embed this object in a larger artifact without rebuilding
+/// target register, stack, indirect-copy, or aggregate-shape vocabulary.
+pub fn value_placement_json(placement: &ValuePlacement) -> String {
+    let mut output = String::new();
+    push_value_placement_json(&mut output, placement);
+    output
+}
+
 fn push_value_shape_json(output: &mut String, shape: ValueShape) {
     output.push_str("{\"class\": ");
     match shape.class {
@@ -2152,7 +2161,25 @@ mod tests {
 
     use super::{
         ArtifactWriter, build_backend_surface_report, external_root_records_manifest_json,
+        value_placement_json,
     };
+
+    #[test]
+    fn value_placement_json_retains_indirect_copy_geometry() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(16, 8)],
+                result: None,
+            },
+        )
+        .expect("Microsoft x64 aggregate placement");
+        let json = value_placement_json(&boundary.plan().call.parameters[0]);
+
+        assert!(json.contains("\"indirect\""));
+        assert!(json.contains("\"copy_stack_byte_offset\": 32"));
+        assert!(json.contains("\"byte_size\": 16"));
+    }
 
     fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         constructor(identity).expect("normalized root identity")

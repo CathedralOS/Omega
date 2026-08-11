@@ -22,3 +22,23 @@ whether one declaration may bind more than one fixed token. It must preserve the
 settled semantics: the named path remains canonical, resolution is static and
 operand-directed, the public signature and proof contract remain visible, and a
 `boundary operator` differs only in how its implementation is supplied.
+
+## Q2 — UEFI physical handoff versus semantic program-storage entry
+
+`ProgramStorageEntry::enter` canonically introduces image and initial-storage
+roots, and the UEFI target slot currently requires its selected source machine
+to expose exactly those two qualified `Extent` parameters. The Cathedral boot
+contract separately records that firmware actually invokes the PE entry with
+`ImageHandle` and `SystemTable`, that the semantic roots are not additional
+firmware arguments, and that a generated bridge must preserve that real
+invocation while installing the roots. The current target entry-shape carrier
+cannot state both surfaces.
+
+Choose how a target entry schema composes platform-private physical inputs with
+portable semantic arrival requirements. In particular, decide whether the
+selected source continuation receives both sets of values, receives only the
+semantic roots while platform inputs install separately selected providers, or
+binds a second target-owned slot for the platform handoff. The decision must
+keep `ProgramStorageEntry::enter` as the sole root-introduction requirement,
+avoid treating firmware handles as `Extent` values, and leave the generated
+bridge with one exact auditable physical ABI and source-visible shape.

@@ -58,10 +58,16 @@ Remaining:
   typed `ProgramStorageEntry::enter` positions, and the UEFI target now retains,
   validates, and lowers with its source-evaluated calling policy. Its compile
   report binds the exact target root slot and checked arrival requirement to
-  the generated captures for both semantic root positions. `build.omg` names
-  one machine and performs no discovery.
+  the generated captures for both semantic root positions. The emitted
+  program-storage manifest publishes those roles, ABI placements, frame capture
+  ranges, strict carry, and the still-required installation predicate/order;
+  hosted builds remove the artifact. `build.omg` names one machine and performs
+  no discovery.
   Install the physical arrival bridge and admitted grants, and record their
   concrete image/runtime geometry and lineage in emitted artifacts.
+  The final UEFI bridge/source-visible composition of semantic roots with the
+  firmware `ImageHandle`/`SystemTable` handoff is design-blocked on owner Q2;
+  artifact reporting and generic grant-installation mechanics remain actionable.
   Provision a receiver only for a ZII-valid `&mut self` entry, under admitted
   storage and for one activation. Record image/runtime placement, derive image
   subextents, migrate the corpus, and delete `main`/`Main::run` fallback

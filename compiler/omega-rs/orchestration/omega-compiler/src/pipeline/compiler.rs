@@ -1,8 +1,8 @@
 use crate::pipeline::artifacts::{
     remove_stale_phase_diagrams, write_backend_report, write_checked_snapshot,
     write_control_flow_snapshot, write_emission_plan, write_pipeline_index, write_pipeline_shell,
-    write_resolved_snapshot, write_state_graph_snapshot, write_syntax_snapshot, write_timings,
-    write_typed_snapshot,
+    write_program_storage_entry_snapshot, write_resolved_snapshot, write_state_graph_snapshot,
+    write_syntax_snapshot, write_timings, write_typed_snapshot,
 };
 use crate::pipeline::boundary_report::{
     write_boundary_report, write_boundary_report_with_capabilities,
@@ -609,6 +609,9 @@ impl Compiler {
             })
             .transpose()?;
         if self.options.write_output {
+            if let Some(binding) = &program_storage_entry {
+                write_program_storage_entry_snapshot(&self.options, binding)?;
+            }
             write_backend_report(&self.options, &backend_surface, &backend.plan)?;
         }
 

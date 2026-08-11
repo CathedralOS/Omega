@@ -42800,11 +42800,16 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
 #[test]
 fn uefi_program_entry_retains_exact_storage_root_binding() {
     let canary = pass_canary("build/uefi_program_entry_storage_roots");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-uefi-program-storage-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
     let report = compile(CompileOptions {
         root_path: canary.join("main.omg"),
-        build_dir: None,
+        build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: false,
+        write_output: true,
     })
     .expect("UEFI program-storage entry should bind its generated captures");
     let binding = report
@@ -42819,6 +42824,30 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(binding.image().parameter_index(), 0);
     assert_eq!(binding.initial_storage().parameter_index(), 1);
     assert_ne!(binding.boundary_contract_fingerprint(), 0);
+
+    let manifest = fs::read_to_string(build_dir.join("10_program_storage_entry.json"))
+        .expect("program-storage entry manifest should be emitted");
+    assert!(manifest.contains("\"role\": \"image\""));
+    assert!(manifest.contains("\"role\": \"initial_storage\""));
+    assert!(manifest.contains("\"domain\": \"Extent::Granted\""));
+    assert!(manifest.contains("\"copy_stack_byte_offset\": 32"));
+    assert!(manifest.contains("\"copy_stack_byte_offset\": 48"));
+    assert!(manifest.contains("\"status\": \"required\""));
+    assert!(manifest.contains("validate_both_before_consuming_either_grant"));
+
+    let hosted = pass_canary("build/explicit_program_entry_binding");
+    compile(CompileOptions {
+        root_path: hosted.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".into()),
+        write_output: true,
+    })
+    .expect("hosted entry should compile into the reused artifact directory");
+    assert!(
+        !build_dir.join("10_program_storage_entry.json").exists(),
+        "a hosted build must remove a stale program-storage entry artifact"
+    );
+    let _ = fs::remove_dir_all(build_dir);
 }
 
 #[test]
