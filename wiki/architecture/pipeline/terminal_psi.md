@@ -39,29 +39,32 @@ Parsing therefore belongs to Psi. “Omega files” is the language and product
 branding; Psi is the frontend, semantic verifier input, and portable execution
 representation.
 
-## Why no existing stage is the cut
+## Why the bootstrap stages are not the cut
 
-The current implementation has no expression-lowering pass before instruction
-selection:
+The older bootstrap lane does not provide a portable expression-lowering
+boundary:
 
 - `CheckedTrees` embeds `TypedTrees` plus checked fact tables;
 - `StateGraphCode` copies the typed expression table, and operations and
   transitions retain `ExpressionHandle`;
 - `ControlFlowCode` clones the same expression table and mostly remaps the
   graph topology and semantic arenas; and
-- abstract-operation construction and instruction selection still inspect and
+- its abstract-operation construction and instruction selection inspect and
   substitute tree expressions directly.
 
 `StateGraph` and `ControlFlowPlan` are therefore useful topology and evidence
-scaffolds, not self-contained executable representations. Conversely,
+scaffolds for slices not yet migrated, not self-contained executable
+representations. Conversely,
 `AbstractOperations` already owns runtime storage regions, calling-convention
 classes, ABI aggregate distinctions, and other Omega realization concerns.
 Removing those fields would not reveal a hidden portable IR.
 
-The missing pass is the boundary: merge the useful state-graph/control-flow
-shape and fill it with lowered semantic content. This is not serialization of
-today's `StateGraph`, purification of `AbstractOperations`, or a second similar
-block IR placed beside `ControlFlowPlan`.
+`psi-checked-trees-to-terminal` now builds the supported portable slices, and
+`omega-terminal-psi-to-abstract-operations` consumes verified terminal Psi.
+The remaining migration extends that one boundary and retires corresponding
+tree consumers. It does not serialize `StateGraph`, purify
+`AbstractOperations`, or place a second similar block IR beside
+`ControlFlowPlan`.
 
 ## Terminal requirements
 

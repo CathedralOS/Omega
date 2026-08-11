@@ -9,9 +9,9 @@ Omega-file parsing and every target-neutral stage through immutable terminal
 Psi. Omega consumes terminal Psi and owns installation, optimization, ABI and
 storage realization, target operations, and native artifacts. See
 [Terminal Psi Architecture](terminal_psi.md). The stage list and matrix below
-describe the current bootstrap implementation while that boundary is built;
-they are not a commitment to preserve `StateGraph` and `ControlFlowPlan` as two
-public representations.
+describe both the terminal lane and the bootstrap paths that remain while
+unsupported slices migrate. They are not a commitment to preserve
+`StateGraph` and `ControlFlowPlan` as public representations.
 
 The same semantic nouns should be recognizable across stages, but their data
 shape changes as they become more resolved. Source-shaped IR can only say "this
@@ -115,6 +115,8 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Syntax Trees To Symbol Resolved Trees | identity | identity | identity | none | none | none | identity | identity | identity | identity |
 | Symbol Resolved Trees To Typed Trees | typed | typed | typed | type surface | planned | planned | typed | typed | typed | typed |
 | Typed Trees To Checked Trees | checked | checked | checked | checked | checked | checked | checked | checked | checked | checked |
+| Checked Trees To Terminal Psi | lowered | lowered | preserved | lowered | lowered | lowered | lowered | lowered | preserved | lowered |
+| Terminal Psi To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
 | Checked Trees To State Graph | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | graph | scheduled | scheduled |
 | State Graph To Control Flow | lowered | lowered | preserved | preserved | lowered | lowered | control flow | control flow | preserved | control flow |
 | Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
@@ -129,13 +131,12 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 
 Current deliberate gaps:
 
-- There is no expression-lowering representation between checked trees and
-  instruction selection. `StateGraph` and `ControlFlowPlan` retain the typed
-  expression table, while abstract-operation construction still performs
-  binding substitution over tree expressions. Terminal Psi will merge the
-  useful graph/control topology, replace those references with lowered values,
-  predicates, places, operations, and edges, and become the sole Psi-to-Omega
-  input.
+- Terminal Psi is the expression-lowering boundary for the migrated scalar,
+  control, call, crash, contract, and content-conservation slices. Unsupported
+  aggregate, cleanup, transfer, boundary, loop, suspension, and ordering slices
+  still use the bootstrap `StateGraph`/`ControlFlowPlan` path, whose typed
+  expression references prevent it from becoming a portable boundary. Each
+  completed terminal slice retires its corresponding tree consumer.
 
 - Moves and drops now have durable checked/control-flow event plumbing, but
   event production still needs type-aware precision plus transition and nested
