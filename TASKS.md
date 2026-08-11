@@ -67,7 +67,8 @@ Remaining:
   concrete image/runtime geometry and lineage in emitted artifacts. The generic
   two-grant installer already validates both `no_wrap` obligations before
   consuming either grant and now produces a report-only record retaining exact
-  geometry, address space, rights, provenance, mapping era, and root lineage.
+  geometry, address space, rights, provenance, mapping era, root lineage, and
+  the complete admitted provider-issuance tuple.
   Bind it to the selected physical provider and emit that completed record.
   The final UEFI bridge/source-visible composition of semantic roots with the
   firmware `ImageHandle`/`SystemTable` handoff is design-blocked on owner Q2;
@@ -84,9 +85,13 @@ Remaining:
 - **ROOT-INTRODUCTION-AND-BACKING.** Give each content root one algebra account.
   Fresh capacity is either compiler-provisioned sealed local capacity or
   selected provider issuance; runtime establishment only transforms an existing
-  account. Retain route, capacity, lineage, qualification, backing identity,
-  provenance, and exact root/provider correspondence. Reject cross-root
-  recomposition.
+  account. Provider-issued `Extent` grants now retain issuance, backing,
+  provider, live-issuance premise, custody root, alias class, correspondence,
+  and trust provenance through mint, split, borrow, mapping, rejoin, and entry
+  installation records; differing evidence cannot recompose or replay mapping
+  receipts. Connect those normalized identities to the exact selected-provider
+  invocation, retain route/capacity/qualification beside them, and add the
+  compiler-provisioned sealed-local source. Reject cross-root recomposition.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
   parameters, entry places, and results. Keep ownership, issuance, custody,
   aliasing, and partition succession distinct. Providers may attest custody,

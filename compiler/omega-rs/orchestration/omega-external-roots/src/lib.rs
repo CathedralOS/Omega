@@ -3163,6 +3163,21 @@ mod tests {
         constructor(identity).expect("normalized extent identity")
     }
 
+    fn extent_provider_issuance(seed: u64) -> psi_extents::ExtentProviderIssuance {
+        let base = seed * 16;
+        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+            base + 5,
+            base + 6,
+            base + 7,
+            base + 8,
+        ])
+        .expect("normalized provider issuance")
+    }
+
     fn entry_id(identity: u64) -> EntryStubId {
         EntryStubId::from_normalized_identity(identity).expect("normalized entry identity")
     }
@@ -3223,6 +3238,7 @@ mod tests {
             ExtentRightId::from_normalized_identity,
         )]);
         let extent = ExtentRootGrant::from_admitted_provider(
+            extent_provider_issuance(100),
             extent_id(100, ExtentLineageId::from_normalized_identity),
             extent_id(50, AddressSpaceId::from_normalized_identity),
             rights.clone(),

@@ -62,6 +62,36 @@ impl ExtentLineageId {
     }
 }
 
+macro_rules! normalized_extent_identity {
+    ($name:ident, $label:literal) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(u64);
+
+        impl $name {
+            pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
+                nonzero_identity(identity, $label)?;
+                Ok(Self(identity))
+            }
+
+            pub const fn normalized_identity(self) -> u64 {
+                self.0
+            }
+        }
+    };
+}
+
+normalized_extent_identity!(ExtentIssuanceId, "extent-issuance");
+normalized_extent_identity!(ExtentBackingId, "extent-backing");
+normalized_extent_identity!(ExtentProviderId, "extent-provider");
+normalized_extent_identity!(ExtentLiveIssuancePremiseId, "extent-live-issuance-premise");
+normalized_extent_identity!(ExtentCustodyRootId, "extent-custody-root");
+normalized_extent_identity!(ExtentAliasClassId, "extent-alias-class");
+normalized_extent_identity!(
+    ExtentProviderCorrespondenceId,
+    "extent-provider-correspondence"
+);
+normalized_extent_identity!(ExtentTrustProvenanceId, "extent-trust-provenance");
+
 use std::collections::BTreeSet;
 
 mod mapping;
@@ -112,12 +142,110 @@ impl ExtentRights {
     }
 }
 
+/// Exact admitted external-supply premise behind one provider-issued root.
+/// Geometry remains separate and checked; this record identifies why a fresh
+/// root over that geometry may enter the conservation ledger at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtentProviderIssuance {
+    issuance: ExtentIssuanceId,
+    backing: ExtentBackingId,
+    provider: ExtentProviderId,
+    live_issuance_premise: ExtentLiveIssuancePremiseId,
+    custody_root: ExtentCustodyRootId,
+    alias_class: ExtentAliasClassId,
+    correspondence: ExtentProviderCorrespondenceId,
+    trust_provenance: ExtentTrustProvenanceId,
+}
+
+impl ExtentProviderIssuance {
+    /// Canonical-decoder convenience preserving the typed eight-column
+    /// evidence record while rejecting zero identities in every column.
+    pub fn from_normalized_identities(identities: [u64; 8]) -> Result<Self, ExtentDiagnostic> {
+        let [
+            issuance,
+            backing,
+            provider,
+            live,
+            custody,
+            alias,
+            correspondence,
+            trust,
+        ] = identities;
+        Ok(Self::from_admitted_provider(
+            ExtentIssuanceId::from_normalized_identity(issuance)?,
+            ExtentBackingId::from_normalized_identity(backing)?,
+            ExtentProviderId::from_normalized_identity(provider)?,
+            ExtentLiveIssuancePremiseId::from_normalized_identity(live)?,
+            ExtentCustodyRootId::from_normalized_identity(custody)?,
+            ExtentAliasClassId::from_normalized_identity(alias)?,
+            ExtentProviderCorrespondenceId::from_normalized_identity(correspondence)?,
+            ExtentTrustProvenanceId::from_normalized_identity(trust)?,
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub const fn from_admitted_provider(
+        issuance: ExtentIssuanceId,
+        backing: ExtentBackingId,
+        provider: ExtentProviderId,
+        live_issuance_premise: ExtentLiveIssuancePremiseId,
+        custody_root: ExtentCustodyRootId,
+        alias_class: ExtentAliasClassId,
+        correspondence: ExtentProviderCorrespondenceId,
+        trust_provenance: ExtentTrustProvenanceId,
+    ) -> Self {
+        Self {
+            issuance,
+            backing,
+            provider,
+            live_issuance_premise,
+            custody_root,
+            alias_class,
+            correspondence,
+            trust_provenance,
+        }
+    }
+
+    pub const fn issuance(self) -> ExtentIssuanceId {
+        self.issuance
+    }
+
+    pub const fn backing(self) -> ExtentBackingId {
+        self.backing
+    }
+
+    pub const fn provider(self) -> ExtentProviderId {
+        self.provider
+    }
+
+    pub const fn live_issuance_premise(self) -> ExtentLiveIssuancePremiseId {
+        self.live_issuance_premise
+    }
+
+    pub const fn custody_root(self) -> ExtentCustodyRootId {
+        self.custody_root
+    }
+
+    pub const fn alias_class(self) -> ExtentAliasClassId {
+        self.alias_class
+    }
+
+    pub const fn correspondence(self) -> ExtentProviderCorrespondenceId {
+        self.correspondence
+    }
+
+    pub const fn trust_provenance(self) -> ExtentTrustProvenanceId {
+        self.trust_provenance
+    }
+}
+
 /// Provider-admitted authority to mint exactly one root extent.
 ///
 /// Compiler/provider code constructs this after admission. Omega source never
 /// receives a constructor for either this grant or `Extent` itself.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtentRootGrant {
+    provider_issuance: ExtentProviderIssuance,
     lineage: ExtentLineageId,
     address_space: AddressSpaceId,
     rights: ExtentRights,
@@ -155,6 +283,7 @@ impl ValidatedExtentGeometry {
 
 impl ExtentRootGrant {
     pub const fn from_admitted_provider(
+        provider_issuance: ExtentProviderIssuance,
         lineage: ExtentLineageId,
         address_space: AddressSpaceId,
         rights: ExtentRights,
@@ -162,6 +291,7 @@ impl ExtentRootGrant {
         era: MappingEraId,
     ) -> Self {
         Self {
+            provider_issuance,
             lineage,
             address_space,
             rights,
@@ -187,6 +317,7 @@ impl ExtentRootGrant {
     /// checked before this operation began.
     pub fn mint_validated(self, geometry: ValidatedExtentGeometry) -> Extent {
         let Self {
+            provider_issuance,
             lineage,
             address_space,
             rights,
@@ -200,6 +331,7 @@ impl ExtentRootGrant {
             rights,
             provenance,
             era,
+            provider_issuance,
             lineage: Lineage {
                 root: lineage,
                 path: Vec::new(),
@@ -233,6 +365,7 @@ pub struct Extent {
     rights: ExtentRights,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
+    provider_issuance: ExtentProviderIssuance,
     lineage: Lineage,
 }
 
@@ -263,6 +396,10 @@ impl Extent {
 
     pub const fn era(&self) -> MappingEraId {
         self.era
+    }
+
+    pub const fn provider_issuance(&self) -> ExtentProviderIssuance {
+        self.provider_issuance
     }
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
@@ -299,6 +436,7 @@ impl Extent {
             rights: self.rights.clone(),
             provenance: self.provenance,
             era: self.era,
+            provider_issuance: self.provider_issuance,
             lineage: Lineage {
                 root: self.lineage.root,
                 path: lower_path,
@@ -311,6 +449,7 @@ impl Extent {
             rights: self.rights,
             provenance: self.provenance,
             era: self.era,
+            provider_issuance: self.provider_issuance,
             lineage: Lineage {
                 root: self.lineage.root,
                 path: upper_path,
@@ -410,6 +549,7 @@ impl Extent {
             rights: lower.rights,
             provenance: lower.provenance,
             era: lower.era,
+            provider_issuance: lower.provider_issuance,
             lineage: Lineage {
                 root: lower.lineage.root,
                 path: parent_path,
@@ -488,6 +628,11 @@ fn validate_merge(first: &Extent, second: &Extent) -> Result<(), ExtentDiagnosti
     if first.lineage.root != second.lineage.root {
         return Err(ExtentDiagnostic(
             "numeric adjacency cannot merge independent authority lineages".into(),
+        ));
+    }
+    if first.provider_issuance != second.provider_issuance {
+        return Err(ExtentDiagnostic(
+            "merge requires identical provider issuance evidence".into(),
         ));
     }
     let Some((first_branch, first_parent)) = first.lineage.path.split_last() else {
@@ -611,6 +756,13 @@ impl<'a> ExtentLoan<'a> {
         match &self.backing {
             LoanBacking::Shared(extent) => extent.era,
             LoanBacking::Exclusive(extent) => extent.era,
+        }
+    }
+
+    pub const fn provider_issuance(&self) -> ExtentProviderIssuance {
+        match &self.backing {
+            LoanBacking::Shared(extent) => extent.provider_issuance,
+            LoanBacking::Exclusive(extent) => extent.provider_issuance,
         }
     }
 
@@ -1214,6 +1366,21 @@ mod tests {
         constructor(identity).expect("normalized identity")
     }
 
+    fn provider_issuance(seed: u64) -> ExtentProviderIssuance {
+        let base = seed * 16;
+        ExtentProviderIssuance::from_normalized_identities([
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+            base + 5,
+            base + 6,
+            base + 7,
+            base + 8,
+        ])
+        .expect("normalized provider issuance")
+    }
+
     fn rights(identities: &[u64]) -> ExtentRights {
         ExtentRights::from_normalized_identities(
             identities
@@ -1229,6 +1396,7 @@ mod tests {
 
     fn root_grant(lineage: u64) -> ExtentRootGrant {
         ExtentRootGrant::from_admitted_provider(
+            provider_issuance(lineage),
             id(lineage, ExtentLineageId::from_normalized_identity),
             id(10, AddressSpaceId::from_normalized_identity),
             rights(&[100, 101]),
@@ -1265,6 +1433,7 @@ mod tests {
             .expect("sibling merge is order independent");
         assert_eq!((restored.base(), restored.length()), (0x1000, 0x1000));
         assert_eq!(restored.lineage_root().normalized_identity(), 1);
+        assert_eq!(restored.provider_issuance(), provider_issuance(1));
     }
 
     #[test]
@@ -1375,11 +1544,32 @@ mod tests {
     }
 
     #[test]
+    fn equal_geometry_and_lineage_cannot_merge_different_provider_issuance() {
+        let first = root_grant(1).mint(0, 32).expect("first provider root");
+        let second = ExtentRootGrant::from_admitted_provider(
+            provider_issuance(2),
+            id(1, ExtentLineageId::from_normalized_identity),
+            id(10, AddressSpaceId::from_normalized_identity),
+            rights(&[100, 101]),
+            id(20, ExtentProvenanceId::from_normalized_identity),
+            id(30, MappingEraId::from_normalized_identity),
+        )
+        .mint(32, 32)
+        .expect("second provider root");
+
+        let error = first
+            .merge(second)
+            .expect_err("matching numbers cannot erase provider issuance drift");
+        assert!(error.diagnostic().0.contains("provider issuance"));
+    }
+
+    #[test]
     fn loans_are_bounded_and_derive_parent_borrow_polarity() {
         let mut extent = grant(1, 0x1000, 64);
         let shared = extent.loan(4, 8).expect("shared loan");
         assert_eq!((shared.base(), shared.length()), (0x1004, 8));
         assert_eq!(shared.polarity(), LoanPolarity::Shared);
+        assert_eq!(shared.provider_issuance(), provider_issuance(1));
         drop(shared);
 
         let exclusive = extent.loan_mut(16, 8).expect("exclusive loan");

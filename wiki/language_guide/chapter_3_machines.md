@@ -146,8 +146,11 @@ the target schema states how the launch environment supplies those needs.
 > carry, and the pending two-grant installation rule. Physical bridge/grant
 > installation is generically modeled with all-or-nothing predicate validation
 > and a non-authoritative geometry/address-space/rights/provenance/era/lineage
-> record, but binding that operation to a selected physical provider and
-> emitting its completed record remain. Actual receiver provisioning, corpus
+> record. Provider-issued roots also retain their admitted issuance, backing,
+> provider, live-issuance, custody, alias, correspondence, and trust identities
+> through that record. Binding those identities to the selected physical
+> provider invocation and emitting the completed record remain. Actual receiver
+> provisioning, corpus
 > migration, and removal of transitional entry-name discovery also remain under
 > `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 

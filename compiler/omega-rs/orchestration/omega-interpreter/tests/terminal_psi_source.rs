@@ -8887,6 +8887,21 @@ fn install_terminal_object(
         constructor(identity).expect("normalized extent identity")
     }
 
+    fn extent_provider_issuance(seed: u64) -> psi_extents::ExtentProviderIssuance {
+        let base = seed * 16;
+        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+            base + 5,
+            base + 6,
+            base + 7,
+            base + 8,
+        ])
+        .expect("normalized provider issuance")
+    }
+
     let entry = EntryStubId::from_normalized_identity(0x5300).expect("entry stub");
     let scope =
         ArtifactInstallationScopeId::from_normalized_identity(0x5301).expect("artifact scope");
@@ -8921,6 +8936,7 @@ fn install_terminal_object(
         ExtentRightId::from_normalized_identity,
     )]);
     let extent = ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(0x5331),
         extent_id(0x5331, ExtentLineageId::from_normalized_identity),
         extent_id(0x5332, AddressSpaceId::from_normalized_identity),
         rights.clone(),

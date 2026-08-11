@@ -3726,6 +3726,21 @@ mod tests {
         constructor(identity).expect("normalized extent identity")
     }
 
+    fn provider_issuance(seed: u64) -> psi_extents::ExtentProviderIssuance {
+        let base = seed * 16;
+        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+            base + 5,
+            base + 6,
+            base + 7,
+            base + 8,
+        ])
+        .expect("normalized provider issuance")
+    }
+
     fn extent_rights(identities: &[u64]) -> ExtentRights {
         ExtentRights::from_normalized_identities(identities.iter().copied().map(|identity| {
             extent_id(
@@ -3737,6 +3752,7 @@ mod tests {
 
     fn uart_extent(base: u64, length: u64) -> psi_extents::Extent {
         psi_extents::ExtentRootGrant::from_admitted_provider(
+            provider_issuance(1),
             extent_id(1, psi_extents::ExtentLineageId::from_normalized_identity),
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_rights(&[3, 4]),
