@@ -221,13 +221,17 @@ partial `separate(...)`, containment and equality, and canonical interval-set
 residual difference. Sealed claim-frontier rows record content introduced into
 or transferred out of checked custody.
 
-The verifier infers identity-preserving reshuffles. A primitive that changes a
-partition carries an authored theorem, and checked wrappers compose those
-theorems. At a bodyless partial boundary, Psi derives the kept content and
-residual and permits the provider to admit only acceptance of custody for that
-exact residual—not the partition arithmetic. External root correspondence and
-fresh issuance remain scoped admitted hypotheses with provenance; downstream
-conservation remains derived.
+The verifier infers identity-preserving reshuffles. It validates canonical
+partition-composition rows and replays their exact substitutions, but those
+producer-carried rows are not semantic axioms by themselves. A following
+vertical slice must bind each composition to the exact operation and authored
+callee guarantee, then introduce the verifier-reconstructed theorem only on
+that operation's successful path. Fingerprints identify canonical content for
+reporting and caches; they never authorize a theorem. At a bodyless partial
+boundary, Psi derives the kept content and residual and permits the provider to
+admit only acceptance of custody for that exact residual—not the partition
+arithmetic. External root correspondence and fresh issuance remain scoped
+admitted hypotheses with provenance; downstream conservation remains derived.
 
 ### Crash-control slice
 

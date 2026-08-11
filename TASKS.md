@@ -152,7 +152,10 @@ Remaining:
   ranking evidence is terminal and verifier-owned. Retire checked/source-tree
   consumers as each slice moves. Nothing below terminal Psi may depend on
   typed/source trees, `ExpressionHandle`, source rendering, or an Omega-to-Psi
-  bridge.
+  bridge. Canonical partition-composition rows remain replay evidence, not
+  semantic axioms: bind them to an exact operation and verifier-selected callee
+  guarantee before making the reconstructed theorem available on success.
+  Fingerprints are identity, never authority.
 - **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
   scalar slice. Source-produced direct calls now consume checked
   invocation-specific rows, preserve parameter and computed direct-local

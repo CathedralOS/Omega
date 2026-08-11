@@ -6,8 +6,8 @@ use psi_core::{
     ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
+    ProofError, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
@@ -1957,8 +1957,9 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
 }
 
 #[test]
-fn partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
+fn partition_composition_replay_is_not_semantic_authority() {
     let (module, goal, obligation) = partition_composition_module();
+    validate_module(&module).expect("the partition substitution remains valid replay evidence");
     let bundle = ProofBundle {
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1973,8 +1974,14 @@ fn partition_composition_replays_an_authored_theorem_as_a_semantic_axiom() {
         }],
     };
 
-    verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("an exact theorem substitution should be reconstructed");
+    assert_eq!(
+        verify_module(&module, &bundle, &AdmissionProfile::default())
+            .expect_err("producer-carried replay evidence cannot authorize its source theorem"),
+        VerificationError::RejectedEvidence {
+            obligation,
+            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(1)),
+        }
+    );
 }
 
 #[test]
@@ -2005,8 +2012,16 @@ fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
         }],
     };
 
-    verify_module(&module, &bundle, &AdmissionProfile::default())
-        .expect("the partition theorem, not the entry binding, is the sole semantic axiom");
+    validate_module(&module)
+        .expect("a partition input claim does not require an identity-reshuffle row");
+    assert_eq!(
+        verify_module(&module, &bundle, &AdmissionProfile::default())
+            .expect_err("an entry-claim binding alone does not authorize a partition theorem"),
+        VerificationError::RejectedEvidence {
+            obligation,
+            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(0)),
+        }
+    );
 }
 
 #[test]
