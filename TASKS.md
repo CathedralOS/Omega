@@ -59,11 +59,13 @@ Remaining:
   `Main::main` corpus to exact target-owned `ProgramEntry` bindings and delete
   that last naming fallback; three single-target hosted canaries now exercise
   explicit Windows x86-64, Linux x86-64, and Linux AArch64 bindings. The bulk
-  multi-target and checker-only corpus still needs target-scoped build and
-  analysis-without-deployment-entry engineering. Production/dev checked-tree
-  interpreter callers now receive Omega's exact entry choice; Psi's implicit
-  `Main::main` wrappers remain test-corpus migration residue. `Main::run`
-  discovery is retired. No ambient `static` storage. Final
+  multi-target corpus still needs target-scoped build engineering. A curated
+  Rat/metric proof cluster now uses explicit checked-only harnesses; the rest
+  of the semantic corpus still needs classification away from deployable
+  compilation. Production/dev checked-tree interpreter callers now receive
+  Omega's exact entry choice; Psi's implicit `Main::main` wrappers remain
+  test-corpus migration residue. `Main::run` discovery is retired. No ambient
+  `static` storage. Final
   composition of firmware `ImageHandle`/`SystemTable` inputs with the semantic
   roots is design-blocked on owner Q2; the other bridge and migration work is
   not.
