@@ -68,11 +68,10 @@ Remaining:
   boundaries, and admit only provider custody. Infer identity-preserving
   reshuffles; partition changes require an authored theorem.
 - **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
-  and compiler-provisioned origins, complete evidence preservation, and
-  cross-origin/replay rejection are live. Once the sealed local-capacity source
-  form is settled, lower that declaration into the existing compiler-owned
-  origin, terminal evidence, and artifact rows and add a source-level
-  conservation canary.
+  and compiler-provisioned origins must preserve complete evidence and reject
+  cross-origin composition and replay. Once the sealed local-capacity source
+  form is settled, lower it into compiler-owned origin, terminal-evidence, and
+  artifact rows and add a source-level conservation canary.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
   parameters, entry places, and results. Keep ownership, issuance, custody,
   aliasing, and partition succession distinct. Providers may attest custody,
@@ -145,17 +144,15 @@ Owners:
 
 Remaining:
 
-- **PSIIR.** General blocks, positional scalar direct calls, and unconditional
-  in-module call-crash continuations now span canonical semantics, obligations,
-  encoding, fuel, resumable interpretation, native register/stack calling-plan
-  placement, typed relocations across conditional control, and image resolution.
-  Add aggregates, structural/content call effects, guarded call-crash
+- **PSIIR.** Extend terminal Psi beyond general blocks, positional scalar direct
+  calls, and unconditional in-module call-crash continuations. Add aggregates,
+  structural/content call effects, guarded call-crash
   substitution, cleanup, transfer, boundaries, loops, suspension, and scoped
   ordering as complete vertical slices. Ranked tail-recursive call graphs stay
   rejected until their tail-position and ranking evidence is terminal and
-  verifier-owned. Retire legacy consumers as each slice moves. Nothing below
-  terminal Psi may depend on typed/source trees, `ExpressionHandle`, source
-  rendering, or an Omega-to-Psi bridge.
+  verifier-owned. Retire checked/source-tree consumers as each slice moves.
+  Nothing below terminal Psi may depend on typed/source trees,
+  `ExpressionHandle`, source rendering, or an Omega-to-Psi bridge.
 - **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
@@ -280,14 +277,13 @@ customer-shaped compiler concept is introduced.
 ### Frames, reach, and trust
 
 - **R5:** extend exact inferred may-write summaries and relational candidates
-  beyond the live acyclic/read-only-rebinding-cycle-safe statement/value-call
-  and transitive boundary-wrapper coverage. Preserve facts outside complete
-  frames and treat opaque or unrepresentable frames as conservative fences. Do
-  not restore an authored `stores` clause.
-- **STR/EFX:** finish independent normalization/publication beyond the live
-  machine-supply, service-reach, suspension, blocking, termination, mutation,
-  and trust carriers; retire remaining legacy umbrella names after consumers
-  migrate.
+  beyond acyclic and read-only-rebinding-cycle-safe statement/value calls and
+  transitive boundary wrappers. Preserve facts outside complete frames; opaque
+  or unrepresentable frames are conservative fences. Do not restore an authored
+  `stores` clause.
+- **STR/EFX:** finish independent normalization/publication of machine supply,
+  service reach, suspension, blocking, termination, mutation, and trust; remove
+  remaining umbrella carriers after their consumers migrate.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
 - **GR6:** finish qualification/trust consumers and their artifact rows.
@@ -402,9 +398,6 @@ checked-result arithmetic decision listed below.
 - Extend component artifacts with stack needs, mapping cohorts, two-sided
   import/export checks, boundary multiplicity, custody receipts, and enumerable
   roots. Drain/coexistence, scheduling, and provisioning remain runtime work.
-- **REPLACE-OPAQUE:** extend replaceable-component tests beyond the live mapping quarantine,
-  manifest union, service handover, callback gateway/unregister, and era-ledger
-  slice. Proven quiescence is the only route back to reusable mapping capacity.
 - Implement serialized capability attenuation/revocation only after the
   component carrier and custody rules are complete.
 
