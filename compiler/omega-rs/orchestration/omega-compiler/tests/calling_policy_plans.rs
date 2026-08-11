@@ -3,12 +3,12 @@ use omega_calling_conventions::{
     Preemption, ValueShape,
 };
 use omega_compiler::{
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageRootInput,
-    SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageInstallationHandoffError,
+    ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_program_storage_entry_plan, compile_to_checked, evaluate_calling_policy_plan,
     install_program_storage_entry_roots, program_storage_installation_record_json,
     selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id, write_program_storage_installation_record,
+    selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -581,20 +581,30 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         &boundary.plan().call.parameters[1]
     );
 
+    let artifact_directory = main_path
+        .parent()
+        .expect("temporary policy directory")
+        .join("completed-installation");
     let failed = install_program_storage_entry_roots(
+        &artifact_directory,
         binding,
         root_input(91, 0x1000, 0x800),
         root_input(92, u64::MAX, 2),
     )
     .expect_err("both no-wrap predicates must precede either fact import");
+    let ProgramStorageInstallationHandoffError::Rejected(failed) = failed else {
+        panic!("invalid geometry must reject before record emission")
+    };
     assert!(failed.diagnostic().0.contains("initial-storage"));
-    let (binding, image, storage_input) = (*failed).into_parts();
-    let installed = install_program_storage_entry_roots(
+    let (binding, image, storage_input) = failed.into_parts();
+    let recorded = install_program_storage_entry_roots(
+        &artifact_directory,
         binding,
         image,
         storage_input.with_geometry(0x8000, 0x2000),
     )
     .expect("returned grants remain usable after rejected geometry");
+    let installed = recorded.into_roots();
     assert_eq!(
         (installed.image().base(), installed.image().length()),
         (0x1000, 0x800)
@@ -694,18 +704,17 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     assert!(provider_json.contains("\"provider_plan\": \"0x00000000000005b9\""));
     assert!(provider_json.contains("\"qualification\": \"0x00000000000005bd\""));
 
-    let artifact_directory = main_path
-        .parent()
-        .expect("temporary policy directory")
-        .join("completed-installation");
-    write_program_storage_installation_record(&artifact_directory, &installation)
-        .expect("completed installation record should be emitted atomically");
     let emitted =
         fs::read_to_string(artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
             .expect("read completed installation artifact");
     assert_eq!(emitted, provider_json);
 
+    let local_artifact_directory = main_path
+        .parent()
+        .expect("temporary policy directory")
+        .join("local-completed-installation");
     let local_installed = install_program_storage_entry_roots(
+        &local_artifact_directory,
         installation.binding().clone(),
         compiler_root_input(201, 0x2000, 0x400),
         compiler_root_input(202, 0x9000, 0x1000),
@@ -718,6 +727,33 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     assert!(local_json.contains("\"owner\": \"0x0000000000000c92\""));
     assert!(local_json.contains("\"sealed_declaration\": \"0x0000000000000c93\""));
     assert!(local_json.contains("\"rights\": [\"0x00000000000000cc\", \"0x00000000000000cd\"]"));
+
+    let blocked_artifact_directory = main_path
+        .parent()
+        .expect("temporary policy directory")
+        .join("blocked-completed-installation");
+    fs::write(&blocked_artifact_directory, "not a directory")
+        .expect("create an artifact-path collision");
+    let failed_record = install_program_storage_entry_roots(
+        &blocked_artifact_directory,
+        installation.binding().clone(),
+        compiler_root_input(301, 0x3000, 0x400),
+        compiler_root_input(302, 0xa000, 0x1000),
+    )
+    .expect_err("installed roots must remain sealed when record emission fails");
+    let ProgramStorageInstallationHandoffError::Record(failed_record) = failed_record else {
+        panic!("valid roots must reach record emission")
+    };
+    fs::remove_file(&blocked_artifact_directory).expect("remove artifact-path collision");
+    let retried = failed_record
+        .retry(&blocked_artifact_directory)
+        .expect("record retry releases the installed roots");
+    assert_eq!(retried.roots().image().base(), 0x3000);
+    assert!(
+        blocked_artifact_directory
+            .join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT)
+            .is_file()
+    );
 
     let static_view = installed
         .image_subextent(0x100, 0x80)

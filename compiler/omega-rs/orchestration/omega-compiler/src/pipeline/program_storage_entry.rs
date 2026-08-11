@@ -12,6 +12,7 @@ use omega_instruction_selection::DerivedBoundaryEntryStorage;
 use psi_extents::{
     Extent, ExtentLoan, ExtentRootGrant, OwnedExtentPartition, ValidatedExtentGeometry,
 };
+use std::path::Path;
 
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
@@ -208,6 +209,31 @@ pub struct InstalledProgramStorageRoots {
     binding: ProgramStorageEntryPlanBinding,
     image: Extent,
     initial_storage: Extent,
+}
+
+/// Program-storage roots whose successful installation has also been recorded
+/// in the installing bridge's artifact directory.
+///
+/// Keeping this wrapper distinct from [`InstalledProgramStorageRoots`] prevents
+/// an ordinary successful handoff from silently skipping the required
+/// non-authoritative completion record.
+#[derive(Debug)]
+pub struct RecordedProgramStorageInstallation {
+    roots: InstalledProgramStorageRoots,
+}
+
+impl RecordedProgramStorageInstallation {
+    pub const fn roots(&self) -> &InstalledProgramStorageRoots {
+        &self.roots
+    }
+
+    pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
+        self.roots.installation_record()
+    }
+
+    pub fn into_roots(self) -> InstalledProgramStorageRoots {
+        self.roots
+    }
 }
 
 /// Report-only identity and geometry of one installed program-storage root.
@@ -649,7 +675,7 @@ fn bind_parameter(
 
 /// Validate both `no_wrap` obligations before importing either complete root,
 /// then consume the two provider-admitted grants in semantic position order.
-pub fn install_program_storage_entry_roots(
+fn install_program_storage_entry_roots_unrecorded(
     binding: ProgramStorageEntryPlanBinding,
     image: ProgramStorageRootInput,
     initial_storage: ProgramStorageRootInput,
@@ -689,6 +715,36 @@ pub fn install_program_storage_entry_roots(
         image: image.grant.mint_validated(image_geometry),
         initial_storage: initial_storage.grant.mint_validated(storage_geometry),
     })
+}
+
+/// Install both program-storage roots and emit the completion record before
+/// releasing the installed authority to the bridge.
+///
+/// Predicate rejection returns both unconsumed grants. If record emission
+/// fails after installation, the installed roots remain sealed inside the
+/// error and can only be recovered by successfully retrying the record write.
+pub fn install_program_storage_entry_roots(
+    artifact_directory: &Path,
+    binding: ProgramStorageEntryPlanBinding,
+    image: ProgramStorageRootInput,
+    initial_storage: ProgramStorageRootInput,
+) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
+    let roots = install_program_storage_entry_roots_unrecorded(binding, image, initial_storage)
+        .map_err(ProgramStorageInstallationHandoffError::Rejected)?;
+    record_program_storage_installation(artifact_directory, roots)
+}
+
+fn record_program_storage_installation(
+    artifact_directory: &Path,
+    roots: InstalledProgramStorageRoots,
+) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
+    let record = roots.installation_record();
+    match super::artifacts::write_program_storage_installation_record(artifact_directory, &record) {
+        Ok(()) => Ok(RecordedProgramStorageInstallation { roots }),
+        Err(diagnostic) => Err(ProgramStorageInstallationHandoffError::Record(Box::new(
+            ProgramStorageRecordEmissionError { roots, diagnostic },
+        ))),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -733,6 +789,54 @@ impl std::fmt::Display for ProgramStorageRootInstallationError {
 }
 
 impl std::error::Error for ProgramStorageRootInstallationError {}
+
+/// A program-storage handoff either failed before consuming its grants or
+/// installed them but could not yet persist its completion record.
+#[derive(Debug)]
+pub enum ProgramStorageInstallationHandoffError {
+    Rejected(Box<ProgramStorageRootInstallationError>),
+    Record(Box<ProgramStorageRecordEmissionError>),
+}
+
+impl std::fmt::Display for ProgramStorageInstallationHandoffError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rejected(error) => std::fmt::Display::fmt(error, formatter),
+            Self::Record(error) => std::fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for ProgramStorageInstallationHandoffError {}
+
+/// Installed authority retained across an audit-artifact write failure.
+/// Retrying the write is the only route back to usable installed roots.
+#[derive(Debug)]
+pub struct ProgramStorageRecordEmissionError {
+    roots: InstalledProgramStorageRoots,
+    diagnostic: psi_diagnostics::Diagnostic,
+}
+
+impl ProgramStorageRecordEmissionError {
+    pub const fn diagnostic(&self) -> &psi_diagnostics::Diagnostic {
+        &self.diagnostic
+    }
+
+    pub fn retry(
+        self,
+        artifact_directory: &Path,
+    ) -> Result<RecordedProgramStorageInstallation, ProgramStorageInstallationHandoffError> {
+        record_program_storage_installation(artifact_directory, self.roots)
+    }
+}
+
+impl std::fmt::Display for ProgramStorageRecordEmissionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramStorageRecordEmissionError {}
 
 #[derive(Debug)]
 pub struct ProgramStoragePartitionError {

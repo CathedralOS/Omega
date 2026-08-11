@@ -400,10 +400,10 @@ pub fn program_storage_installation_record_json(
     output
 }
 
-/// Emit the completed, non-authoritative installation audit record. The
-/// compiler pipeline does not call this function: only the bridge that owns a
-/// successfully completed installation has the required record.
-pub fn write_program_storage_installation_record(
+/// Emit the completed, non-authoritative installation audit record. This
+/// remains private to the installation handoff so installed authority cannot
+/// be released before the record is successfully installed.
+pub(super) fn write_program_storage_installation_record(
     artifact_directory: &Path,
     record: &super::ProgramStorageInstallationRecord,
 ) -> Result<(), Diagnostic> {
