@@ -94,6 +94,45 @@ fn retains_canonical_semantic_permission_events() {
 }
 
 #[test]
+fn method_form_by_value_self_records_terminal_consume() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        boundary machine Receipt::complete(self) {}
+        data Main {}
+
+        machine Main::run(receipt: Receipt) {
+            receipt.complete();
+        }
+        "#,
+    );
+
+    use psi_language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events.len(),
+        2,
+        "one establishment and one consume: {events:#?}"
+    );
+    assert_eq!(events[0].kind, PermissionEventKind::Establish);
+    assert_eq!(events[1].kind, PermissionEventKind::Consume);
+    assert!(matches!(
+        events[1].source,
+        PermissionEventSource::Call { .. }
+    ));
+    assert_eq!(events[1].claim_identity, events[0].claim_identity);
+    assert_eq!(events[1].provenance, events[0].provenance);
+}
+
+#[test]
 fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
     let checked = checked(
         r#"

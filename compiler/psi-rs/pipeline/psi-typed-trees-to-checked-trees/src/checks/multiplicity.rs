@@ -2759,22 +2759,36 @@ fn permission_kind_for_move(
     };
     let arguments = crate::call_site_argument_expressions(program, &call_site);
     let parameters = program.state_parameters(target_state);
-    if arguments.len() != parameters.len() {
-        return PermissionEventKind::Transfer;
-    }
     let event_segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-    for (parameter, argument) in parameters.iter().zip(arguments) {
-        if !parameter.is_self {
-            continue;
+    if arguments.len() == parameters.len() {
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            if !parameter.is_self {
+                continue;
+            }
+            let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                *argument,
+            ) else {
+                continue;
+            };
+            if place.root == event.root && place.segments.as_slice() == event_segments {
+                return if type_carries_linear_obligation(program, target_state.return_type) {
+                    PermissionEventKind::Transfer
+                } else {
+                    PermissionEventKind::Consume
+                };
+            }
         }
-        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            *argument,
-        ) else {
-            continue;
-        };
+    } else if let Some(place) = crate::flow::owned_method_receiver_place(
+        program,
+        state_symbol,
+        statement_index,
+        &call_site,
+        target_state,
+        SymbolHandle::invalid(),
+    ) {
         if place.root == event.root && place.segments.as_slice() == event_segments {
             return if type_carries_linear_obligation(program, target_state.return_type) {
                 PermissionEventKind::Transfer

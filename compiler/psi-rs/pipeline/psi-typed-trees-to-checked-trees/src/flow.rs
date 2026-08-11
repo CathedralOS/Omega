@@ -58,7 +58,8 @@ use operator_calls::{
 };
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, discover_state_move_events,
-    expression_type_reference_in_state, project_type_reference_from_segments,
+    expression_type_reference_in_state, owned_method_receiver_place,
+    project_type_reference_from_segments,
 };
 #[allow(unused_imports)]
 pub(crate) use place::{
