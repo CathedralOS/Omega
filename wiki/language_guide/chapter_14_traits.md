@@ -1175,14 +1175,11 @@ that route from the operand type rather than searching visible conformances.
 Other mathematical equivalence relations remain ordinary named propositions
 and conformances and do not compete for operator syntax.
 
-Concrete closed implementations now use the name-first declaration above.
-The parser reports directed migrations for the retired named subject-first
-header and for unnamed closed blocks. Name-first bodyless carrier declarations
-remain static-only compatibility rows and cannot license local dynamic
-dispatch. Generic name-owned telescopes, package-scoped carrier-conformance
-symbols, and the explicit evidence-binder surface remain tracked in
-`TASKS.md`; synthesis and its eligibility rules are unchanged by the spelling
-migration.
+Closed implementations use the name-first declaration above. Bodyless carrier
+declarations remain static-only and cannot license local dynamic dispatch.
+Generic name-owned telescopes, package-scoped carrier-conformance symbols, and
+the explicit evidence-binder surface remain tracked in `TASKS.md`; synthesis
+and its eligibility rules are independent of declaration syntax.
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).

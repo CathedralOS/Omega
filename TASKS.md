@@ -175,10 +175,11 @@ Remaining:
   recursion checks while an unmeasured cycle rejects; an admitted law makes
   every dependent normalization admission-dependent.
 - **PCC verifier closure.** The artifact determines obligations; bundles only
-  discharge them. Connect `psi-terminal-verifier` to the low-rung kernel and
-  record one auditable closure: low reference verifier, checked reconstruction
-  derivation, or explicitly trusted Psi verifier. A Psi kernel port alone is
-  insufficient.
+  discharge them. The Rust verifier already reconstructs the exact obligation
+  set and invokes `psi-proof-kernel`; connect that certificate calculus to the
+  independent low-rung kernel route and record one auditable reconstruction
+  closure: low reference verifier, checked derivation, or explicitly trusted
+  Psi verifier. A Psi kernel port alone is insufficient.
 - **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
   add attributed response outcomes only when terminal wait/foreign edges can
   derive them. Migrate Cathedral hard roots, then add provenance-preserving

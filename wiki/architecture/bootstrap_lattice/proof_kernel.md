@@ -171,14 +171,6 @@ still need to carry both records rather than adding a second explanation path.
   together. Stale certificates reject; this page describes only the current
   calculus.
 
-## Open work
-
-- Finish the formal soundness bridge to the canonical execution semantics.
-- Stabilize the certificate vocabulary consumed by terminal Psi.
-- Extend that vocabulary with the settled recursive-component and
-  law-normalization rules and transitive law provenance when the source
-  automation bridge reaches those proof families.
-- Connect `psi-terminal-verifier` to the low-rung kernel format and decide the
-  final trust placement of terminal-Psi obligation reconstruction: low reference
-  verifier, checked derivation of reconstruction, or explicit trusted component.
-- Reconcile future fast native checkers against the small reference route.
+The remaining certification bridge, terminal reconstruction closure, and
+soundness work is tracked once under P3 in
+[`TASKS.md`](../../../TASKS.md).
