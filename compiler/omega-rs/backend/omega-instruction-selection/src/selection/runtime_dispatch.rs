@@ -47,7 +47,7 @@ use omega_abstract_operations::{
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, StateFootprintEvidence, SystemVEightbyteClass,
     ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValueShape,
-    evaluate_ordinary_boundary_entry_plan,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
 };
 use omega_layout::{DataShape, TypeLayoutDescriptor};
 use operation_aliases::bind_runtime_operation_aliases;
@@ -2556,7 +2556,8 @@ pub(super) fn select_entry_argument_register_writes(
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.supply_mode.is_boundary_declaration());
     if entry_is_boundary
-        && CallingPolicy::native_for_target(input.target) == CallingPolicy::MicrosoftX64
+        && input.entry_boundary_plan.is_none()
+        && entry_calling_policy(input) == CallingPolicy::MicrosoftX64
         && let [(byte_offset, byte_size, shape)] = parameter_slots.as_slice()
         && matches!(shape.class, ValueClass::Integer)
         && *byte_size > 8
@@ -2589,7 +2590,7 @@ pub(super) fn select_entry_argument_register_writes(
         .iter()
         .any(|(_, shape)| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8)
         && !matches!(
-            CallingPolicy::native_for_target(input.target),
+            entry_calling_policy(input),
             CallingPolicy::Aapcs64 | CallingPolicy::MicrosoftX64 | CallingPolicy::SystemVAMD64
         )
     {
@@ -2635,11 +2636,12 @@ fn select_normalized_entry_argument_writes(
         parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
         result,
     };
-    let boundary = evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::native_for_target(input.target),
-        &signature,
-    )
-    .expect("runtime entry signature must have a normalized boundary entry plan");
+    let boundary = match input.entry_boundary_plan {
+        Some(plan) => validate_boundary_entry_plan(plan.clone(), &signature)
+            .expect("selected target entry plan must match its source continuation signature"),
+        None => evaluate_ordinary_boundary_entry_plan(entry_calling_policy(input), &signature)
+            .expect("runtime entry signature must have a normalized boundary entry plan"),
+    };
     let indirect_result_pointer_byte_offset = indirect_result.map(|_| {
         assert_eq!(
             input.runtime_storage.entry_indirect_result_pointer_size, 8,
@@ -2949,7 +2951,7 @@ fn entry_slot_value_shape(
         return None;
     };
 
-    let policy = CallingPolicy::native_for_target(input.target);
+    let policy = entry_calling_policy(input);
     if (policy == CallingPolicy::Aapcs64
         || (policy == CallingPolicy::SystemVAMD64 && data_layout.layout.size <= 16))
         && let Some(shape) =
@@ -3000,6 +3002,13 @@ fn entry_slot_value_shape(
         return Some(ValueShape::integer(byte_size, alignment));
     }
     None
+}
+
+fn entry_calling_policy(input: &InstructionSelectionInput<'_>) -> CallingPolicy {
+    input.entry_boundary_plan.map_or_else(
+        || CallingPolicy::native_for_target(input.target),
+        |plan| plan.call.policy,
+    )
 }
 
 fn flat_homogeneous_float_aggregate_shape(

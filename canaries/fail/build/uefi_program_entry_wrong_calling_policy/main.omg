@@ -1,0 +1,117 @@
+use omega::language::core::extent;
+use omega::language::std::calling;
+
+data WrongUefiPolicy { }
+WrongUefiPolicy satisfies CallingPolicy;
+
+machine WrongUefiPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 2 && !signature.has_result {
+        true -> accept(
+            signature,
+            signature.parameters[0],
+            signature.parameters[1]
+        )
+        _ -> reject()
+    }
+
+    state accept(
+        signature: BoundarySignature,
+        image: u64,
+        initial_storage: u64
+    ) -> BoundaryPlanResult {
+        transition image < 256 && initial_storage < 256 {
+            true -> build(signature, image, initial_storage)
+            _ -> reject()
+        }
+    }
+
+    state build(
+        signature: BoundarySignature,
+        image: u64,
+        initial_storage: u64
+    ) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 2;
+
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[image].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[image].alignment;
+        output.call.parameters[0].location_count = 2;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.parameters[0].locations[1] = ValueLocation::Register {
+            register: MachineRegister::X86Rsi,
+            value_byte_offset: 8,
+            byte_size: 8,
+        };
+
+        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.byte_size = signature.shapes[initial_storage].byte_size;
+        output.call.parameters[1].shape.alignment = signature.shapes[initial_storage].alignment;
+        output.call.parameters[1].location_count = 2;
+        output.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdx,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.parameters[1].locations[1] = ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 8,
+            byte_size: 8,
+        };
+
+        output.call.ordinary_clobbers.register_count = 9;
+        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::CallReturn;
+
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "wrong UEFI policy requires two program-storage roots",
+            },
+        }
+    }
+}
+
+boundary trait UefiApplication: ProgramStorageEntry + Calling<WrongUefiPolicy> {
+}
+
+machine launch(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+) {
+    transition {
+        _ -> retain(image as Extent, initial_storage as Extent)
+    }
+
+    state retain(image: Extent, initial_storage: Extent) {
+        transition {
+            _ -> retain(image, initial_storage)
+        }
+    }
+}

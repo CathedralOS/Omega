@@ -42767,6 +42767,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("build/unknown_program_entry_binding", "windows_x64"),
     ("build/uefi_program_entry_missing_storage_roots", "uefi_x64"),
     ("build/uefi_program_entry_unqualified_image", "uefi_x64"),
+    ("build/uefi_program_entry_wrong_calling_policy", "uefi_x64"),
 ];
 
 #[test]
@@ -48358,6 +48359,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/unknown_program_entry_binding",
     "build/uefi_program_entry_missing_storage_roots",
     "build/uefi_program_entry_unqualified_image",
+    "build/uefi_program_entry_wrong_calling_policy",
     "build/static_machine_parameter_contract_mismatch",
     "build/accept_boundary_outside_build",
     "platform/platform_block_retired",

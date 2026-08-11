@@ -409,12 +409,20 @@ impl Compiler {
             &build_config,
             self.options.target_name.as_deref(),
         )?;
-        if let Some(selected_program_entry) = selected_program_entry {
-            crate::pipeline::build_config::validate_selected_program_entry_shape(
-                &typed,
-                selected_program_entry,
-            )?;
-        }
+        let program_entry_boundary_plan =
+            if let Some(selected_program_entry) = selected_program_entry {
+                crate::pipeline::build_config::validate_selected_program_entry_shape(
+                    &typed,
+                    selected_program_entry,
+                )?;
+                crate::pipeline::build_config::validate_selected_program_entry_calling_plan(
+                    &typed,
+                    selected_program_entry,
+                    &boundary_calling_plan_realizations,
+                )?
+            } else {
+                None
+            };
         let entry_machine_name =
             selected_program_entry.map(|selected| selected.machine_name.to_owned());
         let target_provider_defaults =
@@ -570,6 +578,7 @@ impl Compiler {
         let backend = control_flow_to_backend_plan(
             checked,
             entry_machine_name.as_deref(),
+            program_entry_boundary_plan,
             self.options.target_name.as_deref(),
             freestanding,
             &external_binding_rows,

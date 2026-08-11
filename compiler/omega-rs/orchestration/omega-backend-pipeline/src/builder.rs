@@ -55,6 +55,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
     entry_machine_name: Option<&str>,
+    entry_boundary_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
     target: NativeTarget,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -209,6 +210,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         state_guards: Default::default(),
         layouts,
         entry_key,
+        entry_boundary_plan,
         phase_timings,
     });
     let mut phase_timings = std::mem::take(&mut backend_plan.phase_timings);
@@ -414,6 +416,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 state_contexts: &backend_plan.state_contexts,
                 runtime_abi: &runtime_abi,
                 entry_key: backend_plan.entry_key,
+                entry_boundary_plan: backend_plan.entry_boundary_plan.as_ref(),
                 entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
                 program: program.as_ref(),
                 selected_provider_plans: selected_provider_plans.as_ref(),

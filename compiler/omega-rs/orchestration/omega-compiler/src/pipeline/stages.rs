@@ -460,6 +460,7 @@ pub(super) fn state_graph_to_control_flow(
 pub(super) fn control_flow_to_backend_plan(
     checked: CheckedProgramSurface,
     entry_machine_name: Option<&str>,
+    entry_boundary_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
     target_name: Option<&str>,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -474,6 +475,7 @@ pub(super) fn control_flow_to_backend_plan(
         checked.program,
         checked.selected_provider_plans,
         entry_machine_name,
+        entry_boundary_plan,
         target,
         freestanding,
         external_binding_rows,

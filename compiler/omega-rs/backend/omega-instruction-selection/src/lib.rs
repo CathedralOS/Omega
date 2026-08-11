@@ -102,6 +102,7 @@ pub struct InstructionSelectionInput<'plan> {
     pub target: omega_target::NativeTarget,
     pub runtime_abi: &'plan RuntimeAbiPlan,
     pub entry_key: StateKey,
+    pub entry_boundary_plan: Option<&'plan omega_calling_conventions::BoundaryEntryPlan>,
     pub entry_symbol: Arc<str>,
     pub program: &'plan CheckedTrees,
     pub selected_provider_plans: &'plan omega_effects::SelectedProviderPlanFacts,
