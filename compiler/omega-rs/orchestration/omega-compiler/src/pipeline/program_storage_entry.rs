@@ -13,8 +13,6 @@ use psi_extents::{
     Extent, ExtentLoan, ExtentRootGrant, OwnedExtentPartition, ValidatedExtentGeometry,
 };
 
-use super::SelectedExternalRootProviderPlan;
-
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
 const GRANTED_DOMAIN: &str = "Extent::Granted";
@@ -66,7 +64,7 @@ impl ProgramStorageEntryParameter {
 /// Exact selected target-entry contract that may introduce program storage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramStorageEntryPlanBinding {
-    provider_plan: omega_external_roots::ProviderPlanId,
+    root_slot: omega_external_roots::RootSlotId,
     requirement_identity: String,
     boundary_contract_fingerprint: u64,
     image: ProgramStorageEntryParameter,
@@ -74,8 +72,8 @@ pub struct ProgramStorageEntryPlanBinding {
 }
 
 impl ProgramStorageEntryPlanBinding {
-    pub const fn provider_plan(&self) -> omega_external_roots::ProviderPlanId {
-        self.provider_plan
+    pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
+        self.root_slot
     }
 
     pub fn requirement_identity(&self) -> &str {
@@ -92,6 +90,73 @@ impl ProgramStorageEntryPlanBinding {
 
     pub const fn initial_storage(&self) -> &ProgramStorageEntryParameter {
         &self.initial_storage
+    }
+}
+
+/// Exact target-owned environment-to-program slot and its normalized source
+/// schema. This is deliberately not a provider plan: `ProgramEntry` accepts an
+/// environment root and does not model an outbound service conformance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedProgramStorageEntryPlan {
+    root_slot: omega_external_roots::RootSlotId,
+    schema: omega_effects::provider_plan::ServiceSchema,
+}
+
+impl SelectedProgramStorageEntryPlan {
+    pub fn from_target_slot(
+        slot: omega_target::ProgramEntrySlotDeclaration,
+        schema: omega_effects::provider_plan::ServiceSchema,
+    ) -> Result<Self, ProgramStorageEntryDiagnostic> {
+        if slot != slot.owner.program_entry_slot()
+            || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
+            || slot.visible_parameters
+                != omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+            || slot.arrival_requirement
+                != format!("{PROGRAM_STORAGE_ENTRY_OWNER}::{PROGRAM_STORAGE_ENTRY_METHOD}")
+        {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "target root slot `{}::{}` does not declare the exact program-storage entry contract",
+                slot.owner.root_slot_owner_name(),
+                slot.slot_name
+            )));
+        }
+        let Some(boundary_schema) = slot.boundary_schema else {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "target root slot `{}::{}` has no source boundary schema",
+                slot.owner.root_slot_owner_name(),
+                slot.slot_name
+            )));
+        };
+        if schema.trait_name != boundary_schema {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "target root slot `{}::{}` requires boundary schema `{boundary_schema}`, not `{}`",
+                slot.owner.root_slot_owner_name(),
+                slot.slot_name,
+                schema.trait_name
+            )));
+        }
+
+        let canonical = format!(
+            "target-root-slot\n{}::{}",
+            slot.owner.root_slot_owner_name(),
+            slot.slot_name
+        );
+        let mut identity = 0xcbf29ce484222325u64;
+        for byte in canonical.bytes() {
+            identity ^= u64::from(byte);
+            identity = identity.wrapping_mul(0x100000001b3);
+        }
+        let root_slot = omega_external_roots::RootSlotId::from_normalized_identity(identity)
+            .map_err(|diagnostic| ProgramStorageEntryDiagnostic(diagnostic.to_string()))?;
+        Ok(Self { root_slot, schema })
+    }
+
+    pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
+        self.root_slot
+    }
+
+    pub const fn schema(&self) -> &omega_effects::provider_plan::ServiceSchema {
+        &self.schema
     }
 }
 
@@ -237,7 +302,7 @@ impl std::fmt::Debug for InstalledImageSubextent<'_> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("InstalledImageSubextent")
-            .field("provider_plan", &self.binding.provider_plan)
+            .field("root_slot", &self.binding.root_slot)
             .field("requirement_identity", &self.binding.requirement_identity)
             .field("loan", &self.loan)
             .finish()
@@ -293,7 +358,7 @@ impl PartitionedProgramStorageRoots {
 /// selected target trait's name, source parameter names, registers, and stack
 /// offsets play no role in identifying image versus initial storage.
 pub fn bind_program_storage_entry_plan(
-    selected: &SelectedExternalRootProviderPlan,
+    selected: &SelectedProgramStorageEntryPlan,
     boundary: &ValidatedBoundaryEntryPlan,
     storage: &DerivedBoundaryEntryStorage,
 ) -> Result<ProgramStorageEntryPlanBinding, ProgramStorageEntryDiagnostic> {
@@ -340,12 +405,86 @@ pub fn bind_program_storage_entry_plan(
     let initial_storage =
         bind_parameter(method, boundary, storage, INITIAL_STORAGE_PARAMETER_INDEX)?;
     Ok(ProgramStorageEntryPlanBinding {
-        provider_plan: selected.identity,
+        root_slot: selected.root_slot,
         requirement_identity: method.requirement_identity.clone(),
         boundary_contract_fingerprint: boundary_fingerprint,
         image,
         initial_storage,
     })
+}
+
+/// Join the selected root slot to the concrete entry-frame captures generated
+/// for its source continuation. Parameter order comes from the checked entry
+/// state; ABI shapes and placements come only from the retained evaluated plan.
+pub fn bind_generated_program_storage_entry_plan(
+    selected: &SelectedProgramStorageEntryPlan,
+    plan: &omega_calling_conventions::BoundaryEntryPlan,
+    runtime_storage: &omega_runtime_storage::RuntimeStoragePlan,
+    entry_key: omega_control_flow::StateKey,
+) -> Result<ProgramStorageEntryPlanBinding, ProgramStorageEntryDiagnostic> {
+    let signature = omega_calling_conventions::CallSignature {
+        parameters: plan
+            .call
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .collect(),
+        result: plan.call.result.as_ref().map(|placement| placement.shape),
+    };
+    let boundary =
+        omega_calling_conventions::validate_boundary_entry_plan(plan.clone(), &signature).map_err(
+            |diagnostic| {
+                ProgramStorageEntryDiagnostic(format!(
+                    "retained program-entry calling plan is invalid: {diagnostic}"
+                ))
+            },
+        )?;
+    let mut slots = runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (slot.source_key == entry_key
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+                ))
+            .then_some(slot)
+        })
+        .collect::<Vec<_>>();
+    slots.sort_unstable_by_key(|slot| slot.byte_offset);
+    if slots.len() != boundary.plan().call.parameters.len() {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "generated program entry retains {} parameter slots for {} calling-plan parameters",
+            slots.len(),
+            boundary.plan().call.parameters.len()
+        )));
+    }
+    let mut destinations = Vec::with_capacity(slots.len());
+    for (index, (slot, placement)) in slots
+        .into_iter()
+        .zip(boundary.plan().call.parameters.iter())
+        .enumerate()
+    {
+        if slot.byte_size != usize::from(placement.shape.byte_size) {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "generated program-entry parameter {index} reserves {} bytes, but its retained calling plan places {}",
+                slot.byte_size, placement.shape.byte_size
+            )));
+        }
+        destinations.push((slot.byte_offset, placement.shape));
+    }
+    let storage = omega_instruction_selection::derive_boundary_entry_storage(
+        boundary.plan(),
+        &destinations,
+        None,
+        None,
+    )
+    .map_err(|diagnostic| {
+        ProgramStorageEntryDiagnostic(format!(
+            "cannot derive generated program-entry captures: {diagnostic}"
+        ))
+    })?;
+    bind_program_storage_entry_plan(selected, &boundary, &storage)
 }
 
 fn bind_parameter(

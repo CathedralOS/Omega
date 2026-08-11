@@ -287,7 +287,13 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
     realizations: &[super::calling_policy_plans::BoundaryCallingPlanRealization],
-) -> Result<Option<omega_calling_conventions::BoundaryEntryPlan>, Vec<Diagnostic>> {
+) -> Result<
+    Option<(
+        omega_calling_conventions::BoundaryEntryPlan,
+        super::program_storage_entry::SelectedProgramStorageEntryPlan,
+    )>,
+    Vec<Diagnostic>,
+> {
     let (Some(schema_name), Some(required_convention)) = (
         selected.slot.boundary_schema,
         selected.slot.calling_convention,
@@ -345,7 +351,22 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
             expected,
         ))]);
     }
-    Ok(Some(realization.boundary_entry_plan.clone()))
+    let service_schema = omega_effects::provider_plan::ServiceSchema::from_typed(typed, schema)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "target entry schema `{schema_name}` is not a boundary service schema"
+            ))]
+        })?;
+    let storage_entry =
+        super::program_storage_entry::SelectedProgramStorageEntryPlan::from_target_slot(
+            selected.slot,
+            service_schema,
+        )
+        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    Ok(Some((
+        realization.boundary_entry_plan.clone(),
+        storage_entry,
+    )))
 }
 
 struct ArrivalRequirementParameterType {

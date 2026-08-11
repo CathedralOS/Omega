@@ -357,6 +357,7 @@ dependencies = [
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
+ "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
  "omega-state-graph",
