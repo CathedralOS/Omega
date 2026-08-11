@@ -1358,7 +1358,7 @@ fn summarize_state_written_paths(
     }
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
-    let mut local_alias_origins = Vec::<(String, String)>::new();
+    let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
     let mut written = Vec::new();
 
     let mut nested_diagnostics = Vec::new();
@@ -1372,7 +1372,7 @@ fn summarize_state_written_paths(
             StatementNode::LocalData(local)
                 if type_may_carry_write(program, local.type_reference) =>
             {
-                exact_local_mutable_alias_origin(program, local, parameters, &local_alias_origins)
+                stable_local_mutable_alias_origin(program, local, parameters, &local_alias_origins)
             }
             _ => None,
         };
@@ -1516,17 +1516,30 @@ fn summarize_state_written_paths(
     Some(written)
 }
 
-/// Recover the caller-visible origin of the deliberately narrow local-alias
-/// shape handled by the ordinary frame summarizer. Everything less direct
-/// stays opaque: only a bare derived reborrow of an already-stable alias is
-/// flattened; call-produced references, projections while forming the chain,
-/// indexing, and computed origins need richer evidence.
-fn exact_local_mutable_alias_origin(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FramePathPrecision {
+    Exact,
+    CollectionCoarse,
+}
+
+#[derive(Debug, Clone)]
+struct FramePlaceOrigin {
+    path: String,
+    precision: FramePathPrecision,
+}
+
+/// Recover the caller-visible origin of the deliberately narrow stable local-
+/// alias shapes handled by the ordinary frame summarizer. A terminal indexed
+/// origin is represented by its whole collection; once coarse, later member
+/// suffixes may never narrow that collection again. Everything less direct
+/// stays opaque: call-produced references, projections through a local alias,
+/// member-after-index origins, and computed collections need richer evidence.
+fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
-    aliases: &[(String, String)],
-) -> Option<String> {
+    aliases: &[(String, FramePlaceOrigin)],
+) -> Option<FramePlaceOrigin> {
     let TypeReferenceNode::Reference {
         is_mutable: true, ..
     } = program
@@ -1539,10 +1552,8 @@ fn exact_local_mutable_alias_origin(
     else {
         return None;
     };
-    // `place_path` admits only Name/Member chains, so indexed and computed
-    // origins cannot be accidentally coarsened into an exact alias.
-    let origin = arithmetic_domains::place_path(program, *origin)?;
-    let (root, suffix) = split_place_root(&origin);
+    let origin = frame_place_path(program, *origin)?;
+    let (root, suffix) = split_place_root(&origin.path);
     if root == "self"
         || parameters
             .iter()
@@ -1550,7 +1561,7 @@ fn exact_local_mutable_alias_origin(
     {
         return Some(origin);
     }
-    if suffix.is_empty() {
+    if origin.precision == FramePathPrecision::Exact && suffix.is_empty() {
         return aliases
             .iter()
             .find_map(|(alias, origin)| (alias == root).then(|| origin.clone()));
@@ -1558,18 +1569,23 @@ fn exact_local_mutable_alias_origin(
     None
 }
 
-fn rebase_local_alias_path(relative: &str, aliases: &[(String, String)]) -> String {
+fn rebase_local_alias_path(relative: &str, aliases: &[(String, FramePlaceOrigin)]) -> String {
     let (root, suffix) = split_place_root(relative);
     aliases
         .iter()
-        .find_map(|(alias, origin)| (alias == root).then(|| append_place_suffix(origin, suffix)))
+        .find_map(|(alias, origin)| {
+            (alias == root).then(|| match origin.precision {
+                FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
+                FramePathPrecision::CollectionCoarse => origin.path.clone(),
+            })
+        })
         .unwrap_or_else(|| relative.to_owned())
 }
 
 fn expression_reborrows_local_alias_binding(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    aliases: &[(String, String)],
+    aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     if !expression.is_valid() {
         return false;
@@ -2307,8 +2323,11 @@ fn instantiate_written_path(
         .position(|parameter| parameter.name.as_str() == root)
     {
         let argument = *arguments.get(argument_index)?;
-        let base = coarse_place_path(program, argument)?;
-        return Some(Some(append_place_suffix(&base, suffix)));
+        let base = frame_place_path(program, argument)?;
+        return Some(Some(match base.precision {
+            FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
+            FramePathPrecision::CollectionCoarse => base.path,
+        }));
     }
     if locals.iter().any(|local| local == root) {
         return Some(None);
@@ -2330,10 +2349,28 @@ fn append_place_suffix(base: &str, suffix: &str) -> String {
 /// Coarsen indexed writes to their collection (`self.cells[i]` writes
 /// `self.cells`). The value environment does not track index-sensitive facts.
 fn coarse_place_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
+    Some(frame_place_path(program, expression)?.path)
+}
+
+/// Recover a frame path together with whether indexing discarded element
+/// identity. Collection-coarse paths are absorbing: callers must not append a
+/// callee/member suffix and accidentally manufacture `self.cells.value` from
+/// a write through `self.cells[i].value`.
+fn frame_place_path(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => coarse_place_path(program, *inner),
-        ExpressionNode::Indexed(indexed) => coarse_place_path(program, indexed.collection),
-        _ => arithmetic_domains::place_path(program, expression),
+        ExpressionNode::Mutable(inner) => frame_place_path(program, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            let mut collection = frame_place_path(program, indexed.collection)?;
+            collection.precision = FramePathPrecision::CollectionCoarse;
+            Some(collection)
+        }
+        _ => Some(FramePlaceOrigin {
+            path: arithmetic_domains::place_path(program, expression)?,
+            precision: FramePathPrecision::Exact,
+        }),
     }
 }
 

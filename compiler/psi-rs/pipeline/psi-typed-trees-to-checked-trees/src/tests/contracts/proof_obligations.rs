@@ -2009,6 +2009,74 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
 }
 
 #[test]
+fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            cells: [u32; 2];
+            other: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.other);
+            self.touch_cells_through_indexed_alias();
+            self.small = self.other;
+        }
+
+        machine Main::touch_cells_through_indexed_alias(&mut self) {
+            let alias: &mut u32 = &mut self.cells[0];
+            alias = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a collection-coarse indexed alias frame should preserve a witness on disjoint storage",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_under_indexed_alias_collection_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            cells: [u32; 2];
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.cells[0]);
+            self.touch_cells_through_indexed_alias();
+            self.small = self.cells[0];
+        }
+
+        machine Main::touch_cells_through_indexed_alias(&mut self) {
+            let alias: &mut u32 = &mut self.cells[1];
+            alias = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the whole collection frame must invalidate an indexed boundary witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn incoming_guard_survives_pure_value_call_before_bounded_assignment() {
     let source = r#"
         machine widen(value: i32) -> i64 {
