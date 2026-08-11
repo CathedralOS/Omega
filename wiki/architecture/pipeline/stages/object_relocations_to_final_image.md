@@ -5,9 +5,10 @@
 This stage combines encoded machine bytes, data bytes, object sections/symbols, relocation records, and target image rules into final executable image data.
 
 The clean terminal-Psi scalar lane also uses this model and the format writers.
-Because that lane currently has no imports or relocations, it requires the final
-compiler text to equal the owned terminal machine bytes exactly and requires
-every executable byte to belong to one provenance-bearing function region.
+It currently admits no imports and only provenance-bound internal-call
+relocations. Final compiler text may differ from the owned terminal machine
+bytes only in those relocations' architecture-specific immediate bits, and
+every executable byte must belong to one provenance-bearing function region.
 
 ## Stage Contract
 
@@ -77,6 +78,8 @@ Must not own:
 - `omega-image/src/output.rs` owns emitted image output DTOs.
 - `omega-image/src/*_relocations.rs` owns architecture-specific final relocation math.
 - `omega-image/src/patch_bytes.rs` owns checked text-section byte reads/writes for final relocation patching.
+- `omega-image/src/relocation_envelope.rs` proves that final compiler text
+  changed only in the exact bits named by checked relocation records.
 - `omega-image-emission/src/lib.rs` owns the public direct-image emission API surface only.
 - `omega-image-emission/src/input.rs` owns the executable image input DTO.
 - `omega-image-emission/src/support.rs` owns direct image writer support facts by target.
@@ -87,8 +90,9 @@ Must not own:
 - `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; image command/section/linkedit planning, import thunks, bind info, AArch64 thunk patching, and entry-symbol lookup live in focused sibling modules.
 - The remaining ELF, Mach-O, and PE modules own format-specific executable layout and byte writing.
 - `omega-terminal-image-emission/src/lib.rs` dispatches the clean terminal-Psi
-  artifact to those writers and publishes exact-text validation evidence while
-  retaining terminal semantic identity alongside each object/image output.
+  artifact to those writers and publishes relocation-envelope validation
+  evidence while retaining terminal semantic identity alongside each
+  object/image output.
 - `omega-terminal-image-emission/src/installation.rs` owns the canonical typed
   installation-record payload over the sealed image: target facts, profile
   decision, selected provider plans, image digest, and text-validation evidence.

@@ -67,12 +67,14 @@ Must not own:
   record-set roots through `RelocationPlan::with_roots`, while callers should
   use helpers such as `with_target`, `with_record_capacity`, `push_record`,
   `record_count`, and `records` instead of constructing or walking the record
-  arena directly.
-- `omega-object-file/src/container.rs` owns compatibility object-container serialization orchestration.
-- `omega-object-file/src/container/bytes.rs` owns primitive byte writing for the compatibility object container.
+  arena directly. Origins distinguish selected instructions, full-width
+  semantic-operation identities, and materialized objects; a semantic identity
+  must never be narrowed into an instruction index.
+- `omega-object-file/src/container.rs` owns Omega object-container serialization orchestration.
+- `omega-object-file/src/container/bytes.rs` owns primitive byte writing for the Omega object container.
 - `omega-object-file/src/container/ids.rs` owns stable object-container enum IDs.
 - `omega-object-file/src/container/sections.rs` owns section-size facts used by object-container summaries.
-- `omega-object-file/src/container/symbols.rs` and `container/relocations.rs` own symbol and relocation metadata serialization for the compatibility object container.
+- `omega-object-file/src/container/symbols.rs` and `container/relocations.rs` own symbol and relocation metadata serialization for the Omega object container.
 
 ## Known Gaps
 

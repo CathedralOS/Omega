@@ -4,6 +4,7 @@ mod footprint_certificate;
 mod model;
 mod output;
 mod patch_bytes;
+mod relocation_envelope;
 mod symbols;
 #[cfg(test)]
 mod tests;
@@ -26,6 +27,7 @@ pub use output::{
     CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,
     ExecutableImageOutput, ImageOutputKind, emitted_direct_executable_output,
 };
+pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{
     final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
 };

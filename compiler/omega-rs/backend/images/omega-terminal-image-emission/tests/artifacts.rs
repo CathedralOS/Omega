@@ -1,4 +1,6 @@
-use omega_object_file::{SectionKind, SymbolKind, object_symbol_name};
+use omega_object_file::{
+    RelocationKind, RelocationOrigin, SectionKind, SymbolKind, object_symbol_name,
+};
 use omega_target::NativeTarget;
 use omega_terminal_image_emission::{
     SelectedProviderPlanIdentity, TerminalInstallationError, TerminalObjectError,
@@ -8,7 +10,9 @@ use omega_terminal_image_emission::{
     encode_terminal_installation_record, terminal_installation_fingerprint,
     validate_terminal_installation_record,
 };
-use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
+use omega_terminal_machine_code::{
+    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+};
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::{EdgeId, MachineId, OperationId, ProfileDecisionId};
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -65,6 +69,7 @@ fn object_artifact_owns_canonical_function_spans_and_psi_provenance() {
     let container = emit_terminal_object_container(&artifact);
     assert_eq!(container.terminal_psi, plan.terminal_psi);
     assert_eq!(&container.output.bytes[..8], b"OMGOBJ\0\0");
+    assert_eq!(&container.output.bytes[8..12], &5_u32.to_le_bytes());
     assert_eq!(container.output.text_bytes, 12);
     assert_eq!(container.output.data_bytes, 0);
     assert_eq!(container.output.bss_bytes, 0);
@@ -100,6 +105,140 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
 }
 
 #[test]
+fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
+    let mut plan = internal_call_plan(NativeTarget::linux_x64());
+    let full_width_operation = operation_id(u64::from(u32::MAX) + 1);
+    plan.functions[1].provenance.operations[0] = full_width_operation;
+    plan.functions[1].internal_calls[0].psi_operation = full_width_operation;
+    let artifact = build_terminal_object_artifact(&plan).expect("terminal object artifact");
+
+    assert_eq!(artifact.relocations().record_count(), 1);
+    let (_, relocation) = artifact.relocations().records().next().expect("relocation");
+    assert_eq!(relocation.kind, RelocationKind::X86_64Relative32);
+    assert_eq!(relocation.section, SectionKind::Text);
+    assert_eq!(relocation.offset, 7);
+    assert_eq!(relocation.byte_width, 4);
+    assert_eq!(relocation.symbol_handle, artifact.functions()[0].symbol);
+    assert_eq!(
+        relocation.origin.semantic_operation_identity(),
+        Some(u64::from(u32::MAX) + 1)
+    );
+    assert_eq!(
+        relocation.origin,
+        RelocationOrigin::SemanticOperation {
+            function_symbol_handle: artifact.functions()[1].symbol,
+            operation_identity: u64::from(u32::MAX) + 1,
+        }
+    );
+
+    let container = emit_terminal_object_container(&artifact);
+    assert_eq!(container.output.relocations, 1);
+    let image = emit_terminal_executable_image(&artifact, 3).expect("Linux x86-64 image");
+    let output = image.output();
+    assert_eq!(&output.final_text_bytes[7..11], &[0xf5, 0xff, 0xff, 0xff]);
+    assert_eq!(output.final_image_relocations, 1);
+    let evidence = output
+        .compiler_text_validation
+        .expect("relocation evidence");
+    assert_ne!(
+        evidence.encoded_text_fingerprint,
+        evidence.final_compiler_text_fingerprint
+    );
+    assert_eq!(evidence.text_relocation_count, 1);
+
+    let record = build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap(), [])
+        .expect("installation record");
+    validate_terminal_installation_record(&record, &image).expect("image binding");
+}
+
+#[test]
+fn aarch64_internal_call_patches_only_the_branch_immediate() {
+    let plan = internal_call_plan(NativeTarget::linux_arm64());
+    let artifact = build_terminal_object_artifact(&plan).expect("terminal object artifact");
+    let (_, relocation) = artifact.relocations().records().next().expect("relocation");
+    assert_eq!(relocation.kind, RelocationKind::Aarch64Branch26);
+    assert_eq!(relocation.offset, 8);
+
+    let image = emit_terminal_executable_image(&artifact, 3).expect("Linux AArch64 image");
+    let output = image.output();
+    assert_eq!(&output.final_text_bytes[8..12], &[0xfe, 0xff, 0xff, 0x97]);
+    assert_eq!(output.final_image_relocations, 1);
+    assert_eq!(
+        output
+            .compiler_text_validation
+            .expect("relocation evidence")
+            .text_relocation_count,
+        1
+    );
+}
+
+#[test]
+fn object_boundary_rejects_unproved_internal_call_relocations() {
+    let mut unknown_target = internal_call_plan(NativeTarget::linux_x64());
+    unknown_target.functions[1].internal_calls[0].target = machine_id(3);
+    assert_eq!(
+        build_terminal_object_artifact(&unknown_target),
+        Err(TerminalObjectError::UnknownInternalCallTarget {
+            caller: machine_id(2),
+            target: machine_id(3),
+        })
+    );
+
+    let mut invalid_site = internal_call_plan(NativeTarget::linux_x64());
+    invalid_site.functions[1].bytes[0] = 0x90;
+    assert_eq!(
+        build_terminal_object_artifact(&invalid_site),
+        Err(TerminalObjectError::InvalidInternalCallSite {
+            caller: machine_id(2),
+            operation: operation_id(2),
+            offset: 1,
+        })
+    );
+
+    let mut duplicate_site = internal_call_plan(NativeTarget::linux_x64());
+    let duplicate_call = duplicate_site.functions[1].internal_calls[0];
+    duplicate_site.functions[1]
+        .internal_calls
+        .push(duplicate_call);
+    assert_eq!(
+        build_terminal_object_artifact(&duplicate_site),
+        Err(TerminalObjectError::NonCanonicalInternalCallOrder(
+            machine_id(2)
+        ))
+    );
+
+    let mut missing_provenance = internal_call_plan(NativeTarget::linux_x64());
+    missing_provenance.functions[1]
+        .provenance
+        .operations
+        .clear();
+    assert_eq!(
+        build_terminal_object_artifact(&missing_provenance),
+        Err(TerminalObjectError::InternalCallOperationNotInProvenance {
+            caller: machine_id(2),
+            operation: operation_id(2),
+        })
+    );
+
+    let mut duplicate_operation = internal_call_plan(NativeTarget::linux_x64());
+    duplicate_operation.functions[1].bytes = vec![0xe8, 0, 0, 0, 0, 0xe8, 0, 0, 0, 0, 0xc3];
+    duplicate_operation.functions[1]
+        .internal_calls
+        .push(TerminalInternalCallRelocation {
+            psi_operation: operation_id(2),
+            target: machine_id(1),
+            offset: 6,
+        });
+    assert_eq!(
+        build_terminal_object_artifact(&duplicate_operation),
+        Err(TerminalObjectError::DuplicateInternalCallOperation {
+            caller: machine_id(2),
+            operation: operation_id(2),
+        })
+    );
+}
+
+#[test]
 fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
     let targets = [
         (NativeTarget::linux_x64(), b"\x7fELF".as_slice()),
@@ -127,6 +266,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                     edges: vec![edge_id(1)],
                 },
                 bytes: bytes.clone(),
+                internal_calls: Vec::new(),
             }],
         };
         let artifact = build_terminal_object_artifact(&plan).expect("artifact");
@@ -204,7 +344,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "059fd111c962350f36681a733bcffb52e155b40ecb3add3f743f6b95478bc604"
+        "56529ae57ff0dddb4d8c82b120cdfe2587464ab5f29321a020ff347d0469774c"
     );
 
     let mut changed_plan = plan;
@@ -317,6 +457,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                     edges: vec![edge_id(1)],
                 },
                 bytes: integer_return(3),
+                internal_calls: Vec::new(),
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
@@ -325,6 +466,47 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                     edges: vec![edge_id(2)],
                 },
                 bytes: integer_return(7),
+                internal_calls: Vec::new(),
+            },
+        ],
+    }
+}
+
+fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
+    let (callee, caller, call_offset) = match target.architecture {
+        omega_target::Architecture::X86_64 => (integer_return(3), vec![0xe8, 0, 0, 0, 0, 0xc3], 1),
+        omega_target::Architecture::Aarch64 => (
+            vec![0x60, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6],
+            vec![0x00, 0x00, 0x00, 0x94, 0xc0, 0x03, 0x5f, 0xd6],
+            0,
+        ),
+    };
+    TerminalMachineCodePlan {
+        terminal_psi: identity(),
+        target,
+        entry: machine_id(2),
+        functions: vec![
+            TerminalMachineCodeFunction {
+                machine: machine_id(1),
+                provenance: TerminalPsiProvenance {
+                    operations: vec![operation_id(1)],
+                    edges: vec![edge_id(1)],
+                },
+                bytes: callee,
+                internal_calls: Vec::new(),
+            },
+            TerminalMachineCodeFunction {
+                machine: machine_id(2),
+                provenance: TerminalPsiProvenance {
+                    operations: vec![operation_id(2)],
+                    edges: vec![edge_id(2)],
+                },
+                bytes: caller,
+                internal_calls: vec![TerminalInternalCallRelocation {
+                    psi_operation: operation_id(2),
+                    target: machine_id(1),
+                    offset: call_offset,
+                }],
             },
         ],
     }

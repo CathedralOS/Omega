@@ -91,6 +91,14 @@ pub enum RelocationOrigin {
         function_symbol_handle: ObjectSymbolHandle,
         selected_instruction_index: u32,
     },
+    /// A source-independent semantic operation that directly owns the
+    /// relocation. The identity is representation-defined and deliberately
+    /// remains a full-width stable integer rather than being recast as a
+    /// selected legacy instruction index.
+    SemanticOperation {
+        function_symbol_handle: ObjectSymbolHandle,
+        operation_identity: u64,
+    },
     Materialization {
         object_symbol_handle: ObjectSymbolHandle,
     },
@@ -100,6 +108,10 @@ impl RelocationOrigin {
     pub const fn symbol_handle(self) -> ObjectSymbolHandle {
         match self {
             Self::Instruction {
+                function_symbol_handle,
+                ..
+            } => function_symbol_handle,
+            Self::SemanticOperation {
                 function_symbol_handle,
                 ..
             } => function_symbol_handle,
@@ -115,7 +127,16 @@ impl RelocationOrigin {
                 selected_instruction_index,
                 ..
             } => Some(selected_instruction_index),
-            Self::Materialization { .. } => None,
+            Self::SemanticOperation { .. } | Self::Materialization { .. } => None,
+        }
+    }
+
+    pub const fn semantic_operation_identity(self) -> Option<u64> {
+        match self {
+            Self::SemanticOperation {
+                operation_identity, ..
+            } => Some(operation_identity),
+            Self::Instruction { .. } | Self::Materialization { .. } => None,
         }
     }
 }

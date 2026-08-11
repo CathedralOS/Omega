@@ -8,8 +8,10 @@ The clean terminal-Psi lane enters the same object model through
 `omega-terminal-image-emission`. It consumes `TerminalMachineCodePlan` directly,
 retains the exact terminal semantic identity and per-function Psi provenance,
 and deliberately does not reconstruct the legacy `EncodedMachineCode` carrier.
-Its current relocation-free scalar slice owns only canonical-order text
-functions and their symbols.
+Its scalar slice owns canonical-order text functions, their symbols, and typed
+internal-call sites. Object construction accepts those sites only when their
+operation identities occur in the function's retained Psi provenance and the
+named architecture-native immediate field is still unpatched.
 
 ## Stage Contract
 
@@ -85,7 +87,7 @@ Must not own:
 - `omega-object-file/src/symbols.rs` owns symbol records and handles.
 - `omega-object-file/src/names.rs` owns target-specific object symbol and section names.
 - `omega-terminal-image-emission/src/lib.rs` owns the clean terminal-Psi object
-  artifact, canonical function-span validation, compatibility-container
+  artifact, canonical function-span validation, Omega object-container
   emission, and handoff to the shared final-image model.
 
 ## Known Gaps
