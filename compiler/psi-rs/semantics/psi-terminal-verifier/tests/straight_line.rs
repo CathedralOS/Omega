@@ -2098,6 +2098,26 @@ fn crash_route_buckets_are_canonical_nonempty_disjunctions() {
         validate_module(&module),
         Err(ModuleError::NonCanonicalCrashRouteAlternatives { .. })
     ));
+
+    module.machines[0].contract.crash_routes = vec![
+        psi_terminal::CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+        },
+        psi_terminal::CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![psi_terminal::CrashRouteGuard::Predicate(
+                psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
+                    ScalarTerm::boolean(true),
+                    ScalarTerm::boolean(true),
+                )),
+            )],
+        },
+    ];
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::NonCanonicalCrashRoutes(_))
+    ));
 }
 
 #[test]

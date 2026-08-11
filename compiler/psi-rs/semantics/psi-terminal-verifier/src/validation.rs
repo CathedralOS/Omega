@@ -351,7 +351,7 @@ fn validate_machine(
                             })?;
                     if crash_continuations
                         .windows(2)
-                        .any(|pair| pair[0] >= pair[1])
+                        .any(|pair| pair[0].cause >= pair[1].cause)
                     {
                         return Err(ModuleError::NonCanonicalCallCrashContinuations(
                             operation.id,
@@ -816,7 +816,7 @@ fn validate_crash_frontiers(
         .contract
         .crash_routes
         .windows(2)
-        .any(|pair| pair[0] >= pair[1])
+        .any(|pair| pair[0].cause >= pair[1].cause)
     {
         return Err(ModuleError::NonCanonicalCrashRoutes(machine.id));
     }
