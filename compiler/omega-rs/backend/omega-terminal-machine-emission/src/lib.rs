@@ -6,10 +6,10 @@
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
-    TerminalAssignedCallArgument, TerminalAssignedConditionalBooleanArm,
-    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
-    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-    TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
+    TerminalAssignedCallArgument, TerminalAssignedCallDestination,
+    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
+    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
+    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
     TerminalAssignedScalarLocation, TerminalExpressionFrame,
 };
 use omega_terminal_machine_code::{
@@ -1255,22 +1255,6 @@ fn emit_x86_64_call(
         )?;
         emit_x86_64_stack_store(bytes, 0, byte_offset);
     }
-    for argument in arguments {
-        let register = argument.destination;
-        let register = x86_gpr_code(source_value, register)?;
-        if register == 4 {
-            return Err(EmissionError::UnsupportedCallArgumentRegister(
-                MachineRegister::X86Rsp,
-            ));
-        }
-        let byte_offset = argument.spill_byte_offset.checked_add(stack_depth).ok_or(
-            EmissionError::IncomingStackOffsetNotEncodable {
-                value: source_value,
-                byte_offset: argument.spill_byte_offset,
-            },
-        )?;
-        emit_x86_64_stack_load(bytes, register, byte_offset);
-    }
     let Some((relocations, target)) = internal_calls.as_mut() else {
         return Err(EmissionError::CallOutsideDirectReturnExpression);
     };
@@ -1279,10 +1263,61 @@ fn emit_x86_64_call(
     } else {
         0
     };
-    let alignment_padding = if stack_depth.is_multiple_of(16) { 8 } else { 0 };
-    let call_stack_bytes = shadow_bytes + alignment_padding;
+    let outgoing_stack_bytes = outgoing_stack_bytes(source_value, arguments)?.max(shadow_bytes);
+    let unaligned_depth = stack_depth.checked_add(outgoing_stack_bytes).ok_or(
+        EmissionError::CallStackAreaNotEncodable {
+            value: source_value,
+            byte_size: outgoing_stack_bytes,
+        },
+    )?;
+    // Entry RSP is 8 modulo 16 after the return address. Expression frames are
+    // 16-byte aligned, so the call-time allocation must make the cumulative
+    // depth 8 modulo 16 before `call` pushes the next return address.
+    let alignment_padding = (8 + 16 - (unaligned_depth % 16)) % 16;
+    let call_stack_bytes = outgoing_stack_bytes.checked_add(alignment_padding).ok_or(
+        EmissionError::CallStackAreaNotEncodable {
+            value: source_value,
+            byte_size: outgoing_stack_bytes,
+        },
+    )?;
     if call_stack_bytes != 0 {
         emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+    }
+    for argument in arguments {
+        let TerminalAssignedCallDestination::OutgoingStack { byte_offset } = argument.destination
+        else {
+            continue;
+        };
+        let spill_byte_offset = argument
+            .spill_byte_offset
+            .checked_add(stack_depth)
+            .and_then(|offset| offset.checked_add(call_stack_bytes))
+            .ok_or(EmissionError::CallStackAreaNotEncodable {
+                value: source_value,
+                byte_size: call_stack_bytes,
+            })?;
+        emit_x86_64_stack_load(bytes, 0, spill_byte_offset);
+        emit_x86_64_stack_store(bytes, 0, byte_offset);
+    }
+    for argument in arguments {
+        let TerminalAssignedCallDestination::Register(register) = argument.destination else {
+            continue;
+        };
+        let register = x86_gpr_code(source_value, register)?;
+        if register == 4 {
+            return Err(EmissionError::UnsupportedCallArgumentRegister(
+                MachineRegister::X86Rsp,
+            ));
+        }
+        let byte_offset = argument
+            .spill_byte_offset
+            .checked_add(stack_depth)
+            .and_then(|offset| offset.checked_add(call_stack_bytes))
+            .ok_or(EmissionError::CallStackAreaNotEncodable {
+                value: source_value,
+                byte_size: call_stack_bytes,
+            })?;
+        emit_x86_64_stack_load(bytes, register, byte_offset);
     }
     bytes.push(0xe8); // call rel32
     let offset = bytes.len();
@@ -2831,15 +2866,70 @@ fn emit_aarch64_call(
             byte_offset,
         )?);
     }
-    for argument in arguments {
-        let register = argument.destination;
-        let register = aarch64_spill_register(source_value, register)?;
-        let byte_offset = argument.spill_byte_offset.checked_add(stack_depth).ok_or(
-            EmissionError::IncomingStackOffsetNotEncodable {
+    let Some((relocations, _)) = internal_calls.as_mut() else {
+        return Err(EmissionError::CallOutsideDirectReturnExpression);
+    };
+    let outgoing_stack_bytes = outgoing_stack_bytes(source_value, arguments)?;
+    let outgoing_stack_bytes = outgoing_stack_bytes
+        .checked_add(15)
+        .map(|bytes| bytes & !15)
+        .ok_or(EmissionError::CallStackAreaNotEncodable {
+            value: source_value,
+            byte_size: outgoing_stack_bytes,
+        })?;
+    let call_stack_bytes =
+        outgoing_stack_bytes
+            .checked_add(16)
+            .ok_or(EmissionError::CallStackAreaNotEncodable {
                 value: source_value,
-                byte_offset: argument.spill_byte_offset,
-            },
-        )?;
+                byte_size: outgoing_stack_bytes,
+            })?;
+    emit_aarch64_adjust_sp(instructions, call_stack_bytes, false)?;
+    instructions.push(aarch64_stack_access(
+        0xf900_0000,
+        30,
+        source_value,
+        outgoing_stack_bytes,
+    )?); // str x30 above outgoing arguments
+    for argument in arguments {
+        let TerminalAssignedCallDestination::OutgoingStack { byte_offset } = argument.destination
+        else {
+            continue;
+        };
+        let spill_byte_offset = argument
+            .spill_byte_offset
+            .checked_add(stack_depth)
+            .and_then(|offset| offset.checked_add(call_stack_bytes))
+            .ok_or(EmissionError::CallStackAreaNotEncodable {
+                value: source_value,
+                byte_size: call_stack_bytes,
+            })?;
+        instructions.push(aarch64_stack_access(
+            0xf940_0000,
+            0,
+            source_value,
+            spill_byte_offset,
+        )?);
+        instructions.push(aarch64_stack_access(
+            0xf900_0000,
+            0,
+            source_value,
+            byte_offset,
+        )?);
+    }
+    for argument in arguments {
+        let TerminalAssignedCallDestination::Register(register) = argument.destination else {
+            continue;
+        };
+        let register = aarch64_spill_register(source_value, register)?;
+        let byte_offset = argument
+            .spill_byte_offset
+            .checked_add(stack_depth)
+            .and_then(|offset| offset.checked_add(call_stack_bytes))
+            .ok_or(EmissionError::CallStackAreaNotEncodable {
+                value: source_value,
+                byte_size: call_stack_bytes,
+            })?;
         instructions.push(aarch64_stack_access(
             0xf940_0000,
             register,
@@ -2847,11 +2937,6 @@ fn emit_aarch64_call(
             byte_offset,
         )?);
     }
-    let Some((relocations, _)) = internal_calls.as_mut() else {
-        return Err(EmissionError::CallOutsideDirectReturnExpression);
-    };
-    emit_aarch64_adjust_sp(instructions, 16, false)?;
-    instructions.push(aarch64_stack_access(0xf900_0000, 30, source_value, 0)?); // str x30, [sp]
     let offset = instructions.len() * 4;
     instructions.push(0x9400_0000); // bl #0
     relocations.push(TerminalInternalCallRelocation {
@@ -2859,9 +2944,33 @@ fn emit_aarch64_call(
         target: callee,
         offset,
     });
-    instructions.push(aarch64_stack_access(0xf940_0000, 30, source_value, 0)?); // ldr x30, [sp]
-    emit_aarch64_adjust_sp(instructions, 16, true)?;
+    instructions.push(aarch64_stack_access(
+        0xf940_0000,
+        30,
+        source_value,
+        outgoing_stack_bytes,
+    )?); // ldr x30 above outgoing arguments
+    emit_aarch64_adjust_sp(instructions, call_stack_bytes, true)?;
     Ok(())
+}
+
+fn outgoing_stack_bytes(
+    source_value: ValueId,
+    arguments: &[TerminalAssignedCallArgument],
+) -> Result<u32, EmissionError> {
+    arguments.iter().try_fold(0, |byte_size, argument| {
+        let TerminalAssignedCallDestination::OutgoingStack { byte_offset } = argument.destination
+        else {
+            return Ok(byte_size);
+        };
+        let end = byte_offset
+            .checked_add(8)
+            .ok_or(EmissionError::CallStackAreaNotEncodable {
+                value: source_value,
+                byte_size: byte_offset,
+            })?;
+        Ok(byte_size.max(end))
+    })
 }
 
 fn emit_aarch64_saturating_add(instructions: &mut Vec<u32>, scalar_type: IntegerType) {
@@ -3109,6 +3218,10 @@ pub enum EmissionError {
     IncomingStackOffsetNotEncodable {
         value: ValueId,
         byte_offset: u32,
+    },
+    CallStackAreaNotEncodable {
+        value: ValueId,
+        byte_size: u32,
     },
     ExpressionScratchRegisterConflict {
         value: ValueId,
@@ -4434,10 +4547,10 @@ mod tests {
     #[test]
     fn emits_typed_direct_call_relocations_for_native_targets() {
         let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
-        for (target, argument_register) in [
-            (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
-            (NativeTarget::windows_x64(), MachineRegister::X86Rcx),
-            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+        for (target, argument_register, stack_byte_offset) in [
+            (NativeTarget::linux_x64(), MachineRegister::X86Rdi, 0),
+            (NativeTarget::windows_x64(), MachineRegister::X86Rcx, 32),
+            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0), 0),
         ] {
             let caller = MachineId::new(1).expect("caller");
             let callee = MachineId::new(2).expect("callee");
@@ -4460,19 +4573,37 @@ mod tests {
                                 psi_operation: call_operation,
                                 source_value: call_result,
                                 callee,
-                                arguments: vec![TerminalTargetCallArgument {
-                                    scalar_type: psi_core::ScalarType::Integer(scalar_type),
-                                    location: TerminalScalarParameterLocation::Register(
-                                        argument_register,
-                                    ),
-                                    expression: TerminalTargetScalarExpression::Integer {
-                                        scalar_type,
-                                        expression: TerminalTargetIntegerExpression::Immediate {
-                                            source_value: argument,
-                                            value: IntegerValue::Unsigned(7),
+                                arguments: vec![
+                                    TerminalTargetCallArgument {
+                                        scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                        location: TerminalScalarParameterLocation::Register(
+                                            argument_register,
+                                        ),
+                                        expression: TerminalTargetScalarExpression::Integer {
+                                            scalar_type,
+                                            expression:
+                                                TerminalTargetIntegerExpression::Immediate {
+                                                    source_value: argument,
+                                                    value: IntegerValue::Unsigned(7),
+                                                },
                                         },
                                     },
-                                }],
+                                    TerminalTargetCallArgument {
+                                        scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                        location: TerminalScalarParameterLocation::IncomingStack {
+                                            byte_offset: stack_byte_offset,
+                                        },
+                                        expression: TerminalTargetScalarExpression::Integer {
+                                            scalar_type,
+                                            expression:
+                                                TerminalTargetIntegerExpression::Immediate {
+                                                    source_value: ValueId::new(6)
+                                                        .expect("stack argument"),
+                                                    value: IntegerValue::Unsigned(9),
+                                                },
+                                        },
+                                    },
+                                ],
                             },
                         },
                     },
@@ -4502,12 +4633,29 @@ mod tests {
                         &caller.bytes[relocation.offset..relocation.offset + 4],
                         &[0; 4]
                     );
+                    assert!(caller.bytes.windows(5).any(|window| {
+                        window
+                            == [
+                                0x48,
+                                0x89,
+                                0x44,
+                                0x24,
+                                u8::try_from(stack_byte_offset).unwrap(),
+                            ]
+                    }));
                     if target.object_format == ObjectFormat::Coff {
                         assert!(
                             caller
                                 .bytes
                                 .windows(4)
                                 .any(|window| window == [0x48, 0x83, 0xec, 40])
+                        );
+                    } else {
+                        assert!(
+                            caller
+                                .bytes
+                                .windows(4)
+                                .any(|window| window == [0x48, 0x83, 0xec, 8])
                         );
                     }
                 }
@@ -4517,8 +4665,9 @@ mod tests {
                         &0x9400_0000_u32.to_le_bytes()
                     );
                     let instructions = aarch64_instructions(&caller.bytes);
-                    assert!(instructions.contains(&0xf900_03fe)); // str x30, [sp]
-                    assert!(instructions.contains(&0xf940_03fe)); // ldr x30, [sp]
+                    assert!(instructions.contains(&0xf900_0bfe)); // str x30, [sp, #16]
+                    assert!(instructions.contains(&0xf940_0bfe)); // ldr x30, [sp, #16]
+                    assert!(instructions.contains(&0xf900_03e0)); // str x0, [sp]
                 }
             }
         }

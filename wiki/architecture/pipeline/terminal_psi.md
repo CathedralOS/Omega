@@ -164,12 +164,14 @@ verify the required tail-position and ranking evidence. Fixed-fuel derivation
 includes complete acyclic callee bounds and retains its own cycle rejection as
 defense in depth.
 
-Omega selects each callee's native calling plan, evaluates arguments into
-disjoint frame spills before filling ABI registers, preserves the AArch64 link
-register, honors Microsoft x64 shadow space and x86 stack alignment, and emits a
-typed internal-call relocation tied to the exact Psi operation and callee.
-Stack-passed scalar arguments and calls inside conditional-control lowering are
-remaining engineering coverage, not unresolved language design.
+Omega selects each callee's native calling plan and evaluates arguments into
+disjoint frame spills before filling their ABI homes. Assignment retains
+explicit register or outgoing-stack destinations. Emission materializes the
+complete outgoing area, including Microsoft x64 shadow space, preserves x86
+call alignment and the AArch64 link register, and emits a typed internal-call
+relocation tied to the exact Psi operation and callee. Calls inside
+conditional-control lowering remain engineering coverage, not unresolved
+language design.
 
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends
