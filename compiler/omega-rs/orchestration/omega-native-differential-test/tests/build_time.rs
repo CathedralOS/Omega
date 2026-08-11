@@ -8,6 +8,7 @@
 use omega_compiler::compile_to_checked;
 use psi_checked_interpreter::{
     BuildTimeValue, evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret,
+    interpret_entry,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -19,6 +20,32 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     let main_path = dir.join("main.omg");
     fs::write(&main_path, source).expect("write build-time program");
     main_path
+}
+
+#[test]
+fn exact_interpreter_entry_does_not_depend_on_main_spelling() {
+    let main_path = write_program(
+        "exact-entry",
+        r#"
+data Probe { }
+machine Probe::start(&mut self) -> i32 { 70 }
+
+data Main { }
+machine Main::main(&mut self) -> i32 { 1 }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("entry probe should compile");
+
+    let selected = interpret_entry(&checked, "Probe::start", &[]);
+    assert_eq!(selected.error, None);
+    assert_eq!(selected.exit_code, 70);
+
+    let missing = interpret_entry(&checked, "probe::start", &[]);
+    assert_eq!(missing.exit_code, 0);
+    assert_eq!(
+        missing.error.as_deref(),
+        Some("no entry machine `probe::start`")
+    );
 }
 
 #[test]
