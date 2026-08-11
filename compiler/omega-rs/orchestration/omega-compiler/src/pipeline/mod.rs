@@ -4,6 +4,7 @@ mod artifacts;
 mod boundary_report;
 mod build_config;
 mod build_time_admission;
+mod callback_plans;
 mod calling_policy_plans;
 mod checked_entry;
 pub mod compile_options;
@@ -40,6 +41,7 @@ pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
+pub use callback_plans::{StaticCallbackBindingPlan, StaticCallbackBindingPlanSet};
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{CheckedCompilation, compile_to_checked};
 pub use compile_options::CompileOptions;

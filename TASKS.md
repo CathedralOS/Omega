@@ -221,10 +221,10 @@ Owners:
 
 #### ENT4 — registered callbacks
 
-- Bind one named static boundary machine to a callback requirement, retain exact
-  call/state plans, and emit its thunk only from selected binding lowering.
-  Registration is linear, explicitly unregisters, and retains required code/
-  component leases.
+- Static contextual selection and exact address-free `CallPlan + StatePlan`
+  retention are live for one uniquely conformed boundary machine. Emit its
+  thunk only from the selected binding lowering. Registration is linear,
+  explicitly unregisters, and retains required code/component leases.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.

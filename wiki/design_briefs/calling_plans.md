@@ -718,6 +718,16 @@ relocations. Composite adapters retain each actual native subcall plan instead
 of substituting their outer semantic signature. A missing, mismatched, or
 incompatible plan fails closed.
 
+Contextual static callback selection is live in Omega orchestration. A boundary
+operation that selects one named `boundary machine` retains a callback binding
+only when that entry has one unique explicit conformance to a boundary
+requirement with an evaluated `BoundaryEntryPlan`. The retained fact contains
+the exact requirement, machine/entry symbols, normalized plan fingerprint, and
+complete `CallPlan + StatePlan`; it has no numeric entry address. Ambiguous
+callback conformances and multiple callback selections fail closed. Thunk
+emission, registration custody, external-root installation, and code/component
+lease retention remain to be connected.
+
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current
 coverage includes scalar/aggregate parameters and results, AAPCS64 HFAs,
