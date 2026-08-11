@@ -529,7 +529,9 @@ provider-writes-only view. Until a core write-only claim/view lands, a binding
 must not silently widen write-only access to read/write when doing so would
 disclose existing bytes, and it cannot expose uninitialized receive storage
 under a contract that permits foreign reads. Identity-only retention is an
-ordinary stable keepalive claim that lends no memory view.
+ordinary stable keepalive claim that lends no memory view. Its core
+representation, source form, and transition to readable initialized content are
+open in [Owner Q4](../../OWNER_QUESTIONS.md#q4--write-only-memory-view).
 
 The native leaf declares the foreign signature's actual parameter structure.
 Separate pointer and length parameters are not interchangeable with a record

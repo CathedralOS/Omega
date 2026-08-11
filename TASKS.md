@@ -213,7 +213,11 @@ Owners:
 
 - Finish foreign-storage custody and provider-view invalidation. Borrowed
   custody ends at return; durable retention consumes an owned claim and ends
-  through a receipt. Add an explicit write-only view.
+  through a receipt.
+- **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
+  representation and initialization transition are settled, carry the exact
+  view through foreign signatures, calling plans, borrow checking, and both
+  execution paths without widening it to read/write authority.
 
 #### ENT3 — final state-footprint validation
 
@@ -449,6 +453,8 @@ These entries are pointers, not duplicate specifications.
   compose with the portable semantic root requirement.
 - **SEALED-LOCAL-CAPACITY-SOURCE-FORM:** the source-facing remainder of
   `ROOT-INTRODUCTION-AND-BACKING` is blocked on owner Q3.
+- **WRITE-ONLY-MEMORY-VIEW:** the Q4 portion of `ENT2c` is blocked on its core
+  representation, source form, and transition to readable initialized content.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked
