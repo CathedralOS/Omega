@@ -149,7 +149,7 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
         derive_fixed_entry_fuel(&verified, machine_id(1))
             .expect("call crash has bounded acyclic fuel")
             .ceiling_units(),
-        4
+        3
     );
 
     let mut execution =

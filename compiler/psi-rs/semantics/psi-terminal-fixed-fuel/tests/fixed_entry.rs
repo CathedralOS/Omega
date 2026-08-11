@@ -4,8 +4,9 @@ use psi_core::{
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, ContractClause, CrashCause, MachineContract, Operation, OperationKind, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
+    Operation, OperationKind, SuccessorEdge, TerminalMachine, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -164,6 +165,156 @@ fn calls_include_the_complete_callee_bound() {
         .expect("acyclic call graph has a fixed bound");
     assert_eq!(certificate.ceiling_units(), 4);
     validate_fixed_entry_fuel(&verified, &certificate).expect("call bound recomputes");
+}
+
+#[test]
+fn an_all_crash_callee_excludes_the_unreachable_caller_tail() {
+    let mut module = call_fixture();
+    let route = CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    };
+    module.machines[0].contract.crash_routes = vec![route.clone()];
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![route.clone()];
+    module.machines[1].contract.crash_routes = vec![route];
+    module.machines[1].blocks[0].terminator = Terminator::Crash {
+        edge: edge_id(2),
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("all-crash call module verifies");
+
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(1))
+            .expect("all-crash call has an exact bound")
+            .ceiling_units(),
+        3,
+        "the caller return edge is unreachable after the callee crash"
+    );
+    assert_eq!(
+        derive_fixed_segment_fuel(&verified, machine_id(1), block_id(1), edge_id(1)),
+        Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+            block: block_id(1),
+            callee: machine_id(2),
+        })
+    );
+    assert!(
+        derive_fixed_safe_point_segments(&verified, machine_id(1))
+            .expect("the caller has no reachable machine-local edge")
+            .is_empty()
+    );
+}
+
+#[test]
+fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
+    let mut module = call_fixture();
+    let route = CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![CrashRouteGuard::Truth],
+    };
+    module.machines[0].contract.crash_routes = vec![route.clone()];
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![route.clone()];
+
+    let callee = &mut module.machines[1];
+    callee.contract.crash_routes = vec![route];
+    callee.blocks = vec![
+        Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: value_id(4),
+                when_true: SuccessorEdge {
+                    edge: edge_id(2),
+                    target: block_id(3),
+                    arguments: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: edge_id(3),
+                    target: block_id(4),
+                    arguments: Vec::new(),
+                },
+            },
+        },
+        Block {
+            id: block_id(3),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(4),
+                value: value_id(4),
+            },
+        },
+        Block {
+            id: block_id(4),
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    id: operation_id(3),
+                    result: ValueDeclaration {
+                        id: value_id(6),
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    kind: OperationKind::BooleanConstant { value: false },
+                },
+                Operation {
+                    id: operation_id(4),
+                    result: ValueDeclaration {
+                        id: value_id(7),
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    kind: OperationKind::BooleanConstant { value: false },
+                },
+            ],
+            terminator: Terminator::Crash {
+                edge: edge_id(5),
+                cause: CrashCause::Abort,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        },
+    ];
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed call-outcome module verifies");
+
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(1))
+            .expect("mixed call outcomes have an exact bound")
+            .ceiling_units(),
+        6,
+        "the four-unit crash path must not be followed by the caller return"
+    );
+    assert_eq!(
+        derive_fixed_segment_fuel(&verified, machine_id(1), block_id(1), edge_id(1))
+            .expect("the caller return edge remains reachable")
+            .ceiling_units(),
+        5,
+        "the caller segment composes with the callee's two-unit return path"
+    );
 }
 
 #[test]
