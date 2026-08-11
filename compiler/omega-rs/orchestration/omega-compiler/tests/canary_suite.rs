@@ -42883,6 +42883,11 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/nat_nondescending_recursion_rejected",
     "proofs/integer_measured_nat_recursion_stalled",
     "proofs/nat_substate_nondescending_rejected",
+    "proofs/integer_measured_nat_claim_refuted",
+    "proofs/nat_structural_disproof_refuted",
+    "proofs/nat_payload_disjointness_refuted",
+    "proofs/nat_ground_compute_refuted",
+    "proofs/nat_inductive_claim_refuted",
 ];
 
 #[test]
@@ -48686,7 +48691,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/rat_scaled_triangle_false_rejected",
     "proofs/static_machine_selection_false_equality_rejected",
     "proofs/value_call_refuted_inequality_rejected",
-    "proofs/integer_measured_nat_claim_refuted",
     "proofs/structural_ensures_unjudged_rejected",
     "proofs/record_false_comm_rejected",
     "proofs/ring_exchange_unhypothesized_rejected",
@@ -48695,11 +48699,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/semantic_cast_range_insufficient",
     "domains/semantic_cast_requires_missing",
     "domains/semantic_cast_unknown_domain",
-    "proofs/nat_structural_disproof_refuted",
     "proofs/runtime_attached_machine_proof_parameter_rejected",
-    "proofs/nat_payload_disjointness_refuted",
-    "proofs/nat_ground_compute_refuted",
-    "proofs/nat_inductive_claim_refuted",
     "proofs/zero_value_wrong_home_case_rejected",
     "proofs/zero_value_gated_home_rejected",
     "proofs/zero_value_executable_rejected",
