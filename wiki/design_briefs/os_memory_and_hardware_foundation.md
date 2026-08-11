@@ -1178,15 +1178,6 @@ must bind the same exact canonical nesting relation and provider-summary set.
 The sealed stack and fuel realizations retain those complete inputs; compact
 composition fingerprints are report keys, not admission evidence.
 
-The current Rust implementation also contains IDT-named writer, table, load,
-grant, and receipt states. They are implementation debt, not part of this
-language architecture. Cathedral owns its IDT schema, writer lifecycle, and
-installation protocol. The compiler keeps only generic plan validation,
-symbolic/fragment materialization, external-root analysis, provider admission,
-and checked instruction contracts. `TASKS.md` P4/P5 own removing the
-customer-shaped specialization while Cathedral replaces it with source-owned
-structures and protocols.
-
 Machine-state admission checks the final footprint against the `StatePlan`.
 Schedule-keyed fixed-fuel provider summaries compose transitively while
 rejecting mixed schedules, missing callees, cycles, zero invocation bounds,
