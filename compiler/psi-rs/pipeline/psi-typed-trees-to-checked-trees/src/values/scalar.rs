@@ -217,6 +217,54 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
     )
 }
 
+/// Lower one call argument in the caller state's checked scalar namespace.
+/// Only the immutable scalar-prefix shape accepted by terminal scalar lowering
+/// is represented; any wider state shape stays explicit as `None` so crash
+/// refinement cannot claim a portable predicate it cannot later materialize.
+pub(crate) fn lower_state_scalar_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    state: &psi_typed_trees::state::State,
+    before_statement: usize,
+    expression: ExpressionHandle,
+    expected_type: PrimitiveType,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+) -> Option<CheckedScalarExpression> {
+    let parameters = program.state_parameters(state);
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let prefix = statements.get(..before_statement)?;
+    let mut locals = Vec::new();
+    for statement in prefix {
+        let StatementNode::LocalData(local) = statement else {
+            return None;
+        };
+        if local.is_mutable || !local.initial_value.is_valid() {
+            return None;
+        }
+        let primitive_type = program.primitive_type_reference(local.type_reference)?;
+        locals.push(ScalarLocal {
+            symbol: local.symbol,
+            name: local.name.as_str().to_owned(),
+            primitive_type,
+            arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
+        });
+    }
+    lower_return_expression(
+        program,
+        operators,
+        expression,
+        parameters,
+        &parameter_types,
+        &locals,
+        expected_type,
+        exact_integer_casts,
+    )
+}
+
 fn lower_return_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -783,7 +831,9 @@ fn local_position(
         .flatten()
 }
 
-fn scalar_expression_type(expression: &CheckedScalarExpression) -> Option<PrimitiveType> {
+pub(crate) fn scalar_expression_type(
+    expression: &CheckedScalarExpression,
+) -> Option<PrimitiveType> {
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::Local { primitive_type, .. }

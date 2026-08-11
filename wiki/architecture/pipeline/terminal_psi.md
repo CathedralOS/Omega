@@ -164,10 +164,12 @@ reconstructs the surviving continuation set, and requires coverage by the
 caller's published ceiling; an empty or untranslated set therefore cannot erase
 a crash. Checked scalar contracts and body crash sites retain structured
 predicate meaning through terminal lowering. Invocation-specific guarded call
-rows still fail closed until their substituted checked predicates carry that
-same structure. Imported crash capsules remain fail-closed. Structural/content
-contracts also still reject because custody effects require their own vertical
-slice rather than an ordinary scalar flag.
+rows now retain that same structure after substituting direct parameter and
+caller-local scalar arguments. Source call production must consume those rows
+when it emits `Call`; unrepresentable substitutions and imported crash capsules
+remain fail-closed. Structural/content contracts also still reject because
+custody effects require their own vertical slice rather than an ordinary scalar
+flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

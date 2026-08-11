@@ -417,6 +417,8 @@ fn build_contract_plans(
     let crash_capsules = build_crash_contract_capsules(program, &content_conservation);
     crash_calls::attach_checked_crash_calls(
         program,
+        operators,
+        exact_integer_casts,
         flow,
         &content_conservation,
         &crash_capsules,
