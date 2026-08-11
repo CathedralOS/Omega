@@ -2373,6 +2373,45 @@ fn write_frame_substitutes_exact_local_exclusive_alias_origins() {
         alias = 5;
         transition { _ -> self }
     }
+
+    machine Main::named_alias_acyclic(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        transition { _ -> finish(alias) }
+        state finish(&mut self, value: &mut u64) {
+            value = 6;
+        }
+    }
+
+    machine Main::named_alias_multihop(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        transition { _ -> forward(alias) }
+        state forward(&mut self, value: &mut u64) {
+            transition { _ -> finish(value) }
+        }
+        state finish(&mut self, value: &mut u64) {
+            value = 7;
+        }
+    }
+
+    machine Main::named_alias_member(&mut self) {
+        let alias: &mut Cell = &mut self.cell;
+        transition { _ -> finish(alias) }
+        state finish(&mut self, value: &mut Cell) {
+            value.value = 8;
+        }
+    }
+
+    machine alias_parameter_named(value: &mut u64) {
+        let alias: &mut u64 = &mut value;
+        transition { _ -> finish(alias) }
+        state finish(value: &mut u64) {
+            value = 9;
+        }
+    }
+
+    machine Main::call_alias_parameter_named(&mut self) {
+        alias_parameter_named(&mut self.value);
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -2390,6 +2429,11 @@ fn write_frame_substitutes_exact_local_exclusive_alias_origins() {
         ("alias_parameter", "$P0"),
         ("Main::call_alias_parameter", "self.value"),
         ("Main::local_alias_self_loop", "self.value"),
+        ("Main::named_alias_acyclic", "self.value"),
+        ("Main::named_alias_multihop", "self.value"),
+        ("Main::named_alias_member", "self.cell.value"),
+        ("alias_parameter_named", "$P0"),
+        ("Main::call_alias_parameter_named", "self.value"),
     ];
     for (name, expected_path) in expected {
         let machine = typed
@@ -2448,20 +2492,44 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         overwrite_alias_binding(&mut alias);
     }
 
-    machine Main::named_alias_acyclic(&mut self) {
-        let alias: &mut u64 = &mut self.value;
-        transition { _ -> finish(alias) }
-        state finish(&mut self, value: &mut u64) {
-            value = 4;
-        }
-    }
-
     machine Main::named_alias_cycle(&mut self) {
         transition { _ -> cycle() }
         state cycle(&mut self) {
             let alias: &mut u64 = &mut self.value;
             alias = 4;
             transition { _ -> cycle() }
+        }
+    }
+
+    machine Main::named_alias_multistate_cycle(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        transition { _ -> first(alias) }
+        state first(&mut self, value: &mut u64) {
+            transition { _ -> second(value) }
+        }
+        state second(&mut self, value: &mut u64) {
+            value = 5;
+            transition { _ -> first(value) }
+        }
+    }
+
+    machine Main::named_alias_downstream_cycle(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        transition { _ -> prefix(alias) }
+        state prefix(&mut self, value: &mut u64) {
+            transition { _ -> cycle(value) }
+        }
+        state cycle(&mut self, value: &mut u64) {
+            value = 6;
+            transition { _ -> cycle(value) }
+        }
+    }
+
+    machine Main::named_alias_cross_state_local(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        transition { _ -> finish() }
+        state finish(&mut self) {
+            alias = 7;
         }
     }
     "#;
@@ -2480,8 +2548,10 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         "Main::local_origin",
         "Main::indexed_alias",
         "Main::call_rebound_alias",
-        "Main::named_alias_acyclic",
         "Main::named_alias_cycle",
+        "Main::named_alias_multistate_cycle",
+        "Main::named_alias_downstream_cycle",
+        "Main::named_alias_cross_state_local",
     ] {
         let machine = typed
             .machines()

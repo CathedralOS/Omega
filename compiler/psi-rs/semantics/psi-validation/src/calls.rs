@@ -1465,11 +1465,11 @@ fn summarize_state_written_paths(
                             program.statement_table.transition_target(target),
                             TransitionTargetNode::Named { .. }
                         )
+                        && !named_transition_subgraph_is_acyclic(program, machine, state, target)
                     {
-                        // This first origin-substitution slice is deliberately
-                        // state-local. Threading an alias binding through a named
-                        // transition needs a graph-level environment; do not let
-                        // the target summary erase a source-local root meanwhile.
+                        // Alias origins compose positionally through acyclic
+                        // named graphs. A reachable named SCC needs equation-
+                        // level alias substitution, so keep it opaque here.
                         return None;
                     }
                     for relative in summarize_transition_target_written_paths(
@@ -1644,6 +1644,80 @@ fn type_reference_is_reference(program: &TypedTrees, handle: TypeReferenceHandle
         }
         _ => false,
     }
+}
+
+fn named_transition_subgraph_is_acyclic(
+    program: &TypedTrees,
+    machine: &Machine,
+    source: &State,
+    target: psi_typed_trees::statement::TransitionTargetHandle,
+) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        visiting: &mut Vec<SymbolHandle>,
+        complete: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if complete.contains(&state.symbol) {
+            return true;
+        }
+        if visiting.contains(&state.symbol) {
+            return false;
+        }
+        visiting.push(state.symbol);
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for edge in [transition.target, transition.continuation] {
+                if !edge.is_valid()
+                    || !matches!(
+                        program.statement_table.transition_target(edge),
+                        TransitionTargetNode::Named { .. }
+                    )
+                {
+                    continue;
+                }
+                let Some(next) = named_transition_target_state(program, machine, state, edge)
+                else {
+                    return false;
+                };
+                if !visit(program, machine, next, visiting, complete) {
+                    return false;
+                }
+            }
+        }
+        visiting.pop();
+        complete.push(state.symbol);
+        true
+    }
+
+    let Some(target) = named_transition_target_state(program, machine, source, target) else {
+        return false;
+    };
+    visit(program, machine, target, &mut Vec::new(), &mut Vec::new())
+}
+
+fn named_transition_target_state<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    source: &'program State,
+    target: psi_typed_trees::statement::TransitionTargetHandle,
+) -> Option<&'program State> {
+    let TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(target)
+    else {
+        return None;
+    };
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|candidate| candidate.symbol == path.symbol)
+        .or_else(|| {
+            let members = program.statement_table.name_path_members(path.members);
+            matches!(members, [member] if member.as_str() == "self").then_some(source)
+        })
 }
 
 #[derive(Debug, Clone)]
@@ -2027,16 +2101,10 @@ fn summarize_transition_target_written_paths(
         // forwards the complete state-parameter namespace positionally without
         // rebinding.
         TransitionTargetNode::SelfTarget => Some(Vec::new()),
-        TransitionTargetNode::Named { path, arguments } => {
+        TransitionTargetNode::Named { arguments, .. } => {
             let arguments = program.statement_table.expression_handles(*arguments);
-            let target_state = program
-                .machine_states(machine)
-                .iter()
-                .find(|candidate| candidate.symbol == path.symbol)
-                .or_else(|| {
-                    let members = program.statement_table.name_path_members(path.members);
-                    matches!(members, [member] if member.as_str() == "self").then_some(source_state)
-                })?;
+            let target_state =
+                named_transition_target_state(program, machine, source_state, target)?;
             if active_states.contains(&target_state.symbol) {
                 return named_transition_preserves_state_namespace(
                     program,
