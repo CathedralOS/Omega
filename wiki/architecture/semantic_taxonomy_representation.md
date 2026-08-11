@@ -498,17 +498,11 @@ proof-cache identity, diagnostics, and provider-local revalidation. Stable
 canonical defaults elaborate immediately to an explicit `ranking_view_id`;
 the checker never selects a noncanonical view heuristically.
 
-Current implementation: termination legality and checked
-view facts resolve ranked subjects and argumented-view bounds from the
-normalized `RankingWitness`; view and rank-range identity come from the same
-witness. Validation, checked facts, specialization, eligibility, and typed
-snapshots resolve that same witness; the legacy typed-machine
-decreases/order/argument/range spans are deleted.
-
-Current artifact: visual builds emit
-`05_machine_contracts.json`, with authored contract identity and private
-implementation evidence in separate nested objects. The contract object never
-contains ranking subjects, view, range, or other witness material.
+Termination legality, checked facts, specialization, eligibility, and snapshots
+all resolve the normalized `RankingWitness`. Visual artifacts keep authored
+contract identity separate from private implementation evidence; ranking
+subjects, views, ranges, and other witness material never enter the contract
+object.
 
 Boundary progress profiles referenced by premises are sealed semantic
 commitments with grant/receipt identity. They participate in provider

@@ -429,15 +429,6 @@ a conjunct strengthens requirements and guarantees; removing one weakens them.
 The resulting compatibility effects are reported at the affected callers,
 implementations, or consumers.
 
-> **Surface status (2026-07-28).** Declared-domain aliases are implemented
-> across parsing, resolved and typed domain theory, constrained-type identity,
-> proof/contract compatibility, admission, executable membership, validation,
-> and atomic diagnostics. `pub` legality is retained for domain aliases:
-> publishing a private declared constituent rejects. The compiler-owned
-> `Carry` atoms and their standard `Carry::Portable` declaration land with the
-> separate per-claim carry migration; aliases over ordinary declared atoms work
-> now.
-
 ### Weakening
 
 Weakening is evaluated independently for each domain atom. An `i32::Km &
@@ -501,17 +492,10 @@ machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
 }
 ```
 
-> **Surface status (2026-07-31).** This example illustrates the settled *model*.
-> Explicit `as` qualification into an **arithmetic** domain and proof-directed
-> exact integer coercion work today (`x as u8::Saturating`; exact widening;
-> and narrowing proved by a declared range or dominating guard). Unproved
-> integer narrowing and signedness changes reject instead of truncating or
-> reinterpreting. The
-> `as` qualification into a **reference/encoding/layout** domain shown here
-> (`bytes as &[u8]::Utf8`) is the recast surface that is **not yet
-> implemented** — it is pending on qualification plus the
-> invariant-prover's reach). The shape above is the intended spelling, not
-> currently compilable.
+> The `bytes as &[u8]::Utf8` reference/encoding-domain recast in this example is
+> not yet implemented. Arithmetic-domain qualification and proof-directed
+> exact integer coercion are implemented; unproved narrowing and signedness
+> changes reject.
 
 The compiler generates none of this — and generates nothing at all for domain
 membership. Its only job is to accept or reject the `as`, by asking whether the
