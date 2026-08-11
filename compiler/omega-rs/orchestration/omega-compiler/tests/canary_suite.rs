@@ -5248,9 +5248,9 @@ fn signed_rat_metric_canaries_compile_in_isolation() {
         "proofs/cauchy_predicates_compile",
     ] {
         let canary = pass_canary(canary_name);
-        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+        if let Err(diagnostics) = check_canary(&canary) {
             panic!(
-                "expected signed Rat canary {} to compile, but got diagnostics:\n{}",
+                "expected signed Rat canary {} to reach checked semantics, but got diagnostics:\n{}",
                 canary.display(),
                 diagnostics
                     .iter()
@@ -5259,6 +5259,26 @@ fn signed_rat_metric_canaries_compile_in_isolation() {
                     .join("\n")
             );
         }
+    }
+}
+
+#[test]
+fn checked_only_rat_metric_canaries_are_not_backend_umbrella_members() {
+    for canary_name in CHECKED_ONLY_PASS_CANARIES {
+        assert!(
+            !ACTIVE_PASS_CANARIES.contains(canary_name),
+            "checked-only pass canary `{canary_name}` must not also use backend entry discovery"
+        );
+        assert!(pass_canary(canary_name).join("main.omg").is_file());
+    }
+    for canary_name in CHECKED_ONLY_FAIL_CANARIES {
+        assert!(
+            !ACTIVE_FAIL_CANARIES.contains(canary_name),
+            "checked-only fail canary `{canary_name}` must not also use backend entry discovery"
+        );
+        let canary = fail_canary(canary_name);
+        assert!(canary.join("main.omg").is_file());
+        assert!(canary.join("expected.txt").is_file());
     }
 }
 
@@ -42773,6 +42793,20 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("build/uefi_program_entry_wrong_calling_policy", "uefi_x64"),
 ];
 
+/// Pure checked-semantics canaries. These deliberately do not enter native
+/// lowering and therefore do not require a deployable `ProgramEntry` binding.
+const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    "proofs/rat_metric_compile",
+    "proofs/signed_rat_metric_compile",
+    "proofs/cauchy_predicates_compile",
+];
+
+const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "proofs/cauchy_zero_precision_rejected",
+    "proofs/nat_metric_false_gap_zero",
+    "proofs/rat_metric_false_reflexivity",
+];
+
 #[test]
 fn explicit_program_entry_binding_owns_capability_manifest_identity() {
     let canary = pass_canary("build/explicit_program_entry_binding");
@@ -43925,6 +43959,22 @@ fn pass_canaries_compile() {
     };
     let mut selected_count = 0usize;
 
+    for canary_name in CHECKED_ONLY_PASS_CANARIES.iter().copied().filter(selected) {
+        selected_count += 1;
+        let canary = pass_canary(canary_name);
+        if let Err(diagnostics) = check_canary(&canary) {
+            failures.push(format!(
+                "checked-only {}:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        }
+    }
+
     for (canary_name, target) in CROSS_TARGET_PASS_CANARIES
         .iter()
         .copied()
@@ -44902,14 +44952,15 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     let filter = std::env::var("OMEGA_FAIL_CANARY_FILTER").ok();
     let mut selected = 0usize;
 
-    for canary_name in ACTIVE_FAIL_CANARIES.iter().copied().filter(|canary_name| {
+    let selected_by_filter = |canary_name: &&str| {
         filter.as_deref().is_none_or(|filter| {
             filter
                 .split(',')
                 .map(str::trim)
                 .any(|candidate| !candidate.is_empty() && canary_name.contains(candidate))
         })
-    }) {
+    };
+    let mut evaluate = |canary_name: &str, checked_only: bool| {
         selected += 1;
         let canary = fail_canary(canary_name);
         let expected_path = canary.join("expected.txt");
@@ -44918,21 +44969,26 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             .trim()
             .to_owned();
 
-        let cross_target = CROSS_TARGET_FAIL_CANARIES
-            .iter()
-            .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
-        let result = match cross_target {
-            Some(target) => compile_canary_without_output_for_target(&canary, target),
-            None => compile_canary_without_output(&canary),
+        let result = if checked_only {
+            check_canary(&canary).map(|()| "checked semantics".to_owned())
+        } else {
+            let cross_target = CROSS_TARGET_FAIL_CANARIES
+                .iter()
+                .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
+            match cross_target {
+                Some(target) => compile_canary_without_output_for_target(&canary, target),
+                None => compile_canary_without_output(&canary),
+            }
+            .map(|report| report.summary())
         };
         let diagnostics = match result {
-            Ok(report) => {
+            Ok(summary) => {
                 failures.push(format!(
                     "{} compiled successfully (expected a rejection): {}",
                     canary.display(),
-                    report.summary()
+                    summary
                 ));
-                continue;
+                return;
             }
             Err(diagnostics) => diagnostics,
         };
@@ -44950,6 +45006,21 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
                 combined
             ));
         }
+    };
+
+    for canary_name in CHECKED_ONLY_FAIL_CANARIES
+        .iter()
+        .copied()
+        .filter(selected_by_filter)
+    {
+        evaluate(canary_name, true);
+    }
+    for canary_name in ACTIVE_FAIL_CANARIES
+        .iter()
+        .copied()
+        .filter(selected_by_filter)
+    {
+        evaluate(canary_name, false);
     }
 
     assert!(
@@ -47067,6 +47138,10 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     result
 }
 
+fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
+    compile_to_checked(&canary_dir.join("main.omg"), None).map(|_| ())
+}
+
 /// A build dir no other concurrent compile can collide with: process id plus a
 /// process-wide counter (parallel test threads share the process, so the id alone
 /// is not unique).
@@ -47861,9 +47936,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_core_rat_declared_exit",
-    "proofs/rat_metric_compile",
-    "proofs/signed_rat_metric_compile",
-    "proofs/cauchy_predicates_compile",
     "proofs/nat_metric_triangle_compile",
     "proofs/accepted_axiom_cited_exit",
     "proofs/real_boundary_package_compile",
@@ -48555,7 +48627,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/named_float_fused_multiply_add_intrinsic_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
-    "proofs/cauchy_zero_precision_rejected",
     "proofs/float_meaning_runtime_consumption_rejected",
     "proofs/float_meaning_zero_finite_rejected",
     "proofs/cauchy_triangle_wrong_middle_den_rejected",
@@ -48563,9 +48634,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/core_nat_runtime_consumption_rejected",
     "proofs/citation_later_fact_unavailable",
     "proofs/generic_contract_pre_specialization_false_law_rejected",
-    "proofs/nat_metric_false_gap_zero",
     "proofs/nested_structural_case_false_rejected",
-    "proofs/rat_metric_false_reflexivity",
     "proofs/rat_close_triangle_false_rejected",
     "proofs/rat_scaled_triangle_false_rejected",
     "proofs/rat_zero_denominator_rejected",
