@@ -755,67 +755,20 @@ kinds are compiler-owned. The provider is admitted to tell the truth about the
 backing, while the binding is admitted to map its schema to the identified
 device. Their compatibility is derived without laundering either premise.
 
-### Implementation migration
+### Implementation boundary
 
-The ordinary source records live with the layout vocabulary in
-`omega::language::core::layout`; the existing `Plan` record remains the current
-source spelling of `LayoutPlan`. `AccessPlan::inaccessible(schema)` produces
-the required compiler-keyed denial seed, and functional keyed replacement
-cannot silently accept a foreign key. The compiler now evaluates
-build-time-admissible `Access::plan` machines against a reified validated
-layout and evaluates `Placement::plan` machines into one validated
-layout/access/reach result. It derives transfer widths from layout geometry
-rather than accepting a second authored copy.
+The source vocabulary lives in `omega::language::core::layout`; `Plan` remains
+the current source name for `LayoutPlan`. `psi-access-plans` owns normalized
+layout/access/profile joins, exact-loan admission, opaque field identities, and
+sealed primitive requests. The compiler derives concrete `Placed<P, T>`
+accessors fail-closed: inaccessible or unauthorized operations have no method,
+destructive reads remain distinct from repeatable reads, and atomic accessors
+retain their exact operation family.
 
-The `psi-access-plans` foundation validates normalized field geometry, exact
-widths, operation and observation compatibility, borrow polarity, atomic
-orderings, exact loan facts, and sealed lowering requests. It normalizes to one
-inaccessible-defaulted slot per schema field, binds opaque field keys to the
-exact layout, and keeps destructive external reads distinct from ordinary
-reads. A normalized
-`PlacementPlan` now owns the complete layout/access pairing and its one
-normalized boundary reach; admission checks that reach once and lowering
-requests retain it. The Rust bootstrap still consumes an internal exact-loan
-carrier and returns it on rejection; source lowering must replace that carrier
-with ordinary qualified place borrows and opaque inferred admission evidence.
-Current view-borrow and retained source-borrow polarity are checked
-independently.
-Exposure uses the settled `Exported | BindingPrivate` vocabulary; stable
-compound mutation is derived, external compound mutation is unavailable, and
-atomic permissions distinguish the exact operation families. Admitted
-`ResourceProfile` supply is now normalized into disjoint offset-keyed regions
-and bound by provider receipt to an exact range, address space, provenance,
-mapping era, required rights, and reach. Exact subrange loans intersect and
-rebase that supply without filling uncovered bytes. The placement/profile join
-checks interval containment, observation, operation and reach subsets, and
-exact widths; it derives one power-of-two base congruence before admission,
-while admission checks the concrete loan base and returns a rejected loan
-intact. Accepted placements and sealed primitive requests retain the provider
-receipt and effective per-field supply. The foundation placed-view carrier now
-separates pure `project`/`project_mut` from the memory event: projection yields
-a borrow-carrying field accessor, and only named read, destructive-take, write,
-stable-compound, and individual atomic-family methods can seal a primitive
-request. Inaccessible fields yield no accessor; current view-borrow and source
-loan polarity remain independent checks at the operation boundary. `TASKS.md`
-owns the remaining source and lowering work. The compiler now performs the
-first fail-closed source derivation for each concrete `Placed<P, T>` spelling:
-it evaluates the canonical placement policy before ordinary resolution,
-revalidates the normalized identity in the authoritative typed program, and
-synthesizes unique opaque stable/external field accessors implementing only
-the admitted `Readable`, `DestructiveRead`, and `Writable` requirements.
-Inaccessible and unauthorized operations have no projection/method. Atomic
-fields now derive unique opaque `bool`/`u32`/`u64` accessors whose exact
-operation subset remains attached to the authoritative typed placement plan.
-Direct load, store, fetch, swap, and compare-exchange syntax is checked against
-that subset; atomic mutation follows the atomic rule through a shared view
-borrow, and a bare accessor cannot become an ordinary scalar. Only the nominal
-placement package directly names or issues a binding-private accessor;
-possession delegates its public operation requirements to generic code. Public
-generic helpers use the settled sealed per-operation atomic requirement family.
-Qualified-borrow admission, establishment/retirement routes, per-operation
-encoding/decoding and transfer checks, effect-footprint conflicts, conditional
-schema provenance, and target-specific external/atomic emission remain
-implementation work.
+This section records the implementation boundary, not its history. The P2
+`AccessPlan`/`Placed` and symbolic-materialization entries in
+[`TASKS.md`](../../TASKS.md) own the remaining source establishment,
+retirement, transfer, effect-footprint, and target-lowering work.
 
 ## IPC and DMA
 
@@ -947,26 +900,17 @@ optimism, decides acceptance.
 
 ### Current footprint pipeline
 
-Inbound argument storage, outbound results, fixed call/return mechanics,
-dispatch scaffolding, supported guards, compiler-body memory operations, and
-the live syscall/import families retain normalized footprint fragments bound to
-the exact `BoundaryEntryPlan`. Fragment composition is deterministic and
-implementation-only; it cannot change public contract identity.
+Normalized footprint fragments remain bound to the exact
+`BoundaryEntryPlan` through target selection, layout, and emission. Final-image
+construction inventories compiler and format-owned text, binds regions to
+relocated bytes, rejects overlap or gaps, and replays each supported class
+against its closed target recipe and relocation envelope.
 
-The encoded-machine artifact retains those fragments through target selection,
-layout, and emission. Final-image construction separately inventories every
-compiler function and format-owned import thunk, binds regions to relocated
-bytes, rejects overlap or gaps, and replays each supported class against its
-closed target recipe and exact relocation envelope. Missing, foreign, or
-mismatched evidence fails closed.
-
-The single typed footprint certificate binds the final placement, compiler-text
-derivation, executable-region inventory, boundary contract, and composed
-implementation evidence. Region enumeration is complete for the current closed
-emitter, but footprint enumeration remains explicitly incomplete until general
-compiler-body decoding, generated stubs, relaxation products/veneers, and
-admitted indirect leaves are covered. Admission replays this certificate; no
-second whole-image decoder supplies an alternative answer.
+One typed certificate binds final placement, text derivation, executable-region
+inventory, boundary contract, and composed implementation evidence. It remains
+incomplete until the ENT3 coverage listed in [`TASKS.md`](../../TASKS.md)
+closes; missing or mismatched evidence rejects, and no second whole-image
+decoder supplies an alternate answer.
 
 ## Symbolic materialization and admitted executable installation
 
@@ -1458,54 +1402,13 @@ interleavings, protocol state, and selected liveness evidence; ordinary proof
 machines consume normalized policy and provenance rather than re-reading source
 attributes.
 
-## Ownership
+## Ownership and acceptance
 
-`TASKS.md` owns implementation order. Omega owns the reusable extent, layout,
-access, admission, materialization, entry-plan, artifact, and runtime-contract
-machinery described here. Cathedral owns concrete page tables, interrupt
-structures and policy, timer/device providers, DMA and IPC protocols, runtime
-provisioning, and device schemas. Cathedral workloads are acceptance tests for
-the generic machinery, never compiler phases.
+Omega owns the reusable extent, layout, access, admission, materialization,
+entry-plan, artifact, and runtime-contract machinery described here. Cathedral
+owns page tables, interrupt structures and policy, timer/device providers, DMA
+and IPC protocols, runtime provisioning, and device schemas. Cathedral
+workloads test the generic machinery; they never become compiler phases.
 
-## Gauntlet
-
-The foundation is not complete because this brief says so. It earns confidence
-when the same pieces implement, without new customer-shaped syntax:
-
-1. UART MMIO with read-only, write-only, and W1C registers;
-2. an OS-package address-translation implementation;
-3. trusted and hostile shared-page IPC;
-4. zero-copy DMA with completion and revocation;
-5. IDT, timer interrupt, nesting, and acknowledgement;
-6. SMP AP bringup through installation of an admitted low-memory trampoline and
-   checked mode changes.
-
-Required negative tests include hidden reach through direct assembly, forged
-addresses without authority, stale hostile-peer validation, CPU access during
-an external loan, a split relocation consumed too early, and a final-image
-veneer/thunk that introduces a register class forbidden by the root's
-`StatePlan` despite all earlier per-function checks passing. Extent/access tests
-must also reject merging numerically adjacent ranges from different authority
-origins; Stable placement over MMIO or External placement beyond admitted
-rights; impossible or runtime-misaligned transfer geometry; narrow external
-writes requiring RMW; multi-transfer External field reads; destructive access
-through `Readable`; independently projected fields from one destructive
-container; overlapping stable bitfield RMW footprints; mixed-width overlapping
-atomics; source-borrow polarity upgrades; overlapping live views; placed-view
-recast escalation; forged provider/profile/admission evidence; unencodable
-field writes; schema/revision evidence from a different device instance; and
-ordinary Stable mutation through two shared projections.
-IDT tests must show that an open-authored `Layout` or `Calling<C>` policy can
-produce only a candidate plan: it cannot mint the sealed resolver, Cathedral's
-materialized-table fact, or Cathedral's CPU/table publication authority; cannot
-publish a structurally valid but semantically inadmissible table; and cannot
-hide installer reach behind a wrapper or direct checked assembly.
-
-## Deliberately deferred work
-
-Dynamic source-visible entry references, movable continuations, asynchronous
-revocation, live patching policy, general quantitative resource/WCET algebra,
-recoverable faults inside hard interrupt roots, independent final-byte
-control-transfer certificates, and CET/PAC/shadow-stack hardening remain
-deliberately deferred until their owning assurance profile or customer is
-implemented.
+[`TASKS.md`](../../TASKS.md) is the sole implementation queue, acceptance
+gauntlet, blocked index, and deliberately deferred list for this foundation.
