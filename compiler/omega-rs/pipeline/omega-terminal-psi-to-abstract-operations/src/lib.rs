@@ -60,6 +60,10 @@ fn lower_decoded_verified_module(
 }
 
 fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, LoweringError> {
+    let result = machine
+        .result
+        .scalar()
+        .ok_or(LoweringError::UnitResultNotYetSupported(machine.id))?;
     let blocks = machine
         .blocks
         .iter()
@@ -70,7 +74,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
     let value_types = machine
         .parameters
         .iter()
-        .chain(std::iter::once(&machine.result))
+        .chain(std::iter::once(&result))
         .chain(
             machine
                 .blocks
@@ -545,10 +549,13 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
             Terminator::Return { edge, value } => {
                 operations.push(TerminalAbstractOperation::Return {
                     psi_edge: *edge,
-                    result: machine.result.id,
+                    result: result.id,
                     value: *value,
-                    scalar_type: machine.result.scalar_type,
+                    scalar_type: result.scalar_type,
                 });
+            }
+            Terminator::ReturnUnit { .. } => {
+                return Err(LoweringError::UnitResultNotYetSupported(machine.id));
             }
             Terminator::Crash {
                 edge,
@@ -578,8 +585,8 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
             })
             .collect(),
         result: TerminalAbstractResult {
-            value: machine.result.id,
-            scalar_type: machine.result.scalar_type,
+            value: result.id,
+            scalar_type: result.scalar_type,
         },
         block_entries,
         operations,
@@ -589,6 +596,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     SemanticIdentity(CodecError),
+    UnitResultNotYetSupported(MachineId),
     VerifiedEntryMachineMissing(MachineId),
     VerifiedBlockMissing { machine: MachineId, block: BlockId },
     VerifiedControlCycle { machine: MachineId, block: BlockId },

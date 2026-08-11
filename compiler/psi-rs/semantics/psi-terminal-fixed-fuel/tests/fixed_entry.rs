@@ -5,8 +5,8 @@ use psi_core::{
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, SuccessorEdge, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    Operation, OperationKind, SuccessorEdge, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -39,6 +39,26 @@ fn straight_line_entry_has_an_exact_recomputable_bound() {
     let independently_verified =
         verify_module(&decoded, &proof, &AdmissionProfile::default()).unwrap();
     validate_fixed_entry_fuel(&independently_verified, &certificate).unwrap();
+}
+
+#[test]
+fn unit_return_is_one_normal_edge_unit() {
+    let module = unit_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("unit module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("unit return has an exact fixed bound");
+
+    assert_eq!(certificate.ceiling_units(), 1);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+    let segments = derive_fixed_safe_point_segments(&verified, machine_id(900)).unwrap();
+    assert_eq!(segments.len(), 1);
+    assert_eq!(segments[0].end_edge(), edge_id(900));
+    assert_eq!(segments[0].ceiling_units(), 1);
 }
 
 #[test]
@@ -346,6 +366,37 @@ fn safe_point_selection_covers_the_complete_ordered_path() {
     );
 }
 
+fn unit_fixture() -> TerminalModule {
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(900),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(900),
+            parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(900),
+            blocks: vec![Block {
+                id: block_id(900),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit { edge: edge_id(900) },
+            }],
+            contract: MachineContract {
+                id: contract_id(900),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
 fn fixture() -> (TerminalModule, ProofBundle) {
     let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -360,10 +411,10 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         machines: vec![TerminalMachine {
             id: machine_id(1),
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(3),
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -443,7 +494,7 @@ fn call_fixture() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(1),
                 parameters: Vec::new(),
-                result: declaration(3),
+                result: TerminalMachineResult::Scalar(declaration(3)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -479,7 +530,7 @@ fn call_fixture() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(2),
                 parameters: vec![declaration(4)],
-                result: declaration(5),
+                result: TerminalMachineResult::Scalar(declaration(5)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),

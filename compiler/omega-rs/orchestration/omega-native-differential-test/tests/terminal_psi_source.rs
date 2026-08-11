@@ -63,7 +63,8 @@ use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
-    TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_artifact_measured,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{VerifiedTerminalModule, verify_module};
 use std::collections::BTreeSet;
@@ -443,10 +444,10 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
     );
     assert_eq!(
         result,
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: i32_type,
             value: IntegerValue::Signed(7),
-        }
+        })
     );
 }
 
@@ -809,10 +810,10 @@ fn checked_source_integer_policy_operations_survive_frontend_drop() {
         assert_eq!(measured.usage().total_units(), 5, "{machine} usage");
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: u8_type,
                 value: IntegerValue::Unsigned(expected),
-            },
+            }),
             "{machine} result"
         );
     }
@@ -880,10 +881,10 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
     assert_eq!(measured.usage().total_units(), 5);
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: u8_type,
             value: IntegerValue::Unsigned(50),
-        }
+        })
     );
 
     let abstract_operations = lower_verified_artifact(&verified)
@@ -924,7 +925,10 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
     let measured = interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(false)])
         .expect("Boolean-local terminal Psi should execute");
     assert_eq!(measured.usage().total_units(), 2);
-    assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
 
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified Boolean local should lower without frontend state");
@@ -977,7 +981,7 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
             interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(value)])
                 .expect("verified direct call should interpret")
                 .value(),
-            TerminalScalarValue::Boolean(value),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(value)),
         );
     }
     let abstract_operations = lower_verified_artifact(&verified)
@@ -1053,7 +1057,7 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
             )
             .expect("the staged source call should interpret")
             .value(),
-            TerminalScalarValue::Boolean(first || second),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(first || second)),
         );
     }
     let abstract_operations = lower_verified_artifact(&verified)
@@ -1162,7 +1166,7 @@ fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
         )
         .expect("a false staged guard should return")
         .value(),
-        TerminalScalarValue::Boolean(false),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(false)),
     );
 }
 
@@ -1226,7 +1230,7 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
         interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(true)])
             .expect("the disproved call route should return")
             .value(),
-        TerminalScalarValue::Boolean(false),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(false)),
     );
     let mut execution = start_verified_artifact(&verified, &[TerminalScalarValue::Boolean(false)])
         .expect("start the proved guarded-crash invocation");
@@ -1289,7 +1293,10 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
             ],
         )
         .expect("short-circuit local should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
     }
 
     let abstract_operations = lower_verified_artifact(&verified)
@@ -1338,7 +1345,10 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
             ],
         )
         .expect("consumed short-circuit local should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
     }
 
     let abstract_operations = lower_verified_artifact(&verified)
@@ -1405,7 +1415,10 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
             ],
         )
         .expect("reused short-circuit local should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1464,7 +1477,10 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
             ],
         )
         .expect("branched short-circuit local should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1531,7 +1547,10 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
             ],
         )
         .expect("multiple short-circuit locals should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 9);
     }
 
@@ -1584,7 +1603,10 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
             ],
         )
         .expect("staged-local short-circuit return should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1632,7 +1654,10 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
             ],
         )
         .expect("staged-local jump should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1680,7 +1705,10 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
             ],
         )
         .expect("staged-local nested jump should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1728,7 +1756,10 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
             ],
         )
         .expect("staged-local jump tuple should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1777,7 +1808,10 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
             ],
         )
         .expect("staged-local conditional edge should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1827,7 +1861,10 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
             ],
         )
         .expect("staged-local short-circuit guard should execute");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -1971,7 +2008,10 @@ fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
     let measured = interpret_verified_artifact(&verified, &arguments)
         .expect("source-produced ninth parameter should execute");
     assert_eq!(measured.usage().total_units(), 1);
-    assert_eq!(measured.value(), arguments[8]);
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(arguments[8])
+    );
 
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified source parameters should lower without frontend state");
@@ -2076,10 +2116,10 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
         assert_eq!(measured.usage().total_units(), fuel, "{machine} usage");
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: u8_type,
                 value: IntegerValue::Unsigned(expected),
-            },
+            }),
             "{machine} result"
         );
     }
@@ -2114,10 +2154,10 @@ fn checked_source_exact_literal_narrowing_relands_before_terminal_psi() {
             .expect("decoded narrowing artifact should interpret");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: u8_type,
             value: IntegerValue::Unsigned(127),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 2);
 
@@ -2213,17 +2253,17 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
     let rejected = execute(256);
     assert_eq!(
         narrowed.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: u8_type,
             value: IntegerValue::Unsigned(255),
-        }
+        })
     );
     assert_eq!(
         rejected.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: u8_type,
             value: IntegerValue::Unsigned(0),
-        }
+        })
     );
     assert_eq!(
         narrowed.usage().total_units(),
@@ -2331,8 +2371,14 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
     };
     let shifted = execute(1u128 << 63, 63);
     let rejected = execute(1u128 << 63, 64);
-    assert_eq!(shifted.value(), argument(1));
-    assert_eq!(rejected.value(), argument(0));
+    assert_eq!(
+        shifted.value(),
+        TerminalExecutionResult::Scalar(argument(1))
+    );
+    assert_eq!(
+        rejected.value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
     assert_eq!(shifted.usage().total_units(), 6);
     assert_eq!(
         shifted.usage().total_units(),
@@ -2442,9 +2488,18 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
     let shifted = execute(1, 31);
     let rejected_value = execute(2, 31);
     let rejected_count = execute(1, 32);
-    assert_eq!(shifted.value(), argument(1u128 << 31));
-    assert_eq!(rejected_value.value(), argument(0));
-    assert_eq!(rejected_count.value(), argument(0));
+    assert_eq!(
+        shifted.value(),
+        TerminalExecutionResult::Scalar(argument(1u128 << 31))
+    );
+    assert_eq!(
+        rejected_value.value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        rejected_count.value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
     assert_eq!(
         shifted.usage().total_units(),
         rejected_value.usage().total_units()
@@ -2527,8 +2582,14 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
         )
         .expect("verified known-count exact left shift should interpret")
     };
-    assert_eq!(execute(536_870_911).value(), argument(4_294_967_288));
-    assert_eq!(execute(536_870_912).value(), argument(0));
+    assert_eq!(
+        execute(536_870_911).value(),
+        TerminalExecutionResult::Scalar(argument(4_294_967_288))
+    );
+    assert_eq!(
+        execute(536_870_912).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2583,10 +2644,22 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
         )
         .expect("verified bounded-count exact left shift should interpret")
     };
-    assert_eq!(execute(536_870_911, 3).value(), argument(4_294_967_288));
-    assert_eq!(execute(536_870_911, 2).value(), argument(2_147_483_644));
-    assert_eq!(execute(536_870_912, 3).value(), argument(0));
-    assert_eq!(execute(1, 4).value(), argument(0));
+    assert_eq!(
+        execute(536_870_911, 3).value(),
+        TerminalExecutionResult::Scalar(argument(4_294_967_288))
+    );
+    assert_eq!(
+        execute(536_870_911, 2).value(),
+        TerminalExecutionResult::Scalar(argument(2_147_483_644))
+    );
+    assert_eq!(
+        execute(536_870_912, 3).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(1, 4).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2625,14 +2698,20 @@ fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
     };
     assert_eq!(
         execute(2_305_843_009_213_693_951, 3).value(),
-        argument(u64::MAX as u128 - 7)
+        TerminalExecutionResult::Scalar(argument(u64::MAX as u128 - 7))
     );
     assert_eq!(
         execute(2_305_843_009_213_693_951, 2).value(),
-        argument(9_223_372_036_854_775_804)
+        TerminalExecutionResult::Scalar(argument(9_223_372_036_854_775_804))
     );
-    assert_eq!(execute(2_305_843_009_213_693_952, 3).value(), argument(0));
-    assert_eq!(execute(1, 4).value(), argument(0));
+    assert_eq!(
+        execute(2_305_843_009_213_693_952, 3).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(1, 4).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2701,8 +2780,14 @@ fn checked_source_exact_add_uses_known_addend_bound() {
         )
         .expect("verified exact addition should interpret")
     };
-    assert_eq!(execute(4_294_967_290).value(), argument(4_294_967_295));
-    assert_eq!(execute(4_294_967_291).value(), argument(0));
+    assert_eq!(
+        execute(4_294_967_290).value(),
+        TerminalExecutionResult::Scalar(argument(4_294_967_295))
+    );
+    assert_eq!(
+        execute(4_294_967_291).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2798,9 +2883,18 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
         )
         .expect("verified joint-bound exact addition should interpret")
     };
-    assert_eq!(execute(20, 22).value(), argument(42));
-    assert_eq!(execute(4_294_967_285, 10).value(), argument(4_294_967_295));
-    assert_eq!(execute(4_294_967_295, 1).value(), argument(0));
+    assert_eq!(
+        execute(20, 22).value(),
+        TerminalExecutionResult::Scalar(argument(42))
+    );
+    assert_eq!(
+        execute(4_294_967_285, 10).value(),
+        TerminalExecutionResult::Scalar(argument(4_294_967_295))
+    );
+    assert_eq!(
+        execute(4_294_967_295, 1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2857,11 +2951,26 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
         )
         .expect("verified signed joint-bound exact addition should interpret")
     };
-    assert_eq!(execute(20, 22).value(), argument(42));
-    assert_eq!(execute(2_147_483_637, 10).value(), argument(2_147_483_647));
-    assert_eq!(execute(2_147_483_647, 1).value(), argument(0));
-    assert_eq!(execute(-5, 3).value(), argument(-2));
-    assert_eq!(execute(20, -1).value(), argument(0));
+    assert_eq!(
+        execute(20, 22).value(),
+        TerminalExecutionResult::Scalar(argument(42))
+    );
+    assert_eq!(
+        execute(2_147_483_637, 10).value(),
+        TerminalExecutionResult::Scalar(argument(2_147_483_647))
+    );
+    assert_eq!(
+        execute(2_147_483_647, 1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(-5, 3).value(),
+        TerminalExecutionResult::Scalar(argument(-2))
+    );
+    assert_eq!(
+        execute(20, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2903,15 +3012,24 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
     };
     assert_eq!(
         execute(-2_147_483_640, -8).value(),
-        argument(i32::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MIN as i128))
     );
-    assert_eq!(execute(i32::MIN as i128, -1).value(), argument(0));
-    assert_eq!(execute(5, -3).value(), argument(2));
+    assert_eq!(
+        execute(i32::MIN as i128, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(5, -3).value(),
+        TerminalExecutionResult::Scalar(argument(2))
+    );
     assert_eq!(
         execute(i32::MAX as i128, -1).value(),
-        argument(2_147_483_646)
+        TerminalExecutionResult::Scalar(argument(2_147_483_646))
     );
-    assert_eq!(execute(20, 1).value(), argument(0));
+    assert_eq!(
+        execute(20, 1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -2985,9 +3103,18 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
         )
         .expect("verified exact subtraction should interpret")
     };
-    assert_eq!(execute(5).value(), argument(0));
-    assert_eq!(execute(100).value(), argument(95));
-    assert_eq!(execute(4).value(), argument(0));
+    assert_eq!(
+        execute(5).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(100).value(),
+        TerminalExecutionResult::Scalar(argument(95))
+    );
+    assert_eq!(
+        execute(4).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3050,13 +3177,22 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
         )
         .expect("verified joint-bound exact subtraction should interpret")
     };
-    assert_eq!(execute(42, 20).value(), argument(22));
+    assert_eq!(
+        execute(42, 20).value(),
+        TerminalExecutionResult::Scalar(argument(22))
+    );
     assert_eq!(
         execute(u32::MAX as u128, u32::MAX as u128).value(),
-        argument(0)
+        TerminalExecutionResult::Scalar(argument(0))
     );
-    assert_eq!(execute(0, 0).value(), argument(0));
-    assert_eq!(execute(20, 21).value(), argument(0));
+    assert_eq!(
+        execute(0, 0).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, 21).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3098,15 +3234,24 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
     };
     assert_eq!(
         execute(-2_147_483_640, 8).value(),
-        argument(i32::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MIN as i128))
     );
-    assert_eq!(execute(i32::MIN as i128, 1).value(), argument(0));
-    assert_eq!(execute(5, 3).value(), argument(2));
+    assert_eq!(
+        execute(i32::MIN as i128, 1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(5, 3).value(),
+        TerminalExecutionResult::Scalar(argument(2))
+    );
     assert_eq!(
         execute(i32::MAX as i128, 0).value(),
-        argument(i32::MAX as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MAX as i128))
     );
-    assert_eq!(execute(20, -1).value(), argument(0));
+    assert_eq!(
+        execute(20, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3148,15 +3293,24 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
     };
     assert_eq!(
         execute(2_147_483_640, -7).value(),
-        argument(i32::MAX as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MAX as i128))
     );
-    assert_eq!(execute(i32::MAX as i128, -1).value(), argument(0));
-    assert_eq!(execute(5, -3).value(), argument(8));
+    assert_eq!(
+        execute(i32::MAX as i128, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(5, -3).value(),
+        TerminalExecutionResult::Scalar(argument(8))
+    );
     assert_eq!(
         execute(i32::MIN as i128, 0).value(),
-        argument(i32::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MIN as i128))
     );
-    assert_eq!(execute(20, 1).value(), argument(0));
+    assert_eq!(
+        execute(20, 1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3224,7 +3378,10 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
                 &[argument(left), argument(right)],
             )
             .expect("verified signed i64 add/subtract should interpret");
-            assert_eq!(execution.value(), argument(expected));
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(argument(expected))
+            );
         }
 
         let abstract_operations =
@@ -3301,7 +3458,10 @@ fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
                 &arguments,
             )
             .expect("verified unsigned u64 arithmetic should interpret");
-            assert_eq!(execution.value(), argument(expected));
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(argument(expected))
+            );
         }
 
         let abstract_operations =
@@ -3377,9 +3537,18 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
         )
         .expect("verified exact multiplication should interpret")
     };
-    assert_eq!(execute(858_993_459).value(), argument(4_294_967_295));
-    assert_eq!(execute(100).value(), argument(500));
-    assert_eq!(execute(858_993_460).value(), argument(0));
+    assert_eq!(
+        execute(858_993_459).value(),
+        TerminalExecutionResult::Scalar(argument(4_294_967_295))
+    );
+    assert_eq!(
+        execute(100).value(),
+        TerminalExecutionResult::Scalar(argument(500))
+    );
+    assert_eq!(
+        execute(858_993_460).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3447,14 +3616,26 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
         )
         .expect("verified joint-bound exact multiplication should interpret")
     };
-    assert_eq!(execute(21, 2).value(), argument(42));
+    assert_eq!(
+        execute(21, 2).value(),
+        TerminalExecutionResult::Scalar(argument(42))
+    );
     assert_eq!(
         execute(u32::MAX as u128, 1).value(),
-        argument(u32::MAX as u128)
+        TerminalExecutionResult::Scalar(argument(u32::MAX as u128))
     );
-    assert_eq!(execute(65_535, 65_537).value(), argument(u32::MAX as u128));
-    assert_eq!(execute(u32::MAX as u128, 2).value(), argument(0));
-    assert_eq!(execute(20, 0).value(), argument(0));
+    assert_eq!(
+        execute(65_535, 65_537).value(),
+        TerminalExecutionResult::Scalar(argument(u32::MAX as u128))
+    );
+    assert_eq!(
+        execute(u32::MAX as u128, 2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, 0).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3494,15 +3675,30 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
         )
         .expect("verified signed joint-bound exact multiplication should interpret")
     };
-    assert_eq!(execute(21, 2).value(), argument(42));
+    assert_eq!(
+        execute(21, 2).value(),
+        TerminalExecutionResult::Scalar(argument(42))
+    );
     assert_eq!(
         execute(-1_073_741_824, 2).value(),
-        argument(i32::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MIN as i128))
     );
-    assert_eq!(execute(715_827_882, 3).value(), argument(2_147_483_646));
-    assert_eq!(execute(-1_073_741_825, 2).value(), argument(0));
-    assert_eq!(execute(1_073_741_824, 2).value(), argument(0));
-    assert_eq!(execute(20, 0).value(), argument(0));
+    assert_eq!(
+        execute(715_827_882, 3).value(),
+        TerminalExecutionResult::Scalar(argument(2_147_483_646))
+    );
+    assert_eq!(
+        execute(-1_073_741_825, 2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(1_073_741_824, 2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, 0).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3543,17 +3739,38 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
         )
         .expect("verified negative signed joint-bound multiplication should interpret")
     };
-    assert_eq!(execute(-1_073_741_823, -2).value(), argument(2_147_483_646));
+    assert_eq!(
+        execute(-1_073_741_823, -2).value(),
+        TerminalExecutionResult::Scalar(argument(2_147_483_646))
+    );
     assert_eq!(
         execute(1_073_741_824, -2).value(),
-        argument(i32::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i32::MIN as i128))
     );
-    assert_eq!(execute(-715_827_882, -3).value(), argument(2_147_483_646));
-    assert_eq!(execute(715_827_882, -3).value(), argument(-2_147_483_646));
-    assert_eq!(execute(-1_073_741_824, -2).value(), argument(0));
-    assert_eq!(execute(1_073_741_825, -2).value(), argument(0));
-    assert_eq!(execute(20, -1).value(), argument(0));
-    assert_eq!(execute(20, 0).value(), argument(0));
+    assert_eq!(
+        execute(-715_827_882, -3).value(),
+        TerminalExecutionResult::Scalar(argument(2_147_483_646))
+    );
+    assert_eq!(
+        execute(715_827_882, -3).value(),
+        TerminalExecutionResult::Scalar(argument(-2_147_483_646))
+    );
+    assert_eq!(
+        execute(-1_073_741_824, -2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(1_073_741_825, -2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, 0).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3594,12 +3811,30 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
         )
         .expect("verified runtime-negation exact multiplication should interpret")
     };
-    assert_eq!(execute(-2_147_483_647, -1).value(), argument(2_147_483_647));
-    assert_eq!(execute(2_147_483_647, -1).value(), argument(-2_147_483_647));
-    assert_eq!(execute(0, -1).value(), argument(0));
-    assert_eq!(execute(i32::MIN as i128, -1).value(), argument(0));
-    assert_eq!(execute(20, -2).value(), argument(0));
-    assert_eq!(execute(20, 0).value(), argument(0));
+    assert_eq!(
+        execute(-2_147_483_647, -1).value(),
+        TerminalExecutionResult::Scalar(argument(2_147_483_647))
+    );
+    assert_eq!(
+        execute(2_147_483_647, -1).value(),
+        TerminalExecutionResult::Scalar(argument(-2_147_483_647))
+    );
+    assert_eq!(
+        execute(0, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(i32::MIN as i128, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, -2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, 0).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3645,32 +3880,50 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
 
     assert_eq!(
         execute(i64::MIN as i128 + 1, -1).value(),
-        argument(i64::MAX as i128)
+        TerminalExecutionResult::Scalar(argument(i64::MAX as i128))
     );
-    assert_eq!(execute(i64::MIN as i128, -1).value(), argument(0));
+    assert_eq!(
+        execute(i64::MIN as i128, -1).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     assert_eq!(
         execute(-4_611_686_018_427_387_904, 2).value(),
-        argument(i64::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i64::MIN as i128))
     );
     assert_eq!(
         execute(3_074_457_345_618_258_602, 3).value(),
-        argument(9_223_372_036_854_775_806)
+        TerminalExecutionResult::Scalar(argument(9_223_372_036_854_775_806))
     );
-    assert_eq!(execute(-4_611_686_018_427_387_905, 2).value(), argument(0));
-    assert_eq!(execute(4_611_686_018_427_387_904, 2).value(), argument(0));
+    assert_eq!(
+        execute(-4_611_686_018_427_387_905, 2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(4_611_686_018_427_387_904, 2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     assert_eq!(
         execute(-4_611_686_018_427_387_903, -2).value(),
-        argument(9_223_372_036_854_775_806)
+        TerminalExecutionResult::Scalar(argument(9_223_372_036_854_775_806))
     );
     assert_eq!(
         execute(4_611_686_018_427_387_904, -2).value(),
-        argument(i64::MIN as i128)
+        TerminalExecutionResult::Scalar(argument(i64::MIN as i128))
     );
-    assert_eq!(execute(-4_611_686_018_427_387_904, -2).value(), argument(0));
-    assert_eq!(execute(4_611_686_018_427_387_905, -2).value(), argument(0));
-    assert_eq!(execute(20, 0).value(), argument(0));
+    assert_eq!(
+        execute(-4_611_686_018_427_387_904, -2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(4_611_686_018_427_387_905, -2).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
+    assert_eq!(
+        execute(20, 0).value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3741,7 +3994,10 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
         &[argument(500), argument(0)],
     )
     .expect("verified exact division should interpret");
-    assert_eq!(execution.value(), argument(100));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(100))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3797,7 +4053,10 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
         &[argument(-101), argument(0)],
     )
     .expect("verified signed exact division should interpret");
-    assert_eq!(execution.value(), argument(-50));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(-50))
+    );
 
     #[cfg(unix)]
     {
@@ -3879,7 +4138,10 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
         &[argument(503), argument(0)],
     )
     .expect("verified exact remainder should interpret");
-    assert_eq!(execution.value(), argument(3));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(3))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -3936,7 +4198,10 @@ fn checked_source_signed_exact_remainder_is_truncating() {
         &[argument(-101), argument(0)],
     )
     .expect("verified signed exact remainder should interpret");
-    assert_eq!(execution.value(), argument(-1));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(-1))
+    );
 
     #[cfg(unix)]
     {
@@ -4019,7 +4284,10 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
         &[argument(505), argument(0)],
     )
     .expect("verified wrapping division should interpret");
-    assert_eq!(execution.value(), argument(101));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(101))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -4076,7 +4344,10 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
         &[argument(i64::MIN as i128), argument(0)],
     )
     .expect("verified signed wrapping division should interpret");
-    assert_eq!(execution.value(), argument(i64::MIN as i128));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(i64::MIN as i128))
+    );
 
     #[cfg(unix)]
     {
@@ -4165,7 +4436,10 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
         &[argument(503), argument(0)],
     )
     .expect("verified wrapping remainder should interpret");
-    assert_eq!(execution.value(), argument(3));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(3))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -4223,7 +4497,10 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
         &[argument(i64::MIN as i128), argument(0)],
     )
     .expect("verified signed wrapping remainder should interpret");
-    assert_eq!(execution.value(), argument(0));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     #[cfg(unix)]
     {
@@ -4312,7 +4589,10 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
         &[argument(505), argument(0)],
     )
     .expect("verified saturating division should interpret");
-    assert_eq!(execution.value(), argument(101));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(101))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -4369,7 +4649,10 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
         &[argument(i64::MIN as i128), argument(0)],
     )
     .expect("verified signed saturating division should interpret");
-    assert_eq!(execution.value(), argument(i64::MAX as i128));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(i64::MAX as i128))
+    );
 
     #[cfg(unix)]
     {
@@ -4459,7 +4742,10 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
         &[argument(507), argument(0)],
     )
     .expect("verified saturating remainder should interpret");
-    assert_eq!(execution.value(), argument(2));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(2))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -4519,7 +4805,10 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
         &[argument(i64::MIN as i128), argument(0)],
     )
     .expect("verified signed saturating remainder should interpret");
-    assert_eq!(execution.value(), argument(0));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     #[cfg(unix)]
     {
@@ -4607,7 +4896,10 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             &[argument(23), argument(5)],
         )
         .unwrap_or_else(|error| panic!("{machine} should interpret: {error:?}"));
-        assert_eq!(execution.value(), argument(expected));
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(argument(expected))
+        );
         let zero_path = interpret_terminal_artifact_measured(
             &semantic,
             &proof,
@@ -4615,7 +4907,10 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             &[argument(23), argument(0)],
         )
         .unwrap_or_else(|error| panic!("{machine} zero path should bypass arithmetic: {error:?}"));
-        assert_eq!(zero_path.value(), argument(0));
+        assert_eq!(
+            zero_path.value(),
+            TerminalExecutionResult::Scalar(argument(0))
+        );
 
         let abstract_operations =
             lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -4655,7 +4950,10 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         &[argument(23), argument(-5)],
     )
     .expect("negative guarded divisor should interpret");
-    assert_eq!(execution.value(), argument(-4));
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(argument(-4))
+    );
     let bypassed = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
@@ -4663,7 +4961,10 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         &[argument(23), argument(-1)],
     )
     .expect("negative one should take the bypass arm");
-    assert_eq!(bypassed.value(), argument(0));
+    assert_eq!(
+        bypassed.value(),
+        TerminalExecutionResult::Scalar(argument(0))
+    );
 
     let abstract_operations =
         lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -4713,7 +5014,10 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
             &[argument(value), argument(-1)],
         )
         .unwrap_or_else(|error| panic!("{machine} should interpret: {error:?}"));
-        assert_eq!(execution.value(), argument(expected));
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(argument(expected))
+        );
         let abstract_operations =
             lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
                 .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
@@ -4789,10 +5093,10 @@ fn checked_source_conditional_survives_frontend_drop() {
         assert_eq!(measured.usage().at(FuelChargeSite::Edge(unselected)), None);
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: u8_type,
                 value: IntegerValue::Unsigned(expected),
-            }
+            })
         );
     }
 
@@ -4921,7 +5225,10 @@ fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
             ],
         )
         .expect("nested branch selection should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5007,7 +5314,10 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
             ],
         )
         .expect("computed Boolean integer graph should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), 5);
     }
 
@@ -5088,7 +5398,10 @@ fn checked_source_integer_graph_stages_short_circuit_boolean_jump_bindings() {
             ],
         )
         .expect("short-circuit Boolean integer graph should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5173,7 +5486,10 @@ fn checked_source_integer_graph_localizes_short_circuit_boolean_edge_bindings() 
             ],
         )
         .expect("selected short-circuit Boolean graph should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5253,7 +5569,10 @@ fn checked_source_unconditional_mixed_scalar_graph_uses_general_lowering() {
             ],
         )
         .expect("unconditional mixed-scalar graph should interpret");
-        assert_eq!(measured.value(), integer(31));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(31))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5327,7 +5646,10 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
             &[TerminalScalarValue::Boolean(choose_add), integer(7)],
         )
         .expect("computed nested jump should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), 5);
     }
 
@@ -5421,7 +5743,10 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
             &[TerminalScalarValue::Boolean(choose_add), integer(7)],
         )
         .expect("computed conditional edge should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), 5);
     }
 
@@ -5519,7 +5844,10 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
             ],
         )
         .expect("short-circuit computed edge should interpret");
-        assert_eq!(measured.value(), integer(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(integer(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5575,10 +5903,10 @@ fn checked_source_literal_conditional_emits_only_its_selected_arm() {
     );
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: u8_type,
             value: IntegerValue::Unsigned(20),
-        }
+        })
     );
 
     let abstract_operations = lower_verified_artifact(&verified)
@@ -5636,7 +5964,10 @@ fn checked_source_boolean_conditional_reaches_native_control() {
         )
         .expect("Boolean source conditional should interpret");
         assert_eq!(measured.usage().total_units(), 2);
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
     }
 
     let abstract_operations = lower_verified_artifact(&verified)
@@ -5712,7 +6043,10 @@ fn checked_source_boolean_conditional_arms_preserve_short_circuit_control() {
             ],
         )
         .expect("Boolean conditional arm control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(!condition));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(!condition))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -5797,7 +6131,10 @@ fn checked_source_boolean_conditional_guard_preserves_short_circuit_control() {
             ],
         )
         .expect("Boolean conditional guard control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -5878,7 +6215,10 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
         let arguments = arguments.map(TerminalScalarValue::Boolean);
         let measured = interpret_verified_artifact(&verified, &arguments)
             .expect("nested Boolean control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5938,7 +6278,10 @@ fn checked_source_short_circuit_tuple_binding_is_staged_left_to_right() {
         let measured =
             interpret_verified_artifact(&verified, &arguments.map(TerminalScalarValue::Boolean))
                 .expect("short-circuit tuple binding should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -5998,7 +6341,10 @@ fn checked_source_boolean_conditional_edges_compute_only_on_the_selected_arm() {
         let measured =
             interpret_verified_artifact(&verified, &arguments.map(TerminalScalarValue::Boolean))
                 .expect("computed Boolean conditional edges should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), units);
     }
 
@@ -6068,7 +6414,10 @@ fn checked_source_mixed_scalar_boolean_graph_uses_the_typed_dag() {
             ],
         )
         .expect("mixed-scalar Boolean graph should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 9);
     }
 
@@ -6130,7 +6479,10 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
             ],
         )
         .expect("mixed-scalar Boolean short-circuit graph should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -6270,7 +6622,10 @@ fn checked_source_booleans_survive_frontend_drop() {
     assert_eq!(constant_fuel.ceiling_units(), 2);
     let constant_result = interpret_verified_artifact(&constant_verified, &[])
         .expect("source Boolean constant should execute");
-    assert_eq!(constant_result.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        constant_result.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
     assert_eq!(constant_result.usage().total_units(), 2);
 
     let parameter_verified = verify_module(
@@ -6289,7 +6644,10 @@ fn checked_source_booleans_survive_frontend_drop() {
         .collect::<Vec<_>>();
     let parameter_result = interpret_verified_artifact(&parameter_verified, &arguments)
         .expect("source Boolean parameter should execute");
-    assert_eq!(parameter_result.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        parameter_result.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
     assert_eq!(parameter_result.usage().total_units(), 1);
 
     let chain_verified = verify_module(
@@ -6303,7 +6661,10 @@ fn checked_source_booleans_survive_frontend_drop() {
     assert_eq!(chain_fuel.ceiling_units(), 3);
     let chain_result = interpret_verified_artifact(&chain_verified, &arguments)
         .expect("source Boolean state chain should execute");
-    assert_eq!(chain_result.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        chain_result.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
     assert_eq!(chain_result.usage().total_units(), 3);
 }
 
@@ -6341,7 +6702,10 @@ fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
         let measured =
             interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(input)])
                 .expect("Boolean not should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 2);
     }
 
@@ -6406,7 +6770,10 @@ fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
         let measured =
             interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(input)])
                 .expect("Boolean equality should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 3);
     }
 
@@ -6471,7 +6838,10 @@ fn checked_source_runtime_boolean_equality_reaches_native_code() {
             ],
         )
         .expect("runtime Boolean equality should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 2);
     }
 
@@ -6556,7 +6926,10 @@ fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code()
             ],
         )
         .expect("runtime integer equality should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 2);
     }
 
@@ -6668,7 +7041,10 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
                 ],
             )
             .expect("ordering interprets");
-            assert_eq!(measured.value(), TerminalScalarValue::Boolean(*expected));
+            assert_eq!(
+                measured.value(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(*expected))
+            );
             assert_eq!(measured.usage().total_units(), 2);
         }
 
@@ -6797,7 +7173,10 @@ fn checked_source_computed_integer_comparison_reaches_native_code() {
     for (left, right, expected) in [(10_u64, 3_u64, true), (5, 3, false), (u64::MAX, 0, false)] {
         let measured = interpret_verified_artifact(&verified, &[integer(left), integer(right)])
             .expect("computed comparison should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 6);
     }
 
@@ -6906,7 +7285,10 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
         };
         let measured = interpret_verified_artifact(&verified, &[input(left), input(right)])
             .expect("bitwise operation interprets");
-        assert_eq!(measured.value(), input(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(input(expected))
+        );
         assert_eq!(measured.usage().total_units(), 2);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -6982,7 +7364,7 @@ fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_na
         &[input(0x0f0f), input(0)],
     )
     .expect("canonical bitwise-not artifact should interpret");
-    assert_eq!(measured.value(), expected);
+    assert_eq!(measured.value(), TerminalExecutionResult::Scalar(expected));
     assert_eq!(measured.usage().total_units(), 2);
 
     let abstract_operations =
@@ -7062,7 +7444,10 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
         &[u8_value(250), u8_value(10)],
     )
     .expect("canonical wrapping-cast artifact should interpret");
-    assert_eq!(measured.value(), u8_value(4));
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(u8_value(4))
+    );
     assert_eq!(measured.usage().total_units(), 2);
 
     let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
@@ -7077,7 +7462,10 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
         &[u64_value(73), u64_value(0)],
     )
     .expect("canonical policy-erasure artifact should interpret");
-    assert_eq!(measured.value(), u64_value(73));
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(u64_value(73))
+    );
     assert_eq!(measured.usage().total_units(), 1);
 
     let wrapping_abstract = lower_artifact_sections(
@@ -7236,10 +7624,10 @@ fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_native_
         .unwrap_or_else(|error| panic!("{machine} artifact should interpret: {error:?}"));
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: target_type,
                 value: expected,
-            },
+            }),
             "{machine} result"
         );
         assert_eq!(measured.usage().total_units(), fuel, "{machine} fuel");
@@ -7324,7 +7712,11 @@ fn checked_source_address_identity_survives_artifacts_and_native_realization() {
         address_scalar
     );
     assert_eq!(
-        lowered.semantic_module.machines[0].result.scalar_type,
+        lowered.semantic_module.machines[0]
+            .result
+            .scalar()
+            .expect("address-returning source machine has a scalar result")
+            .scalar_type,
         ScalarType::Boolean
     );
     assert_ne!(address_scalar, u64_scalar);
@@ -7349,7 +7741,10 @@ fn checked_source_address_identity_survives_artifacts_and_native_realization() {
         }],
     )
     .expect("decoded address artifact should interpret");
-    assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
     assert_eq!(measured.usage().total_units(), 2);
 
     let abstract_operations =
@@ -7452,7 +7847,11 @@ fn checked_source_policy_retags_and_unary_negation_reuse_terminal_arithmetic() {
             &[argument(left), argument(right)],
         )
         .unwrap_or_else(|error| panic!("{machine} artifact should interpret: {error:?}"));
-        assert_eq!(measured.value(), argument(expected), "{machine} result");
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(argument(expected)),
+            "{machine} result"
+        );
         assert_eq!(
             measured.usage().total_units(),
             expected_fuel,
@@ -7598,7 +7997,7 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
         );
         let measured = interpret_verified_artifact(&verified, &[value, count])
             .expect("wrapping shift interprets");
-        assert_eq!(measured.value(), expected);
+        assert_eq!(measured.value(), TerminalExecutionResult::Scalar(expected));
         assert_eq!(measured.usage().total_units(), 2);
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -7714,7 +8113,10 @@ fn checked_source_runtime_boolean_inequality_reuses_terminal_primitives() {
             ],
         )
         .expect("runtime Boolean inequality should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), 3);
     }
 
@@ -7796,7 +8198,10 @@ fn checked_source_short_circuit_booleans_lower_to_terminal_control() {
                 ],
             )
             .expect("short-circuit Boolean control should interpret");
-            assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+            assert_eq!(
+                measured.value(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+            );
             assert_eq!(measured.usage().total_units(), expected_units);
         }
 
@@ -7869,7 +8274,10 @@ fn checked_source_short_circuit_expression_conditions_reach_native_control() {
             ],
         )
         .expect("expression-condition control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -7963,7 +8371,10 @@ fn checked_source_short_circuit_operands_preserve_terminal_equality() {
             ],
         )
         .expect("short-circuit equality control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -8121,7 +8532,10 @@ fn source_boolean_state_chain_return_preserves_short_circuit_control() {
         let measured =
             interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(value)])
                 .expect("state-chain short-circuit control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -8184,7 +8598,10 @@ fn source_boolean_state_chain_binding_preserves_short_circuit_control() {
             ],
         )
         .expect("state-chain binding control should interpret");
-        assert_eq!(measured.value(), TerminalScalarValue::Boolean(expected));
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected))
+        );
         assert_eq!(measured.usage().total_units(), expected_units);
     }
 
@@ -8383,7 +8800,9 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
         (true, expected_crash(&semantic_module)),
         (
             false,
-            TerminalExecutionStatus::Complete(TerminalScalarValue::Boolean(true)),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Boolean(true),
+            )),
         ),
     ] {
         let mut execution =
@@ -8500,10 +8919,12 @@ fn native_lowering_preserves_every_reachable_crash_leaf() {
                 assert_eq!(crash.cause, cause);
             }
             (
-                TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
-                    scalar_type,
-                    value: IntegerValue::Signed(0),
-                }),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: IntegerValue::Signed(0),
+                    },
+                )),
                 None,
             ) => assert_eq!(scalar_type, i32_type),
             (status, expected) => {
@@ -8610,10 +9031,12 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         (true, expected_crash(&guarded_semantic_module)),
         (
             false,
-            TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
-                scalar_type: i32_type,
-                value: IntegerValue::Signed(0),
-            }),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Integer {
+                    scalar_type: i32_type,
+                    value: IntegerValue::Signed(0),
+                },
+            )),
         ),
     ] {
         let mut execution =
@@ -8723,10 +9146,12 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         (
             1,
             3,
-            TerminalExecutionStatus::Complete(TerminalScalarValue::Integer {
-                scalar_type: i32_type,
-                value: IntegerValue::Signed(0),
-            }),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Integer {
+                    scalar_type: i32_type,
+                    value: IntegerValue::Signed(0),
+                },
+            )),
         ),
     ] {
         let mut execution = start_verified_artifact(
@@ -8779,8 +9204,20 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         value: IntegerValue::Signed(value),
     };
     for (left, middle, right, expected, expected_units) in [
-        (5, 3, 10, TerminalExecutionStatus::Complete(signed(0)), 4),
-        (1, 5, 3, TerminalExecutionStatus::Complete(signed(0)), 6),
+        (
+            5,
+            3,
+            10,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(signed(0))),
+            4,
+        ),
+        (
+            1,
+            5,
+            3,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(signed(0))),
+            6,
+        ),
         (1, 2, 3, expected_crash(&transitive_semantic_module), 5),
     ] {
         let mut execution = start_verified_artifact(
@@ -9171,10 +9608,10 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert_ne!(installed_manifest.identity(), artifact_manifest.identity());
 
     let expected_exit = match interpreted {
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             value: IntegerValue::Signed(value),
             ..
-        } => i32::try_from(value).expect("source canary exit fits i32"),
+        }) => i32::try_from(value).expect("source canary exit fits i32"),
         other => panic!("source canary returned unexpected value {other:?}"),
     };
     assert_eq!(run_host_machine_code(&entry_bytes), expected_exit);

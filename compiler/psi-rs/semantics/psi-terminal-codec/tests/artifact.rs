@@ -11,7 +11,7 @@ use psi_proof_kernel::{
 };
 use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     ArtifactManifestError, ProofCodecError, build_artifact_manifest, decode_proof_bundle,
@@ -1197,10 +1197,10 @@ fn semantic_module() -> TerminalModule {
         machines: vec![TerminalMachine {
             id: machine_id(1),
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(2),
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),

@@ -55,7 +55,7 @@ pub fn interpret_terminal_artifact(
     proof_bytes: &[u8],
     profile: &psi_proof_kernel::AdmissionProfile,
     arguments: &[TerminalScalarValue],
-) -> Result<TerminalScalarValue, TerminalArtifactInterpretError> {
+) -> Result<TerminalExecutionResult, TerminalArtifactInterpretError> {
     interpret_terminal_artifact_measured(semantic_bytes, proof_bytes, profile, arguments)
         .map(MeasuredTerminalExecution::into_value)
 }
@@ -67,6 +67,15 @@ pub enum TerminalScalarValue {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+}
+
+/// The normal result of terminal-Psi execution.
+///
+/// Unit is a successful absence of a value, not a distinguished scalar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalExecutionResult {
+    Unit,
+    Scalar(TerminalScalarValue),
 }
 
 impl TerminalScalarValue {
@@ -91,7 +100,7 @@ pub struct TerminalExecution {
     current: BlockId,
     next_operation: usize,
     call_stack: Vec<SuspendedCall>,
-    result: Option<TerminalScalarValue>,
+    result: Option<TerminalExecutionResult>,
     crash: Option<TerminalCrash>,
 }
 
@@ -829,6 +838,18 @@ impl TerminalExecution {
                         self.next_operation = caller.next_operation;
                         continue;
                     }
+                    let result = TerminalExecutionResult::Scalar(result);
+                    self.result = Some(result);
+                    return Ok(TerminalExecutionStatus::Complete(result));
+                }
+                Terminator::ReturnUnit { .. } => {
+                    if let Err(error) = meter.charge_terminator(&terminator) {
+                        return meter_status(error);
+                    }
+                    if !self.call_stack.is_empty() {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    let result = TerminalExecutionResult::Unit;
                     self.result = Some(result);
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -898,7 +919,7 @@ fn meter_status(error: FuelMeterError) -> Result<TerminalExecutionStatus, Termin
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalExecutionStatus {
-    Complete(TerminalScalarValue),
+    Complete(TerminalExecutionResult),
     SponsorExhausted(FuelExhaustion),
     Crashed(TerminalCrash),
 }
@@ -918,12 +939,12 @@ pub struct TerminalCrash {
 /// A successful semantic result paired with deterministic terminal-Psi fuel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasuredTerminalExecution {
-    value: TerminalScalarValue,
+    value: TerminalExecutionResult,
     usage: TerminalFuelUsage,
 }
 
 impl MeasuredTerminalExecution {
-    pub const fn value(&self) -> TerminalScalarValue {
+    pub const fn value(&self) -> TerminalExecutionResult {
         self.value
     }
 
@@ -931,11 +952,11 @@ impl MeasuredTerminalExecution {
         &self.usage
     }
 
-    pub fn into_value(self) -> TerminalScalarValue {
+    pub fn into_value(self) -> TerminalExecutionResult {
         self.value
     }
 
-    pub fn into_parts(self) -> (TerminalScalarValue, TerminalFuelUsage) {
+    pub fn into_parts(self) -> (TerminalExecutionResult, TerminalFuelUsage) {
         (self.value, self.usage)
     }
 }

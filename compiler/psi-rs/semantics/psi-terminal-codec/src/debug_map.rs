@@ -345,7 +345,10 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
             .flat_map(|machine| &machine.blocks)
             .any(|block| block.terminator.edges().any(|edge| edge == id)),
         DebugSubject::Value(id) => module.machines.iter().any(|machine| {
-            machine.result.id == id
+            machine
+                .result
+                .scalar()
+                .is_some_and(|result| result.id == id)
                 || machine.parameters.iter().any(|value| value.id == id)
                 || machine.blocks.iter().any(|block| {
                     block.parameters.iter().any(|value| value.id == id)

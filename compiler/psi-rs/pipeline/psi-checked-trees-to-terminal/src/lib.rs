@@ -46,7 +46,8 @@ use psi_terminal::{
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -5230,7 +5231,7 @@ fn build_scalar_graph_module(
             machines: vec![TerminalMachine {
                 id: terminal_machine,
                 parameters,
-                result,
+                result: TerminalMachineResult::Scalar(result),
                 structural_places: structural_places
                     .into_iter()
                     .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
@@ -5880,7 +5881,13 @@ fn build_debug_map(
         }
     }
     push(
-        DebugSubject::Value(terminal_machine.result.id),
+        DebugSubject::Value(
+            terminal_machine
+                .result
+                .scalar()
+                .expect("the checked scalar producer emits a scalar result")
+                .id,
+        ),
         plan.machine_span,
     );
 
@@ -6126,7 +6133,14 @@ mod tests {
         assert_eq!(machine.contract.id, contract_id(2));
         assert_eq!(machine.entry, block_id(identity_base + 1));
         assert_eq!(machine.parameters[0].id, value_id(identity_base + 1));
-        assert_eq!(machine.result.id, value_id(identity_base + 2));
+        assert_eq!(
+            machine
+                .result
+                .scalar()
+                .expect("the scalar fixture has a result")
+                .id,
+            value_id(identity_base + 2)
+        );
         let Terminator::Return { edge, value } = machine.blocks[0].terminator else {
             panic!("the fixture should retain its scalar return")
         };

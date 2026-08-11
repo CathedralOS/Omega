@@ -84,6 +84,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         edge: edge_id(2),
         value: value_id(1),
     };
+    let unit_return_edge = Terminator::ReturnUnit { edge: edge_id(4) };
     let crash_edge = Terminator::Crash {
         edge: edge_id(3),
         cause: CrashCause::Abort,
@@ -94,6 +95,11 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         TerminalFuelSchedule::CURRENT.terminator_units(&crash_edge),
         1,
         "an explicit crash exit has one schedule unit"
+    );
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.terminator_units(&unit_return_edge),
+        1,
+        "a value-less normal return has one explicit edge unit"
     );
     let mut meter = TerminalFuelMeter::unbounded();
 

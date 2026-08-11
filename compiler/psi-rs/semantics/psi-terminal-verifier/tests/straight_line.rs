@@ -13,12 +13,74 @@ use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
     MachineContract, Operation, OperationKind, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
     validate_module, verify_module,
 };
+
+#[test]
+fn unit_machine_is_a_value_less_normal_return() {
+    let module = unit_module();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a unit return is a valid proof-free normal exit");
+
+    assert_eq!(verified.module(), &module);
+    assert!(verified.accepted_facts().is_empty());
+}
+
+#[test]
+fn verifier_rejects_mismatched_unit_and_scalar_return_shapes() {
+    let mut scalar_return = unit_module();
+    scalar_return.machines[0].blocks[0].terminator = Terminator::Return {
+        edge: EdgeId::new(900).unwrap(),
+        value: ValueId::new(900).unwrap(),
+    };
+    assert_eq!(
+        validate_module(&scalar_return).unwrap_err(),
+        ModuleError::ScalarReturnFromUnitMachine {
+            machine: MachineId::new(900).unwrap(),
+            block: BlockId::new(900).unwrap(),
+        }
+    );
+
+    let mut unit_return = unit_module();
+    unit_return.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: ValueId::new(900).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    assert_eq!(
+        validate_module(&unit_return).unwrap_err(),
+        ModuleError::UnitReturnFromScalarMachine {
+            machine: MachineId::new(900).unwrap(),
+            block: BlockId::new(900).unwrap(),
+        }
+    );
+}
+
+#[test]
+fn unit_machine_cannot_declare_a_result_structural_place() {
+    let mut module = unit_module();
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: PlaceId::new(900).unwrap(),
+            kind: StructuralPlaceKind::Result,
+        });
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::UnitMachineHasResultStructuralPlace {
+            machine: MachineId::new(900).unwrap(),
+            place: PlaceId::new(900).unwrap(),
+        }
+    );
+}
 
 #[test]
 fn straight_line_integer_contract_is_reconstructed_and_verified() {
@@ -64,10 +126,10 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         machines: vec![TerminalMachine {
             id: MachineId::new(10).expect("machine"),
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -148,10 +210,10 @@ fn boolean_not_axiom_proves_the_return_contract() {
                 id: parameter,
                 scalar_type: ScalarType::Boolean,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -226,7 +288,11 @@ fn boolean_not_axiom_proves_the_return_contract() {
 
     let mut wrong_result = module;
     wrong_result.machines[0].contract.ensures.clear();
-    wrong_result.machines[0].result.scalar_type = integer;
+    wrong_result.machines[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .scalar_type = integer;
     wrong_result.machines[0].blocks[0].operations[0]
         .result
         .scalar_type = integer;
@@ -263,10 +329,10 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                     scalar_type: ScalarType::Boolean,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -385,10 +451,10 @@ fn integer_equality_axiom_proves_the_return_contract() {
                     scalar_type: integer_scalar,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -529,10 +595,10 @@ fn integer_ordering_axioms_prove_return_contracts() {
                         scalar_type: integer_scalar,
                     },
                 ],
-                result: ValueDeclaration {
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: result,
                     scalar_type: ScalarType::Boolean,
-                },
+                }),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -662,10 +728,10 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                         scalar_type,
                     },
                 ],
-                result: ValueDeclaration {
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: result,
                     scalar_type,
-                },
+                }),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -768,10 +834,10 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                 id: operand,
                 scalar_type,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -862,10 +928,10 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                 id: operand,
                 scalar_type: source_scalar,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: target_scalar,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -935,7 +1001,11 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     narrowing.machines[0].blocks[0].operations[0]
         .result
         .scalar_type = source_scalar;
-    narrowing.machines[0].result.scalar_type = source_scalar;
+    narrowing.machines[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .scalar_type = source_scalar;
     assert!(matches!(
         validate_module(&narrowing),
         Err(ModuleError::IntegerWidenOperandTypeMismatch { .. })
@@ -949,7 +1019,11 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     cross_signedness.machines[0].blocks[0].operations[0]
         .result
         .scalar_type = unsigned_target;
-    cross_signedness.machines[0].result.scalar_type = unsigned_target;
+    cross_signedness.machines[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .scalar_type = unsigned_target;
     assert!(matches!(
         validate_module(&cross_signedness),
         Err(ModuleError::IntegerWidenOperandTypeMismatch { .. })
@@ -972,10 +1046,10 @@ fn preserves_address_carrier_identity() {
                 id: parameter,
                 scalar_type: address,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: address,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1023,10 +1097,10 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                 id: operand,
                 scalar_type: source,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: target,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1065,7 +1139,11 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
     redundant.machines[0].blocks[0].operations[0]
         .result
         .scalar_type = source;
-    redundant.machines[0].result.scalar_type = source;
+    redundant.machines[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .scalar_type = source;
     assert!(matches!(
         validate_module(&redundant),
         Err(ModuleError::IntegerExactCastOperandTypeMismatch { .. })
@@ -1106,10 +1184,10 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                     scalar_type: count_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: value_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1179,10 +1257,10 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                     scalar_type: count_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: value_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1242,7 +1320,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(194).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1299,7 +1377,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(198).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1356,7 +1434,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(202).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1413,7 +1491,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(212).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1470,7 +1548,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(222).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1526,7 +1604,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(232).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1582,7 +1660,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(242).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1638,7 +1716,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         machines: vec![TerminalMachine {
             id: MachineId::new(252).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1694,7 +1772,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
         machines: vec![TerminalMachine {
             id: MachineId::new(256).expect("machine"),
             parameters: vec![declaration(left), declaration(right)],
-            result: declaration(result),
+            result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1788,10 +1866,10 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                         scalar_type: count_scalar,
                     },
                 ],
-                result: ValueDeclaration {
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: result,
                     scalar_type: value_scalar,
-                },
+                }),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -1979,7 +2057,7 @@ fn partition_composition_replay_is_not_semantic_authority() {
             .expect_err("producer-carried replay evidence cannot authorize its source theorem"),
         VerificationError::RejectedEvidence {
             obligation,
-            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(1)),
+            error: EvidenceError::Certificate(ProofError::SemanticAxiomConclusionMismatch(1)),
         }
     );
 }
@@ -2019,7 +2097,7 @@ fn partition_uses_an_entry_claim_without_manufacturing_an_equality() {
             .expect_err("an entry-claim binding alone does not authorize a partition theorem"),
         VerificationError::RejectedEvidence {
             obligation,
-            error: EvidenceError::Certificate(ProofError::UnknownSemanticAxiom(0)),
+            error: EvidenceError::Certificate(ProofError::SemanticAxiomConclusionMismatch(0)),
         }
     );
 }
@@ -2303,10 +2381,10 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             id: parameter,
             scalar_type: ScalarType::Boolean,
         }],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type: ScalarType::Boolean,
-        },
+        }),
         structural_places: vec![
             StructuralPlaceDeclaration {
                 id: input_root,
@@ -2530,10 +2608,10 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             id: parameter,
             scalar_type: ScalarType::Boolean,
         }],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type: ScalarType::Boolean,
-        },
+        }),
         structural_places: vec![StructuralPlaceDeclaration {
             id: place,
             kind: StructuralPlaceKind::Parameter {
@@ -3012,10 +3090,10 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -3085,10 +3163,10 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -3158,10 +3236,10 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -3231,10 +3309,10 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -3304,10 +3382,10 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -3377,10 +3455,10 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
-        result: ValueDeclaration {
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
-        },
+        }),
         structural_places: Vec::new(),
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
@@ -3425,6 +3503,39 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     )
 }
 
+fn unit_module() -> TerminalModule {
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: MachineId::new(900).unwrap(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(900).unwrap(),
+            parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(900).unwrap(),
+            blocks: vec![Block {
+                id: BlockId::new(900).unwrap(),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(900).unwrap(),
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(900).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
 struct Fixture {
     module: TerminalModule,
     integer: IntegerType,
@@ -3448,10 +3559,10 @@ impl Fixture {
         let machine = TerminalMachine {
             id: MachineId::new(1).expect("machine"),
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),

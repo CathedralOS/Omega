@@ -32,8 +32,8 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -41,8 +41,8 @@ use psi_terminal_codec::{
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
-    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
-    interpret_terminal_artifact_measured,
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecutionResult,
+    TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
 
@@ -86,10 +86,10 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
         machines: vec![TerminalMachine {
             id: machine,
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -138,7 +138,10 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
     assert_eq!(fixed.ceiling_units(), 2);
 
     let measured = interpret_verified_artifact(&verified, &[]).expect("interpret Boolean");
-    assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
     assert_eq!(measured.usage().total_units(), 2);
     assert_eq!(
         measured
@@ -230,10 +233,10 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
         machines: vec![TerminalMachine {
             id: machine,
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -303,10 +306,10 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
     let measured = interpret_verified_artifact(&verified, &[]).expect("interpret wrapping add");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: integer,
             value: IntegerValue::Unsigned(44),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 4);
     assert_eq!(
@@ -402,10 +405,10 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
         machines: vec![TerminalMachine {
             id: machine,
             parameters: Vec::new(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -475,10 +478,10 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
     let measured = interpret_verified_artifact(&verified, &[]).expect("interpret saturating add");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: integer,
             value: IntegerValue::Unsigned(255),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 4);
     assert_eq!(
@@ -581,10 +584,10 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
                     scalar_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -646,10 +649,10 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
         .expect("interpret signed saturating subtraction");
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Signed(expected as i128),
-            }
+            })
         );
         assert_eq!(measured.usage().total_units(), 2);
     }
@@ -717,10 +720,10 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
                     scalar_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -779,10 +782,10 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
         interpret_verified_artifact(&verified, &arguments).expect("interpret wrapping subtract");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: integer,
             value: IntegerValue::Unsigned(251),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 2);
     assert_eq!(
@@ -860,10 +863,10 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
                     scalar_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -922,10 +925,10 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
         interpret_verified_artifact(&verified, &arguments).expect("interpret wrapping multiply");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: integer,
             value: IntegerValue::Unsigned(4),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 2);
     assert_eq!(
@@ -1003,10 +1006,10 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
                     scalar_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1072,10 +1075,10 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
         .expect("interpret signed saturating multiplication");
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Signed(expected as i128),
-            }
+            })
         );
         assert_eq!(measured.usage().total_units(), 2);
     }
@@ -1140,10 +1143,10 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         machines: vec![TerminalMachine {
             id: machine,
             parameters: parameters.clone(),
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1216,10 +1219,10 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         interpret_verified_artifact(&verified, &arguments).expect("interpret runtime arithmetic");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: integer,
             value: IntegerValue::Unsigned(255),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 3);
 
@@ -1280,10 +1283,10 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
                     scalar_type,
                 },
             ],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1333,10 +1336,10 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
         .expect("interpret signed runtime saturation");
         assert_eq!(
             measured.value(),
-            TerminalScalarValue::Integer {
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
                 scalar_type: integer,
                 value: IntegerValue::Signed(expected as i128),
-            }
+            })
         );
         assert_eq!(measured.usage().total_units(), 2);
     }
@@ -1386,10 +1389,10 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
         machines: vec![TerminalMachine {
             id: machine,
             parameters,
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1443,10 +1446,10 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
         interpret_verified_artifact(&verified, &arguments).expect("interpret parameter return");
     assert_eq!(
         measured.value(),
-        TerminalScalarValue::Integer {
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: integer,
             value: IntegerValue::Unsigned(77),
-        }
+        })
     );
     assert_eq!(measured.usage().total_units(), 1);
     assert_eq!(

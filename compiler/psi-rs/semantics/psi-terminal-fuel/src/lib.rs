@@ -77,6 +77,7 @@ impl TerminalFuelSchedule {
             Terminator::Jump { .. }
             | Terminator::Conditional { .. }
             | Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
             | Terminator::Crash { .. } => 1,
         }
     }
@@ -211,6 +212,7 @@ impl TerminalFuelMeter {
         let edge = match terminator {
             Terminator::Jump { edge, .. }
             | Terminator::Return { edge, .. }
+            | Terminator::ReturnUnit { edge }
             | Terminator::Crash { edge, .. } => *edge,
             Terminator::Conditional { .. } => {
                 return Err(FuelMeterError::ConditionalEdgeNotSelected);

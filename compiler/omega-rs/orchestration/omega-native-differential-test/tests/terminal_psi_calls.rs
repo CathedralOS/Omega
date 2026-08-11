@@ -11,13 +11,14 @@ use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType, 
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
-    OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
-    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{ProofBundle, verify_module};
@@ -39,7 +40,10 @@ fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
     let measured =
         interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
             .expect("interpret direct call");
-    assert_eq!(measured.value(), TerminalScalarValue::Boolean(true));
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
     assert_eq!(measured.usage().total_units(), 4);
     assert_eq!(
         measured
@@ -76,7 +80,9 @@ fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
     meter.replenish(1).expect("fund caller return");
     assert_eq!(
         execution.resume(&mut meter).expect("complete call"),
-        TerminalExecutionStatus::Complete(TerminalScalarValue::Boolean(true))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
     );
     assert_eq!(
         meter
@@ -223,7 +229,7 @@ fn call_module() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(1),
                 parameters: Vec::new(),
-                result: boolean_declaration(caller_result),
+                result: TerminalMachineResult::Scalar(boolean_declaration(caller_result)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -259,7 +265,7 @@ fn call_module() -> TerminalModule {
             TerminalMachine {
                 id: machine_id(2),
                 parameters: vec![boolean_declaration(callee_parameter)],
-                result: boolean_declaration(callee_result),
+                result: TerminalMachineResult::Scalar(boolean_declaration(callee_result)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),

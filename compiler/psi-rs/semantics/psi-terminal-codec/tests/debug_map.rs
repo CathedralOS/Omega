@@ -5,7 +5,8 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, MachineContract, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -58,6 +59,29 @@ fn typed_debug_map_rejects_unknown_subjects_invalid_spans_and_order_drift() {
     assert_eq!(
         validate_debug_map(&module, &reordered),
         Err(DebugMapError::NonCanonicalOrder("debug sites by subject"))
+    );
+}
+
+#[test]
+fn unit_machine_debug_map_cannot_name_an_absent_result_value() {
+    let mut module = fixture();
+    module.machines[0].result = TerminalMachineResult::Unit;
+    module.machines[0].blocks[0].terminator = Terminator::ReturnUnit { edge: edge_id(1) };
+    let mut map = debug_map(&module);
+    map.sites.push(DebugSite {
+        subject: DebugSubject::Value(value_id(2)),
+        span: DebugSourceSpan {
+            file: DebugFileId::new(1).unwrap(),
+            start: 13,
+            end: 15,
+        },
+    });
+
+    assert_eq!(
+        validate_debug_map(&module, &map),
+        Err(DebugMapError::UnknownSubject(DebugSubject::Value(
+            value_id(2)
+        )))
     );
 }
 
@@ -186,10 +210,10 @@ fn fixture() -> TerminalModule {
                 id: value_id(1),
                 scalar_type,
             }],
-            result: ValueDeclaration {
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(2),
                 scalar_type,
-            },
+            }),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),

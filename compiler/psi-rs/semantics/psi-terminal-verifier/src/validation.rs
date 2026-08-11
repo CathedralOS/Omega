@@ -9,7 +9,7 @@ use psi_core::{
 use psi_terminal::{
     ContentPartitionComposition, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     OperationKind, PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence,
-    TerminalMachine, TerminalModule, Terminator,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
 };
 
 use crate::verification::substitute_proposition_values;
@@ -283,6 +283,14 @@ fn validate_machine(
     let mut structural_place_kinds = BTreeMap::new();
     for place in &machine.structural_places {
         insert_unique(&mut registry.places, place.id, ModuleError::DuplicatePlace)?;
+        if matches!(machine.result, TerminalMachineResult::Unit)
+            && place.kind == psi_core::StructuralPlaceKind::Result
+        {
+            return Err(ModuleError::UnitMachineHasResultStructuralPlace {
+                machine: machine.id,
+                place: place.id,
+            });
+        }
         let root = match place.kind {
             psi_core::StructuralPlaceKind::Parameter { position, .. } => {
                 StructuralRootKey::Parameter(position)
@@ -297,11 +305,7 @@ fn validate_machine(
         }
         structural_place_kinds.insert(place.id, place.kind);
     }
-    for declaration in machine
-        .parameters
-        .iter()
-        .chain(std::iter::once(&machine.result))
-    {
+    for declaration in machine.parameters.iter().chain(machine.result.scalar_ref()) {
         insert_value(
             &mut value_types,
             &mut registry.values,
@@ -414,10 +418,16 @@ fn validate_machine(
                             callee: callee.id,
                         });
                     }
-                    if operation.result.scalar_type != callee.result.scalar_type {
+                    let Some(callee_result) = callee.result.scalar() else {
+                        return Err(ModuleError::CallTargetReturnsUnit {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    };
+                    if operation.result.scalar_type != callee_result.scalar_type {
                         return Err(ModuleError::CallResultTypeMismatch {
                             operation: operation.id,
-                            expected: callee.result.scalar_type,
+                            expected: callee_result.scalar_type,
                             actual: operation.result.scalar_type,
                         });
                     }
@@ -728,7 +738,9 @@ fn validate_machine(
         .collect::<BTreeSet<_>>();
     validate_crash_frontiers(machine, &context, &requires_values)?;
     let mut ensures_values = requires_values.clone();
-    ensures_values.insert(machine.result.id);
+    if let Some(result) = machine.result.scalar() {
+        ensures_values.insert(result.id);
+    }
     for proposition in &machine.contract.requires {
         validate_contract_clause_kind(
             proposition,
@@ -1558,7 +1570,9 @@ fn validate_control_flow(
                 when_false,
                 ..
             } => vec![when_true.target, when_false.target],
-            Terminator::Return { .. } | Terminator::Crash { .. } => Vec::new(),
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
             if !blocks.contains_key(target) {
@@ -1711,13 +1725,27 @@ fn validate_control_flow(
                 }
             }
             Terminator::Return { value, .. } => {
+                let Some(result) = machine.result.scalar() else {
+                    return Err(ModuleError::ScalarReturnFromUnitMachine {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                };
                 require_defined(*value, value_types, &defined)?;
                 let value_type = value_types[value];
-                if value_type != machine.result.scalar_type {
+                if value_type != result.scalar_type {
                     return Err(ModuleError::ReturnTypeMismatch {
                         machine: machine.id,
                         value: value_type,
-                        result: machine.result.scalar_type,
+                        result: result.scalar_type,
+                    });
+                }
+            }
+            Terminator::ReturnUnit { .. } => {
+                if matches!(machine.result, TerminalMachineResult::Scalar(_)) {
+                    return Err(ModuleError::UnitReturnFromScalarMachine {
+                        machine: machine.id,
+                        block: block.id,
                     });
                 }
             }
@@ -2306,7 +2334,7 @@ pub(crate) fn machine_value_types(
     machine
         .parameters
         .iter()
-        .chain(std::iter::once(&machine.result))
+        .chain(machine.result.scalar_ref())
         .chain(
             machine
                 .blocks
@@ -2383,6 +2411,10 @@ pub enum ModuleError {
     DuplicateStructuralPlaceRoot {
         machine: MachineId,
         kind: psi_core::StructuralPlaceKind,
+    },
+    UnitMachineHasResultStructuralPlace {
+        machine: MachineId,
+        place: PlaceId,
     },
     UnknownEntryMachine(MachineId),
     MachineHasNoBlocks(MachineId),
@@ -2478,6 +2510,10 @@ pub enum ModuleError {
         cause: CrashCause,
     },
     CallTargetHasStructuralContract {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    CallTargetReturnsUnit {
         operation: OperationId,
         callee: MachineId,
     },
@@ -2692,6 +2728,14 @@ pub enum ModuleError {
         machine: MachineId,
         value: ScalarType,
         result: ScalarType,
+    },
+    ScalarReturnFromUnitMachine {
+        machine: MachineId,
+        block: BlockId,
+    },
+    UnitReturnFromScalarMachine {
+        machine: MachineId,
+        block: BlockId,
     },
     ControlCycle(BlockId),
     UnreachableBlock(BlockId),
