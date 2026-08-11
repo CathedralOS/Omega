@@ -11,6 +11,6 @@ where
 data Main {
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let packet: Packet = Packet { length: 4, payload: "omega" };
 }

@@ -9,7 +9,7 @@ where
     start: i32;
     end: i32;
 }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     self.start = 10;
     self.end = 20;
     self.console.exit_process(70);

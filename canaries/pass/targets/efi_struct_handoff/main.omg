@@ -12,7 +12,7 @@ data EfiHandoff {
     table: addr;
 }
 data Main { h: addr; }
-boundary machine Main::run(&self, handoff: EfiHandoff) -> i32 {
+boundary machine Main::main(&self, handoff: EfiHandoff) -> i32 {
     self.h = handoff.handle;
     transition self.h == 0 {
         true -> was_zero()

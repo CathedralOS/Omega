@@ -13,6 +13,6 @@ where
 data Main {
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let buffer: Buffer = Buffer { used: 6, storage: "omega" };
 }

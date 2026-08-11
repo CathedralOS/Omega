@@ -6,6 +6,6 @@ data Main {
 machine Main::take(&self, value: f32) {
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     self.take(1.0f64);
 }

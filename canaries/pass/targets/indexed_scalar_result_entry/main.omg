@@ -2,7 +2,7 @@
 // before loading the normalized scalar result register.
 data Main { }
 
-boundary machine Main::run(
+boundary machine Main::main(
     &mut self,
     values: &[i32],
     index: u64 [0..values.len]

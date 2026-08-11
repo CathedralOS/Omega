@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // switching to the x8 indirect-result convention used by non-HFA records.
 data FloatTriple { first: f64; second: f64; third: f64; }
 data Main { output: FloatTriple; }
-boundary machine Main::run(&self) -> FloatTriple {
+boundary machine Main::main(&self) -> FloatTriple {
     transition { _ -> (self.output) }
 }
 target linux_arm64 {

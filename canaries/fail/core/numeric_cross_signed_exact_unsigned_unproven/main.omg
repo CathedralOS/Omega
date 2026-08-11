@@ -4,6 +4,6 @@ data Main {
     source: u64;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let converted: i64 = narrow_u64_to_i64_exact(self.source);
 }

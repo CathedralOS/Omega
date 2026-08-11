@@ -9,7 +9,7 @@ where
     score: i32;
 }
 data Main { console: Console; }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let player: Player = Player { health: 50 };
     self.console.exit_process(70);
 }

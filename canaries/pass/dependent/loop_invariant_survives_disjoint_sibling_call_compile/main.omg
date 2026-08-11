@@ -8,7 +8,7 @@ data Main {
     value: i32;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     self.i = 0;
     transition {
         _ -> loop_()

@@ -43,4 +43,4 @@ machine is_usable(socket: Socket) -> bool {
 
 data Main {}
 
-machine Main::run(&mut self) {}
+machine Main::main(&mut self) {}

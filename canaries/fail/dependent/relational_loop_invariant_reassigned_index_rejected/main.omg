@@ -15,7 +15,7 @@ data Main {
     value: u8;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     self.items = "x";
     self.i = 0;
     transition self.i < self.items.len {

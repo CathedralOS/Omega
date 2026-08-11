@@ -9,7 +9,7 @@ data ReceiptState {
 
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
     let state: ReceiptState = ReceiptState::Live { receipt: receipt };
     0

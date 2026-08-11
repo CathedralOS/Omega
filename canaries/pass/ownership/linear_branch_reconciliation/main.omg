@@ -5,7 +5,7 @@ machine Receipt::ack(self) {}
 
 data Main { choose_first: bool; }
 
-machine Main::run(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
     transition self.choose_first {
         true -> consume_first(receipt)

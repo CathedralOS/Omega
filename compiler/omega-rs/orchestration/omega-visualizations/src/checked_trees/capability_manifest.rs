@@ -159,9 +159,7 @@ fn entry_machine(
 ) -> Option<(SymbolHandle, String, String)> {
     match selected_entry_machine {
         Some(name) => entry_machine_named(program, name),
-        None => entry_machine_with_state(program, "Main::main", "main")
-            .or_else(|| entry_machine_with_state(program, "Main::run", "run"))
-            .or_else(|| entry_machine_with_state(program, "main", "entry")),
+        None => entry_machine_with_state(program, "Main::main", "main"),
     }
 }
 
@@ -236,20 +234,20 @@ mod tests {
             },
         );
         program.typed.push_machine(machine);
-        let mut legacy = Machine {
+        let mut fallback = Machine {
             symbol: SymbolHandle::from_arena_index(12),
             name: Identifier::generated("Main::main"),
             ..Default::default()
         };
         program.typed.push_machine_state(
-            &mut legacy,
+            &mut fallback,
             State {
                 symbol: SymbolHandle::from_arena_index(13),
                 name: Identifier::generated("main"),
                 ..Default::default()
             },
         );
-        program.typed.push_machine(legacy);
+        program.typed.push_machine(fallback);
 
         let services = &mut program.facts.service_reaches;
         let machine_control = services

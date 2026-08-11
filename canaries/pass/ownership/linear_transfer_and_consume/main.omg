@@ -9,7 +9,7 @@ machine Receipt::ack(self) {}
 
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     let issued: Receipt = Receipt { code: 7 };
     let forwarded: Receipt = issued;
     Receipt::ack(forwarded);

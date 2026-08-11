@@ -4,6 +4,6 @@ boundary data OpaqueToken;
 
 boundary machine OpaqueToken::observe(value: OpaqueToken);
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     0
 }

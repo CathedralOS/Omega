@@ -3,6 +3,6 @@
 data Pair { first: u64; second: u64; }
 data Main { }
 
-boundary machine Main::run(&self) -> Pair {
+boundary machine Main::main(&self) -> Pair {
     transition { _ -> (Pair { first: 7, second: 9 }) }
 }

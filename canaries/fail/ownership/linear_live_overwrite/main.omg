@@ -3,7 +3,7 @@
 data Receipt [linear] { code: i32; }
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     let mut receipt: Receipt = Receipt { code: 1 };
     receipt = Receipt { code: 2 };
     0

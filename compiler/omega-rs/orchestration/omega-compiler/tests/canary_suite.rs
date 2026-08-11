@@ -49713,7 +49713,7 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("address &omega_machine_Main::run_storage@0"),
+        report.contains("address &omega_machine_Main::main_storage@0"),
         "the `&mut self.map_size` out-param must marshal as an ADDRESS operand"
     );
     let _ = fs::remove_dir_all(&build_dir);

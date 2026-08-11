@@ -10,7 +10,7 @@ data Main {
     service: WaitService;
 }
 
-boundary machine Main::run(&mut self)
+boundary machine Main::main(&mut self)
 invokes WaitService;
 {
     block self.service.wait();

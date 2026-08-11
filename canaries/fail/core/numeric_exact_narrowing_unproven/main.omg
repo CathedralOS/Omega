@@ -4,6 +4,6 @@ data Main {
     source: u64;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let narrowed: u32 = narrow_u64_to_u32_exact(self.source);
 }

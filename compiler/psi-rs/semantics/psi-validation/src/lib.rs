@@ -11,7 +11,6 @@ mod destructure;
 mod domain_weakening;
 mod domains;
 mod effects;
-mod entry_point;
 mod expression_types;
 mod invariants;
 mod invocations;
@@ -52,7 +51,6 @@ use crate::contract_entailment::validate_machine_contract_entailment;
 pub use crate::data::data_requires_establishment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
-use crate::entry_point::validate_entry_point;
 use crate::expression_types::{ExpressionTypeOwner, validate_expression_type_handle};
 use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
@@ -209,7 +207,6 @@ fn validate_program_internal(
     recasts::validate_recasts(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
-    validate_entry_point(program, &mut diagnostics);
     machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
     invocations::validate_invocation_contracts(program, &mut diagnostics);
 

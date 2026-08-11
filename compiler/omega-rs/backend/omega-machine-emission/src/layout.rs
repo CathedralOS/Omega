@@ -27,8 +27,7 @@ use omega_instruction_selection::{
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
     runtime_text_storage_compare_width, runtime_text_stored_suffix_append_width,
     runtime_value_compare_width, syscall_sequence_width_with_plan,
-    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_at_offset_with_plan,
-    vtable_call_sequence_width_with_plan,
+    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 use psi_diagnostics::Diagnostic;
@@ -172,13 +171,24 @@ fn machine_instruction_width(
                     byte_offset,
                     ..
                 } => {
-                    vtable_call_sequence_width_at_offset_with_plan(
+                    let result_present =
+                        field_model_result_present(operands.len(), plan, 0, "vtable-field")?;
+                    omega_instruction_selection::encode_vtable_call_sequence_at_offset_with_plan(
                         input.target,
                         operands,
                         *byte_offset,
-                        field_model_result_present(operands.len(), plan, 0, "vtable-field")?,
+                        result_present,
                         plan,
                     )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "host operation {}.{} has no encodable vtable-field call: {}",
+                            host_operation.operation_key.capability_name(),
+                            host_operation.operation_key.operation_name(),
+                            error.message,
+                        ))
+                    })?
+                    .len()
                 }
                 HostBindingMechanism::TableFunction {
                     byte_offset,

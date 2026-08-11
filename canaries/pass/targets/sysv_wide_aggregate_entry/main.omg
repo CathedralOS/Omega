@@ -9,7 +9,7 @@ data WideRecord {
     fifth: u64;
 }
 data Main { observed: u64; }
-boundary machine Main::run(&mut self, value: WideRecord) -> i32 {
+boundary machine Main::main(&mut self, value: WideRecord) -> i32 {
     self.observed = value.first + value.second + value.third + value.fourth + value.fifth;
     transition { _ -> (0) }
 }

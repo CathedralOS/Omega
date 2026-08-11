@@ -8,6 +8,6 @@ where
     score: i32;
 }
 data Main {}
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let player: Player = Player {};
 }

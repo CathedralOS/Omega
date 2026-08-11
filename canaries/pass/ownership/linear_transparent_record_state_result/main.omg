@@ -20,7 +20,7 @@ machine Main::issue(&mut self) -> Pair {
     transition { _ -> pair }
 }
 
-machine Main::run(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     let returned: Pair = self.issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;
