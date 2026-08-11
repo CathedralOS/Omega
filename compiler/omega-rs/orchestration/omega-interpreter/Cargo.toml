@@ -17,14 +17,15 @@ psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
+
+[dev-dependencies]
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../psi-rs/semantics/psi-terminal-codec" }
 psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }
 psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
-
-[dev-dependencies]
+psi-terminal-interpreter = { path = "../../../psi-rs/semantics/psi-terminal-interpreter" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-external-roots = { path = "../omega-external-roots" }
 psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }

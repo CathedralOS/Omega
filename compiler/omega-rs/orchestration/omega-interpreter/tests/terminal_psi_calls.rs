@@ -1,7 +1,3 @@
-use omega_interpreter::{
-    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue,
-    interpret_terminal_artifact_measured,
-};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
@@ -20,6 +16,10 @@ use psi_terminal::{
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use psi_terminal_interpreter::{
+    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
+};
 use psi_terminal_verifier::{ProofBundle, verify_module};
 
 #[test]

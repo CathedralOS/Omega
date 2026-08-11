@@ -40,9 +40,10 @@ current packages.
 > under **`compiler/psi-rs/`**, beginning with
 > `foundation/psi-source`, `foundation/psi-core`, `representations/psi-tokens`,
 > `representations/psi-terminal`, `pipeline/psi-source-files-to-tokens`,
-> `semantics/psi-proof-kernel`, and `semantics/psi-terminal-verifier`; parsing-through-
-> lowering crates now live there; their former Omega package adapters are
-> retired. The unused `omega-core` source/span, exact-bignum, const-value,
+> `semantics/psi-proof-kernel`, `semantics/psi-terminal-verifier`, and
+> `semantics/psi-terminal-interpreter`; parsing-through-lowering crates now live
+> there; their former Omega package adapters are retired. The unused
+> `omega-core` source/span, exact-bignum, const-value,
 > content, built-in-value-domain, atomic-ordering, cast-form,
 > operator-spelling, and inline-assembly aliases are retired; consumers use
 > their Psi owners directly. The unused generic trust grant/receipt carrier is
@@ -96,7 +97,8 @@ Omega/
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
-|   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
+|   |       |-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
+|   |       `-- [CRATE] psi-terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
 |   |
 |   |-- foundation/
 |   |   `-- [CRATE] omega-core/                         # Omega execution/build utilities.
@@ -250,7 +252,8 @@ Omega/
   vertical slices replace their source-shaped handles.
 - `compiler/omega-rs/` begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
-  target lowering, and execution machinery.
+  target lowering, and native execution machinery. Psi owns canonical reference
+  interpretation of terminal Psi.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
   invariants, and validation. Borrow, invariant, contract, and const-evaluation
   reasoning live chiefly in `psi-types`, `psi-facts`, `psi-validation`, and
@@ -261,7 +264,8 @@ Omega/
 - `psi-checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. Legacy
   state/control representations and transforms, artifact/backend orchestration,
-  the interpreter, and backend leaf consumers depend on the Psi owner directly.
+  the transitional checked-tree interpreter, and backend leaf consumers depend
+  on the Psi owner directly.
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts; target-neutral
   consumers depend on it directly. `omega-effects` retains provider

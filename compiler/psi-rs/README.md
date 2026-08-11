@@ -72,10 +72,12 @@ Current roots:
 - `semantics/psi-proof`: source proof-surface collection, obligation planning,
   and checking;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
-  checking, evidence envelopes, and sealed admission validation.
+  checking, evidence envelopes, and sealed admission validation;
 - `semantics/psi-terminal-verifier`: structural module validation,
   verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
-  evidence checking.
+  evidence checking;
+- `semantics/psi-terminal-interpreter`: canonical decoding, verification, and
+  fuel-bounded reference execution of terminal-Psi artifacts.
 
 Every workspace harness invokes the Psi source-to-checked stages directly.
 Omega begins at provider selection and realization: it consumes terminal Psi

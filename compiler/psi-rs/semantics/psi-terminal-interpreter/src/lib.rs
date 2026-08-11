@@ -1,3 +1,10 @@
+//! Fuel-bounded reference execution for verified terminal-Psi artifacts.
+//!
+//! The public entry accepts only canonical semantic/proof bytes and an
+//! admission profile. It decodes and verifies those bytes before constructing
+//! execution state; no source or checked-tree representation crosses this
+//! boundary.
+
 use std::collections::BTreeMap;
 
 use psi_core::{BlockId, ClaimId, IntegerType, IntegerValue, MachineId, ScalarType, ValueId};

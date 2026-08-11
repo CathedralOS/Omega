@@ -678,6 +678,19 @@ fn typed_frontend_does_not_retain_concrete_calling_conventions() {
 
 #[test]
 fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
+    let root = workspace_root();
+    assert!(
+        root.join("compiler/psi-rs/semantics/psi-terminal-interpreter/src/lib.rs")
+            .is_file(),
+        "canonical terminal-Psi reference execution must remain Psi-owned"
+    );
+    assert!(
+        !root
+            .join("compiler/omega-rs/orchestration/omega-interpreter/src/terminal_psi.rs")
+            .exists(),
+        "Omega's legacy checked-tree interpreter must not reclaim terminal-Psi execution"
+    );
+
     let graph = load_graph();
     let roots = [
         "omega-terminal-abstract-operations",
@@ -687,6 +700,7 @@ fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
         "omega-terminal-machine-emission",
         "omega-terminal-machine-code",
         "omega-terminal-image-emission",
+        "psi-terminal-interpreter",
     ];
     let forbidden = BTreeSet::from([
         "omega-tokens",
@@ -698,6 +712,12 @@ fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
         "omega-control-flow",
         "omega-abstract-operations",
         "omega-target-operations",
+        "psi-source-loader",
+        "psi-tokens",
+        "psi-syntax-trees",
+        "psi-symbol-resolved-trees",
+        "psi-typed-trees",
+        "psi-checked-trees",
     ]);
     let mut pending = roots.iter().map(ToString::to_string).collect::<Vec<_>>();
     let mut visited = BTreeSet::new();
