@@ -8,7 +8,7 @@ where
     console: Console;
     value: i32;
 }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let return_code: i32 = 70 + self.value;
     self.console.exit_process(return_code);
 }

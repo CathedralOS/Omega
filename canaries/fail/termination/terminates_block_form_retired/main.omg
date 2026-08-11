@@ -13,4 +13,4 @@ terminates {
         _ -> (countdown(n - 1))
     }
 }
-machine Main::run(&mut self) { self.console.exit_process(70); }
+machine Main::main(&mut self) { self.console.exit_process(70); }

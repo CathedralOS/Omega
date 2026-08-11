@@ -1,1 +1,1 @@
-cannot prove requires contract for call narrow_i64_to_u64_exact from Main::run: value >= 0
+cannot prove requires contract for call narrow_i64_to_u64_exact from Main::main: value >= 0

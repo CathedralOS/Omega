@@ -1,8 +1,6 @@
-// FAIL (the MARKING LAW, settled 2026-07-04): an entry that imposes STRUCTURE
-// on the platform's arrival bytes -- any parameter beyond raw `&[u8]` -- is an
-// exported callable making a shape claim, and the claim must be declared
-// where lies can happen: `boundary machine`. Raw `&[u8]` carries no claim and
-// needs no marking.
+// FAIL: Main::run is an ordinary machine. Runtime entry selection is owned by
+// an exact target ProgramEntry binding; the temporary corpus fallback recognizes
+// only Main::main while that migration finishes.
 data Main { }
 machine Main::run(&self, handle: addr, table: addr) -> i32 {
     transition { _ -> (0) }

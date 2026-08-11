@@ -1994,7 +1994,7 @@ pub struct UncheckedBoundaryPolicy {
 }
 
 /// Build the source/backend audit surface around the exact Build-selected
-/// entry. `None` alone enables transitional corpus name discovery.
+/// entry. `None` alone enables the remaining `Main::main` corpus fallback.
 pub fn build_backend_surface_report(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
@@ -2007,9 +2007,7 @@ pub fn build_backend_surface_report(
 
     let selected = match selected_entry_machine {
         Some(name) => entry_point_for_machine(program, name),
-        None => entry_point_with_state(program, "Main::main", "main")
-            .or_else(|| entry_point_with_state(program, "Main::run", "run"))
-            .or_else(|| entry_point_with_state(program, "main", "entry")),
+        None => entry_point_with_state(program, "Main::main", "main"),
     };
     if let Some(entry) = selected {
         report.entry_points.insert(entry);
@@ -2285,11 +2283,11 @@ mod tests {
     }
 
     #[test]
-    fn collects_entry_machine() {
+    fn collects_remaining_corpus_fallback_entry_machine() {
         let mut program = CheckedTrees::default();
         let mut machine = Machine {
             symbol: SymbolHandle::default(),
-            name: Identifier::generated("main"),
+            name: Identifier::generated("Main::main"),
             attached_data: None,
             owned_data: Default::default(),
             satisfies: Default::default(),
@@ -2300,7 +2298,7 @@ mod tests {
             &mut machine,
             State {
                 symbol: SymbolHandle::default(),
-                name: Identifier::generated("entry"),
+                name: Identifier::generated("main"),
                 parameters: Default::default(),
                 return_type: Default::default(),
                 ..Default::default()
@@ -2315,7 +2313,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_entry_selection_overrides_legacy_names_in_surface_report() {
+    fn explicit_entry_selection_overrides_corpus_fallback_in_surface_report() {
         let mut program = CheckedTrees::default();
         for (machine_name, state_name) in [("Main::main", "main"), ("Application::launch", "start")]
         {

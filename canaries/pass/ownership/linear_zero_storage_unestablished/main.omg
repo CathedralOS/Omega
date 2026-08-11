@@ -6,7 +6,7 @@ data Receipt [linear] {
 
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     let receipt: Receipt;
     0
 }

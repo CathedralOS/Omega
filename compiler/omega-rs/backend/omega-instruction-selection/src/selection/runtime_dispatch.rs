@@ -2542,7 +2542,7 @@ pub(super) fn select_entry_argument_register_writes(
     // THE STRUCT-SHAPED HANDOFF (ladder step 3, boundary machines): a BOUNDARY
     // entry whose sole declared parameter is a multi-word struct receives the
     // platform's argument registers SPREAD across its 8-byte chunks --
-    // `boundary machine Main::run(&self, handoff: EfiHandoff)` binds RCX to
+    // `boundary machine Main::main(&self, handoff: EfiHandoff)` binds RCX to
     // handoff.handle (+0) and RDX to handoff.table (+8). This is the boundary
     // contract's shape-over-arrival-bytes, NOT general MS-x64 struct passing
     // (which passes large aggregates by pointer; there is no caller here --

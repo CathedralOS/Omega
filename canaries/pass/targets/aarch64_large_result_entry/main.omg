@@ -3,7 +3,7 @@
 // SysV, AAPCS64 does not also return that pointer in x0.
 data Triple { first: u64; second: u64; third: u64; }
 data Main { output: Triple; }
-boundary machine Main::run(&self) -> Triple {
+boundary machine Main::main(&self) -> Triple {
     transition { _ -> (self.output) }
 }
 

@@ -29,7 +29,7 @@ data EfiSystemTable {
 data Main {
     c: addr;
 }
-boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32 {
+boundary machine Main::main(&mut self, handle: addr, table: &EfiSystemTable) -> i32 {
     self.c = table.con_out;
     transition table.firmware_revision == 0 {
         true -> check_p(table.con_in)

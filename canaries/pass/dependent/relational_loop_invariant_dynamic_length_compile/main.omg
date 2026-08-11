@@ -18,7 +18,7 @@ data Main {
     other: u64;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     self.items = "abcd";
     self.i = 0;
     transition self.i < self.items.len {

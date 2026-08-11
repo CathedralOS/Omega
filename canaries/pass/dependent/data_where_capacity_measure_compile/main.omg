@@ -25,6 +25,6 @@ machine Buffer::replace(&mut self) {
 data Main {
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let buffer: Buffer = Buffer { used: 5, storage: "omega" };
 }

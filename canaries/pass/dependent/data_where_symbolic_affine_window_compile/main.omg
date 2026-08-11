@@ -16,5 +16,5 @@ machine SuccessorPair::set(&mut self, value: u32 [0..=100]) {
 data Main {
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
 }

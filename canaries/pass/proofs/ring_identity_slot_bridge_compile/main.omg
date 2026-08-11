@@ -6,7 +6,7 @@
 use omega::language::core::nat;
 use omega::language::std::console;
 data Main { console: Console; }
-machine Main::run(&mut self) { self.console.exit_process(70); }
+machine Main::main(&mut self) { self.console.exit_process(70); }
 
 machine constant_slot_bridge(a: Nat)
 ensures

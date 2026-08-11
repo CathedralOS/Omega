@@ -1,1 +1,1 @@
-cannot prove requires contract for call positive from Main::run
+cannot prove requires contract for call positive from Main::main

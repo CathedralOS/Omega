@@ -15,5 +15,5 @@ machine Main::build(&self, value: i32) {
     let pair: EqualPair = EqualPair { left: value, right: value };
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
 }

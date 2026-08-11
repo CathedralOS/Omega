@@ -23,7 +23,7 @@ data EfiSystemTable {
     con_out: addr;
 }
 data Main { }
-boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32 {
+boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32 {
     let seen: addr = table.con_out;
     transition seen == 0 {
         true -> missing()

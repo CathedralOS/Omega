@@ -11,7 +11,7 @@ machine Main::issue(&mut self) -> Receipt {
     transition { _ -> issued }
 }
 
-machine Main::run(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     let returned: Receipt = self.issue();
     Receipt::ack(returned);
     0

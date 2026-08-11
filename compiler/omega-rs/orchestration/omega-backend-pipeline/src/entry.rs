@@ -2,11 +2,8 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 
-/// Transitional entry names used only while the corpus moves to explicit
-/// target-owned `ProgramEntry` bindings. `Main::main` remains first because
-/// some unmigrated programs also carry an ordinary `Main::run` helper.
-pub(super) const ENTRY_MACHINE_NAME: &str = "Main::run";
-pub(super) const ENTRY_STATE_NAME: &str = "run";
+/// Transitional entry name used only while the corpus moves to explicit
+/// target-owned `ProgramEntry` bindings.
 const LEGACY_MAIN_MACHINE_NAME: &str = "Main::main";
 const LEGACY_MAIN_STATE_NAME: &str = "main";
 
@@ -34,11 +31,9 @@ pub(super) fn resolve_backend_entry_point(
         return Ok(entry_point);
     }
 
-    if let Some(entry_point) = find_entry_point(program, ENTRY_MACHINE_NAME, ENTRY_STATE_NAME) {
-        return Ok(entry_point);
-    }
-
-    Err(Diagnostic::error("unknown runtime entry point `Main::run`"))
+    Err(Diagnostic::error(
+        "unknown runtime entry point `Main::main`",
+    ))
 }
 
 fn find_declared_entry_point(

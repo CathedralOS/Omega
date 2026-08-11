@@ -8,7 +8,7 @@ data PlayerSlot {
 }
 data Team { roster: [PlayerSlot; 8]; }
 data Main { console: Console; }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let team: Team = Team {};
     self.console.exit_process(70);
 }

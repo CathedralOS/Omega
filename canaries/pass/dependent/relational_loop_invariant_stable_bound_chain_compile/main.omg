@@ -18,7 +18,7 @@ data Main {
     other: u64;
 }
 
-machine Main::run(&mut self) { }
+machine Main::main(&mut self) { }
 
 machine Main::scan(&mut self)
 requires

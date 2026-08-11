@@ -6,7 +6,7 @@ use omega::language::core::nat;
 
 use omega::language::std::console;
 data Main { console: Console; }
-machine Main::run(&mut self) { self.console.exit_process(70); }
+machine Main::main(&mut self) { self.console.exit_process(70); }
 
 machine four_term_expansion(a: Nat, b: Nat, c: Nat, d: Nat)
 ensures

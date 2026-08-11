@@ -4,7 +4,7 @@ data Main {
     value: i32;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     transition {
         _ -> positive(self.value)
     }

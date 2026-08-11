@@ -4,7 +4,7 @@ use omega::language::std::console;
 data Player { health: i32 [1..=100]; }
 data Team { captain: Player; score: i32; }
 data Main { console: Console; }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let team: Team = Team { captain: Player { health: 70 } };
     self.console.exit_process(70);
 }

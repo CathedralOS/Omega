@@ -12,7 +12,7 @@ machine ReceiptState::settle(self) {}
 
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     let empty: ReceiptState = ReceiptState::Empty;
     let receipt: Receipt = Receipt { code: 7 };
     let live: ReceiptState = ReceiptState::Live { receipt: receipt };

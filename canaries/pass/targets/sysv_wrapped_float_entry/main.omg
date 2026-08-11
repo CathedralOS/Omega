@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 data FloatLeaf { value: f64; }
 data WrappedFloat { leaf: FloatLeaf; }
 data Main { output: WrappedFloat; }
-boundary machine Main::run(&mut self, input: WrappedFloat) -> WrappedFloat {
+boundary machine Main::main(&mut self, input: WrappedFloat) -> WrappedFloat {
     self.output = input;
     transition { _ -> (self.output) }
 }

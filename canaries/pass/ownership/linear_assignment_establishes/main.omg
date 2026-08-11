@@ -4,7 +4,7 @@ data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     let mut receipt: Receipt;
     receipt = Receipt { code: 7 };
     Receipt::ack(receipt);

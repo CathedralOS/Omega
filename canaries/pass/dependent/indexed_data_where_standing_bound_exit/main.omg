@@ -8,7 +8,7 @@ where
     value: i32;
 }
 data Main { console: Console; maps: [Map; 2]; }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let return_code: i32 = 70 + self.maps[1].value;
     self.console.exit_process(return_code);
 }

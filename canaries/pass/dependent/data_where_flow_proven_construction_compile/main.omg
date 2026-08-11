@@ -10,7 +10,7 @@ where
     end: i32;
 }
 data Main { console: Console; }
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     let first: i32 = 10;
     let last: i32 = 20;
     let span: Span = Span { start: first, end: last };

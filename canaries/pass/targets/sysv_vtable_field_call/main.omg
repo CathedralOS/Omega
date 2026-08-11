@@ -57,7 +57,7 @@ data Main {
     array_input: ArrayMixedPair; array_output: ArrayMixedPair;
     wrapped_input: WrappedFloat; wrapped_output: WrappedFloat;
 }
-boundary machine Main::run(&self) -> i32
+boundary machine Main::main(&self) -> i32
 reaches FieldDispatch
 {
     self.dispatch.invoke(self.receiver, 7);

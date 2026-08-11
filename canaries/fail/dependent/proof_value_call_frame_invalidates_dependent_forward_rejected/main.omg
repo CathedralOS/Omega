@@ -5,7 +5,7 @@ data Main {
     input: u32;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     transition self.input <= self.count { true -> forward(self.input) _ -> done() }
 
     state forward(&mut self, i: u32 [0..=self.count]) {

@@ -9,4 +9,4 @@ where
     end: u32;
 }
 data Main { console: Console; span: Span; }
-machine Main::run(&mut self) { self.console.exit_process(70); }
+machine Main::main(&mut self) { self.console.exit_process(70); }

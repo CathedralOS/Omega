@@ -16,5 +16,5 @@ machine Main::build(&self) {
     let packet: Packet = Packet { length: 5, payload: text };
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
 }

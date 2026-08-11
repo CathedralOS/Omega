@@ -3,7 +3,7 @@
 // copied through the saved pointer and that pointer is returned in rax.
 data Triple { first: u64; second: u64; third: u64; }
 data Main { output: Triple; }
-boundary machine Main::run(&self, marker: u64) -> Triple {
+boundary machine Main::main(&self, marker: u64) -> Triple {
     transition { _ -> (self.output) }
 }
 

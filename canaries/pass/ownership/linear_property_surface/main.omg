@@ -13,6 +13,6 @@ data StoredReceipt [linear] {
 
 data Main {}
 
-machine Main::run() -> i32 {
+machine Main::main() -> i32 {
     0
 }

@@ -14,7 +14,7 @@ data Main {
     other: i32;
 }
 
-machine Main::run(&mut self) {
+machine Main::main(&mut self) {
     self.pair.right = 20;
     transition { _ -> update() }
 
