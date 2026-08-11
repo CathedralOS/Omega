@@ -4,7 +4,7 @@ use omega::language::core::task;
 // parameter surface. `Worker::run` is selected statically and survives as the
 // concrete activation target; no runtime callable or inferred capture exists.
 data CanaryTaskRuntime { }
-CanaryTaskRuntime satisfies TaskRuntime;
+CanaryTaskRuntimeTaskRuntime: CanaryTaskRuntime satisfies TaskRuntime;
 
 machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
     &self,

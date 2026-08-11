@@ -15,7 +15,7 @@ data Counter {
 machine Counter::increment(&mut self) satisfies Incrementable {
     self.value = self.value + 1;
 }
-Counter satisfies Incrementable;
+CounterIncrementable: Counter satisfies Incrementable;
 
 machine step<T>(subject: &mut T)
 where

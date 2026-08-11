@@ -16,7 +16,7 @@ data Player {
     health: i32;
 }
 
-Player satisfies Equatable;
+PlayerEquatable: Player satisfies Equatable;
 
 data Main {
     value: i32;

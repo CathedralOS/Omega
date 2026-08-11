@@ -12,7 +12,7 @@ data Node {
     next: Node;
 }
 
-Node satisfies Equatable;
+NodeEquatable: Node satisfies Equatable;
 
 data Main {
     value: i32;

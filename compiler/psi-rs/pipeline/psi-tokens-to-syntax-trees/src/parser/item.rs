@@ -311,7 +311,7 @@ pub(super) fn parse_item<'tokens, 'source>(
             psi_syntax_trees::item::ConformanceSubject::Carrier(_)
         ) {
             (
-                ConformanceBody::LegacyAttachedMachines,
+                ConformanceBody::AttachedRequirementMachines,
                 take_optional_semicolon(rest)?,
             )
         } else {
@@ -340,44 +340,14 @@ pub(super) fn parse_item<'tokens, 'source>(
         ));
     }
 
-    // Compatibility-only unnamed carrier declaration: `Point satisfies
-    // Equatable;`. It remains the static attached-machine surface, while every
-    // closed implementation above has an explicit name-first identity.
-    if let Ok((type_name, rest)) = input.take_identifier()
+    // Retired unnamed carrier order. Bodyless conformances still use attached
+    // exact-requirement machines, but their evidence identity is explicit in
+    // the same name-first position as closed conformances.
+    if let Ok((_type_name, rest)) = input.take_identifier()
         && rest.at_contextual("satisfies")
     {
-        let rest = rest.take_contextual("satisfies")?;
-        let ((trait_name, trait_arguments), mut rest) =
-            parse_conformance_trait_application(syntax_trees, rest)?;
-        let alias = if rest.at_contextual("as") {
-            rest = rest.take_contextual("as")?;
-            let (alias, next) = rest.take_identifier()?;
-            rest = next;
-            Some(alias)
-        } else {
-            None
-        };
-        if alias.is_some() {
-            return Err(input.error_here(
-                "the named `Subject satisfies Trait as Name { ... }` conformance header is retired; write `Name: Subject satisfies Trait { ... }`",
-            ));
-        }
-        if rest.at_punctuation(PunctuationKind::LeftBrace) {
-            return Err(input.error_here(
-                "an unnamed `Subject satisfies Trait { ... }` conformance implementation is retired; write `Name: Subject satisfies Trait { ... }`",
-            ));
-        }
-        let body = ConformanceBody::LegacyAttachedMachines;
-        let rest = take_optional_semicolon(rest)?;
-        return Ok((
-            Item::Conformance(psi_syntax_trees::item::ConformanceItem {
-                subject: psi_syntax_trees::item::ConformanceSubject::Carrier(type_name),
-                trait_name,
-                trait_arguments,
-                alias,
-                body,
-            }),
-            rest,
+        return Err(input.error_here(
+            "the unnamed `Subject satisfies Trait` conformance header is retired; write `Name: Subject satisfies Trait`",
         ));
     }
 

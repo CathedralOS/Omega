@@ -2,7 +2,7 @@ use omega::language::core::extent;
 use omega::language::std::calling;
 
 data WrongUefiPolicy { }
-WrongUefiPolicy satisfies CallingPolicy;
+WrongUefiPolicyCallingPolicy: WrongUefiPolicy satisfies CallingPolicy;
 
 machine WrongUefiPolicy::plan(
     signature: BoundarySignature

@@ -14,7 +14,7 @@ data DefaultCounter {
     value: i32;
 }
 
-DefaultCounter satisfies Resettable;
+DefaultCounterResettable: DefaultCounter satisfies Resettable;
 
 machine DefaultCounter::set(&mut self, value: i32) {
     self.value = value;
@@ -24,7 +24,7 @@ data OverrideCounter {
     value: i32;
 }
 
-OverrideCounter satisfies Resettable;
+OverrideCounterResettable: OverrideCounter satisfies Resettable;
 
 machine OverrideCounter::set(&mut self, value: i32) {
     self.value = value;

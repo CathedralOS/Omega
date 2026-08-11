@@ -34,7 +34,7 @@ const POLICY: &str = r#"
 use omega::language::std::calling;
 
 data NoResultPolicy { }
-NoResultPolicy satisfies CallingPolicy;
+NoResultPolicyCallingPolicy: NoResultPolicy satisfies CallingPolicy;
 
 machine NoResultPolicy::plan(
     signature: BoundarySignature
@@ -74,7 +74,7 @@ use omega::language::std::calling;
 use omega::language::core::interrupt;
 
 data X86InterruptPolicy { }
-X86InterruptPolicy satisfies CallingPolicy;
+X86InterruptPolicyCallingPolicy: X86InterruptPolicy satisfies CallingPolicy;
 
 machine X86InterruptPolicy::plan(
     signature: BoundarySignature
@@ -138,7 +138,7 @@ machine X86InterruptPolicy::plan(
 }
 
 data MaskProvider { }
-MaskProvider satisfies InterruptMaskControl;
+MaskProviderInterruptMaskControl: MaskProvider satisfies InterruptMaskControl;
 
 machine MaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
@@ -149,7 +149,7 @@ boundary trait LookalikeMaskControl {
 }
 
 data LookalikeMaskProvider { }
-LookalikeMaskProvider satisfies LookalikeMaskControl;
+LookalikeMaskProviderLookalikeMaskControl: LookalikeMaskProvider satisfies LookalikeMaskControl;
 
 machine LookalikeMaskProvider::save(&mut self) -> InterruptMaskGuard in Active
     satisfies LookalikeMaskControl::save
@@ -164,7 +164,7 @@ boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {
 }
 
 data TimerProvider { }
-TimerProvider satisfies TimerRoot;
+TimerProviderTimerRoot: TimerProvider satisfies TimerRoot;
 
 machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
     satisfies InterruptEntry::enter
@@ -174,7 +174,7 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
 }
 
 data LookalikeEntryProvider { }
-LookalikeEntryProvider satisfies LookalikeEntry;
+LookalikeEntryProviderLookalikeEntry: LookalikeEntryProvider satisfies LookalikeEntry;
 
 machine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
     satisfies LookalikeEntry::enter
@@ -1033,7 +1033,7 @@ fn full_width_unsigned_calling_values_are_not_reinterpreted_as_signed() {
 use omega::language::std::calling;
 
 data FullWidthPolicy { }
-FullWidthPolicy satisfies CallingPolicy;
+FullWidthPolicyCallingPolicy: FullWidthPolicy satisfies CallingPolicy;
 machine FullWidthPolicy::plan(
     signature: BoundarySignature
 ) -> BoundaryPlanResult
@@ -1124,7 +1124,7 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
 fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
     let source = POLICY.replace(
         "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
-        "boundary trait Tick<C>: Calling<C>\nwhere C satisfies CallingPolicy\n{\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick<NoResultPolicy>::tick {\n    self.count = 1;\n}",
+        "boundary trait Tick<C>: Calling<C>\nwhere C satisfies CallingPolicy\n{\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProviderTick: TickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick<NoResultPolicy>::tick {\n    self.count = 1;\n}",
     );
     let main_path = write_program("generic-boundary-policy", &source);
     let checked = compile_to_checked(&main_path, None).expect("generic policy instance compiles");
@@ -1198,7 +1198,7 @@ data Pair {
 }
 
 data RecursiveShapePolicy { }
-RecursiveShapePolicy satisfies CallingPolicy;
+RecursiveShapePolicyCallingPolicy: RecursiveShapePolicy satisfies CallingPolicy;
 
 machine RecursiveShapePolicy::plan(
     signature: BoundarySignature
@@ -1356,7 +1356,7 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
 data PortableByte { value: i64; }
 
 data StoredWidthPolicy { }
-StoredWidthPolicy satisfies CallingPolicy;
+StoredWidthPolicyCallingPolicy: StoredWidthPolicy satisfies CallingPolicy;
 machine StoredWidthPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {

@@ -810,7 +810,7 @@ mod tests {
             }
 
             data LocalTaskRuntime { }
-            LocalTaskRuntime satisfies TaskRuntime;
+            LocalTaskRuntimeTaskRuntime: LocalTaskRuntime satisfies TaskRuntime;
             machine LocalTaskRuntime::start<T, Arguments, machine Target>(
                 &self,
                 arguments: Arguments

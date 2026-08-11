@@ -4,7 +4,7 @@ data Point {
     x: i32;
 }
 
-Point satisfies Equatable;
+PointEquatable: Point satisfies Equatable;
 
 data Main {
     value: i32;

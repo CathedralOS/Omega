@@ -56,8 +56,8 @@ pub(crate) fn lower_item(
             let arguments =
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
             let implementation = match &conformance.body {
-                syntax::item::ConformanceBody::LegacyAttachedMachines => {
-                    psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines
+                syntax::item::ConformanceBody::AttachedRequirementMachines => {
+                    psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
                 }
                 syntax::item::ConformanceBody::Closed { members } => {
                     let conformance_name = conformance

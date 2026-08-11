@@ -6,4 +6,4 @@ trait Resettable<T> {
 data Counter {
 }
 
-Counter satisfies Resettable;
+CounterResettable: Counter satisfies Resettable;

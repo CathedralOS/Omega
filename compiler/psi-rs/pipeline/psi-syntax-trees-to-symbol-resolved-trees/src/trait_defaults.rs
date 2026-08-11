@@ -347,7 +347,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
 
 /// Collect every exact requirement identity in the inherited closure together
 /// with the generic substitution at this conformance. Closed conformances keep
-/// exact `(declaring trait, requirement)` rows, so unlike legacy attached
+/// exact `(declaring trait, requirement)` rows, so unlike bodyless attached
 /// lookup this deliberately does not collapse or shadow same-leaf names.
 fn collect_requirement_instances(
     syntax: &mut SyntaxTrees,

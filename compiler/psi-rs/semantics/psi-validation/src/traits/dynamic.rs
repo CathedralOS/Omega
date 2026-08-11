@@ -28,8 +28,7 @@ pub struct DynamicConformanceSelection {
     pub source_path: Vec<Identifier>,
     pub source_data: psi_symbols::SymbolHandle,
     pub target_trait: psi_symbols::SymbolHandle,
-    /// Stable child symbol for a named conformance. `None` denotes the unique
-    /// unnamed conformance identified by `source_data + target_trait`.
+    /// Stable child symbol for the explicitly named conformance.
     pub conformance: Option<psi_symbols::SymbolHandle>,
 }
 
@@ -161,7 +160,7 @@ pub fn collect_dynamic_conformance_selections(
                         candidate.symbol == *exact_symbol
                             && matches!(
                                 &candidate.implementation,
-                                psi_typed_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines
+                                psi_typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
                             )
                     }) {
                         diagnostics.push(Diagnostic::error(format!(

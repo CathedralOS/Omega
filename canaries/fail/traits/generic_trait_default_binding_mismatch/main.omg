@@ -10,7 +10,7 @@ data Counter {
     value: i32;
 }
 
-Counter satisfies Assignable<bool>;
+CounterAssignable: Counter satisfies Assignable<bool>;
 
 machine Counter::assign(&mut self, value: i32) {
     self.value = value;

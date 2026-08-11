@@ -23,7 +23,7 @@ data Counter {
     value: i32;
 }
 
-Counter satisfies Resettable;
+CounterResettable: Counter satisfies Resettable;
 
 machine Counter::set(&mut self, value: i32) {
     self.value = value;

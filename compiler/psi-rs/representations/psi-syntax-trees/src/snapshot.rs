@@ -194,7 +194,7 @@ fn is_false(value: &bool) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConformanceBodySnapshot {
-    LegacyAttachedMachines,
+    AttachedRequirementMachines,
     Closed {
         members: Vec<ConformanceMemberSnapshot>,
     },
@@ -717,8 +717,8 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
             alias: value.alias.as_ref().map(snapshot_identifier),
             body: match value.body {
-                crate::item::ConformanceBody::LegacyAttachedMachines => {
-                    ConformanceBodySnapshot::LegacyAttachedMachines
+                crate::item::ConformanceBody::AttachedRequirementMachines => {
+                    ConformanceBodySnapshot::AttachedRequirementMachines
                 }
                 crate::item::ConformanceBody::Closed { members } => {
                     ConformanceBodySnapshot::Closed {

@@ -1,5 +1,5 @@
-//! Standalone conformance items (frozen decision 8): `Point satisfies
-//! Equatable;` claims a whole trait for a data type. The claim is checked
+//! Named bodyless conformance items (`PointEquatable: Point satisfies
+//! Equatable;`) claim a whole trait for a data type. The claim is checked
 //! against the type's attached machines (`machine Point::equals(...)`), whether
 //! authored or synthesized, using the same signature matching as machine-level
 //! `satisfies` clauses.
@@ -114,7 +114,7 @@ pub(crate) fn validate_conformances(
         );
 
         match &conformance.implementation {
-            ConformanceImplementation::LegacyAttachedMachines => {
+            ConformanceImplementation::AttachedRequirementMachines => {
                 if let Some(type_name) = carrier_name {
                     validate_data_satisfies_trait(
                         program,

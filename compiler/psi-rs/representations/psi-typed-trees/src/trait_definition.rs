@@ -66,7 +66,7 @@ impl Conformance {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ConformanceImplementation {
     #[default]
-    LegacyAttachedMachines,
+    AttachedRequirementMachines,
     Closed {
         rows: Vec<ConformanceRow>,
     },

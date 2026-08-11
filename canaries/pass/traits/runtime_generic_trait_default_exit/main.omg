@@ -28,7 +28,7 @@ data DirectCounter {
     value: i32;
 }
 
-DirectCounter satisfies Initializable<i32>;
+DirectCounterInitializable: DirectCounter satisfies Initializable<i32>;
 
 machine DirectCounter::assign(&mut self, value: i32) {
     self.value = value;
@@ -38,7 +38,7 @@ data ParentCounter {
     value: i32;
 }
 
-ParentCounter satisfies IntSink;
+ParentCounterIntSink: ParentCounter satisfies IntSink;
 
 machine ParentCounter::store(&mut self, value: i32) {
     self.value = value;
@@ -48,7 +48,7 @@ data ForwardedCounter {
     value: i32;
 }
 
-ForwardedCounter satisfies ForwardedSink<i32>;
+ForwardedCounterForwardedSink: ForwardedCounter satisfies ForwardedSink<i32>;
 
 machine ForwardedCounter::store(&mut self, value: i32) {
     self.value = value;

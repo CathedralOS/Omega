@@ -21,7 +21,7 @@ trait Equatable {
     machine equals(&self, other: &Self) -> bool;
 }
 
-Tag satisfies Equatable;
+TagEquatable: Tag satisfies Equatable;
 
 data Main {
     console: Console;
