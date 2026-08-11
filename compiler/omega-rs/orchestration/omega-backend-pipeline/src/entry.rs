@@ -2,22 +2,13 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 
-/// The CANONICAL entry: `machine Main::run(&self, args: &[u8])` -- Main's
-/// members are the program's statics, and `args` is the platform handoff as raw
-/// bytes (cast/mint to the desired type).
-///
-/// MIGRATION PRECEDENCE: `Main::main` resolves FIRST while it exists -- the
-/// corpus has programs whose `Main::run` is an ordinary HELPER machine beside
-/// their `Main::main` entry, and canonical-first silently made the helper the
-/// program entry (garbage params, wrong flow). Preferring the legacy name keeps
-/// every existing program's meaning; a program with no `Main::main` gets the
-/// canonical `run`. The final corpus sweep retires `main` and flips this.
+/// Transitional entry names used only while the corpus moves to explicit
+/// target-owned `ProgramEntry` bindings. `Main::main` remains first because
+/// some unmigrated programs also carry an ordinary `Main::run` helper.
 pub(super) const ENTRY_MACHINE_NAME: &str = "Main::run";
 pub(super) const ENTRY_STATE_NAME: &str = "run";
 const LEGACY_MAIN_MACHINE_NAME: &str = "Main::main";
 const LEGACY_MAIN_STATE_NAME: &str = "main";
-const LEGACY_ENTRY_MACHINE_NAME: &str = "main";
-const LEGACY_ENTRY_STATE_NAME: &str = "entry";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct BackendEntryPoint {
@@ -44,12 +35,6 @@ pub(super) fn resolve_backend_entry_point(
     }
 
     if let Some(entry_point) = find_entry_point(program, ENTRY_MACHINE_NAME, ENTRY_STATE_NAME) {
-        return Ok(entry_point);
-    }
-
-    if let Some(entry_point) =
-        find_entry_point(program, LEGACY_ENTRY_MACHINE_NAME, LEGACY_ENTRY_STATE_NAME)
-    {
         return Ok(entry_point);
     }
 
