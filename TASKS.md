@@ -378,6 +378,8 @@ checked-result arithmetic decision listed below.
 - Complete hermetic evaluation with crash refinement, target capsule, separate
   result/usage identities, deterministic progress, and runtime equivalence.
   Publish `Hermetic | Receipted | Volatile` ceilings and realized provenance.
+- Finish member reflection (`Self::fields` and field/case splices), constant
+  positions, and proof checking of generator-expanded bodies.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
   package-scoped providers, no ambient filesystem escape, and generated-source
   rechecking under consumer ceilings.
