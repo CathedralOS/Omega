@@ -34,7 +34,8 @@ realization, optimization, ABI lowering, native emission, and execution.
 Omega files
     -> Psi parse / resolve / type / check / lower / canonicalize
     -> terminal Psi
-    -> Omega interpret or realize for a target
+    -> Psi reference interpreter (oracle)
+       or Omega realization for a target
 ```
 
 There is no Omega-to-Psi-to-Omega pipeline and no separate public source
@@ -66,200 +67,46 @@ Changing the fuel schedule changes accounting, not program meaning. Cached
 semantic results therefore key on Psi semantics and program identity; cost
 records additionally key on the fuel schedule.
 
-### The representation cut
+### Semantic and proof boundary
 
-Terminal Psi is live for the closed executable and proof vocabulary described
-above. `CheckedTrees`, `StateGraph`, and `ControlFlowPlan` still retain
-`TypedTrees` expression tables and
-`ExpressionHandle` as executable content. `StateGraph` and `ControlFlowPlan`
-provide useful machine, state, transition, contract, borrow, and ownership
-topology, but the latter is presently mostly a remap of the former rather than
-expression lowering. `AbstractOperations` is already an Omega representation:
-runtime storage regions, calling conventions, ABI aggregate classes, native
-offsets, and related target-realization choices are its job.
+The detailed representation, operation-slice discipline, verifier split,
+canonical bytes, and artifact identities are specified once in
+[`terminal_psi.md`](../architecture/pipeline/terminal_psi.md). The constraints
+that matter to fuel and resource provisioning are:
 
-Terminal Psi therefore replaces the hollow state-graph/control-flow pair with
-one self-contained form at that altitude. It keeps their semantic skeleton but
-replaces every source-tree reference with lowered values, operations,
-predicates, typed places, blocks, and obligation-carrying edges. Short-circuit
-evaluation, calls, guards, cleanup, suspension, and fallible operations may
-create blocks not present in today's source-derived state segmentation; the
-current arena topology is not the public schema.
+- terminal Psi is immutable, self-contained, concrete, and target-neutral;
+- every executable choice that changes behavior or generated obligations has a
+  closed static identity;
+- execution, propositions, evidence, fuel, diagnostics, and lowering refer to
+  the same stable values, places, operations, and edges;
+- author-declared hardware geometry remains semantic, while target-selected
+  layout, ABI classes, registers, storage regions, and instructions belong to
+  Omega; and
+- the reference interpreter and native lowering implement the normative
+  operation semantics; agreement between them is a test, not the definition.
 
-The boundary is based on provenance, not on whether a number resembles an
-offset. Author-declared device offsets, transfer widths, alignment demands,
-and placement schema are semantic and remain in Psi. Target-selected native
-field offsets, stack slots, register assignments, ABI classes, and concrete
-storage regions belong to Omega.
+The artifact verifier reconstructs the complete obligation set from the
+semantic module and its fingerprinted contracts. The proof kernel checks
+evidence for that reconstructed set. A proof bundle cannot choose what must be
+proved, and an admission is valid only at a sealed site accepted by the active
+profile. Each accepted fact is re-decided by a total kernel judgment, proved by
+checked evidence, or explicitly admitted; unsupported entailment rejects.
 
-### Semantic module
+Semantic bytes, replaceable proof evidence, installation decisions, and debug
+maps have separate identities under one manifest. Proof improvement does not
+change program identity. Canonical decoding accepts only the current
+pre-release vocabulary, so producers and consumers change together and stale
+artifacts reject.
 
-The fingerprinted semantic module contains:
-
-- concrete machines, states, typed block parameters, values, calls,
-  transitions, and terminals;
-- a closed semantic operation vocabulary and statically visible variants for
-  choices that change execution or generated obligations;
-- structural places rooted in ordinary or provider-backed storage, including
-  field, index-by-value, dereference, and range/subextent projections;
-- machine-local entry-claim bindings that give each content claim a dense
-  identity, projection, algebra, and entry structural place without asserting
-  equality to an output;
-- contracts, author-declared premises, generated structural obligations,
-  cleanup/transfer actions, conservation equations, work attribution, trust
-  classes, and authorized admission sites;
-- nominal proposition families with their binder telescopes,
-  fact-only/witness-bearing classification, and normalized carrierless
-  evidence interface; changing that interface changes the semantic module,
-  while transparent proposition definitions expand before this boundary and
-  remain only in debug maps;
-- relation-local left/right carrier index packs, selected heterogeneous
-  constructor lifts, dependency-ordered field relations, and checked
-  proposition-transport evidence; carrier declarations contribute no global
-  relation-role row;
-- erased bindings with their semantic type, multiplicity, validity,
-  conservation, and provenance rows but no executable storage or cleanup;
-  runtime layouts consume the erased-stripped form;
-- exact witness-evidence term identities distinct from nominal proposition
-  applications and derivation provenance, plus machine-derived nominal output
-  packages whose named proof fields erase and whose guarded fields occur only
-  in matching outcome variants;
-- target-neutral provider requirements and scoped ordering operations; and
-- stable identities shared by execution, propositions, proof evidence, fuel,
-  diagnostics, and lowering provenance.
-
-A choice that changes execution semantics or generated obligations must be
-distinguishable without constant propagation. For example, trapping,
-wrapping, and saturating integer addition are closed instruction variants, not
-an ordinary runtime policy value. Several sound proof lemmas of differing
-precision may describe one transition; lemma selection and later proof-library
-improvements do not change operation or program identity.
-
-The proposition vocabulary may differ from the executable vocabulary, but both
-refer to the same canonical values, places, operations, and edges. Each
-operation definition owns one normative execution transition and one generated
-obligation schema. Its logical rules must be proven sound with respect to that
-transition under those obligations. These per-operation proofs, plus the
-global soundness obligations for control-flow composition, place algebra,
-admission binding, canonical decoding, and ordering, form an enumerable Psi
-language-verification backlog rather than an amorphous trusted compiler.
-
-Conditional control flow is one terminator over an already-defined Boolean
-value with ordered true/false successor edge records. Each successor retains
-its own edge identity, typed bindings, actions, and fuel charge. This makes
-mutual exclusion and exhaustiveness structural rather than generating a proof
-obligation solely to repair the representation. Proposition terms are not
-executable guards, and only the selected successor contributes path fuel.
-
-The normative Psi semantics is not whatever the current interpreter happens to
-do. The interpreter and native lowering implement the current operation
-semantics. Differential execution compares those two implementations; it does
-not replace the per-operation soundness work or prove that both implementations
-did not share a mistaken reading.
-
-### Obligations, evidence, and admission
-
-The verifier reconstructs the required obligation set from executable Psi and
-its fingerprinted contracts. A proof bundle cannot omit an inconvenient
-obligation, weaken a contract, or relabel a derivable fact as admitted.
-Admission is legal only at sealed positions whose truth cannot be structurally
-derived, such as a foreign boundary, provider fact, or checked assembly claim.
-The verifier validates each admission's kind, provider/evidence identity, and
-profile acceptance even though it cannot prove the admitted fact true.
-
-Every accepted fact follows exactly one route:
-
-```text
-kernel-derived       a specified total judgment re-decided by the verifier
-certificate-derived  explicit evidence checked by the proof kernel
-admitted             an authorized unverifiable assertion accepted by policy
-```
-
-`requires` and published guarantees are program semantics and remain in the
-module. Call sites must establish requirements. A bodyful guarantee must be
-derived; only a bodyless or foreign guarantee at an authorized site may depend
-on admission.
-
-Primitive kernel judgments are minimized. Each is a normative, total,
-specified decision procedure with its own soundness obligation. Other solvers
-remain outside the trusted base by producing certificates checked by the small
-kernel. A total, guaranteed certificate reconstruction may run locally in a
-consumer; any search that may time out, return unknown, or otherwise fail must
-ship its certificate when portable verification is required. An external
-non-certifying answer is admitted evidence, not derived proof.
-
-Terminal Psi plus its content-addressed semantic dependencies is sufficient to
-state and check replacement evidence without source or the producing compiler.
-That makes evidence replacement possible, not necessarily cheap: proprietary
-or expensive proof search may still be required to find a new certificate.
-
-### Artifact sections and identity
-
-One installed execution selects one current semantic module. A verifier may not
-approve one representation and execute another. A distribution container may
-carry several separately fingerprinted target variants, but selection occurs
-before verification and execution.
-
-The artifact separates four concerns:
-
-```text
-semantic module       executable Psi, contracts, obligations, admissions
-proof bundle          replaceable derivations and carried certificates
-installation record   selected providers, target facts, profile decisions
-debug/source maps      presentation and diagnostics
-```
-
-The semantic fingerprint covers only the semantic module. The containing
-artifact manifest hashes every attached section so evidence or installation
-records cannot be silently replaced. Improving a proof changes the proof-bundle
-and container identities, not the program's semantic identity. Supply-chain
-attestation may separately state which producer created a module; it grants no
-semantic authority to the verifier.
-
-Canonical decoding rejects alternate encodings rather than silently
-normalizing them. Numbering, ordering, algebraic normal forms, and serialization
-are deterministic, so byte identity and semantic-module identity coincide for
-the current Psi vocabulary. During pre-release development a semantic bug is a
-breaking compiler/artifact change and stale modules are rejected. A bug in a
-proof checker or trusted decision procedure may still revoke affected evidence
-and allow a replacement proof bundle over an unchanged semantic module.
-
-### Vocabulary construction
-
-The proposition IR, proof kernel, and their extension discipline are
-established before operations depend on them, then vocabulary grows through
-vertical slices. For each operation class, specify together:
-
-1. canonical encoding and typed operands/results;
-2. execution transition;
-3. generated obligations and authorized admissions;
-4. proof rule plus its soundness obligation;
-5. interpreter behavior and Omega lowering requirement; and
-6. fuel identity under the canonical schedule.
-
-Two operations require distinct static identities when their execution
-semantics or generated obligations differ. Proof-lemma choice is not an
-operation distinction. Proposition expressiveness is not limited to automatic
-decidability: closed total fragments may discharge automatically, while richer
-claims require explicit checkable evidence. Unsupported entailment refuses; it
-never triggers unbounded proof search during verification.
-
-The canonical operation vocabulary must retain scoped ordering events rather
-than flattening them into opaque calls or one universal fence. CPU atomic
-fences, same-context compiler/interruption fences, DMA publication, device
-acquisition, MMIO completion, cache maintenance, and checked ISA barriers name
-different participants and guarantees. A cross-device event retains its exact
-range, mapping, observer/device instance, and ordering scope so the verifier can
-check composition and target lowering can discharge the same requirement.
-
-Erased proof evidence does not create runtime ordering. For example, a DMA
-publication result may authorize a later doorbell in source, but the
-publication operation itself must contribute the Psi event that forbids sinking
-covered writes past publication or hoisting notification before it. On a
-coherent target the verified realization may emit no instruction; on another
-target it may expand into bounded cache maintenance, barriers, or an admitted
-OS provider call. Those realizations retain distinct work and trust evidence
-while implementing the same scoped semantic event.
+The vocabulary grows only through complete vertical slices: encoding,
+execution, reconstructed obligations and authorized admissions, proof rule and
+soundness argument, interpretation, Omega lowering, and fuel identity. Scoped
+ordering operations remain distinct semantic events; proof evidence alone
+cannot create runtime ordering. Their participant and realization rules are
+specified in [`concurrency_atomics.md`](concurrency_atomics.md) and the hardware
+foundation briefs
+([freestanding](freestanding_boot_and_hardware_facts.md),
+[memory and devices](os_memory_and_hardware_foundation.md)).
 
 ## Logical fuel
 
@@ -385,8 +232,8 @@ normalized size, alignment padding, and metadata from a proof-level natural
 residual magnitude keyed by the `Bytes` unit identity. The residual tail
 `Extent` supplies placement; released extents leave the allocation's live
 custody frontier but do not restore bump capacity until reset recomposes the
-original backing. A scalar
-free-byte count does not prove placement in a fragmented general heap. Such
+original backing. A scalar free-byte count does not prove placement in a
+fragmented general heap. Such
 allocators remain fallible or require an exact free-extent/reservation theorem.
 
 ## Contracts, installation, and proof-carrying code
@@ -403,26 +250,14 @@ and fixed-fuel certificates without trusting the producing compiler. Native
 lowering/refinement certificates have a different subject and TCB and remain a
 separate future lane.
 
-Terminal-Psi verification has two compositional judgments. The artifact-aware
-judgment canonical-decodes the module and reconstructs the complete obligation
-set from its operations, edges, contracts, and authorized admission sites. The
-generic proof-kernel judgment checks derivations of the resulting propositions.
-The module determines what must be proved; a proof bundle only discharges that
-set and is rejected for missing, extra, mismatched, or differently bound
-evidence.
-
-The semantic split is settled even though final implementation placement is
-deliberately deferred. The Psi-aware judgment may gain a low-rung reference
-implementation, emit a reconstruction derivation checked by the low kernel, or
-remain an explicitly named trusted component. A Psi-hosted implementation of the
-generic kernel is useful for speed or a further independent diamond, but cannot
-by itself establish that the right obligations were reconstructed.
+The verifier/kernel split above is settled; its final trust placement is not.
+The Psi-aware verifier may gain a low-rung reference implementation, emit a
+reconstruction derivation checked by the low kernel, or remain explicitly
+trusted. A Psi-hosted generic kernel may accelerate or cross-check proofs, but
+does not establish that the verifier reconstructed the right obligations.
 
 ## Implementation constraints
 
-- Grow the vocabulary in complete vertical slices: encoding, semantics,
-  reconstructed obligations, proof checking, interpretation, fuel, and Omega
-  lowering move together.
 - Keep legacy interpreters or lowerers only as differential oracles while their
   consumer moves; they never define a second semantic path.
 - Bind evidence to exact semantic and reconstructed-obligation identities. A
