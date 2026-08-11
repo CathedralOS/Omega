@@ -114,8 +114,10 @@ fn lower_function(
         .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
     {
         return match function.result.scalar_type {
-            ScalarType::Integer(_) => lower_integer_conditional(function, &values),
-            ScalarType::Boolean => lower_boolean_conditional(function, &values),
+            ScalarType::Integer(_) => {
+                lower_integer_conditional(function, &values, target, functions)
+            }
+            ScalarType::Boolean => lower_boolean_conditional(function, &values, target, functions),
         };
     }
 
@@ -131,76 +133,16 @@ fn lower_function(
                 callee,
                 arguments,
             } => {
-                let callee_function = functions
-                    .get(callee)
-                    .copied()
-                    .ok_or(LoweringError::UnknownCallTarget(*callee))?;
-                let callee_signature = CallSignature {
-                    parameters: callee_function
-                        .parameters
-                        .iter()
-                        .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
-                        .collect::<Result<Vec<_>, _>>()?,
-                    result: Some(scalar_shape(
-                        callee_function.result.value,
-                        callee_function.result.scalar_type,
-                        false,
-                    )?),
-                };
-                let callee_call_plan =
-                    evaluate_call_plan(CallingPolicy::native_for_target(target), &callee_signature)
-                        .map_err(LoweringError::AbiPlan)?;
-                if arguments.len() != callee_function.parameters.len()
-                    || arguments.len() != callee_call_plan.parameters.len()
-                {
-                    return Err(LoweringError::CallArgumentCountMismatch {
-                        callee: *callee,
-                        expected: callee_function.parameters.len(),
-                        actual: arguments.len(),
-                    });
-                }
-                let arguments = arguments
-                    .iter()
-                    .zip(&callee_function.parameters)
-                    .zip(&callee_call_plan.parameters)
-                    .map(|((argument, parameter), placement)| {
-                        let expression = values
-                            .get(argument)
-                            .cloned()
-                            .ok_or(LoweringError::UnknownValue(*argument))?
-                            .into_expression(*argument)?;
-                        if expression.scalar_type() != parameter.scalar_type {
-                            return Err(LoweringError::CallArgumentTypeMismatch {
-                                callee: *callee,
-                                argument: *argument,
-                            });
-                        }
-                        Ok(TerminalTargetCallArgument {
-                            scalar_type: parameter.scalar_type,
-                            location: scalar_parameter_location(parameter, placement)?,
-                            expression,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let value = match scalar_type {
-                    ScalarType::Boolean => {
-                        KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Call {
-                            psi_operation: *psi_operation,
-                            source_value: *result,
-                            callee: *callee,
-                            arguments,
-                        })
-                    }
-                    ScalarType::Integer(scalar_type) => KnownScalar::Integer {
-                        scalar_type: *scalar_type,
-                        value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Call {
-                            psi_operation: *psi_operation,
-                            source_value: *result,
-                            callee: *callee,
-                            arguments,
-                        }),
-                    },
-                };
+                let value = lower_call(
+                    *psi_operation,
+                    *result,
+                    *scalar_type,
+                    *callee,
+                    arguments,
+                    &values,
+                    target,
+                    functions,
+                )?;
                 insert_value(&mut values, *result, value)?;
                 provenance.operations.push(*psi_operation);
             }
@@ -1271,9 +1213,92 @@ fn lower_function(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn lower_call(
+    psi_operation: psi_core::OperationId,
+    result: ValueId,
+    scalar_type: ScalarType,
+    callee: MachineId,
+    arguments: &[ValueId],
+    values: &BTreeMap<ValueId, KnownScalar>,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+) -> Result<KnownScalar, LoweringError> {
+    let callee_function = functions
+        .get(&callee)
+        .copied()
+        .ok_or(LoweringError::UnknownCallTarget(callee))?;
+    let callee_signature = CallSignature {
+        parameters: callee_function
+            .parameters
+            .iter()
+            .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
+            .collect::<Result<Vec<_>, _>>()?,
+        result: Some(scalar_shape(
+            callee_function.result.value,
+            callee_function.result.scalar_type,
+            false,
+        )?),
+    };
+    let callee_call_plan =
+        evaluate_call_plan(CallingPolicy::native_for_target(target), &callee_signature)
+            .map_err(LoweringError::AbiPlan)?;
+    if arguments.len() != callee_function.parameters.len()
+        || arguments.len() != callee_call_plan.parameters.len()
+    {
+        return Err(LoweringError::CallArgumentCountMismatch {
+            callee,
+            expected: callee_function.parameters.len(),
+            actual: arguments.len(),
+        });
+    }
+    let arguments = arguments
+        .iter()
+        .zip(&callee_function.parameters)
+        .zip(&callee_call_plan.parameters)
+        .map(|((argument, parameter), placement)| {
+            let expression = values
+                .get(argument)
+                .cloned()
+                .ok_or(LoweringError::UnknownValue(*argument))?
+                .into_expression(*argument)?;
+            if expression.scalar_type() != parameter.scalar_type {
+                return Err(LoweringError::CallArgumentTypeMismatch {
+                    callee,
+                    argument: *argument,
+                });
+            }
+            Ok(TerminalTargetCallArgument {
+                scalar_type: parameter.scalar_type,
+                location: scalar_parameter_location(parameter, placement)?,
+                expression,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(match scalar_type {
+        ScalarType::Boolean => KnownScalar::BooleanRuntime(TerminalTargetBooleanExpression::Call {
+            psi_operation,
+            source_value: result,
+            callee,
+            arguments,
+        }),
+        ScalarType::Integer(scalar_type) => KnownScalar::Integer {
+            scalar_type,
+            value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Call {
+                psi_operation,
+                source_value: result,
+                callee,
+                arguments,
+            }),
+        },
+    })
+}
+
 fn lower_integer_conditional(
     function: &TerminalAbstractFunction,
     values: &BTreeMap<ValueId, KnownScalar>,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
     let ScalarType::Integer(result_type) = function.result.scalar_type else {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
@@ -1286,6 +1311,8 @@ fn lower_integer_conditional(
         values.clone(),
         function.entry,
         BTreeSet::new(),
+        target,
+        functions,
     )?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
@@ -1297,8 +1324,17 @@ fn lower_integer_conditional(
 fn lower_boolean_conditional(
     function: &TerminalAbstractFunction,
     values: &BTreeMap<ValueId, KnownScalar>,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
-    let lowered = lower_boolean_block(function, values.clone(), function.entry, BTreeSet::new())?;
+    let lowered = lower_boolean_block(
+        function,
+        values.clone(),
+        function.entry,
+        BTreeSet::new(),
+        target,
+        functions,
+    )?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
         provenance: conditional_provenance(function, lowered.operations, lowered.edges),
@@ -1317,10 +1353,19 @@ fn lower_boolean_arm(
     values: &BTreeMap<ValueId, KnownScalar>,
     successor: &omega_terminal_abstract_operations::TerminalAbstractSuccessor,
     visited: &BTreeSet<BlockId>,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<LoweredBooleanArm, LoweringError> {
     let mut values = values.clone();
     bind_conditional_values(&mut values, &successor.bindings, successor.psi_edge)?;
-    let mut lowered = lower_boolean_block(function, values, successor.target, visited.clone())?;
+    let mut lowered = lower_boolean_block(
+        function,
+        values,
+        successor.target,
+        visited.clone(),
+        target,
+        functions,
+    )?;
     lowered.edges.insert(0, successor.psi_edge);
     Ok(LoweredBooleanArm {
         arm: TerminalTargetConditionalBooleanArm {
@@ -1343,6 +1388,8 @@ fn lower_boolean_block(
     mut values: BTreeMap<ValueId, KnownScalar>,
     block: BlockId,
     mut visited: BTreeSet<BlockId>,
+    native_target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<LoweredBooleanControl, LoweringError> {
     if !visited.insert(block) {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
@@ -1374,7 +1421,13 @@ fn lower_boolean_block(
     };
     let mut operations = Vec::new();
     for operation in body {
-        if !lower_conditional_scalar_operation(operation, &mut values, &mut operations)? {
+        if !lower_conditional_scalar_operation(
+            operation,
+            &mut values,
+            &mut operations,
+            native_target,
+            functions,
+        )? {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
             ));
@@ -1387,7 +1440,8 @@ fn lower_boolean_block(
             bindings,
         } => {
             bind_conditional_values(&mut values, bindings, *psi_edge)?;
-            let mut lowered = lower_boolean_block(function, values, *target, visited)?;
+            let mut lowered =
+                lower_boolean_block(function, values, *target, visited, native_target, functions)?;
             operations.append(&mut lowered.operations);
             lowered.operations = operations;
             lowered.edges.insert(0, *psi_edge);
@@ -1408,7 +1462,14 @@ fn lower_boolean_block(
                 } else {
                     when_false
                 };
-                let mut lowered = lower_boolean_arm(function, &values, selected, &visited)?;
+                let mut lowered = lower_boolean_arm(
+                    function,
+                    &values,
+                    selected,
+                    &visited,
+                    native_target,
+                    functions,
+                )?;
                 operations.append(&mut lowered.operations);
                 Ok(LoweredBooleanControl {
                     control: *lowered.arm.control,
@@ -1424,8 +1485,22 @@ fn lower_boolean_block(
                 } else {
                     (when_true, when_false)
                 };
-                let lowered_true = lower_boolean_arm(function, &values, selected_true, &visited)?;
-                let lowered_false = lower_boolean_arm(function, &values, selected_false, &visited)?;
+                let lowered_true = lower_boolean_arm(
+                    function,
+                    &values,
+                    selected_true,
+                    &visited,
+                    native_target,
+                    functions,
+                )?;
+                let lowered_false = lower_boolean_arm(
+                    function,
+                    &values,
+                    selected_false,
+                    &visited,
+                    native_target,
+                    functions,
+                )?;
                 operations.extend(lowered_true.operations);
                 operations.extend(lowered_false.operations);
                 let mut edges = lowered_true.edges;
@@ -1636,6 +1711,8 @@ fn lower_conditional_arm(
     values: &BTreeMap<ValueId, KnownScalar>,
     successor: &omega_terminal_abstract_operations::TerminalAbstractSuccessor,
     visited: &BTreeSet<BlockId>,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<LoweredConditionalArm, LoweringError> {
     let mut values = values.clone();
     bind_conditional_values(&mut values, &successor.bindings, successor.psi_edge)?;
@@ -1645,6 +1722,8 @@ fn lower_conditional_arm(
         values,
         successor.target,
         visited.clone(),
+        target,
+        functions,
     )?;
     lowered.edges.insert(0, successor.psi_edge);
     Ok(LoweredConditionalArm {
@@ -1669,6 +1748,8 @@ fn lower_conditional_block(
     mut values: BTreeMap<ValueId, KnownScalar>,
     block: BlockId,
     mut visited: BTreeSet<BlockId>,
+    native_target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<LoweredIntegerControl, LoweringError> {
     if !visited.insert(block) {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
@@ -1700,7 +1781,13 @@ fn lower_conditional_block(
     };
     let mut operations = Vec::new();
     for operation in body {
-        if !lower_conditional_scalar_operation(operation, &mut values, &mut operations)? {
+        if !lower_conditional_scalar_operation(
+            operation,
+            &mut values,
+            &mut operations,
+            native_target,
+            functions,
+        )? {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
             ));
@@ -1713,8 +1800,15 @@ fn lower_conditional_block(
             bindings,
         } => {
             bind_conditional_values(&mut values, bindings, *psi_edge)?;
-            let mut lowered =
-                lower_conditional_block(function, result_type, values, *target, visited)?;
+            let mut lowered = lower_conditional_block(
+                function,
+                result_type,
+                values,
+                *target,
+                visited,
+                native_target,
+                functions,
+            )?;
             operations.append(&mut lowered.operations);
             lowered.operations = operations;
             lowered.edges.insert(0, *psi_edge);
@@ -1735,8 +1829,15 @@ fn lower_conditional_block(
                 } else {
                     when_false
                 };
-                let mut lowered =
-                    lower_conditional_arm(function, result_type, &values, selected, &visited)?;
+                let mut lowered = lower_conditional_arm(
+                    function,
+                    result_type,
+                    &values,
+                    selected,
+                    &visited,
+                    native_target,
+                    functions,
+                )?;
                 operations.append(&mut lowered.operations);
                 Ok(LoweredIntegerControl {
                     control: *lowered.arm.control,
@@ -1752,14 +1853,23 @@ fn lower_conditional_block(
                 } else {
                     (when_true, when_false)
                 };
-                let lowered_true =
-                    lower_conditional_arm(function, result_type, &values, selected_true, &visited)?;
+                let lowered_true = lower_conditional_arm(
+                    function,
+                    result_type,
+                    &values,
+                    selected_true,
+                    &visited,
+                    native_target,
+                    functions,
+                )?;
                 let lowered_false = lower_conditional_arm(
                     function,
                     result_type,
                     &values,
                     selected_false,
                     &visited,
+                    native_target,
+                    functions,
                 )?;
                 operations.extend(lowered_true.operations);
                 operations.extend(lowered_false.operations);
@@ -1957,7 +2067,31 @@ fn lower_conditional_scalar_operation(
     operation: &TerminalAbstractOperation,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut Vec<psi_core::OperationId>,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<bool, LoweringError> {
+    if let TerminalAbstractOperation::Call {
+        psi_operation,
+        result,
+        scalar_type,
+        callee,
+        arguments,
+    } = operation
+    {
+        let value = lower_call(
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *callee,
+            arguments,
+            values,
+            target,
+            functions,
+        )?;
+        insert_value(values, *result, value)?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
     if let TerminalAbstractOperation::BooleanConstant {
         psi_operation,
         result,

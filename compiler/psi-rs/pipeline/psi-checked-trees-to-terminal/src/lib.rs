@@ -2258,14 +2258,6 @@ fn lower_checked_direct_call_binding(
             Ok(expression)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if arguments
-        .iter()
-        .any(direct_expression_contains_short_circuit)
-    {
-        return unsupported(
-            "short-circuit scalar call arguments require staged terminal call control",
-        );
-    }
     let checked_call = checked
         .facts
         .contract_plans
@@ -2289,6 +2281,15 @@ fn lower_checked_direct_call_binding(
         })
     }) {
         return unsupported("direct scalar call crash continuation lacks a checked scalar term");
+    }
+    if !checked_call.surviving_buckets().is_empty()
+        && arguments
+            .iter()
+            .any(direct_expression_contains_short_circuit)
+    {
+        return unsupported(
+            "guarded short-circuit call arguments require terminal argument-relative crash rows",
+        );
     }
     Ok(LoweredDirectCallBinding {
         target_machine,
@@ -2631,8 +2632,15 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
 }
 
 fn scalar_binding_contains_short_circuit(binding: &LoweredScalarBinding) -> bool {
-    matches!(binding, LoweredScalarBinding::Expression(expression)
-        if direct_expression_contains_short_circuit(expression))
+    match binding {
+        LoweredScalarBinding::Expression(expression) => {
+            direct_expression_contains_short_circuit(expression)
+        }
+        LoweredScalarBinding::DirectCall(call) => call
+            .arguments
+            .iter()
+            .any(direct_expression_contains_short_circuit),
+    }
 }
 
 fn staged_short_circuit_bindings_terminator(
@@ -4406,6 +4414,35 @@ fn build_scalar_graph_module(
                         }
                         inlined_blocks.extend(decision_blocks);
                         next_stage
+                    } else if let LoweredScalarBinding::DirectCall(call) = binding
+                        && call
+                            .arguments
+                            .iter()
+                            .any(direct_expression_contains_short_circuit)
+                    {
+                        let (next_stage, mut call_blocks) = emit_staged_scalar_call_binding(
+                            call,
+                            &stage_parameters,
+                            &stage_parameter_types,
+                            stage_block_parameters,
+                            stage_block,
+                            &mut next_block_identity,
+                            &mut next_value_identity,
+                            &mut next_edge_identity,
+                            &mut all_operations,
+                            &mut call_emission,
+                        )?;
+                        let root = call_blocks
+                            .drain(..1)
+                            .next()
+                            .expect("a staged scalar call has an argument root");
+                        if binding_index == 0 {
+                            blocks.push(root);
+                        } else {
+                            inlined_blocks.push(root);
+                        }
+                        inlined_blocks.extend(call_blocks);
+                        next_stage
                     } else {
                         let next_stage = block_id(next_block_identity);
                         next_block_identity = next_block_identity
@@ -5380,13 +5417,6 @@ fn emit_scalar_binding(
             operations,
         ));
     };
-    let callee = call_emission
-        .machine_ids
-        .iter()
-        .find_map(|(source, terminal)| (*source == call.target_machine).then_some(*terminal))
-        .ok_or(LoweringError::Unsupported(
-            "direct scalar call target is absent from the terminal closure",
-        ))?;
     let arguments = call
         .arguments
         .iter()
@@ -5394,8 +5424,201 @@ fn emit_scalar_binding(
             emit_direct_expression(argument, parameters, next_value_identity, operations)
         })
         .collect::<Vec<_>>();
+    emit_direct_call_operation(
+        call,
+        parameters,
+        arguments,
+        next_value_identity,
+        operations,
+        call_emission,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_staged_scalar_call_binding(
+    call: &LoweredDirectCallBinding,
+    stage_parameters: &[ValueDeclaration],
+    stage_parameter_types: &[ScalarType],
+    stage_block_parameters: Vec<ValueDeclaration>,
+    stage_block: BlockId,
+    next_block_identity: &mut u64,
+    next_value_identity: &mut u64,
+    next_edge_identity: &mut u64,
+    operations: &mut OperationBuffer,
+    call_emission: &mut CallEmissionContext<'_>,
+) -> Result<(BlockId, Vec<Block>), LoweringError> {
+    debug_assert!(
+        call.arguments
+            .iter()
+            .any(direct_expression_contains_short_circuit)
+    );
+    let caller_value_count = stage_parameters.len();
+    let mut current_block = stage_block;
+    let mut current_parameters = stage_parameters.to_vec();
+    let mut current_block_parameters = stage_block_parameters;
+    let mut blocks = Vec::new();
+
+    for (argument_index, argument) in call.arguments.iter().enumerate() {
+        let mut next_stage_types = stage_parameter_types.to_vec();
+        next_stage_types.extend(
+            call.arguments[..=argument_index]
+                .iter()
+                .map(LoweredDirectExpression::scalar_type),
+        );
+        let next_stage_parameters = next_stage_types
+            .into_iter()
+            .map(|scalar_type| {
+                let parameter = ValueDeclaration {
+                    id: value_id(*next_value_identity),
+                    scalar_type,
+                };
+                *next_value_identity = next_value_identity
+                    .checked_add(1)
+                    .expect("staged call-argument parameter identities advance");
+                parameter
+            })
+            .collect::<Vec<_>>();
+        let carried_arguments = current_parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect::<Vec<_>>();
+
+        let next_stage = if let LoweredDirectExpression::Boolean { expression } = argument
+            && contains_short_circuit(expression)
+        {
+            let decision = lower_boolean_value_decision(expression);
+            let decision_block_count = boolean_decision_block_count(&decision);
+            let first_child_identity = *next_block_identity;
+            let next_stage = block_id(
+                first_child_identity
+                    .checked_add(
+                        u64::try_from(decision_block_count - 1)
+                            .expect("staged call decision count fits a semantic identity"),
+                    )
+                    .expect("staged call decision block identities advance"),
+            );
+            *next_block_identity = next_stage
+                .get()
+                .checked_add(1)
+                .expect("staged call argument blocks advance");
+            let first_reserved_identity = first_child_identity
+                .checked_sub(1)
+                .expect("staged call decision blocks follow their root");
+            let mut decision_blocks = Vec::with_capacity(decision_block_count);
+            let entry = emit_reserved_boolean_tuple_stage_blocks(
+                &decision,
+                &current_parameters,
+                current_block_parameters,
+                next_stage,
+                &carried_arguments,
+                first_reserved_identity,
+                next_value_identity,
+                next_edge_identity,
+                operations,
+                &mut decision_blocks,
+            );
+            assert_eq!(entry.get(), first_reserved_identity);
+            let mut decision_blocks = decision_blocks
+                .into_iter()
+                .map(|block| block.expect("every staged call decision block is finalized"));
+            let mut root = decision_blocks
+                .next()
+                .expect("a short-circuit call argument has a decision root");
+            root.id = current_block;
+            blocks.push(root);
+            blocks.extend(decision_blocks);
+            next_stage
+        } else {
+            let next_stage = block_id(*next_block_identity);
+            *next_block_identity = next_block_identity
+                .checked_add(1)
+                .expect("staged direct call-argument blocks advance");
+            let operation_start = operations.len();
+            let value = emit_direct_expression(
+                argument,
+                &current_parameters,
+                next_value_identity,
+                operations,
+            );
+            let mut arguments = carried_arguments;
+            arguments.push(value);
+            let edge = edge_id(*next_edge_identity);
+            *next_edge_identity = next_edge_identity
+                .checked_add(1)
+                .expect("staged direct call-argument edge identities advance");
+            blocks.push(Block {
+                id: current_block,
+                parameters: current_block_parameters,
+                operations: operations[operation_start..].to_vec(),
+                terminator: Terminator::Jump {
+                    edge,
+                    target: next_stage,
+                    arguments,
+                },
+            });
+            next_stage
+        };
+        current_block = next_stage;
+        current_parameters = next_stage_parameters;
+        current_block_parameters = current_parameters.clone();
+    }
+
+    let continuation = block_id(*next_block_identity);
+    *next_block_identity = next_block_identity
+        .checked_add(1)
+        .expect("staged call continuation block identities advance");
+    let operation_start = operations.len();
+    let arguments = current_parameters[caller_value_count..]
+        .iter()
+        .map(|parameter| parameter.id)
+        .collect::<Vec<_>>();
+    let result = emit_direct_call_operation(
+        call,
+        &current_parameters[..caller_value_count],
+        arguments,
+        next_value_identity,
+        operations,
+        call_emission,
+    )?;
+    let mut continuation_arguments = current_parameters[..caller_value_count]
+        .iter()
+        .map(|parameter| parameter.id)
+        .collect::<Vec<_>>();
+    continuation_arguments.push(result);
+    let edge = edge_id(*next_edge_identity);
+    *next_edge_identity = next_edge_identity
+        .checked_add(1)
+        .expect("staged call continuation edge identities advance");
+    blocks.push(Block {
+        id: current_block,
+        parameters: current_block_parameters,
+        operations: operations[operation_start..].to_vec(),
+        terminator: Terminator::Jump {
+            edge,
+            target: continuation,
+            arguments: continuation_arguments,
+        },
+    });
+    Ok((continuation, blocks))
+}
+
+fn emit_direct_call_operation(
+    call: &LoweredDirectCallBinding,
+    caller_values: &[ValueDeclaration],
+    arguments: Vec<ValueId>,
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+    call_emission: &mut CallEmissionContext<'_>,
+) -> Result<ValueId, LoweringError> {
+    let callee = call_emission
+        .machine_ids
+        .iter()
+        .find_map(|(source, terminal)| (*source == call.target_machine).then_some(*terminal))
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call target is absent from the terminal closure",
+        ))?;
     let crash_continuations =
-        lower_checked_crash_route_buckets(&call.crash_continuations, parameters)?;
+        lower_checked_crash_route_buckets(&call.crash_continuations, caller_values)?;
     let requirement_count = call_emission
         .requirement_counts
         .iter()
