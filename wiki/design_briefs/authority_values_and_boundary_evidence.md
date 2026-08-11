@@ -192,7 +192,11 @@ axioms reference that binding. An identity-reshuffle row is emitted only for a
 separate one-to-one input/output equality; it is never required merely to name
 a partition input.
 
-Current terminal production retains dense entry-claim bindings, exact one-to-one identity reshuffles, and direct authored partition substitutions. It independently replays every substitution and rejects ambiguous claim paths, theorem-shape or algebra drift, and staged derivations not represented by the current vocabulary. Sealed introduction and custody-exit frontier rows remain implementation work.
+Current terminal production retains dense entry-claim bindings, exact
+one-to-one identity reshuffles, and direct authored partition substitutions.
+It independently replays every substitution and rejects ambiguous claim paths,
+theorem-shape or algebra drift, and staged derivations not represented by the
+current vocabulary. Sealed introduction and custody-exit frontier rows remain.
 
 ### Content-bearing claims
 
@@ -240,7 +244,10 @@ members, merges adjacency, and stores one representation of the empty set.
 canonical set difference, which may contain several intervals. Equality is
 structural equality of those canonical forms.
 
-Terminal Psi carries canonical content equations over declared structural roots, stable domain and projection identities, entry/current paths, fields, fixed indices, sum cases, and flat separation. Canonical encoding and independent verification retain no source-arena identity. Sealed introduction and custody-exit rows remain implementation work.
+Terminal Psi carries canonical content equations over declared structural
+roots, stable domain and projection identities, entry/current paths, fields,
+fixed indices, sum cases, and flat separation. Canonical encoding and
+independent verification retain no source-arena identity.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound
