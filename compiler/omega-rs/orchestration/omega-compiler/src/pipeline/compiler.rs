@@ -409,12 +409,17 @@ impl Compiler {
             &build_config,
             self.options.target_name.as_deref(),
         )?;
+        let selected_program_entry_receiver =
+            if let Some(selected_program_entry) = selected_program_entry {
+                crate::pipeline::build_config::validate_selected_program_entry_shape(
+                    &typed,
+                    selected_program_entry,
+                )?
+            } else {
+                None
+            };
         let program_entry_realization = if let Some(selected_program_entry) = selected_program_entry
         {
-            crate::pipeline::build_config::validate_selected_program_entry_shape(
-                &typed,
-                selected_program_entry,
-            )?;
             crate::pipeline::build_config::validate_selected_program_entry_calling_plan(
                 &typed,
                 selected_program_entry,
@@ -603,7 +608,9 @@ impl Compiler {
                     selected,
                     plan,
                     &backend.plan.runtime_storage,
+                    &backend.plan.layouts,
                     backend.plan.entry_key,
+                    selected_program_entry_receiver.as_deref(),
                 )
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })

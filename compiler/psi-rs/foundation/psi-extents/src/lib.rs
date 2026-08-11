@@ -503,6 +503,12 @@ impl ExtentRootGrant {
         self.origin
     }
 
+    /// Report-only identity of the root lineage this one-shot grant will mint.
+    /// Observing it does not duplicate or consume the grant.
+    pub const fn lineage_root(&self) -> ExtentLineageId {
+        self.lineage
+    }
+
     pub fn mint(self, base: u64, length: u64) -> Result<Extent, MintError> {
         let geometry = match ValidatedExtentGeometry::check(base, length) {
             Ok(geometry) => geometry,

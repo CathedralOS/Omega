@@ -70,6 +70,7 @@ pub struct ProgramStorageEntryPlanBinding {
     boundary_contract_fingerprint: u64,
     image: ProgramStorageEntryParameter,
     initial_storage: ProgramStorageEntryParameter,
+    receiver: Option<ProgramEntryReceiverStoragePlan>,
 }
 
 impl ProgramStorageEntryPlanBinding {
@@ -91,6 +92,67 @@ impl ProgramStorageEntryPlanBinding {
 
     pub const fn initial_storage(&self) -> &ProgramStorageEntryParameter {
         &self.initial_storage
+    }
+
+    pub const fn receiver(&self) -> Option<&ProgramEntryReceiverStoragePlan> {
+        self.receiver.as_ref()
+    }
+
+    /// Attach the concrete layout of a receiver whose exclusive source shape
+    /// and ZII validity were already checked for this selected entry.
+    pub fn with_checked_receiver_layout(
+        mut self,
+        type_identity: String,
+        layout: omega_layout::TypeLayout,
+    ) -> Result<Self, ProgramStorageEntryDiagnostic> {
+        if type_identity.is_empty() {
+            return Err(ProgramStorageEntryDiagnostic(
+                "selected entry receiver type identity cannot be empty".into(),
+            ));
+        }
+        if layout.alignment == 0 || !layout.alignment.is_power_of_two() {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "selected entry receiver has invalid {}-byte alignment",
+                layout.alignment
+            )));
+        }
+        if self.receiver.is_some() {
+            return Err(ProgramStorageEntryDiagnostic(
+                "selected entry already has a checked receiver layout".into(),
+            ));
+        }
+        self.receiver = Some(ProgramEntryReceiverStoragePlan {
+            type_identity,
+            byte_size: layout.size,
+            byte_alignment: layout.alignment,
+        });
+        Ok(self)
+    }
+}
+
+/// Compiler-checked storage demand for one occurrence-local entry receiver.
+///
+/// This is a reservation plan, not evidence that bytes have already been
+/// zeroed. The generated physical bridge must materialize the ZII value and
+/// lend the resulting occurrence exactly once before source execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramEntryReceiverStoragePlan {
+    type_identity: String,
+    byte_size: usize,
+    byte_alignment: usize,
+}
+
+impl ProgramEntryReceiverStoragePlan {
+    pub fn type_identity(&self) -> &str {
+        &self.type_identity
+    }
+
+    pub const fn byte_size(&self) -> usize {
+        self.byte_size
+    }
+
+    pub const fn byte_alignment(&self) -> usize {
+        self.byte_alignment
     }
 }
 
@@ -208,7 +270,45 @@ impl ProgramStorageRootInput {
 pub struct InstalledProgramStorageRoots {
     binding: ProgramStorageEntryPlanBinding,
     image: Extent,
-    initial_storage: Extent,
+    initial_storage: Option<Extent>,
+    receiver_storage: Option<ReservedProgramEntryReceiverStorage>,
+    initial_storage_record: ProgramStorageInstalledExtentRecord,
+}
+
+/// Conserved storage reserved for one future ZII entry-receiver occurrence.
+/// The selected extent and every nonempty remainder retain the installed
+/// initial-storage root's exact lineage.
+#[derive(Debug)]
+pub struct ReservedProgramEntryReceiverStorage {
+    plan: ProgramEntryReceiverStoragePlan,
+    placement: ProgramEntryReceiverPlacementRecord,
+    partition: Option<OwnedExtentPartition>,
+}
+
+impl ReservedProgramEntryReceiverStorage {
+    pub const fn plan(&self) -> &ProgramEntryReceiverStoragePlan {
+        &self.plan
+    }
+
+    pub const fn placement(&self) -> &ProgramEntryReceiverPlacementRecord {
+        &self.placement
+    }
+
+    pub fn storage(&self) -> Option<&Extent> {
+        self.partition.as_ref().map(OwnedExtentPartition::selected)
+    }
+
+    pub fn before(&self) -> Option<&Extent> {
+        self.partition
+            .as_ref()
+            .and_then(OwnedExtentPartition::before)
+    }
+
+    pub fn after(&self) -> Option<&Extent> {
+        self.partition
+            .as_ref()
+            .and_then(OwnedExtentPartition::after)
+    }
 }
 
 /// Program-storage roots whose successful installation has also been recorded
@@ -248,6 +348,48 @@ pub struct ProgramStorageInstalledExtentRecord {
     mapping_era: psi_extents::MappingEraId,
     origin: psi_extents::ExtentRootOrigin,
     lineage_root: psi_extents::ExtentLineageId,
+}
+
+/// Non-authoritative placement of the storage reserved beneath the installed
+/// initial-storage root for one entry-receiver occurrence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramEntryReceiverPlacementRecord {
+    type_identity: String,
+    base: u64,
+    length: u64,
+    alignment: u64,
+    initial_storage_offset: u64,
+    lineage_root: psi_extents::ExtentLineageId,
+}
+
+impl ProgramEntryReceiverPlacementRecord {
+    pub fn type_identity(&self) -> &str {
+        &self.type_identity
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.base
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.length
+    }
+
+    pub const fn end(&self) -> u64 {
+        self.base + self.length
+    }
+
+    pub const fn alignment(&self) -> u64 {
+        self.alignment
+    }
+
+    pub const fn initial_storage_offset(&self) -> u64 {
+        self.initial_storage_offset
+    }
+
+    pub const fn lineage_root(&self) -> psi_extents::ExtentLineageId {
+        self.lineage_root
+    }
 }
 
 impl ProgramStorageInstalledExtentRecord {
@@ -313,6 +455,7 @@ pub struct ProgramStorageInstallationRecord {
     binding: ProgramStorageEntryPlanBinding,
     image: ProgramStorageInstalledExtentRecord,
     initial_storage: ProgramStorageInstalledExtentRecord,
+    receiver: Option<ProgramEntryReceiverPlacementRecord>,
 }
 
 impl ProgramStorageInstallationRecord {
@@ -327,6 +470,10 @@ impl ProgramStorageInstallationRecord {
     pub const fn initial_storage(&self) -> &ProgramStorageInstalledExtentRecord {
         &self.initial_storage
     }
+
+    pub const fn receiver(&self) -> Option<&ProgramEntryReceiverPlacementRecord> {
+        self.receiver.as_ref()
+    }
 }
 
 impl InstalledProgramStorageRoots {
@@ -338,17 +485,25 @@ impl InstalledProgramStorageRoots {
         &self.image
     }
 
-    pub const fn initial_storage(&self) -> &Extent {
-        &self.initial_storage
+    /// Whole initial-storage authority is available only when the selected
+    /// entry has no reserved receiver occurrence.
+    pub const fn initial_storage(&self) -> Option<&Extent> {
+        self.initial_storage.as_ref()
+    }
+
+    pub const fn receiver_storage(&self) -> Option<&ReservedProgramEntryReceiverStorage> {
+        self.receiver_storage.as_ref()
     }
 
     pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
         ProgramStorageInstallationRecord {
             binding: self.binding.clone(),
             image: ProgramStorageInstalledExtentRecord::from_extent(&self.image),
-            initial_storage: ProgramStorageInstalledExtentRecord::from_extent(
-                &self.initial_storage,
-            ),
+            initial_storage: self.initial_storage_record.clone(),
+            receiver: self
+                .receiver_storage
+                .as_ref()
+                .map(|receiver| receiver.placement.clone()),
         }
     }
 
@@ -382,12 +537,29 @@ impl InstalledProgramStorageRoots {
             binding,
             image,
             initial_storage,
+            receiver_storage,
+            initial_storage_record,
         } = self;
+        let Some(initial_storage) = initial_storage else {
+            return Err(Box::new(ProgramStoragePartitionError {
+                roots: Self {
+                    binding,
+                    image,
+                    initial_storage,
+                    receiver_storage,
+                    initial_storage_record,
+                },
+                diagnostic: ProgramStorageEntryDiagnostic(
+                    "initial storage already reserves the selected entry receiver".into(),
+                ),
+            }));
+        };
         match initial_storage.partition_owned(offset, length) {
             Ok(initial_storage) => Ok(PartitionedProgramStorageRoots {
                 binding,
                 image,
                 initial_storage,
+                initial_storage_record,
             }),
             Err(error) => {
                 let diagnostic = ProgramStorageEntryDiagnostic(format!(
@@ -398,16 +570,14 @@ impl InstalledProgramStorageRoots {
                     roots: Self {
                         binding,
                         image,
-                        initial_storage: error.into_extent(),
+                        initial_storage: Some(error.into_extent()),
+                        receiver_storage,
+                        initial_storage_record,
                     },
                     diagnostic,
                 }))
             }
         }
-    }
-
-    pub fn into_parts(self) -> (ProgramStorageEntryPlanBinding, Extent, Extent) {
-        (self.binding, self.image, self.initial_storage)
     }
 }
 
@@ -445,6 +615,7 @@ pub struct PartitionedProgramStorageRoots {
     binding: ProgramStorageEntryPlanBinding,
     image: Extent,
     initial_storage: OwnedExtentPartition,
+    initial_storage_record: ProgramStorageInstalledExtentRecord,
 }
 
 impl PartitionedProgramStorageRoots {
@@ -476,7 +647,9 @@ impl PartitionedProgramStorageRoots {
         InstalledProgramStorageRoots {
             binding: self.binding,
             image: self.image,
-            initial_storage: self.initial_storage.rejoin(),
+            initial_storage: Some(self.initial_storage.rejoin()),
+            receiver_storage: None,
+            initial_storage_record: self.initial_storage_record,
         }
     }
 }
@@ -539,6 +712,7 @@ pub fn bind_program_storage_entry_plan(
         boundary_contract_fingerprint: boundary_fingerprint,
         image,
         initial_storage,
+        receiver: None,
     })
 }
 
@@ -549,7 +723,9 @@ pub fn bind_generated_program_storage_entry_plan(
     selected: &SelectedProgramStorageEntryPlan,
     plan: &omega_calling_conventions::BoundaryEntryPlan,
     runtime_storage: &omega_runtime_storage::RuntimeStoragePlan,
+    layouts: &omega_layout::LayoutPlan,
     entry_key: omega_control_flow::StateKey,
+    receiver_type_identity: Option<&str>,
 ) -> Result<ProgramStorageEntryPlanBinding, ProgramStorageEntryDiagnostic> {
     let signature = omega_calling_conventions::CallSignature {
         parameters: plan
@@ -613,7 +789,20 @@ pub fn bind_generated_program_storage_entry_plan(
             "cannot derive generated program-entry captures: {diagnostic}"
         ))
     })?;
-    bind_program_storage_entry_plan(selected, &boundary, &storage)
+    let mut binding = bind_program_storage_entry_plan(selected, &boundary, &storage)?;
+    if let Some(type_identity) = receiver_type_identity {
+        let layout = layouts
+            .machine_layouts
+            .iter()
+            .find_map(|(_, layout)| (layout.symbol == entry_key.machine).then_some(layout.layout))
+            .ok_or_else(|| {
+                ProgramStorageEntryDiagnostic(
+                    "selected entry receiver has no concrete machine layout".into(),
+                )
+            })?;
+        binding = binding.with_checked_receiver_layout(type_identity.to_owned(), layout)?;
+    }
+    Ok(binding)
 }
 
 fn bind_parameter(
@@ -710,10 +899,118 @@ fn install_program_storage_entry_roots_unrecorded(
         }
     };
 
+    let receiver_placement = match binding.receiver.as_ref() {
+        Some(receiver) => match receiver_placement(
+            receiver,
+            initial_storage.base,
+            initial_storage.length,
+            initial_storage.grant.lineage_root(),
+        ) {
+            Ok(placement) => Some(placement),
+            Err(diagnostic) => {
+                return Err(Box::new(ProgramStorageRootInstallationError {
+                    binding,
+                    image,
+                    initial_storage,
+                    diagnostic,
+                }));
+            }
+        },
+        None => None,
+    };
+
+    let image = image.grant.mint_validated(image_geometry);
+    let initial_storage = initial_storage.grant.mint_validated(storage_geometry);
+    let initial_storage_record = ProgramStorageInstalledExtentRecord::from_extent(&initial_storage);
+    let (initial_storage, receiver_storage) = match receiver_placement {
+        Some(placement) if placement.length != 0 => {
+            let partition = initial_storage
+                .partition_owned(placement.initial_storage_offset, placement.length)
+                .expect("receiver placement was validated before consuming either grant");
+            let plan = binding
+                .receiver
+                .clone()
+                .expect("receiver placement requires a checked receiver plan");
+            (
+                None,
+                Some(ReservedProgramEntryReceiverStorage {
+                    plan,
+                    placement,
+                    partition: Some(partition),
+                }),
+            )
+        }
+        Some(placement) => {
+            let plan = binding
+                .receiver
+                .clone()
+                .expect("receiver placement requires a checked receiver plan");
+            (
+                Some(initial_storage),
+                Some(ReservedProgramEntryReceiverStorage {
+                    plan,
+                    placement,
+                    partition: None,
+                }),
+            )
+        }
+        None => (Some(initial_storage), None),
+    };
+
     Ok(InstalledProgramStorageRoots {
         binding,
-        image: image.grant.mint_validated(image_geometry),
-        initial_storage: initial_storage.grant.mint_validated(storage_geometry),
+        image,
+        initial_storage,
+        receiver_storage,
+        initial_storage_record,
+    })
+}
+
+fn receiver_placement(
+    plan: &ProgramEntryReceiverStoragePlan,
+    storage_base: u64,
+    storage_length: u64,
+    lineage_root: psi_extents::ExtentLineageId,
+) -> Result<ProgramEntryReceiverPlacementRecord, ProgramStorageEntryDiagnostic> {
+    let alignment = u64::try_from(plan.byte_alignment).map_err(|_| {
+        ProgramStorageEntryDiagnostic(
+            "entry receiver alignment does not fit the target address model".into(),
+        )
+    })?;
+    if alignment == 0 || !alignment.is_power_of_two() {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "entry receiver requires invalid {alignment}-byte alignment"
+        )));
+    }
+    let length = u64::try_from(plan.byte_size).map_err(|_| {
+        ProgramStorageEntryDiagnostic(
+            "entry receiver size does not fit the target address model".into(),
+        )
+    })?;
+    let aligned_base = storage_base
+        .checked_add(alignment - 1)
+        .map(|address| address & !(alignment - 1))
+        .ok_or_else(|| {
+            ProgramStorageEntryDiagnostic(
+                "initial-storage base cannot be aligned for the selected entry receiver".into(),
+            )
+        })?;
+    let offset = aligned_base - storage_base;
+    let end = offset.checked_add(length).ok_or_else(|| {
+        ProgramStorageEntryDiagnostic("entry receiver storage range overflows".into())
+    })?;
+    if end > storage_length {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "initial storage cannot reserve the selected entry receiver: aligned range {offset}..{end} exceeds {storage_length} bytes"
+        )));
+    }
+    Ok(ProgramEntryReceiverPlacementRecord {
+        type_identity: plan.type_identity.clone(),
+        base: aligned_base,
+        length,
+        alignment,
+        initial_storage_offset: offset,
+        lineage_root,
     })
 }
 

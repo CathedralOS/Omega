@@ -57,9 +57,11 @@ Remaining:
   `ProgramEntry` selection, typed `ProgramStorageEntry::enter` positions,
   calling-plan/capture binding, all-or-nothing two-grant installation, derived
   image/storage subextents, and a completion-record gate that retains installed
-  roots across write failure are live. Bind the installer to the selected
-  physical provider. Provision a ZII-valid receiver from admitted storage for
-  one `&mut self` activation, record its placement, migrate the corpus, and
+  roots across write failure are live. Checked receiver layout, pre-consumption
+  alignment/capacity validation, conserved reservation beneath initial storage,
+  and exact placement auditing are also live. Bind the installer to the selected
+  physical provider. Have the bridge zero the reservation into the checked ZII
+  value and lend it for one `&mut self` activation, migrate the corpus, and
   delete `main`/`Main::run` discovery. No ambient `static` storage. Final
   composition of firmware `ImageHandle`/`SystemTable` inputs with the semantic
   roots is design-blocked on owner Q2; the other bridge and migration work is
