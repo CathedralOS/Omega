@@ -189,6 +189,34 @@ pub(crate) fn build_checked_scalar_expression_plans(
     CheckedScalarExpressionPlans { expressions }
 }
 
+/// Lower a contract predicate in the selected machine's entry-parameter
+/// namespace. Crash contracts use this to retain the same checked scalar
+/// meaning as executable guards without carrying typed-tree handles into the
+/// terminal producer.
+pub(crate) fn lower_machine_parameter_boolean_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    expression: ExpressionHandle,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+) -> Option<CheckedBooleanExpression> {
+    let entry = program.machine_states(machine).first()?;
+    let parameters = program.state_parameters(entry);
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    lower_boolean_expression(
+        program,
+        operators,
+        expression,
+        parameters,
+        &parameter_types,
+        &[],
+        exact_integer_casts,
+    )
+}
+
 fn lower_return_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -722,14 +750,13 @@ fn parameter_position(
     path: &psi_typed_trees::expression::TableNamePath,
     parameters: &[StateParameter],
 ) -> Option<usize> {
-    (program
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        == 1)
+    let members = program.expression_table.name_path_members(path.members);
+    (members.len() == 1)
         .then(|| {
             parameters.iter().position(|parameter| {
-                parameter.symbol == path.symbol || parameter.symbol == path.head_symbol
+                parameter.symbol == path.symbol
+                    || parameter.symbol == path.head_symbol
+                    || parameter.name.as_str() == members[0].as_str()
             })
         })
         .flatten()

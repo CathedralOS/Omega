@@ -66,7 +66,14 @@ pub(crate) fn build_check_facts(
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(program, &service_reaches, &operational, &flow);
+    let contract_plans = build_contract_plans(
+        program,
+        &service_reaches,
+        &operational,
+        &flow,
+        &operators,
+        &validation_facts.exact_integer_casts,
+    );
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
@@ -185,6 +192,8 @@ fn build_contract_plans(
     service_reaches: &psi_checked_trees::ServiceReachFacts,
     operational: &OperationalPlan,
     flow: &psi_checked_trees::FlowFacts,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> psi_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
@@ -323,8 +332,14 @@ fn build_contract_plans(
                     .collect()
             })
             .unwrap_or_default();
-        let crash =
-            build_published_crash_plan(program, machine, &parameter_names, &content_conservation);
+        let crash = build_published_crash_plan(
+            program,
+            machine,
+            &parameter_names,
+            &content_conservation,
+            operators,
+            exact_integer_casts,
+        );
         canonical_facts.extend(encode_contract_set_canonical(
             program,
             program.machine_contracts(machine),
@@ -508,6 +523,9 @@ fn build_crash_contract_capsules(
                 contracts,
                 &parameter_names,
                 content_conservation,
+                None,
+                None,
+                &[],
             );
             let crash = psi_checked_trees::CrashPlan::published_ceiling(published.clone());
 
@@ -627,12 +645,17 @@ fn build_published_crash_plan(
     machine: &psi_typed_trees::machine::Machine,
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> psi_checked_trees::CrashPlan {
     let published = build_published_crash_buckets(
         program,
         program.machine_contracts(machine),
         parameter_names,
         content_conservation,
+        Some(machine),
+        Some(operators),
+        exact_integer_casts,
     );
     let plan = if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !published.is_empty()
@@ -651,6 +674,9 @@ fn build_published_crash_buckets(
     contracts: &[psi_typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
+    machine: Option<&psi_typed_trees::machine::Machine>,
+    operators: Option<&psi_checked_trees::CheckedOperatorFacts>,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Vec<psi_checked_trees::CrashRouteBucket> {
     use std::collections::BTreeMap;
 
@@ -686,9 +712,36 @@ fn build_published_crash_buckets(
                 false,
                 &mut route,
             );
-            bucket
-                .routes
-                .push(psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(route));
+            let identity = match fact {
+                psi_typed_trees::domain::ProofFact::Expression(expression) => {
+                    let structured = crash_calls::crash_predicate_from_expression(
+                        program,
+                        *expression,
+                        parameter_names,
+                        Some(content_conservation),
+                    );
+                    let scalar = machine.zip(operators).and_then(|(machine, operators)| {
+                        crate::values::lower_machine_parameter_boolean_expression(
+                            program,
+                            operators,
+                            machine,
+                            *expression,
+                            exact_integer_casts,
+                        )
+                    });
+                    let identity = if let Some(scalar) = scalar {
+                        psi_checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
+                            structured, scalar,
+                        )
+                    } else {
+                        psi_checked_trees::CrashPredicateIdentity::from_expression(structured)
+                    };
+                    debug_assert_eq!(identity.canonical_bytes(), route);
+                    identity
+                }
+                _ => psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(route),
+            };
+            bucket.routes.push(identity);
         }
     }
 
@@ -1575,19 +1628,21 @@ pub(crate) fn canonical_crash_path_predicate(
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
 ) -> psi_checked_trees::CrashPredicateIdentity {
-    let mut bytes = vec![1]; // ProofFact::Expression
-    if negated {
-        bytes.push(2); // ExpressionNode::Unary
-        bytes.push(psi_typed_trees::expression::UnaryOperator::LogicalNot as u8);
-    }
-    encode_contract_expression_canonical(
+    let expression = crash_calls::crash_predicate_from_expression(
         program,
         expression,
         parameter_names,
-        content_conservation,
-        &mut bytes,
+        Some(content_conservation),
     );
-    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+    let expression = if negated {
+        psi_checked_trees::CrashPredicateExpression::Unary {
+            operator: psi_typed_trees::expression::UnaryOperator::LogicalNot as u8,
+            operand: Box::new(expression),
+        }
+    } else {
+        expression
+    };
+    psi_checked_trees::CrashPredicateIdentity::from_expression(expression)
 }
 
 /// Canonical identity of a checker-derived binary predicate assembled from
@@ -1601,24 +1656,25 @@ pub(crate) fn canonical_crash_binary_path_predicate(
     parameter_names: &[String],
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
 ) -> psi_checked_trees::CrashPredicateIdentity {
-    let mut bytes = vec![1]; // ProofFact::Expression
-    bytes.push(1); // ExpressionNode::Binary
-    bytes.push(operator as u8);
-    encode_contract_expression_canonical(
+    let left = crash_calls::crash_predicate_from_expression(
         program,
         left,
         parameter_names,
-        content_conservation,
-        &mut bytes,
+        Some(content_conservation),
     );
-    encode_contract_expression_canonical(
+    let right = crash_calls::crash_predicate_from_expression(
         program,
         right,
         parameter_names,
-        content_conservation,
-        &mut bytes,
+        Some(content_conservation),
     );
-    psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+    psi_checked_trees::CrashPredicateIdentity::from_expression(
+        psi_checked_trees::CrashPredicateExpression::Binary {
+            operator: operator as u8,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+    )
 }
 
 /// Canonical source-handle-free identity for one operand participating in a

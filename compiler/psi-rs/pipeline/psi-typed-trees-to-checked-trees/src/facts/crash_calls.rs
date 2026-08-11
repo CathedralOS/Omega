@@ -1,288 +1,111 @@
+use psi_checked_trees::CrashPredicateExpression;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
-use super::{encode_contract_fact_canonical, is_true_crash_route};
+use super::is_true_crash_route;
 
-/// Temporary source-independent form of a crash predicate. Private body
-/// summaries need more than the final predicate fingerprint: every enclosing
-/// call must still be able to replace the callee's positional parameters with
-/// its own arguments. This tree uses the same tags as the canonical contract
-/// encoder and is discarded after checked call rows have been materialized.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum CrashPredicateExpression {
-    Invalid,
-    Binary {
-        operator: u8,
-        left: Box<Self>,
-        right: Box<Self>,
-    },
-    Unary {
-        operator: u8,
-        operand: Box<Self>,
-    },
-    Integer(String),
-    Boolean(bool),
-    Name(Vec<String>),
-    Member {
-        receiver: Box<Self>,
-        member: String,
-    },
-    Call {
-        target: String,
-        receiver: Box<Self>,
-        arguments: Vec<Self>,
-    },
-    Opaque(String),
-    Parameter(u32),
-    ContentConservation(Vec<u8>),
-}
+pub(super) fn crash_predicate_from_expression(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
+    content_conservation: Option<&[psi_validation::ContentConservationSourcePlan]>,
+) -> CrashPredicateExpression {
+    use psi_typed_trees::expression::ExpressionNode;
 
-impl CrashPredicateExpression {
-    fn from_expression(
-        program: &TypedTrees,
-        expression: psi_typed_trees::expression::ExpressionHandle,
-        parameter_names: &[String],
-        content_conservation: Option<&[psi_validation::ContentConservationSourcePlan]>,
-    ) -> Self {
-        use psi_typed_trees::expression::ExpressionNode;
-
-        if let Some(conservation) = content_conservation.and_then(|plans| {
-            plans
+    if let Some(conservation) = content_conservation.and_then(|plans| {
+        plans
+            .iter()
+            .find(|candidate| candidate.source_expression == expression)
+    }) {
+        return CrashPredicateExpression::ContentConservation(
+            psi_language_semantics::content::content_conservation_plan_bytes(&conservation.plan),
+        );
+    }
+    if !expression.is_valid() {
+        return CrashPredicateExpression::Invalid;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => CrashPredicateExpression::Binary {
+            operator: binary.operator as u8,
+            left: Box::new(crash_predicate_from_expression(
+                program,
+                binary.left,
+                parameter_names,
+                content_conservation,
+            )),
+            right: Box::new(crash_predicate_from_expression(
+                program,
+                binary.right,
+                parameter_names,
+                content_conservation,
+            )),
+        },
+        ExpressionNode::Unary(unary) => CrashPredicateExpression::Unary {
+            operator: unary.operator as u8,
+            operand: Box::new(crash_predicate_from_expression(
+                program,
+                unary.operand,
+                parameter_names,
+                content_conservation,
+            )),
+        },
+        ExpressionNode::Integer(value) => {
+            CrashPredicateExpression::Integer(value.text().to_owned())
+        }
+        ExpressionNode::Boolean(value) => CrashPredicateExpression::Boolean(*value),
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            if let [single] = members
+                && let Some(index) = parameter_names
+                    .iter()
+                    .position(|name| name == single.as_str())
+            {
+                return CrashPredicateExpression::Parameter(
+                    u32::try_from(index).expect("parameter index fits u32"),
+                );
+            }
+            CrashPredicateExpression::Name(
+                members
+                    .iter()
+                    .map(|member| member.as_str().to_owned())
+                    .collect(),
+            )
+        }
+        ExpressionNode::Member(member) => CrashPredicateExpression::Member {
+            receiver: Box::new(crash_predicate_from_expression(
+                program,
+                member.receiver,
+                parameter_names,
+                content_conservation,
+            )),
+            member: member.member.as_str().to_owned(),
+        },
+        ExpressionNode::Call(call) => CrashPredicateExpression::Call {
+            target: call.target.as_str().to_owned(),
+            receiver: Box::new(crash_predicate_from_expression(
+                program,
+                call.receiver,
+                parameter_names,
+                content_conservation,
+            )),
+            arguments: program
+                .expression_table
+                .expression_handles(call.arguments)
                 .iter()
-                .find(|candidate| candidate.source_expression == expression)
-        }) {
-            return Self::ContentConservation(
-                psi_language_semantics::content::content_conservation_plan_bytes(
-                    &conservation.plan,
-                ),
-            );
+                .map(|argument| {
+                    crash_predicate_from_expression(
+                        program,
+                        *argument,
+                        parameter_names,
+                        content_conservation,
+                    )
+                })
+                .collect(),
+        },
+        other => {
+            let _ = other;
+            CrashPredicateExpression::Opaque(program.expression_table.display_name(expression))
         }
-        if !expression.is_valid() {
-            return Self::Invalid;
-        }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => Self::Binary {
-                operator: binary.operator as u8,
-                left: Box::new(Self::from_expression(
-                    program,
-                    binary.left,
-                    parameter_names,
-                    content_conservation,
-                )),
-                right: Box::new(Self::from_expression(
-                    program,
-                    binary.right,
-                    parameter_names,
-                    content_conservation,
-                )),
-            },
-            ExpressionNode::Unary(unary) => Self::Unary {
-                operator: unary.operator as u8,
-                operand: Box::new(Self::from_expression(
-                    program,
-                    unary.operand,
-                    parameter_names,
-                    content_conservation,
-                )),
-            },
-            ExpressionNode::Integer(value) => Self::Integer(value.text().to_owned()),
-            ExpressionNode::Boolean(value) => Self::Boolean(*value),
-            ExpressionNode::Name(path) => {
-                let members = program.expression_table.name_path_members(path.members);
-                if let [single] = members
-                    && let Some(index) = parameter_names
-                        .iter()
-                        .position(|name| name == single.as_str())
-                {
-                    return Self::Parameter(
-                        u32::try_from(index).expect("parameter index fits u32"),
-                    );
-                }
-                Self::Name(
-                    members
-                        .iter()
-                        .map(|member| member.as_str().to_owned())
-                        .collect(),
-                )
-            }
-            ExpressionNode::Member(member) => Self::Member {
-                receiver: Box::new(Self::from_expression(
-                    program,
-                    member.receiver,
-                    parameter_names,
-                    content_conservation,
-                )),
-                member: member.member.as_str().to_owned(),
-            },
-            ExpressionNode::Call(call) => Self::Call {
-                target: call.target.as_str().to_owned(),
-                receiver: Box::new(Self::from_expression(
-                    program,
-                    call.receiver,
-                    parameter_names,
-                    content_conservation,
-                )),
-                arguments: program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| {
-                        Self::from_expression(
-                            program,
-                            *argument,
-                            parameter_names,
-                            content_conservation,
-                        )
-                    })
-                    .collect(),
-            },
-            other => {
-                let _ = other;
-                Self::Opaque(program.expression_table.display_name(expression))
-            }
-        }
-    }
-
-    fn substitute(&self, arguments: &[Option<Self>]) -> Self {
-        match self {
-            Self::Parameter(index) => arguments
-                .get(*index as usize)
-                .and_then(Clone::clone)
-                .unwrap_or_else(|| self.clone()),
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } => Self::Binary {
-                operator: *operator,
-                left: Box::new(left.substitute(arguments)),
-                right: Box::new(right.substitute(arguments)),
-            },
-            Self::Unary { operator, operand } => Self::Unary {
-                operator: *operator,
-                operand: Box::new(operand.substitute(arguments)),
-            },
-            Self::Member { receiver, member } => Self::Member {
-                receiver: Box::new(receiver.substitute(arguments)),
-                member: member.clone(),
-            },
-            Self::Call {
-                target,
-                receiver,
-                arguments: nested,
-            } => Self::Call {
-                target: target.clone(),
-                receiver: Box::new(receiver.substitute(arguments)),
-                arguments: nested
-                    .iter()
-                    .map(|argument| argument.substitute(arguments))
-                    .collect(),
-            },
-            _ => self.clone(),
-        }
-    }
-
-    fn boolean_value(&self) -> Option<bool> {
-        use psi_typed_trees::expression::{BinaryOperator, UnaryOperator};
-
-        match self {
-            Self::Boolean(value) => Some(*value),
-            Self::Unary { operator, operand } if *operator == UnaryOperator::LogicalNot as u8 => {
-                operand.boolean_value().map(|value| !value)
-            }
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } if *operator == BinaryOperator::And as u8 => {
-                Some(left.boolean_value()? && right.boolean_value()?)
-            }
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } if *operator == BinaryOperator::Or as u8 => {
-                Some(left.boolean_value()? || right.boolean_value()?)
-            }
-            _ => None,
-        }
-    }
-
-    fn write_canonical(&self, out: &mut Vec<u8>) {
-        match self {
-            Self::Invalid => out.push(0),
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } => {
-                out.push(1);
-                out.push(*operator);
-                left.write_canonical(out);
-                right.write_canonical(out);
-            }
-            Self::Unary { operator, operand } => {
-                out.push(2);
-                out.push(*operator);
-                operand.write_canonical(out);
-            }
-            Self::Integer(value) => {
-                out.push(3);
-                out.extend(value.as_bytes());
-                out.push(0);
-            }
-            Self::Boolean(value) => {
-                out.push(4);
-                out.push(u8::from(*value));
-            }
-            Self::Name(members) => {
-                out.push(5);
-                for member in members {
-                    out.extend(member.as_bytes());
-                    out.push(b'.');
-                }
-                out.push(0);
-            }
-            Self::Member { receiver, member } => {
-                out.push(6);
-                receiver.write_canonical(out);
-                out.extend(member.as_bytes());
-                out.push(0);
-            }
-            Self::Call {
-                target,
-                receiver,
-                arguments,
-            } => {
-                out.push(7);
-                out.extend(target.as_bytes());
-                out.push(0);
-                receiver.write_canonical(out);
-                for argument in arguments {
-                    argument.write_canonical(out);
-                }
-                out.push(0xfe);
-            }
-            Self::Opaque(display) => {
-                out.push(8);
-                out.extend(display.as_bytes());
-                out.push(0);
-            }
-            Self::Parameter(index) => {
-                out.push(9);
-                out.extend(index.to_le_bytes());
-            }
-            Self::ContentConservation(bytes) => {
-                out.push(0xcc);
-                out.extend(bytes);
-            }
-        }
-    }
-
-    fn identity(&self) -> psi_checked_trees::CrashPredicateIdentity {
-        let mut bytes = vec![1]; // ProofFact::Expression
-        self.write_canonical(&mut bytes);
-        psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
     }
 }
 
@@ -337,7 +160,9 @@ impl SummaryCrashBucket {
                 .map(|guard| match guard {
                     SummaryCrashRouteGuard::Truth => psi_checked_trees::CrashRouteGuard::Truth,
                     SummaryCrashRouteGuard::Predicate(predicate) => {
-                        psi_checked_trees::CrashRouteGuard::Predicate(predicate.identity())
+                        psi_checked_trees::CrashRouteGuard::Predicate(
+                            psi_checked_trees::CrashPredicateIdentity::from_expression(predicate),
+                        )
                     }
                 })
                 .collect(),
@@ -412,12 +237,7 @@ fn call_argument_substitution(
                     // This matches the existing direct-call encoder: content
                     // theorem substitution belongs to the callee route, while an
                     // ordinary argument uses the caller expression encoding.
-                    CrashPredicateExpression::from_expression(
-                        program,
-                        argument,
-                        caller_parameter_names,
-                        None,
-                    )
+                    crash_predicate_from_expression(program, argument, caller_parameter_names, None)
                 },
             ))
         })
@@ -475,7 +295,7 @@ fn refine_published_crash_routes(
                         Some(false) => {}
                         Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
                         None => {
-                            let predicate = CrashPredicateExpression::from_expression(
+                            let predicate = crash_predicate_from_expression(
                                 program,
                                 expression,
                                 target_parameter_names,
@@ -1134,17 +954,14 @@ fn crash_route_expressions_by_identity(
             if is_true_crash_route(program, fact) {
                 continue;
             }
-            let mut bytes = Vec::new();
-            encode_contract_fact_canonical(
+            let structured = crash_predicate_from_expression(
                 program,
-                fact,
+                *expression,
                 parameter_names,
-                content_conservation,
-                false,
-                &mut bytes,
+                Some(content_conservation),
             );
             expressions.insert(
-                psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes),
+                psi_checked_trees::CrashPredicateIdentity::from_expression(structured),
                 *expression,
             );
         }

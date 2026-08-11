@@ -153,12 +153,13 @@ Remaining:
   verifier-owned. Retire checked/source-tree consumers as each slice moves.
   Nothing below terminal Psi may depend on typed/source trees,
   `ExpressionHandle`, source rendering, or an Omega-to-Psi bridge.
-- **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars. For
-  guarded calls, migrate checked producer byte join keys and site guards into
-  the structured terminal predicate terms already used by the verifier. The
-  verifier substitutes callee parameter values with arbitrary caller-local
-  `ValueId`s and reconstructs every surviving continuation; producer lowering
-  must now supply those terms rather than fail closed.
+- **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
+  Checked scalar contract routes and body crash sites now retain structured
+  predicate meaning; migrate invocation-specific guarded call rows into those
+  terminal terms. The verifier substitutes callee parameter values with
+  arbitrary caller-local `ValueId`s and reconstructs every surviving
+  continuation; call lowering must now supply those terms rather than fail
+  closed.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
