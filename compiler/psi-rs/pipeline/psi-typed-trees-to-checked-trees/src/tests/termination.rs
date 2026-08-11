@@ -1994,6 +1994,11 @@ fn contract_plans_fingerprint_published_halves() {
         left: u64;
         right: u64;
     }
+    data FrameCell { value: u64; }
+    data FrameOwner {
+        first: FrameCell;
+        second: FrameCell;
+    }
 
     machine Main::quiet_a(&mut self) -> u64 reaches Filesystem {
         self.left = 1;
@@ -2064,6 +2069,39 @@ fn contract_plans_fingerprint_published_halves() {
             transition { _ -> cycle(right, left) }
         }
     }
+    machine rotating_mut_cycle(first: &mut u64, second: &mut u64) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: &mut u64, right: &mut u64) {
+            left = 11;
+            transition { _ -> cycle(right, left) }
+        }
+    }
+    machine rotating_mut_scc(first: &mut u64, second: &mut u64) {
+        transition { _ -> write(first, second) }
+        state write(left: &mut u64, right: &mut u64) {
+            left = 12;
+            transition { _ -> forward(right, left) }
+        }
+        state forward(left: &mut u64, right: &mut u64) {
+            transition { _ -> write(right, left) }
+        }
+    }
+    machine call_rotating_mut_cycle(first: &mut u64, second: &mut u64) {
+        rotating_mut_cycle(first, second);
+    }
+    machine call_rotating_mut_scc(first: &mut u64, second: &mut u64) {
+        rotating_mut_scc(first, second);
+    }
+    machine rotating_mut_fields(first: &mut FrameCell, second: &mut FrameCell) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: &mut FrameCell, right: &mut FrameCell) {
+            left.value = 13;
+            transition { _ -> cycle(right, left) }
+        }
+    }
+    machine FrameOwner::call_rotating_mut_fields(&mut self) {
+        rotating_mut_fields(&mut self.first, &mut self.second);
+    }
     boundary trait Device {
         machine overwrite(value: &mut u64);
     }
@@ -2133,6 +2171,12 @@ fn contract_plans_fingerprint_published_halves() {
     let reordered_cycle = symbol_of("reordered_cycle");
     let reordered_shared_cycle = symbol_of("reordered_shared_cycle");
     let reordered_mut_cycle = symbol_of("reordered_mut_cycle");
+    let rotating_mut_cycle = symbol_of("rotating_mut_cycle");
+    let rotating_mut_scc = symbol_of("rotating_mut_scc");
+    let call_rotating_mut_cycle = symbol_of("call_rotating_mut_cycle");
+    let call_rotating_mut_scc = symbol_of("call_rotating_mut_scc");
+    let rotating_mut_fields = symbol_of("rotating_mut_fields");
+    let call_rotating_mut_fields = symbol_of("FrameOwner::call_rotating_mut_fields");
     let boundary_call = symbol_of("Wrapper::boundary_call");
     let direct_self_loop = symbol_of("Main::direct_self_loop");
     let branching = symbol_of("Main::branching");
@@ -2177,9 +2221,43 @@ fn contract_plans_fingerprint_published_halves() {
         Some([].as_slice()),
         "reordering shared-reference parameters cannot redirect a caller-visible write"
     );
-    assert!(
-        !frame(reordered_mut_cycle).is_complete(),
-        "a named state cycle that reorders exclusive parameters must remain opaque"
+    assert_eq!(
+        frame(reordered_mut_cycle).complete_paths(),
+        Some([].as_slice()),
+        "an exact exclusive-parameter permutation with no writes has a complete empty frame"
+    );
+    assert_eq!(
+        frame(rotating_mut_cycle).paths(),
+        &["$P0".to_owned(), "$P1".to_owned()],
+        "a write rotating through an exclusive-parameter permutation reaches the complete finite orbit"
+    );
+    assert_eq!(
+        frame(rotating_mut_scc).paths(),
+        &["$P0".to_owned()],
+        "a multi-state SCC composes its exact permutations before publishing the entry frame"
+    );
+    assert_eq!(
+        frame(call_rotating_mut_cycle).paths(),
+        &["$P0".to_owned(), "$P1".to_owned()],
+        "a resolved caller instantiates the complete permutation-orbit frame"
+    );
+    assert_eq!(
+        frame(call_rotating_mut_scc).paths(),
+        &["$P0".to_owned()],
+        "a resolved caller preserves the multi-state SCC's exact positional frame"
+    );
+    assert_eq!(
+        frame(rotating_mut_fields).paths(),
+        &["$P0.value".to_owned(), "$P1.value".to_owned()],
+        "permutation closure preserves written member suffixes"
+    );
+    assert_eq!(
+        frame(call_rotating_mut_fields).paths(),
+        &[
+            "self.first.value".to_owned(),
+            "self.second.value".to_owned(),
+        ],
+        "caller instantiation preserves member arguments and written suffixes"
     );
     assert_eq!(
         frame(boundary_call).paths(),
@@ -2213,6 +2291,95 @@ fn contract_plans_fingerprint_published_halves() {
     // Parameter RENAMES normalize positionally -- identical contracts.
     let renamed = symbol_of_checked(&checked, "bounded_renamed");
     assert_eq!(plan(ab).fingerprint, plan(renamed).fingerprint);
+}
+
+#[test]
+fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
+    // This deliberately duplicates one exclusive parameter on a backedge.
+    // Query the typed-tree frame resolver directly: later borrow validation is
+    // allowed to reject the source independently, while R5 must still fail
+    // closed if it is asked to summarize the malformed cycle.
+    let source = r#"
+    machine duplicate_cycle(first: &mut u64, second: &mut u64) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: &mut u64, right: &mut u64) {
+            left = 1;
+            transition { _ -> cycle(left, left) }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "duplicate_cycle")
+        .expect("duplicate-cycle machine");
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .expect("duplicate-cycle entry state");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    assert!(
+        !resolver
+            .inferred_state_write_frame(machine, entry)
+            .is_complete(),
+        "duplicating one exclusive root is not a permutation and must leave the frame opaque"
+    );
+}
+
+#[test]
+fn write_frame_stays_opaque_for_local_exclusive_aliases() {
+    // Until the frame solver substitutes a local alias back to its origin,
+    // dropping the local name would erase a caller-visible write. Cover both
+    // the ordinary acyclic summarizer and the SCC equation fallback directly
+    // at the typed-tree boundary.
+    let source = r#"
+    data Main { value: u64; }
+
+    machine Main::local_alias_acyclic(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        alias = 1;
+    }
+
+    machine Main::local_alias_cycle(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        alias = 2;
+        transition { _ -> self }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for name in ["Main::local_alias_acyclic", "Main::local_alias_cycle"] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque while local alias origins are not substituted"
+        );
+    }
 }
 
 #[test]

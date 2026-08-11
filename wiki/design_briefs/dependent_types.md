@@ -312,9 +312,13 @@ exclusive; a place that cannot be represented still makes the frame opaque.
 Body-derived frames remain
 implementation evidence outside public contract/specialization identity.
 Cycles may freely reorder primitive values and shared references because those
-parameters cannot redirect caller-visible writes. Rebinding a write-capable
-parameter retains only the coarse ownership ceiling; `TASKS.md` R5 owns broader
-relational candidates and frame precision.
+parameters cannot redirect caller-visible writes. A named state SCC also
+retains an exact finite frame when every cyclic edge forwards all write-capable
+parameters through a bijective permutation: the checker solves the positional
+may-write equations to a fixed point and instantiates the result through
+resolved callers. Non-bijective, computed, or otherwise unrepresentable cyclic
+rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns further
+relational candidates.
 
 ## 6. Dynamic lowering — the runtime half
 
