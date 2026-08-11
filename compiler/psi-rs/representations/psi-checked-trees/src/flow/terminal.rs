@@ -86,6 +86,22 @@ pub struct CheckedScalarStateGraph {
 pub struct CheckedScalarBinding {
     pub statement_ordinal: u32,
     pub primitive_type: PrimitiveType,
+    pub value: CheckedScalarBindingValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarBindingValue {
+    Expression,
+    /// One closed, receiver-free call whose result initializes this binding.
+    /// The call coordinate joins directly to the checked crash-call row; its
+    /// arguments live in `CheckedScalarExpressionPlans` under the same binding
+    /// ordinal, so terminal production does not rediscover source expressions.
+    DirectCall {
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        call_ordinal: u32,
+        argument_count: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
