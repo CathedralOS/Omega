@@ -292,8 +292,18 @@ pub struct Operation {
 /// the declared width. Signed values interpret the reduced bits as two's
 /// complement. It is total and generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Invoke one in-module machine with positional scalar arguments. Each
+    /// callee `requires` clause has the obligation identity at the same index;
+    /// successful return binds the operation result. The current operation
+    /// slice admits only callees with no published crash route, because crash
+    /// continuations are control rather than scalar data.
+    Call {
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        requirement_obligations: Vec<ObligationId>,
+    },
     IntegerConstant {
         value: IntegerValue,
     },

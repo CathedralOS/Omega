@@ -55,6 +55,13 @@ pub struct TerminalAbstractResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAbstractOperation {
+    Call {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: ScalarType,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+    },
     IntegerConstant {
         psi_operation: OperationId,
         result: ValueId,

@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{BlockId, EdgeId, MachineId, Proposition};
-use psi_terminal::{TerminalMachine, Terminator};
+use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use psi_terminal_codec::{CodecError, TerminalPsiIdentity, terminal_psi_identity};
 use psi_terminal_fuel::{FuelScheduleIdentity, TerminalFuelSchedule};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -107,7 +107,7 @@ pub fn derive_fixed_entry_fuel(
         .iter()
         .find(|machine| machine.id == entry)
         .ok_or(FixedFuelError::UnknownEntry(entry))?;
-    let ceiling_units = derive_maximum_entry_bound(machine)?;
+    let ceiling_units = derive_maximum_entry_bound(module, machine.id)?;
     Ok(FixedEntryFuelCertificate {
         terminal_psi,
         schedule: TerminalFuelSchedule::CURRENT.identity(),
@@ -150,7 +150,7 @@ pub fn derive_fixed_segment_fuel(
         .iter()
         .find(|candidate| candidate.id == machine)
         .ok_or(FixedFuelError::UnknownEntry(machine))?;
-    let ceiling_units = derive_segment_bound(machine_semantics, start_block, end_edge)?;
+    let ceiling_units = derive_segment_bound(module, machine_semantics, start_block, end_edge)?;
     Ok(FixedSegmentFuelCertificate {
         terminal_psi,
         schedule: TerminalFuelSchedule::CURRENT.identity(),
@@ -183,8 +183,10 @@ pub fn validate_fixed_segment_fuel(
 
 /// Select the complete current-vocabulary safe-point partition for one
 /// machine. Every explicit jump, conditional, or return edge is a semantic
-/// safe point in this slice: operations are total, no partial call/suspension
-/// state can cross the edge, and the successor block begins the next segment.
+/// safe point in this slice: operations are total, a call's complete acyclic
+/// callee bound is included before the following edge, no partial call or
+/// suspension state can cross the edge, and the successor block begins the
+/// next segment.
 /// The returned order is canonical block order followed by terminator edge
 /// order, restricted to blocks reachable from the machine entry.
 pub fn derive_fixed_safe_point_segments(
@@ -255,28 +257,72 @@ pub fn validate_fixed_safe_point_segments(
     Ok(())
 }
 
-fn derive_maximum_entry_bound(machine: &TerminalMachine) -> Result<u64, FixedFuelError> {
+fn derive_maximum_entry_bound(
+    module: &TerminalModule,
+    machine: MachineId,
+) -> Result<u64, FixedFuelError> {
     let schedule = TerminalFuelSchedule::CURRENT;
-    let blocks = machine
-        .blocks
+    let machines = module
+        .machines
         .iter()
-        .map(|block| (block.id, block))
+        .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
-    maximum_units_from(
-        machine.entry,
-        &blocks,
+    maximum_machine_units(
+        machine,
+        &machines,
         schedule,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )
 }
 
+fn maximum_machine_units(
+    machine: MachineId,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    schedule: TerminalFuelSchedule,
+    memoized_machines: &mut BTreeMap<MachineId, u64>,
+    active_machines: &mut BTreeSet<MachineId>,
+) -> Result<u64, FixedFuelError> {
+    if let Some(units) = memoized_machines.get(&machine) {
+        return Ok(*units);
+    }
+    if !active_machines.insert(machine) {
+        return Err(FixedFuelError::CallCycle(machine));
+    }
+    let machine_semantics = machines
+        .get(&machine)
+        .copied()
+        .ok_or(FixedFuelError::UnknownEntry(machine))?;
+    let blocks = machine_semantics
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect::<BTreeMap<_, _>>();
+    maximum_units_from(
+        machine_semantics.entry,
+        &blocks,
+        machines,
+        schedule,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+        memoized_machines,
+        active_machines,
+    )
+    .inspect(|units| {
+        active_machines.remove(&machine);
+        memoized_machines.insert(machine, *units);
+    })
+}
+
 fn maximum_units_from(
     current: BlockId,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     schedule: TerminalFuelSchedule,
     memoized: &mut BTreeMap<BlockId, u64>,
     active: &mut BTreeSet<BlockId>,
+    memoized_machines: &mut BTreeMap<MachineId, u64>,
+    active_machines: &mut BTreeSet<MachineId>,
 ) -> Result<u64, FixedFuelError> {
     if let Some(units) = memoized.get(&current) {
         return Ok(*units);
@@ -293,21 +339,56 @@ fn maximum_units_from(
         local_units = local_units
             .checked_add(schedule.operation_units(&operation.kind))
             .ok_or(FixedFuelError::BoundOverflow)?;
+        if let OperationKind::Call { callee, .. } = &operation.kind {
+            local_units = local_units
+                .checked_add(maximum_machine_units(
+                    *callee,
+                    machines,
+                    schedule,
+                    memoized_machines,
+                    active_machines,
+                )?)
+                .ok_or(FixedFuelError::BoundOverflow)?;
+        }
     }
     local_units = local_units
         .checked_add(schedule.terminator_units(&block.terminator))
         .ok_or(FixedFuelError::BoundOverflow)?;
     let successor_units = match &block.terminator {
-        Terminator::Jump { target, .. } => {
-            maximum_units_from(*target, blocks, schedule, memoized, active)?
-        }
+        Terminator::Jump { target, .. } => maximum_units_from(
+            *target,
+            blocks,
+            machines,
+            schedule,
+            memoized,
+            active,
+            memoized_machines,
+            active_machines,
+        )?,
         Terminator::Conditional {
             when_true,
             when_false,
             ..
-        } => maximum_units_from(when_true.target, blocks, schedule, memoized, active)?.max(
-            maximum_units_from(when_false.target, blocks, schedule, memoized, active)?,
-        ),
+        } => maximum_units_from(
+            when_true.target,
+            blocks,
+            machines,
+            schedule,
+            memoized,
+            active,
+            memoized_machines,
+            active_machines,
+        )?
+        .max(maximum_units_from(
+            when_false.target,
+            blocks,
+            machines,
+            schedule,
+            memoized,
+            active,
+            memoized_machines,
+            active_machines,
+        )?),
         Terminator::Return { .. } | Terminator::Crash { .. } => 0,
     };
     active.remove(&current);
@@ -319,11 +400,19 @@ fn maximum_units_from(
 }
 
 fn derive_segment_bound(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     start_block: BlockId,
     end_edge: EdgeId,
 ) -> Result<u64, FixedFuelError> {
     let schedule = TerminalFuelSchedule::CURRENT;
+    let machines = module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect::<BTreeMap<_, _>>();
+    let mut memoized_machines = BTreeMap::new();
+    let mut active_machines = BTreeSet::from([machine.id]);
     let blocks = machine
         .blocks
         .iter()
@@ -348,6 +437,17 @@ fn derive_segment_bound(
             units = units
                 .checked_add(schedule.operation_units(&operation.kind))
                 .ok_or(FixedFuelError::BoundOverflow)?;
+            if let OperationKind::Call { callee, .. } = &operation.kind {
+                units = units
+                    .checked_add(maximum_machine_units(
+                        *callee,
+                        &machines,
+                        schedule,
+                        &mut memoized_machines,
+                        &mut active_machines,
+                    )?)
+                    .ok_or(FixedFuelError::BoundOverflow)?;
+            }
         }
         units = units
             .checked_add(schedule.terminator_units(&block.terminator))
@@ -382,6 +482,7 @@ pub enum FixedFuelError {
     UnknownEntry(MachineId),
     UnknownBlock(BlockId),
     ControlCycle(BlockId),
+    CallCycle(MachineId),
     BranchingNotYetSupported(BlockId),
     SegmentEndNotReached {
         requested: EdgeId,

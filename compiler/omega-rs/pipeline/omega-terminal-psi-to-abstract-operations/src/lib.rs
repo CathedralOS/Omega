@@ -92,7 +92,18 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
             operation_offset: operations.len(),
         });
         for operation in &block.operations {
-            match operation.kind {
+            match operation.kind.clone() {
+                OperationKind::Call {
+                    callee, arguments, ..
+                } => {
+                    operations.push(TerminalAbstractOperation::Call {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type: operation.result.scalar_type,
+                        callee,
+                        arguments,
+                    });
+                }
                 OperationKind::IntegerConstant { value } => {
                     operations.push(TerminalAbstractOperation::IntegerConstant {
                         psi_operation: operation.id,
@@ -200,7 +211,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
                         return Err(LoweringError::VerifiedIntegerBitwiseMalformed(operation.id));
                     };
-                    operations.push(match operation.kind {
+                    operations.push(match operation.kind.clone() {
                         OperationKind::IntegerBitwiseAnd { .. } => {
                             TerminalAbstractOperation::IntegerBitwiseAnd {
                                 psi_operation: operation.id,
@@ -240,7 +251,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                     else {
                         return Err(LoweringError::VerifiedWrappingShiftMalformed(operation.id));
                     };
-                    operations.push(match operation.kind {
+                    operations.push(match operation.kind.clone() {
                         OperationKind::WrappingIntegerShiftLeft { .. } => {
                             TerminalAbstractOperation::WrappingIntegerShiftLeft {
                                 psi_operation: operation.id,

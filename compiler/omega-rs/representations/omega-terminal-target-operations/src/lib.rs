@@ -4,7 +4,9 @@
 //! requirements.
 
 use omega_target::NativeTarget;
-use psi_core::{ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
+use psi_core::{
+    ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+};
 use psi_terminal::{CrashCause, CrashPredicateIdentity, TerminalPsiIdentity};
 
 pub use omega_calling_conventions::MachineRegister;
@@ -135,6 +137,12 @@ pub enum TerminalTargetOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetBooleanExpression {
+    Call {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        callee: MachineId,
+        arguments: Vec<TerminalTargetCallArgument>,
+    },
     Immediate {
         source_value: ValueId,
         value: bool,
@@ -260,6 +268,12 @@ pub enum TerminalTargetIntegerControl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetIntegerExpression {
+    Call {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        callee: MachineId,
+        arguments: Vec<TerminalTargetCallArgument>,
+    },
     Immediate {
         source_value: ValueId,
         value: IntegerValue,
@@ -382,6 +396,31 @@ pub enum TerminalTargetIntegerExpression {
         left: Box<TerminalTargetIntegerExpression>,
         right: Box<TerminalTargetIntegerExpression>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalTargetScalarExpression {
+    Boolean(TerminalTargetBooleanExpression),
+    Integer {
+        scalar_type: IntegerType,
+        expression: TerminalTargetIntegerExpression,
+    },
+}
+
+impl TerminalTargetScalarExpression {
+    pub const fn scalar_type(&self) -> ScalarType {
+        match self {
+            Self::Boolean(_) => ScalarType::Boolean,
+            Self::Integer { scalar_type, .. } => ScalarType::Integer(*scalar_type),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTargetCallArgument {
+    pub scalar_type: ScalarType,
+    pub location: TerminalScalarParameterLocation,
+    pub expression: TerminalTargetScalarExpression,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

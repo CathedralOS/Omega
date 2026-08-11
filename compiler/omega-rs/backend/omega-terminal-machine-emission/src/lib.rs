@@ -3,15 +3,18 @@
 //! Machine-code emission for the first source-independent terminal-Psi target
 //! operation slice.
 
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
-    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
-    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
-    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarLocation,
-    TerminalExpressionFrame,
+    TerminalAssignedCallArgument, TerminalAssignedConditionalBooleanArm,
+    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
+    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
+    TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
+    TerminalAssignedScalarLocation, TerminalExpressionFrame,
 };
-use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
+use omega_terminal_machine_code::{
+    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+};
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
 
@@ -32,15 +35,17 @@ pub fn emit_machine_code(
         functions: plan
             .functions
             .iter()
-            .map(|function| emit_function(function, plan.target.architecture))
+            .map(|function| emit_function(function, plan.target))
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
 fn emit_function(
     function: &TerminalAssignedFunction,
-    architecture: Architecture,
+    target: NativeTarget,
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
+    let architecture = target.architecture;
+    let mut internal_calls = Vec::new();
     let bytes = match &function.operation {
         // The verified cause remains in the assigned operation and terminal
         // artifact identity. Both closed causes realize as the target's
@@ -106,8 +111,16 @@ fn emit_function(
         TerminalAssignedOperation::ReturnBooleanExpression {
             frame, expression, ..
         } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_boolean_expression(frame, expression)?,
-            Architecture::X86_64 => emit_x86_64_boolean_expression(frame, expression)?,
+            Architecture::Aarch64 => emit_aarch64_boolean_expression(
+                frame,
+                expression,
+                Some((&mut internal_calls, target)),
+            )?,
+            Architecture::X86_64 => emit_x86_64_boolean_expression(
+                frame,
+                expression,
+                Some((&mut internal_calls, target)),
+            )?,
         },
         TerminalAssignedOperation::ReturnIntegerExpression {
             source_value,
@@ -118,12 +131,18 @@ fn emit_function(
         } => {
             require_native_integer_width(*source_value, *scalar_type)?;
             match architecture {
-                Architecture::Aarch64 => {
-                    emit_aarch64_integer_expression(*scalar_type, frame, expression)?
-                }
-                Architecture::X86_64 => {
-                    emit_x86_64_integer_expression(*scalar_type, frame, expression)?
-                }
+                Architecture::Aarch64 => emit_aarch64_integer_expression(
+                    *scalar_type,
+                    frame,
+                    expression,
+                    Some((&mut internal_calls, target)),
+                )?,
+                Architecture::X86_64 => emit_x86_64_integer_expression(
+                    *scalar_type,
+                    frame,
+                    expression,
+                    Some((&mut internal_calls, target)),
+                )?,
             }
         }
         TerminalAssignedOperation::ReturnIntegerConditionalControl {
@@ -217,7 +236,7 @@ fn emit_function(
         machine: function.machine,
         provenance: function.provenance.clone(),
         bytes,
-        internal_calls: Vec::new(),
+        internal_calls,
     })
 }
 
@@ -264,7 +283,7 @@ fn emit_x86_64_integer_control(
             ..
         } => {
             require_native_integer_width(*source_value, scalar_type)?;
-            emit_x86_64_integer_expression(scalar_type, frame, expression)
+            emit_x86_64_integer_expression(scalar_type, frame, expression, None)
         }
         TerminalAssignedIntegerControl::Conditional {
             condition_source,
@@ -302,7 +321,7 @@ fn emit_x86_64_conditional_integer_expression_control(
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
 ) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition)?;
+    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition, None)?;
     bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
     let true_bytes = emit_x86_64_integer_control(scalar_type, &when_true.control)?;
     let false_bytes = emit_x86_64_integer_control(scalar_type, &when_false.control)?;
@@ -343,7 +362,7 @@ fn emit_x86_64_conditional_boolean_expression_control(
     when_true: &TerminalAssignedConditionalBooleanArm,
     when_false: &TerminalAssignedConditionalBooleanArm,
 ) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition)?;
+    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition, None)?;
     bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
     let true_bytes = emit_x86_64_boolean_control(&when_true.control)?;
     let false_bytes = emit_x86_64_boolean_control(&when_false.control)?;
@@ -376,7 +395,7 @@ fn emit_x86_64_boolean_control(
         } => emit_x86_64_boolean_not_parameter_return(*source_value, *location),
         TerminalAssignedBooleanControl::ReturnExpression {
             frame, expression, ..
-        } => emit_x86_64_boolean_expression(frame, expression),
+        } => emit_x86_64_boolean_expression(frame, expression, None),
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -445,7 +464,7 @@ fn emit_aarch64_integer_control(
             ..
         } => {
             require_native_integer_width(*source_value, scalar_type)?;
-            emit_aarch64_integer_expression(scalar_type, frame, expression)
+            emit_aarch64_integer_expression(scalar_type, frame, expression, None)
         }
         TerminalAssignedIntegerControl::Conditional {
             condition_source,
@@ -491,6 +510,7 @@ fn emit_aarch64_conditional_integer_expression_control(
     bytes.extend(emit_aarch64_boolean_expression_value(
         condition_frame,
         condition,
+        None,
     )?);
     bytes.extend_from_slice(&0x2a00_03f1_u32.to_le_bytes()); // mov w17, w0
     bytes.extend_from_slice(&0xaa10_03e0_u32.to_le_bytes()); // mov x0, x16
@@ -546,6 +566,7 @@ fn emit_aarch64_conditional_boolean_expression_control(
     bytes.extend(emit_aarch64_boolean_expression_value(
         condition_frame,
         condition,
+        None,
     )?);
     bytes.extend_from_slice(&0x2a00_03f1_u32.to_le_bytes()); // mov w17, w0
     bytes.extend_from_slice(&0xaa10_03e0_u32.to_le_bytes()); // mov x0, x16
@@ -588,7 +609,7 @@ fn emit_aarch64_boolean_control(
         } => emit_aarch64_boolean_not_parameter_return(*source_value, *location),
         TerminalAssignedBooleanControl::ReturnExpression {
             frame, expression, ..
-        } => emit_aarch64_boolean_expression(frame, expression),
+        } => emit_aarch64_boolean_expression(frame, expression, None),
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -878,8 +899,9 @@ fn emit_aarch64_return(scalar_type: IntegerType, bits: u64) -> Vec<u8> {
 fn emit_x86_64_boolean_expression(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
+    internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_x86_64_boolean_expression_value(frame, expression)?;
+    let mut bytes = emit_x86_64_boolean_expression_value(frame, expression, internal_calls)?;
     bytes.push(0xc3); // ret
     Ok(bytes)
 }
@@ -887,6 +909,7 @@ fn emit_x86_64_boolean_expression(
 fn emit_x86_64_boolean_expression_value(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
+    mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
@@ -905,7 +928,13 @@ fn emit_x86_64_boolean_expression_value(
             emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
         }
     }
-    emit_x86_64_boolean_expression_node(&mut bytes, expression, frame.byte_size, 0)?;
+    emit_x86_64_boolean_expression_node(
+        &mut bytes,
+        expression,
+        frame.byte_size,
+        0,
+        &mut internal_calls,
+    )?;
     if frame.byte_size != 0 {
         emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
     }
@@ -917,8 +946,27 @@ fn emit_x86_64_boolean_expression_node(
     expression: &TerminalAssignedBooleanExpression,
     frame_byte_size: u32,
     stack_depth: u32,
+    internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<(), EmissionError> {
     match expression {
+        TerminalAssignedBooleanExpression::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+        } => {
+            emit_x86_64_call(
+                bytes,
+                *psi_operation,
+                *source_value,
+                *callee,
+                arguments,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
+            bytes.extend_from_slice(&[0x83, 0xe0, 0x01]); // and eax, 1
+        }
         TerminalAssignedBooleanExpression::Immediate { value, .. } => {
             bytes.push(0xb8); // mov eax, imm32
             bytes.extend_from_slice(&u32::from(*value).to_le_bytes());
@@ -976,18 +1024,36 @@ fn emit_x86_64_boolean_expression_node(
             bytes.extend_from_slice(&[0x83, 0xe0, 0x01]); // and eax, 1
         }
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
-            emit_x86_64_boolean_expression_node(bytes, operand, frame_byte_size, stack_depth)?;
+            emit_x86_64_boolean_expression_node(
+                bytes,
+                operand,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x83, 0xf0, 0x01]); // xor eax, 1
         }
         TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
-            emit_x86_64_boolean_expression_node(bytes, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_boolean_expression_node(
+                bytes,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: boolean_expression_source(left),
                 },
             )?;
-            emit_x86_64_boolean_expression_node(bytes, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_boolean_expression_node(
+                bytes,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
             bytes.extend_from_slice(&[0x0f, 0x94, 0xc0]); // sete al
@@ -999,14 +1065,28 @@ fn emit_x86_64_boolean_expression_node(
             right,
             ..
         } => {
-            emit_x86_64_expression_node(bytes, *scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                *scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, *scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                *scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
             bytes.extend_from_slice(&[0x0f, 0x94, 0xc0]); // sete al
@@ -1024,14 +1104,28 @@ fn emit_x86_64_boolean_expression_node(
             right,
             ..
         } => {
-            emit_x86_64_expression_node(bytes, *scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                *scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, *scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                *scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.extend_from_slice(&[0x49, 0x39, 0xc2]); // cmp r10, rax
             let inclusive = matches!(
@@ -1055,6 +1149,7 @@ fn emit_x86_64_integer_expression(
     scalar_type: IntegerType,
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedIntegerExpression,
+    mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
@@ -1073,7 +1168,14 @@ fn emit_x86_64_integer_expression(
             emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
         }
     }
-    emit_x86_64_expression_node(&mut bytes, scalar_type, expression, frame.byte_size, 0)?;
+    emit_x86_64_expression_node(
+        &mut bytes,
+        scalar_type,
+        expression,
+        frame.byte_size,
+        0,
+        &mut internal_calls,
+    )?;
     if frame.byte_size != 0 {
         emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
     }
@@ -1101,14 +1203,128 @@ fn emit_x86_64_stack_store(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) 
     }
 }
 
+fn emit_x86_64_stack_load(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
+    bytes.push(0x48 | (((register >> 3) & 1) << 2));
+    bytes.push(0x8b); // mov selected register, [rsp + displacement]
+    if byte_offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+    }
+}
+
+fn emit_x86_64_call(
+    bytes: &mut Vec<u8>,
+    psi_operation: psi_core::OperationId,
+    source_value: ValueId,
+    callee: MachineId,
+    arguments: &[TerminalAssignedCallArgument],
+    frame_byte_size: u32,
+    stack_depth: u32,
+    internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+) -> Result<(), EmissionError> {
+    for argument in arguments {
+        match &argument.expression {
+            TerminalAssignedScalarExpression::Boolean(expression) => {
+                emit_x86_64_boolean_expression_node(
+                    bytes,
+                    expression,
+                    frame_byte_size,
+                    stack_depth,
+                    internal_calls,
+                )?;
+            }
+            TerminalAssignedScalarExpression::Integer {
+                scalar_type,
+                expression,
+            } => emit_x86_64_expression_node(
+                bytes,
+                *scalar_type,
+                expression,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?,
+        }
+        let byte_offset = argument.spill_byte_offset.checked_add(stack_depth).ok_or(
+            EmissionError::IncomingStackOffsetNotEncodable {
+                value: source_value,
+                byte_offset: argument.spill_byte_offset,
+            },
+        )?;
+        emit_x86_64_stack_store(bytes, 0, byte_offset);
+    }
+    for argument in arguments {
+        let register = argument.destination;
+        let register = x86_gpr_code(source_value, register)?;
+        if register == 4 {
+            return Err(EmissionError::UnsupportedCallArgumentRegister(
+                MachineRegister::X86Rsp,
+            ));
+        }
+        let byte_offset = argument.spill_byte_offset.checked_add(stack_depth).ok_or(
+            EmissionError::IncomingStackOffsetNotEncodable {
+                value: source_value,
+                byte_offset: argument.spill_byte_offset,
+            },
+        )?;
+        emit_x86_64_stack_load(bytes, register, byte_offset);
+    }
+    let Some((relocations, target)) = internal_calls.as_mut() else {
+        return Err(EmissionError::CallOutsideDirectReturnExpression);
+    };
+    let shadow_bytes = if target.object_format == ObjectFormat::Coff {
+        32
+    } else {
+        0
+    };
+    let alignment_padding = if stack_depth.is_multiple_of(16) { 8 } else { 0 };
+    let call_stack_bytes = shadow_bytes + alignment_padding;
+    if call_stack_bytes != 0 {
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+    }
+    bytes.push(0xe8); // call rel32
+    let offset = bytes.len();
+    bytes.extend_from_slice(&0_i32.to_le_bytes());
+    relocations.push(TerminalInternalCallRelocation {
+        psi_operation,
+        target: callee,
+        offset,
+    });
+    if call_stack_bytes != 0 {
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
+    }
+    Ok(())
+}
+
 fn emit_x86_64_expression_node(
     bytes: &mut Vec<u8>,
     scalar_type: IntegerType,
     expression: &TerminalAssignedIntegerExpression,
     frame_byte_size: u32,
     stack_depth: u32,
+    internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<(), EmissionError> {
     match expression {
+        TerminalAssignedIntegerExpression::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+        } => {
+            emit_x86_64_call(
+                bytes,
+                *psi_operation,
+                *source_value,
+                *callee,
+                arguments,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
+            emit_x86_64_normalize(bytes, scalar_type);
+        }
         TerminalAssignedIntegerExpression::Immediate {
             source_value,
             value,
@@ -1172,7 +1388,14 @@ fn emit_x86_64_expression_node(
             emit_x86_64_normalize(bytes, scalar_type);
         }
         TerminalAssignedIntegerExpression::BitwiseNot { operand, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, operand, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                operand,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x48, 0xf7, 0xd0]); // not rax
             emit_x86_64_normalize(bytes, scalar_type);
         }
@@ -1192,6 +1415,7 @@ fn emit_x86_64_expression_node(
                 operand,
                 frame_byte_size,
                 stack_depth,
+                internal_calls,
             )?;
             emit_x86_64_normalize(bytes, scalar_type);
         }
@@ -1219,14 +1443,28 @@ fn emit_x86_64_expression_node(
             count,
             ..
         } => {
-            emit_x86_64_expression_node(bytes, scalar_type, value, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                value,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(value),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, *count_type, count, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                *count_type,
+                count,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.extend_from_slice(&[0x48, 0x89, 0xc1]); // mov rcx, rax
             bytes.extend_from_slice(&[0x83, 0xe1, (scalar_type.bits() - 1) as u8]); // and ecx, width - 1
@@ -1271,14 +1509,28 @@ fn emit_x86_64_expression_node(
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             match expression {
                 TerminalAssignedIntegerExpression::BitwiseAnd { .. } => {
@@ -1319,14 +1571,28 @@ fn emit_x86_64_expression_node(
             }
         }
         TerminalAssignedIntegerExpression::ExactDivide { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.push(0x50); // push divisor
             bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
@@ -1344,14 +1610,28 @@ fn emit_x86_64_expression_node(
             emit_x86_64_normalize(bytes, scalar_type);
         }
         TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50);
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.push(0x50); // push divisor
             bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
@@ -1370,14 +1650,28 @@ fn emit_x86_64_expression_node(
             emit_x86_64_normalize(bytes, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingDivide { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50);
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.push(0x50); // push divisor
             bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
@@ -1414,14 +1708,28 @@ fn emit_x86_64_expression_node(
         }
         TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50);
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.push(0x50); // push divisor
             bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
@@ -1459,14 +1767,28 @@ fn emit_x86_64_expression_node(
             }
         }
         TerminalAssignedIntegerExpression::SaturatingDivide { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                left,
+                frame_byte_size,
+                stack_depth,
+                internal_calls,
+            )?;
             bytes.push(0x50);
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
+            emit_x86_64_expression_node(
+                bytes,
+                scalar_type,
+                right,
+                frame_byte_size,
+                nested_depth,
+                internal_calls,
+            )?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             bytes.push(0x50); // push divisor
             bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
@@ -1643,8 +1965,9 @@ fn emit_x86_64_mov_r10(bytes: &mut Vec<u8>, value: u64) {
 fn emit_aarch64_boolean_expression(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
+    internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_aarch64_boolean_expression_value(frame, expression)?;
+    let mut bytes = emit_aarch64_boolean_expression_value(frame, expression, internal_calls)?;
     bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes()); // ret x30
     Ok(bytes)
 }
@@ -1652,6 +1975,7 @@ fn emit_aarch64_boolean_expression(
 fn emit_aarch64_boolean_expression_value(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedBooleanExpression,
+    mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<Vec<u8>, EmissionError> {
     if frame.byte_size == 0 && !frame.register_spills.is_empty() {
         return Err(EmissionError::AssignedFrameSizeMismatch);
@@ -1668,7 +1992,13 @@ fn emit_aarch64_boolean_expression_value(
             )?);
         }
     }
-    emit_aarch64_boolean_expression_node(&mut instructions, expression, frame, 0)?;
+    emit_aarch64_boolean_expression_node(
+        &mut instructions,
+        expression,
+        frame,
+        0,
+        &mut internal_calls,
+    )?;
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
     }
@@ -1683,8 +2013,27 @@ fn emit_aarch64_boolean_expression_node(
     expression: &TerminalAssignedBooleanExpression,
     frame: &TerminalExpressionFrame,
     stack_depth: u32,
+    internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<(), EmissionError> {
     match expression {
+        TerminalAssignedBooleanExpression::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+        } => {
+            emit_aarch64_call(
+                instructions,
+                *psi_operation,
+                *source_value,
+                *callee,
+                arguments,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
+            instructions.push(0x1200_0000); // and w0, w0, #1
+        }
         TerminalAssignedBooleanExpression::Immediate { value, .. } => {
             emit_aarch64_mov_immediate(instructions, 0, u64::from(*value));
         }
@@ -1723,11 +2072,23 @@ fn emit_aarch64_boolean_expression_node(
             instructions.push(0x1200_0000); // and w0, w0, #1
         }
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
-            emit_aarch64_boolean_expression_node(instructions, operand, frame, stack_depth)?;
+            emit_aarch64_boolean_expression_node(
+                instructions,
+                operand,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             instructions.push(0x5200_0000); // eor w0, w0, #1
         }
         TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
-            emit_aarch64_boolean_expression_node(instructions, left, frame, stack_depth)?;
+            emit_aarch64_boolean_expression_node(
+                instructions,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -1740,7 +2101,13 @@ fn emit_aarch64_boolean_expression_node(
                     value: boolean_expression_source(left),
                 },
             )?;
-            emit_aarch64_boolean_expression_node(instructions, right, frame, nested_depth)?;
+            emit_aarch64_boolean_expression_node(
+                instructions,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -1757,7 +2124,14 @@ fn emit_aarch64_boolean_expression_node(
             right,
             ..
         } => {
-            emit_aarch64_expression_node(instructions, *scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                *scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -1770,7 +2144,14 @@ fn emit_aarch64_boolean_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, *scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                *scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -1793,7 +2174,14 @@ fn emit_aarch64_boolean_expression_node(
             right,
             ..
         } => {
-            emit_aarch64_expression_node(instructions, *scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                *scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -1806,7 +2194,14 @@ fn emit_aarch64_boolean_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, *scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                *scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -1834,6 +2229,7 @@ fn emit_aarch64_integer_expression(
     scalar_type: IntegerType,
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedIntegerExpression,
+    mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<Vec<u8>, EmissionError> {
     let mut instructions = Vec::new();
     if frame.byte_size != 0 {
@@ -1847,7 +2243,14 @@ fn emit_aarch64_integer_expression(
             )?); // str xN, [sp, #spill]
         }
     }
-    emit_aarch64_expression_node(&mut instructions, scalar_type, expression, frame, 0)?;
+    emit_aarch64_expression_node(
+        &mut instructions,
+        scalar_type,
+        expression,
+        frame,
+        0,
+        &mut internal_calls,
+    )?;
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
     }
@@ -1878,8 +2281,27 @@ fn emit_aarch64_expression_node(
     expression: &TerminalAssignedIntegerExpression,
     frame: &TerminalExpressionFrame,
     stack_depth: u32,
+    internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
 ) -> Result<(), EmissionError> {
     match expression {
+        TerminalAssignedIntegerExpression::Call {
+            psi_operation,
+            source_value,
+            callee,
+            arguments,
+        } => {
+            emit_aarch64_call(
+                instructions,
+                *psi_operation,
+                *source_value,
+                *callee,
+                arguments,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
+            emit_aarch64_normalize(instructions, scalar_type);
+        }
         TerminalAssignedIntegerExpression::Immediate {
             source_value,
             value,
@@ -1923,7 +2345,14 @@ fn emit_aarch64_expression_node(
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::BitwiseNot { operand, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, operand, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                operand,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             instructions.push(0xaa20_03e0); // mvn x0, x0
             emit_aarch64_normalize(instructions, scalar_type);
         }
@@ -1937,7 +2366,14 @@ fn emit_aarch64_expression_node(
             operand,
             ..
         } => {
-            emit_aarch64_expression_node(instructions, *source_type, operand, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                *source_type,
+                operand,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingShiftLeft {
@@ -1964,7 +2400,14 @@ fn emit_aarch64_expression_node(
             count,
             ..
         } => {
-            emit_aarch64_expression_node(instructions, scalar_type, value, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                value,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -1977,7 +2420,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(value),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, *count_type, count, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                *count_type,
+                count,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2019,7 +2469,14 @@ fn emit_aarch64_expression_node(
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -2032,7 +2489,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2078,7 +2542,14 @@ fn emit_aarch64_expression_node(
             }
         }
         TerminalAssignedIntegerExpression::ExactDivide { left, right, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -2091,7 +2562,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2106,7 +2584,14 @@ fn emit_aarch64_expression_node(
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -2119,7 +2604,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2135,7 +2627,14 @@ fn emit_aarch64_expression_node(
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingDivide { left, right, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -2148,7 +2647,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2164,7 +2670,14 @@ fn emit_aarch64_expression_node(
         }
         TerminalAssignedIntegerExpression::WrappingRemainder { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingRemainder { left, right, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -2177,7 +2690,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2193,7 +2713,14 @@ fn emit_aarch64_expression_node(
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::SaturatingDivide { left, right, .. } => {
-            emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                left,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
@@ -2206,7 +2733,14 @@ fn emit_aarch64_expression_node(
                     value: expression_source(left),
                 },
             )?;
-            emit_aarch64_expression_node(instructions, scalar_type, right, frame, nested_depth)?;
+            emit_aarch64_expression_node(
+                instructions,
+                scalar_type,
+                right,
+                frame,
+                nested_depth,
+                internal_calls,
+            )?;
             instructions.push(aarch64_stack_access(
                 0xf940_0000,
                 9,
@@ -2249,6 +2783,85 @@ fn emit_aarch64_normalize(instructions: &mut Vec<u32>, scalar_type: IntegerType)
         IntegerSign::Unsigned => 0xd340_0000, // ubfm
     };
     instructions.push(base | (u32::from(scalar_type.bits() - 1) << 10));
+}
+
+fn emit_aarch64_call(
+    instructions: &mut Vec<u32>,
+    psi_operation: psi_core::OperationId,
+    source_value: ValueId,
+    callee: MachineId,
+    arguments: &[TerminalAssignedCallArgument],
+    frame: &TerminalExpressionFrame,
+    stack_depth: u32,
+    internal_calls: &mut Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+) -> Result<(), EmissionError> {
+    for argument in arguments {
+        match &argument.expression {
+            TerminalAssignedScalarExpression::Boolean(expression) => {
+                emit_aarch64_boolean_expression_node(
+                    instructions,
+                    expression,
+                    frame,
+                    stack_depth,
+                    internal_calls,
+                )?;
+            }
+            TerminalAssignedScalarExpression::Integer {
+                scalar_type,
+                expression,
+            } => emit_aarch64_expression_node(
+                instructions,
+                *scalar_type,
+                expression,
+                frame,
+                stack_depth,
+                internal_calls,
+            )?,
+        }
+        let byte_offset = argument.spill_byte_offset.checked_add(stack_depth).ok_or(
+            EmissionError::IncomingStackOffsetNotEncodable {
+                value: source_value,
+                byte_offset: argument.spill_byte_offset,
+            },
+        )?;
+        instructions.push(aarch64_stack_access(
+            0xf900_0000,
+            0,
+            source_value,
+            byte_offset,
+        )?);
+    }
+    for argument in arguments {
+        let register = argument.destination;
+        let register = aarch64_spill_register(source_value, register)?;
+        let byte_offset = argument.spill_byte_offset.checked_add(stack_depth).ok_or(
+            EmissionError::IncomingStackOffsetNotEncodable {
+                value: source_value,
+                byte_offset: argument.spill_byte_offset,
+            },
+        )?;
+        instructions.push(aarch64_stack_access(
+            0xf940_0000,
+            register,
+            source_value,
+            byte_offset,
+        )?);
+    }
+    let Some((relocations, _)) = internal_calls.as_mut() else {
+        return Err(EmissionError::CallOutsideDirectReturnExpression);
+    };
+    emit_aarch64_adjust_sp(instructions, 16, false)?;
+    instructions.push(aarch64_stack_access(0xf900_0000, 30, source_value, 0)?); // str x30, [sp]
+    let offset = instructions.len() * 4;
+    instructions.push(0x9400_0000); // bl #0
+    relocations.push(TerminalInternalCallRelocation {
+        psi_operation,
+        target: callee,
+        offset,
+    });
+    instructions.push(aarch64_stack_access(0xf940_0000, 30, source_value, 0)?); // ldr x30, [sp]
+    emit_aarch64_adjust_sp(instructions, 16, true)?;
+    Ok(())
 }
 
 fn emit_aarch64_saturating_add(instructions: &mut Vec<u32>, scalar_type: IntegerType) {
@@ -2400,6 +3013,7 @@ const fn aarch64_csel(destination: u8, left: u8, right: u8, condition: u8) -> u3
 
 fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId {
     match expression {
+        TerminalAssignedIntegerExpression::Call { source_value, .. } => *source_value,
         TerminalAssignedIntegerExpression::Immediate { source_value, .. }
         | TerminalAssignedIntegerExpression::Parameter { source_value, .. } => *source_value,
         TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
@@ -2437,6 +3051,7 @@ fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId 
 
 fn boolean_expression_source(expression: &TerminalAssignedBooleanExpression) -> ValueId {
     match expression {
+        TerminalAssignedBooleanExpression::Call { source_value, .. } => *source_value,
         TerminalAssignedBooleanExpression::Immediate { source_value, .. }
         | TerminalAssignedBooleanExpression::Parameter { source_value, .. } => *source_value,
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
@@ -2517,6 +3132,8 @@ pub enum EmissionError {
     ConditionalBranchDistanceNotEncodable,
     ConditionalBranchEncodingInvalid,
     BooleanNotEncodingInvalid,
+    UnsupportedCallArgumentRegister(MachineRegister),
+    CallOutsideDirectReturnExpression,
     EntryFunctionMissing(MachineId),
 }
 
@@ -2534,9 +3151,10 @@ mod tests {
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
         TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-        TerminalTargetBooleanExpression, TerminalTargetConditionalBooleanArm,
-        TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
-        TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+        TerminalTargetBooleanExpression, TerminalTargetCallArgument,
+        TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
+        TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+        TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
     };
     use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
     use psi_core::{EdgeId, MachineId, OperationId};
@@ -3811,6 +4429,99 @@ mod tests {
         assert!(instructions.contains(&0xca0b_014a)); // eor x10, x10, x11
         assert!(instructions.contains(&0xab00_0120)); // adds x0, x9, x0
         assert!(instructions.contains(&aarch64_csel(0, 0, 10, 7))); // vc
+    }
+
+    #[test]
+    fn emits_typed_direct_call_relocations_for_native_targets() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        for (target, argument_register) in [
+            (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
+            (NativeTarget::windows_x64(), MachineRegister::X86Rcx),
+            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+        ] {
+            let caller = MachineId::new(1).expect("caller");
+            let callee = MachineId::new(2).expect("callee");
+            let call_operation = OperationId::new(3).expect("call operation");
+            let call_result = ValueId::new(4).expect("call result");
+            let argument = ValueId::new(5).expect("argument");
+            let plan = TerminalTargetOperationPlan {
+                terminal_psi: identity(),
+                target,
+                entry: caller,
+                functions: vec![
+                    TerminalTargetFunction {
+                        machine: caller,
+                        provenance: TerminalPsiProvenance::default(),
+                        operation: TerminalTargetOperation::ReturnIntegerExpression {
+                            psi_edge: EdgeId::new(1).expect("return edge"),
+                            source_value: call_result,
+                            scalar_type,
+                            expression: TerminalTargetIntegerExpression::Call {
+                                psi_operation: call_operation,
+                                source_value: call_result,
+                                callee,
+                                arguments: vec![TerminalTargetCallArgument {
+                                    scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                    location: TerminalScalarParameterLocation::Register(
+                                        argument_register,
+                                    ),
+                                    expression: TerminalTargetScalarExpression::Integer {
+                                        scalar_type,
+                                        expression: TerminalTargetIntegerExpression::Immediate {
+                                            source_value: argument,
+                                            value: IntegerValue::Unsigned(7),
+                                        },
+                                    },
+                                }],
+                            },
+                        },
+                    },
+                    TerminalTargetFunction {
+                        machine: callee,
+                        provenance: TerminalPsiProvenance::default(),
+                        operation: TerminalTargetOperation::ReturnIntegerParameter {
+                            psi_edge: EdgeId::new(2).expect("callee return edge"),
+                            source_value: argument,
+                            scalar_type,
+                            parameter_index: 0,
+                            location: TerminalScalarParameterLocation::Register(argument_register),
+                        },
+                    },
+                ],
+            };
+            let emitted = emit_machine_code(&plan).expect("emit direct call");
+            let caller = &emitted.functions[0];
+            assert_eq!(caller.internal_calls.len(), 1);
+            let relocation = caller.internal_calls[0];
+            assert_eq!(relocation.psi_operation, call_operation);
+            assert_eq!(relocation.target, callee);
+            match target.architecture {
+                Architecture::X86_64 => {
+                    assert_eq!(caller.bytes[relocation.offset - 1], 0xe8);
+                    assert_eq!(
+                        &caller.bytes[relocation.offset..relocation.offset + 4],
+                        &[0; 4]
+                    );
+                    if target.object_format == ObjectFormat::Coff {
+                        assert!(
+                            caller
+                                .bytes
+                                .windows(4)
+                                .any(|window| window == [0x48, 0x83, 0xec, 40])
+                        );
+                    }
+                }
+                Architecture::Aarch64 => {
+                    assert_eq!(
+                        &caller.bytes[relocation.offset..relocation.offset + 4],
+                        &0x9400_0000_u32.to_le_bytes()
+                    );
+                    let instructions = aarch64_instructions(&caller.bytes);
+                    assert!(instructions.contains(&0xf900_03fe)); // str x30, [sp]
+                    assert!(instructions.contains(&0xf940_03fe)); // ldr x30, [sp]
+                }
+            }
+        }
     }
 
     #[test]
