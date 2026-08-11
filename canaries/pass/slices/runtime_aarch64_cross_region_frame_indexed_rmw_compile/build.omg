@@ -1,2 +1,6 @@
 target linux_arm64 {
 }
+
+machine build(builder: &mut Build) {
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+}
