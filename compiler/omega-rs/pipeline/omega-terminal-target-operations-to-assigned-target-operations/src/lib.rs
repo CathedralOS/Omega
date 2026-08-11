@@ -8,10 +8,10 @@ use std::collections::BTreeMap;
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
-    TerminalAssignedCallArgument, TerminalAssignedConditionalBooleanArm,
-    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
-    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
-    TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
+    TerminalAssignedCallArgument, TerminalAssignedCallDestination,
+    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
+    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
+    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
     TerminalAssignedScalarLocation, TerminalEntryRegisterSpill, TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
@@ -671,10 +671,10 @@ fn assign_call_arguments(
                     if !valid || register == MachineRegister::X86Rsp {
                         return Err(AssignmentError::UnsupportedCallArgumentRegister(register));
                     }
-                    register
+                    TerminalAssignedCallDestination::Register(register)
                 }
-                TerminalScalarParameterLocation::IncomingStack { .. } => {
-                    return Err(AssignmentError::CallStackArgumentNotYetSupported);
+                TerminalScalarParameterLocation::IncomingStack { byte_offset } => {
+                    TerminalAssignedCallDestination::OutgoingStack { byte_offset }
                 }
             };
             let spill_byte_offset = *next_spill;
@@ -1534,7 +1534,6 @@ pub enum AssignmentError {
         register: MachineRegister,
     },
     UnsupportedCallArgumentRegister(MachineRegister),
-    CallStackArgumentNotYetSupported,
 }
 
 impl std::fmt::Display for AssignmentError {
@@ -1734,6 +1733,54 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn call_stack_arguments_receive_concrete_outgoing_homes() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let mut plan = expression_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+        );
+        let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        *expression = TerminalTargetIntegerExpression::Call {
+            psi_operation: OperationId::new(7).unwrap(),
+            source_value: ValueId::new(4).unwrap(),
+            callee: MachineId::new(2).unwrap(),
+            arguments: vec![TerminalTargetCallArgument {
+                scalar_type: ScalarType::Integer(scalar_type),
+                location: TerminalScalarParameterLocation::IncomingStack { byte_offset: 8 },
+                expression: TerminalTargetScalarExpression::Integer {
+                    scalar_type,
+                    expression: TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(5).unwrap(),
+                        value: psi_core::IntegerValue::Unsigned(9),
+                    },
+                },
+            }],
+        };
+
+        let assigned = assign_registers(&plan).expect("assign outgoing stack argument");
+        let TerminalAssignedOperation::ReturnIntegerExpression {
+            frame, expression, ..
+        } = &assigned.functions[0].operation
+        else {
+            unreachable!()
+        };
+        assert_eq!(frame.byte_size, 16);
+        let TerminalAssignedIntegerExpression::Call { arguments, .. } = expression else {
+            unreachable!()
+        };
+        assert_eq!(arguments[0].spill_byte_offset, 0);
+        assert_eq!(
+            arguments[0].destination,
+            TerminalAssignedCallDestination::OutgoingStack { byte_offset: 8 }
+        );
     }
 
     #[test]

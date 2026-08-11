@@ -393,14 +393,20 @@ pub enum TerminalAssignedIntegerExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAssignedCallArgument {
     pub scalar_type: psi_core::ScalarType,
-    /// ABI register populated after all sibling arguments have been evaluated.
-    /// Stack-passed arguments do not enter this representation until their
-    /// outgoing-area assignment slice is implemented.
-    pub destination: MachineRegister,
+    /// Concrete ABI home populated after all sibling arguments have been
+    /// evaluated. Outgoing stack offsets are relative to the call plan's ABI
+    /// argument area and therefore already include any shadow/home space.
+    pub destination: TerminalAssignedCallDestination,
     /// Stable frame slot holding the fully evaluated argument until every
     /// sibling argument is ready for simultaneous ABI placement.
     pub spill_byte_offset: u32,
     pub expression: TerminalAssignedScalarExpression,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAssignedCallDestination {
+    Register(MachineRegister),
+    OutgoingStack { byte_offset: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

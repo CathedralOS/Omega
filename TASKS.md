@@ -149,9 +149,9 @@ Remaining:
 
 - **PSIIR.** General blocks and crash-free positional scalar direct calls now
   span canonical semantics, obligations, encoding, fuel, resumable
-  interpretation, native calling plans, typed relocations, and image
-  resolution. Finish stack-passed scalar arguments and conditional-control call
-  emission, then add aggregates, structural/content call effects, crash
+  interpretation, native register/stack calling-plan placement, typed
+  relocations, and image resolution. Finish conditional-control call emission,
+  then add aggregates, structural/content call effects, crash
   continuations, cleanup, transfer, boundaries, loops, suspension, and scoped
   ordering as complete vertical slices. Ranked tail-recursive call graphs stay
   rejected until their tail-position and ranking evidence is terminal and

@@ -3464,6 +3464,36 @@ mod tests {
     }
 
     #[test]
+    fn direct_calls_retain_stack_locations_from_the_callee_call_plan() {
+        let stack_cases = [
+            (
+                NativeTarget::linux_x64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 16 },
+            ),
+            (
+                NativeTarget::windows_x64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 64 },
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 0 },
+            ),
+        ];
+        for (target, expected) in stack_cases {
+            let lowered = lower_to_target_operations(&direct_call_plan(9), target).unwrap();
+            let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } =
+                &lowered.functions[0].operation
+            else {
+                panic!("caller must return its call result")
+            };
+            let TerminalTargetIntegerExpression::Call { arguments, .. } = expression else {
+                panic!("caller result must remain a direct call")
+            };
+            assert_eq!(arguments[8].location, expected);
+        }
+    }
+
+    #[test]
     fn lowers_runtime_parameter_arithmetic_to_a_typed_target_expression() {
         let mut plan = parameter_return_plan(2);
         let function = &mut plan.functions[0];
@@ -4043,6 +4073,77 @@ mod tests {
                     scalar_type,
                 }],
             }],
+        }
+    }
+
+    fn direct_call_plan(parameter_count: usize) -> TerminalAbstractOperationPlan {
+        let caller = MachineId::new(1).expect("caller");
+        let callee = MachineId::new(2).expect("callee");
+        let integer = IntegerType::new(psi_core::IntegerSign::Unsigned, 8).expect("u8");
+        let scalar_type = ScalarType::Integer(integer);
+        let caller_parameters = (0..parameter_count)
+            .map(|index| TerminalAbstractParameter {
+                value: ValueId::new(10 + index as u64).expect("caller parameter"),
+                scalar_type,
+            })
+            .collect::<Vec<_>>();
+        let callee_parameters = (0..parameter_count)
+            .map(|index| TerminalAbstractParameter {
+                value: ValueId::new(30 + index as u64).expect("callee parameter"),
+                scalar_type,
+            })
+            .collect::<Vec<_>>();
+        let caller_result = ValueId::new(100).expect("caller result");
+        let callee_result = ValueId::new(101).expect("callee result");
+        TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: caller,
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    entry: BlockId::new(1).expect("caller block"),
+                    parameters: caller_parameters.clone(),
+                    result: TerminalAbstractResult {
+                        value: caller_result,
+                        scalar_type,
+                    },
+                    block_entries: Vec::new(),
+                    operations: vec![
+                        TerminalAbstractOperation::Call {
+                            psi_operation: OperationId::new(1).expect("call"),
+                            result: caller_result,
+                            scalar_type,
+                            callee,
+                            arguments: caller_parameters
+                                .iter()
+                                .map(|parameter| parameter.value)
+                                .collect(),
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: EdgeId::new(1).expect("caller return"),
+                            result: caller_result,
+                            value: caller_result,
+                            scalar_type,
+                        },
+                    ],
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    entry: BlockId::new(2).expect("callee block"),
+                    parameters: callee_parameters.clone(),
+                    result: TerminalAbstractResult {
+                        value: callee_result,
+                        scalar_type,
+                    },
+                    block_entries: Vec::new(),
+                    operations: vec![TerminalAbstractOperation::Return {
+                        psi_edge: EdgeId::new(2).expect("callee return"),
+                        result: callee_result,
+                        value: callee_parameters.last().expect("parameter").value,
+                        scalar_type,
+                    }],
+                },
+            ],
         }
     }
 
