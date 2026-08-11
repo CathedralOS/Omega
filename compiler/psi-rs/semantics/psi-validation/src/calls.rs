@@ -203,14 +203,24 @@ impl<'program> CallFrameResolver<'program> {
         }
         let mut active_states = vec![state.symbol];
         let mut complete_state_summaries = Vec::new();
-        let Some(relative_paths) = summarize_state_written_paths(
+        let relative_paths = summarize_state_written_paths(
             self.program,
             machine,
             state,
             &self.symbols,
             &mut active_states,
             &mut complete_state_summaries,
-        ) else {
+        )
+        .or_else(|| {
+            summarize_state_written_paths_with_permuted_cycles(
+                self.program,
+                machine,
+                state,
+                &self.symbols,
+                &active_states,
+            )
+        });
+        let Some(relative_paths) = relative_paths else {
             return NormalizedWriteFrame::opaque();
         };
         let mut normalized = Vec::new();
@@ -1305,7 +1315,16 @@ fn summarize_resolved_call(
         symbols,
         active_states,
         &mut Vec::new(),
-    )?;
+    )
+    .or_else(|| {
+        summarize_state_written_paths_with_permuted_cycles(
+            program,
+            callee_machine,
+            callee_state,
+            symbols,
+            active_states,
+        )
+    })?;
     for relative in relative_paths {
         if let Some(instantiated) = instantiate_written_path(
             program,
@@ -1441,6 +1460,9 @@ fn summarize_state_written_paths(
             }
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
+                if type_may_carry_write(program, local.type_reference) {
+                    return None;
+                }
                 locals.push(local.name.as_str().to_owned());
             }
         }
@@ -1448,6 +1470,359 @@ fn summarize_state_written_paths(
 
     complete_state_summaries.push((state.symbol, written.clone()));
     Some(written)
+}
+
+#[derive(Debug, Clone)]
+struct PermutedCycleFrameEdge {
+    target: SymbolHandle,
+    arguments: Vec<ExpressionHandle>,
+}
+
+#[derive(Debug)]
+struct PermutedCycleFrameEquation<'program> {
+    state: &'program State,
+    locals: Vec<String>,
+    direct_writes: Vec<String>,
+    edges: Vec<PermutedCycleFrameEdge>,
+}
+
+/// Recover an exact finite frame for transition SCCs whose write-capable state
+/// parameters are only permuted around each cycle.
+///
+/// The ordinary recursive summarizer above deliberately fails closed when it
+/// reaches a named cycle that redirects an exclusive parameter. A permutation
+/// is nevertheless finite: repeated traversal can only move an already-known
+/// path among the SCC's positional roots. This fallback solves the reachable
+/// state equations to a fixed point after proving that every cyclic edge is an
+/// exact bijection over those write-capable roots. Projections, duplication,
+/// omission, and computed rebinding stay opaque; otherwise suffix growth could
+/// make the path set unbounded or alias two semantic roots.
+fn summarize_state_written_paths_with_permuted_cycles<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    entry: &'program State,
+    symbols: &TopLevelSymbols<'program>,
+    outer_active_states: &[SymbolHandle],
+) -> Option<Vec<String>> {
+    let mut diagnostics = Vec::new();
+    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return None;
+    }
+
+    let mut equations = Vec::<PermutedCycleFrameEquation<'program>>::new();
+    let mut pending = vec![entry.symbol];
+    while let Some(symbol) = pending.pop() {
+        if equations
+            .iter()
+            .any(|equation| equation.state.symbol == symbol)
+        {
+            continue;
+        }
+        let state = program
+            .machine_states(machine)
+            .iter()
+            .find(|candidate| candidate.symbol == symbol)?;
+        let equation = build_permuted_cycle_frame_equation(
+            program,
+            machine,
+            state,
+            symbols,
+            &machine_symbols,
+            outer_active_states,
+        )?;
+        pending.extend(equation.edges.iter().map(|edge| edge.target));
+        equations.push(equation);
+    }
+
+    let mut has_transition_cycle = false;
+    for equation in &equations {
+        for edge in &equation.edges {
+            if transition_state_reaches(&equations, edge.target, equation.state.symbol) {
+                has_transition_cycle = true;
+                let target = equations
+                    .iter()
+                    .find(|candidate| candidate.state.symbol == edge.target)?
+                    .state;
+                if !transition_is_exact_write_parameter_permutation(
+                    program,
+                    equation.state,
+                    target,
+                    &edge.arguments,
+                ) {
+                    return None;
+                }
+            }
+        }
+    }
+    if !has_transition_cycle {
+        return None;
+    }
+
+    let mut summaries = equations
+        .iter()
+        .map(|equation| (equation.state.symbol, equation.direct_writes.clone()))
+        .collect::<Vec<_>>();
+    loop {
+        let mut changed = false;
+        for equation in &equations {
+            for edge in &equation.edges {
+                let target = equations
+                    .iter()
+                    .find(|candidate| candidate.state.symbol == edge.target)?;
+                let target_writes = summaries
+                    .iter()
+                    .find(|(symbol, _)| *symbol == edge.target)?
+                    .1
+                    .clone();
+                for relative in target_writes {
+                    let Some(instantiated) = instantiate_written_path(
+                        program,
+                        &relative,
+                        Some("self"),
+                        program.state_parameters(target.state),
+                        &edge.arguments,
+                        &equation.locals,
+                    )?
+                    else {
+                        continue;
+                    };
+                    if !relative_state_path_is_visible(
+                        &instantiated,
+                        program.state_parameters(equation.state),
+                        &equation.locals,
+                    )? {
+                        continue;
+                    }
+                    let source_writes = summaries
+                        .iter_mut()
+                        .find(|(symbol, _)| *symbol == equation.state.symbol)?;
+                    if !source_writes.1.contains(&instantiated) {
+                        source_writes.1.push(instantiated);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    summaries
+        .into_iter()
+        .find_map(|(symbol, writes)| (symbol == entry.symbol).then_some(writes))
+}
+
+fn build_permuted_cycle_frame_equation<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    state: &'program State,
+    symbols: &TopLevelSymbols<'program>,
+    machine_symbols: &MachineSymbols<'program>,
+    outer_active_states: &[SymbolHandle],
+) -> Option<PermutedCycleFrameEquation<'program>> {
+    let parameters = program.state_parameters(state);
+    let mut locals = Vec::new();
+    let mut direct_writes = Vec::new();
+    let mut edges = Vec::new();
+    let mut active_states = outer_active_states.to_vec();
+    if !active_states.contains(&state.symbol) {
+        active_states.push(state.symbol);
+    }
+
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        for expression in statement_value_expression_roots(program, statement) {
+            let mut expression_writes = Vec::new();
+            collect_expression_call_written_paths(
+                program,
+                expression,
+                machine,
+                machine_symbols,
+                symbols,
+                &mut active_states,
+                &mut expression_writes,
+            )?;
+            for relative in expression_writes {
+                push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
+            }
+        }
+        match statement {
+            StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
+            StatementNode::Assignment(assignment) => {
+                let relative = coarse_place_path(program, assignment.target)?;
+                push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
+            }
+            StatementNode::Call(call) => {
+                let receiver_members = program
+                    .statement_table
+                    .name_path_members(call.receiver)
+                    .iter()
+                    .map(|member| member.as_str().to_owned())
+                    .collect::<Vec<_>>();
+                let arguments = program.statement_table.expression_handles(call.arguments);
+                let nested_writes = known_call_written_paths_for_parts(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    &receiver_members,
+                    arguments,
+                    machine,
+                    machine_symbols,
+                    symbols,
+                    &mut active_states,
+                )
+                .or_else(|| {
+                    known_boundary_call_written_paths_for_parts(
+                        program,
+                        machine_symbols,
+                        symbols,
+                        &receiver_members,
+                        call.target.as_str(),
+                        arguments,
+                    )
+                })
+                .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))?;
+                for relative in nested_writes {
+                    push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
+                }
+            }
+            StatementNode::Transition(transition) => {
+                for target in [transition.target, transition.continuation] {
+                    append_permuted_cycle_frame_edge(program, machine, state, target, &mut edges)?;
+                }
+            }
+            StatementNode::LocalData(local) => {
+                if type_may_carry_write(program, local.type_reference) {
+                    return None;
+                }
+                locals.push(local.name.as_str().to_owned());
+            }
+        }
+    }
+
+    Some(PermutedCycleFrameEquation {
+        state,
+        locals,
+        direct_writes,
+        edges,
+    })
+}
+
+fn push_visible_frame_path(
+    writes: &mut Vec<String>,
+    relative: String,
+    parameters: &[StateParameter],
+    locals: &[String],
+) -> Option<()> {
+    if relative_state_path_is_visible(&relative, parameters, locals)? && !writes.contains(&relative)
+    {
+        writes.push(relative);
+    }
+    Some(())
+}
+
+fn append_permuted_cycle_frame_edge(
+    program: &TypedTrees,
+    machine: &Machine,
+    source: &State,
+    target: psi_typed_trees::statement::TransitionTargetHandle,
+    edges: &mut Vec<PermutedCycleFrameEdge>,
+) -> Option<()> {
+    if !target.is_valid() {
+        return Some(());
+    }
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Terminal
+        | TransitionTargetNode::Value(_)
+        | TransitionTargetNode::SelfTarget => Some(()),
+        TransitionTargetNode::Named { path, arguments } => {
+            let target = program
+                .machine_states(machine)
+                .iter()
+                .find(|candidate| candidate.symbol == path.symbol)
+                .or_else(|| {
+                    let members = program.statement_table.name_path_members(path.members);
+                    matches!(members, [member] if member.as_str() == "self").then_some(source)
+                })?;
+            edges.push(PermutedCycleFrameEdge {
+                target: target.symbol,
+                arguments: program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .to_vec(),
+            });
+            Some(())
+        }
+    }
+}
+
+fn transition_state_reaches(
+    equations: &[PermutedCycleFrameEquation<'_>],
+    start: SymbolHandle,
+    sought: SymbolHandle,
+) -> bool {
+    let mut pending = vec![start];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if symbol == sought {
+            return true;
+        }
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let Some(equation) = equations
+            .iter()
+            .find(|equation| equation.state.symbol == symbol)
+        else {
+            return false;
+        };
+        pending.extend(equation.edges.iter().map(|edge| edge.target));
+    }
+    false
+}
+
+fn transition_is_exact_write_parameter_permutation(
+    program: &TypedTrees,
+    source: &State,
+    target: &State,
+    arguments: &[ExpressionHandle],
+) -> bool {
+    let source_write_parameters = program
+        .state_parameters(source)
+        .iter()
+        .filter(|parameter| !parameter.is_self && parameter_may_carry_write(program, parameter))
+        .collect::<Vec<_>>();
+    let target_parameters = program
+        .state_parameters(target)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let target_write_positions = target_parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter_may_carry_write(program, parameter))
+        .collect::<Vec<_>>();
+    if source_write_parameters.len() != target_write_positions.len()
+        || target_parameters.len() != arguments.len()
+    {
+        return false;
+    }
+
+    let mut forwarded = Vec::new();
+    for (position, _) in target_write_positions {
+        let Some(source_parameter) = source_write_parameters.iter().find(|parameter| {
+            expression_forwards_exact_symbol(program, arguments[position], parameter.symbol)
+        }) else {
+            return false;
+        };
+        if forwarded.contains(&source_parameter.symbol) {
+            return false;
+        }
+        forwarded.push(source_parameter.symbol);
+    }
+    forwarded.len() == source_write_parameters.len()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1565,31 +1940,31 @@ fn named_transition_preserves_state_namespace(
 }
 
 fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateParameter) -> bool {
-    fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-        if program.primitive_type_reference(handle).is_some() {
-            return false;
-        }
+    type_may_carry_write(program, parameter.type_reference)
+}
 
-        match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference {
-                is_mutable: false, ..
-            } => false,
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                type_may_carry_write(program, *base_type)
-            }
-            TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
-            TypeReferenceNode::Reference {
-                is_mutable: true, ..
-            }
-            | TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::DynamicTrait { .. } => true,
-        }
+fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    if program.primitive_type_reference(handle).is_some() {
+        return false;
     }
 
-    type_may_carry_write(program, parameter.type_reference)
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference {
+            is_mutable: false, ..
+        } => false,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_may_carry_write(program, *base_type)
+        }
+        TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
+        TypeReferenceNode::Reference {
+            is_mutable: true, ..
+        }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. } => true,
+    }
 }
 
 fn expression_forwards_exact_symbol(

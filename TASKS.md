@@ -278,8 +278,11 @@ customer-shaped compiler concept is introduced.
 - **R5:** extend exact inferred may-write summaries and relational candidates
   beyond acyclic and read-only-rebinding-cycle-safe statement/value calls and
   transitive boundary wrappers. Preserve facts outside complete frames; opaque
-  or unrepresentable frames are conservative fences. Do not restore an authored
-  `stores` clause.
+  or unrepresentable frames are conservative fences. Exact finite fixed points
+  are live for named state SCCs whose write-capable parameters traverse only
+  bijective permutations, including resolved caller instantiation. Continue
+  with other representable relational candidates; non-bijective or computed
+  cyclic rebinding remains opaque. Do not restore an authored `stores` clause.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
