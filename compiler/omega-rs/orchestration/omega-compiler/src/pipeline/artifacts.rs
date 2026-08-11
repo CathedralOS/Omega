@@ -168,6 +168,7 @@ pub(super) fn write_typed_snapshot(
 pub(super) fn write_checked_snapshot(
     options: &CompileOptions,
     checked: &psi_checked_trees::CheckedTrees,
+    selected_entry_machine: Option<&str>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     task_activations: &omega_task_plans::TaskActivationPlanSet,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -179,12 +180,12 @@ pub(super) fn write_checked_snapshot(
     write_phase_diagram(
         options,
         "05_capability_manifest.html",
-        &omega_visualizations::capability_manifest_html(checked),
+        &omega_visualizations::capability_manifest_html(checked, selected_entry_machine),
     )?;
     write_phase_json(
         options,
         "05_capability_manifest.json",
-        &omega_visualizations::capability_manifest_json(checked),
+        &omega_visualizations::capability_manifest_json(checked, selected_entry_machine),
     )?;
     write_phase_json(
         options,

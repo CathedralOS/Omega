@@ -42771,6 +42771,33 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 ];
 
 #[test]
+fn explicit_program_entry_binding_owns_capability_manifest_identity() {
+    let canary = pass_canary("build/explicit_program_entry_binding");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-explicit-entry-manifest-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".into()),
+        write_output: true,
+    })
+    .expect("explicit entry canary should emit audit artifacts");
+    let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
+        .expect("capability manifest should be written");
+
+    assert!(
+        manifest.contains("\"entry_machine\": \"launch\"")
+            && manifest.contains("\"entry_state\": \"entry\""),
+        "capability manifest must consume the exact Build-selected entry\n{manifest}"
+    );
+    let _ = fs::remove_dir_all(build_dir);
+}
+
+#[test]
 fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
     let canary = pass_canary("inline_asm/asm_fences_compile");
     let build_dir =
