@@ -10,8 +10,8 @@ use omega_terminal_target_operations_to_assigned_target_operations::assign_regis
 use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
+    OperationKind, TerminalMachine, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
@@ -113,6 +113,101 @@ fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
     );
 }
 
+#[test]
+fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
+    let mut module = call_module();
+    let route = CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    };
+    module.machines[0].contract.crash_routes = vec![route.clone()];
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![route.clone()];
+    module.machines[1].contract.crash_routes = vec![route];
+    module.machines[1].blocks[0].terminator = Terminator::Crash {
+        edge: edge_id(2),
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+
+    let semantic = encode_module(&module).expect("encode crash-capable call semantics");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("encode empty proof");
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("covered unconditional call crash verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(1))
+            .expect("call crash has bounded acyclic fuel")
+            .ceiling_units(),
+        4
+    );
+
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("start crash-capable call");
+    let mut meter = TerminalFuelMeter::unbounded();
+    let TerminalExecutionStatus::Crashed(crash) = execution
+        .resume(&mut meter)
+        .expect("interpret crash-capable call")
+    else {
+        panic!("the callee's explicit crash must escape the caller")
+    };
+    assert_eq!(crash.edge, edge_id(2));
+    assert_eq!(crash.cause, CrashCause::Trap);
+    assert_eq!(meter.usage().total_units(), 3);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(2)))
+            .expect("crashing call charge")
+            .executions(),
+        1
+    );
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Edge(edge_id(2)))
+            .expect("callee crash edge charge")
+            .executions(),
+        1
+    );
+
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified crash-capable call artifact");
+    assert!(matches!(
+        abstract_plan.functions[0].operations[1],
+        TerminalAbstractOperation::Call { .. }
+    ));
+    assert!(
+        abstract_plan.functions[1]
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, TerminalAbstractOperation::Crash { .. }))
+    );
+    let target = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select crash-capable call ABI");
+    let assigned = assign_registers(&target).expect("assign crash-capable call arguments");
+    let machine_code = emit_machine_code(&assigned).expect("emit call and callee crash leaf");
+    assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
+    let artifact = build_terminal_object_artifact(&machine_code).expect("build call crash object");
+    assert_eq!(
+        emit_terminal_object_container(&artifact).output.relocations,
+        1
+    );
+    emit_terminal_executable_image(&artifact, 3)
+        .expect("resolve crash-capable internal call image");
+}
+
 fn call_module() -> TerminalModule {
     let caller_constant = value_id(1);
     let call_result = value_id(2);
@@ -150,6 +245,7 @@ fn call_module() -> TerminalModule {
                                 callee: machine_id(2),
                                 arguments: vec![caller_constant],
                                 requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                             },
                         },
                     ],

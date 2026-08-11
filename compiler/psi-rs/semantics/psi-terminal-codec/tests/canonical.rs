@@ -40,13 +40,42 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
-fn scalar_call_round_trips_with_positional_arguments_and_requirement_sites() {
+fn scalar_call_round_trips_with_arguments_requirements_and_crash_continuations() {
     let module = call_fixture();
     let bytes = encode_module(&module).expect("call module should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         semantic_fingerprint(&decode_module(&bytes).unwrap()),
         semantic_fingerprint(&module)
+    );
+
+    let mut crash_capable = module.clone();
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &mut crash_capable.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    let route = psi_terminal::CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+    };
+    crash_continuations.push(route.clone());
+    crash_capable.machines[0].contract.crash_routes = vec![route.clone()];
+    crash_capable.machines[1].contract.crash_routes = vec![route];
+    crash_capable.machines[1].blocks[0].terminator = Terminator::Crash {
+        edge: edge_id(101),
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let crash_bytes = encode_module(&crash_capable).expect("crash continuation should encode");
+    assert_eq!(decode_module(&crash_bytes), Ok(crash_capable.clone()));
+    assert_ne!(
+        semantic_fingerprint(&module).unwrap(),
+        semantic_fingerprint(&crash_capable).unwrap(),
+        "call crash continuations are fingerprinted semantic content"
     );
 }
 
@@ -316,6 +345,31 @@ fn encoder_refuses_noncanonical_semantic_ordering_and_forms() {
     assert_eq!(
         encode_module(&conjunction),
         Err(CodecError::NestedConjunction)
+    );
+
+    let mut call = call_fixture();
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &mut call.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    crash_continuations.extend([
+        psi_terminal::CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+        },
+        psi_terminal::CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+        },
+    ]);
+    assert_eq!(
+        encode_module(&call),
+        Err(CodecError::NonCanonicalOrder(
+            "call crash continuation buckets"
+        ))
     );
 }
 
@@ -720,6 +774,7 @@ fn call_fixture() -> TerminalModule {
                                 callee: machine_id(101),
                                 arguments: vec![value_id(100)],
                                 requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                             },
                         },
                     ],

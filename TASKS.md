@@ -147,17 +147,17 @@ Owners:
 
 Remaining:
 
-- **PSIIR.** General blocks and crash-free positional scalar direct calls now
-  span canonical semantics, obligations, encoding, fuel, resumable
-  interpretation, native register/stack calling-plan placement, typed
-  relocations across conditional control, and image resolution. Add aggregates,
-  structural/content call effects, crash continuations, cleanup, transfer,
-  boundaries, loops, suspension, and scoped ordering as complete vertical
-  slices. Ranked tail-recursive call graphs stay rejected until their
-  tail-position and ranking evidence is terminal and verifier-owned. Retire
-  legacy consumers as each slice moves. Nothing below terminal Psi may depend
-  on typed/source trees, `ExpressionHandle`, source rendering, or an
-  Omega-to-Psi bridge.
+- **PSIIR.** General blocks, positional scalar direct calls, and unconditional
+  in-module call-crash continuations now span canonical semantics, obligations,
+  encoding, fuel, resumable interpretation, native register/stack calling-plan
+  placement, typed relocations across conditional control, and image resolution.
+  Add aggregates, structural/content call effects, guarded call-crash
+  substitution, cleanup, transfer, boundaries, loops, suspension, and scoped
+  ordering as complete vertical slices. Ranked tail-recursive call graphs stay
+  rejected until their tail-position and ranking evidence is terminal and
+  verifier-owned. Retire legacy consumers as each slice moves. Nothing below
+  terminal Psi may depend on typed/source trees, `ExpressionHandle`, source
+  rendering, or an Omega-to-Psi bridge.
 - **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
   Imported crash capsules remain design-blocked on artifact identity and
   certificate binding.
