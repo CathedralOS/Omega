@@ -63,9 +63,9 @@ Remaining:
   Rat/metric proof cluster now uses explicit checked-only harnesses; the rest
   of the semantic corpus still needs classification away from deployable
   compilation. Production/dev checked-tree interpreter callers now receive
-  Omega's exact entry choice; Psi's implicit `Main::main` wrappers remain
-  test-corpus migration residue. `Main::run` discovery is retired. No ambient
-  `static` storage. Final
+  Omega's exact entry choice, and Psi's implicit `Main::main` interpreter
+  wrappers are retired. `Main::run` discovery is retired. No ambient `static`
+  storage. Final
   composition of firmware `ImageHandle`/`SystemTable` inputs with the semantic
   roots is design-blocked on owner Q2; the other bridge and migration work is
   not.

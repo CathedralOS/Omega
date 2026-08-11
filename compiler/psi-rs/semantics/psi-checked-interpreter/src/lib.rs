@@ -8,8 +8,8 @@
 //! The interpreter evaluates the program at the level of the typed/checked trees
 //! (`psi_checked_trees::CheckedTrees`, which derefs to `psi_typed_trees::TypedTrees`)
 //! -- above all backend lowering. It is therefore independent of the backend bugs
-//! it must catch: if `interpret()` and the native binary disagree on exit code or
-//! stdout for the same checked program, the backend is wrong.
+//! it must catch: if [`interpret_entry`] and the native binary disagree on exit
+//! code or stdout for the same checked program, the backend is wrong.
 //!
 //! ## Value & store model (the crux: aliasing)
 //! Every storage place -- local, struct field, machine instance -- is an
@@ -18,14 +18,13 @@
 //! mutates the original cell. Multi-level `&mut` aliasing is therefore correct by
 //! construction -- this is exactly the property the native backend is known to get
 //! wrong (an `&mut`-write through a call chain that does not persist). Once the
-//! interpreter's coverage reaches such a program, `interpret() != native` localizes the
-//! bug instantly.
+//! interpreter's coverage reaches such a program, an `interpret_entry != native`
+//! mismatch localizes the bug instantly.
 //!
 //! ## Execution model
-//! [`interpret_entry`] runs the exact machine selected by its caller. [`interpret`]
-//! temporarily selects `Main::main` for corpus callers that have not migrated yet; it
-//! does not search lowercase or alternate names. A machine instance is a
-//! [`Value::Struct`] with default-initialized
+//! [`interpret_entry`] runs the exact machine selected by its caller. The
+//! interpreter neither chooses a conventional entry spelling nor searches alternate
+//! names. A machine instance is a [`Value::Struct`] with default-initialized
 //! fields. A state has parameters + a sequence of statements + guarded transitions; the
 //! first transition whose guard holds determines the next state (or the returned value /
 //! terminal). Host-boundary calls (`exit_process`, `write`, `write_line`) on a
@@ -259,19 +258,11 @@ impl InterpretOutcome {
     }
 }
 
-/// Test-corpus compatibility wrapper that interprets `Main::main`.
-///
-/// Production orchestration owns entry selection and must call
-/// [`interpret_entry`] with that exact identity. `stdin` provides the bytes a
-/// `read_line` host call would consume.
-pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin)
-}
-
 /// Interpret a checked program from one exact machine identity.
 ///
 /// Build/target selection owns this identity. The interpreter neither discovers
-/// an entry from source spelling nor retries alternate names.
+/// an entry from source spelling nor retries alternate names. `stdin` provides
+/// the bytes a `read_line` host call would consume.
 pub fn interpret_entry(
     checked: &CheckedTrees,
     entry_machine_name: &str,
@@ -315,22 +306,11 @@ pub struct FsGrants {
     pub write_roots: Vec<std::path::PathBuf>,
 }
 
-/// Options for [`interpret_with_options`]. `Default` reproduces [`interpret`]
-/// exactly (hermetic virtual filesystem).
+/// Options for [`interpret_entry_with_options`]. `Default` selects the hermetic
+/// virtual filesystem.
 #[derive(Clone, Debug, Default)]
 pub struct InterpretOptions {
     pub filesystem: FilesystemAccess,
-}
-
-/// Test-corpus compatibility wrapper that interprets `Main::main` with
-/// explicit [`InterpretOptions`]. Production orchestration must call
-/// [`interpret_entry_with_options`] with its exact selected entry.
-pub fn interpret_with_options(
-    checked: &CheckedTrees,
-    stdin: &[u8],
-    options: InterpretOptions,
-) -> InterpretOutcome {
-    interpret_entry_with_options(checked, "Main::main", stdin, options)
 }
 
 /// [`interpret_entry`] with explicit [`InterpretOptions`].
