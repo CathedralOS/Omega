@@ -12,13 +12,12 @@ pub enum FinalFootprintClass {
     CompilerFunctionRelocationEnvelope,
     CompilerFunctionCallReturnMechanics,
     CompilerFunctionInstructionEnumeration,
-    CompilerFunctionBodySpecificationSubset,
+    CompilerFunctionBodySpecification,
     CatalogCheckedAssembly,
     ImportThunks,
     RelaxationProducts,
     Veneers,
     GeneratedStubs,
-    CompilerFunctionBodyFootprintDecoding,
     AdmittedLeaves,
 }
 
@@ -35,13 +34,8 @@ impl FinalFootprintClass {
             Self::CompilerFunctionInstructionEnumeration => {
                 "compiler_function_instruction_enumeration"
             }
-            Self::CompilerFunctionBodySpecificationSubset => {
-                "compiler_function_body_specification_subset"
-            }
+            Self::CompilerFunctionBodySpecification => "compiler_function_body_specification",
             Self::CatalogCheckedAssembly => "catalog_checked_assembly",
-            Self::CompilerFunctionBodyFootprintDecoding => {
-                "compiler_function_body_footprint_decoding"
-            }
             Self::AdmittedLeaves => "admitted_leaves",
         }
     }
@@ -52,13 +46,12 @@ impl FinalFootprintClass {
             Self::CompilerFunctionRelocationEnvelope => 2,
             Self::CompilerFunctionCallReturnMechanics => 3,
             Self::CompilerFunctionInstructionEnumeration => 11,
-            Self::CompilerFunctionBodySpecificationSubset => 12,
+            Self::CompilerFunctionBodySpecification => 12,
             Self::CatalogCheckedAssembly => 4,
             Self::ImportThunks => 5,
             Self::RelaxationProducts => 6,
             Self::Veneers => 7,
             Self::GeneratedStubs => 8,
-            Self::CompilerFunctionBodyFootprintDecoding => 9,
             Self::AdmittedLeaves => 10,
         }
     }
@@ -76,11 +69,11 @@ pub struct FinalFootprintCoverage {
 }
 
 impl FinalFootprintCoverage {
-    pub fn current_partial() -> Self {
+    pub fn current() -> Self {
         Self {
-            enumeration_complete: false,
+            enumeration_complete: true,
             region_enumeration_complete: true,
-            footprint_enumeration_complete: false,
+            footprint_enumeration_complete: true,
             covered_classes: vec![
                 FinalFootprintClass::CompilerFunctions,
                 FinalFootprintClass::ImportThunks,
@@ -95,11 +88,11 @@ impl FinalFootprintCoverage {
                 FinalFootprintClass::CompilerFunctionRelocationEnvelope,
                 FinalFootprintClass::CompilerFunctionCallReturnMechanics,
                 FinalFootprintClass::CompilerFunctionInstructionEnumeration,
-                FinalFootprintClass::CompilerFunctionBodySpecificationSubset,
+                FinalFootprintClass::CompilerFunctionBodySpecification,
                 FinalFootprintClass::CatalogCheckedAssembly,
                 FinalFootprintClass::ImportThunks,
             ],
-            missing_classes: vec![FinalFootprintClass::CompilerFunctionBodyFootprintDecoding],
+            missing_classes: Vec::new(),
         }
     }
 
@@ -202,7 +195,7 @@ pub struct FinalFootprintCertificate {
 }
 
 impl FinalFootprintCertificate {
-    pub fn current_partial(
+    pub fn current(
         boundary_contract_fingerprint: Option<u64>,
         implementation_evidence_fingerprint: u64,
         implementation_fragment_count: usize,
@@ -233,7 +226,7 @@ impl FinalFootprintCertificate {
                 "final call-return footprint evidence names a different boundary contract",
             ));
         }
-        let coverage = FinalFootprintCoverage::current_partial();
+        let coverage = FinalFootprintCoverage::current();
         coverage.validate_normalized()?;
         let coverage_fingerprint = coverage.fingerprint();
         let boundary_placement_binding_fingerprint = placement_binding_fingerprint(
@@ -419,7 +412,7 @@ mod tests {
     use super::*;
 
     fn certificate() -> FinalFootprintCertificate {
-        FinalFootprintCertificate::current_partial(
+        FinalFootprintCertificate::current(
             Some(1),
             2,
             3,
@@ -428,6 +421,7 @@ mod tests {
                 final_compiler_text_fingerprint: 5,
                 relocation_envelope_fingerprint: 6,
                 checked_instruction_validation_fingerprint: 7,
+                checked_instruction_footprint_fingerprint: 18,
                 derivation_fingerprint: 8,
                 text_relocation_count: 9,
                 checked_instruction_validation_count: 10,
@@ -457,11 +451,11 @@ mod tests {
                 unclassified_gaps: Vec::new(),
             },
         )
-        .expect("partial certificate")
+        .expect("complete certificate")
     }
 
     #[test]
-    fn partial_certificate_binds_coverage_placement_text_and_inventory() {
+    fn complete_certificate_binds_coverage_placement_text_and_inventory() {
         let certificate = certificate();
         certificate.validate_identity().expect("valid identity");
 
@@ -473,7 +467,10 @@ mod tests {
             },
             {
                 let mut value = certificate.clone();
-                value.coverage.missing_classes.pop();
+                value
+                    .coverage
+                    .missing_classes
+                    .push(FinalFootprintClass::CompilerFunctions);
                 value
             },
             {
@@ -507,8 +504,8 @@ mod tests {
     }
 
     #[test]
-    fn partial_coverage_classifies_admitted_leaves_as_absent() {
-        let coverage = FinalFootprintCoverage::current_partial();
+    fn complete_coverage_classifies_admitted_leaves_as_absent() {
+        let coverage = FinalFootprintCoverage::current();
         assert!(
             coverage
                 .absent_by_construction_classes
@@ -524,7 +521,7 @@ mod tests {
 
     #[test]
     fn coverage_rejects_conflicting_class_statuses() {
-        let mut coverage = FinalFootprintCoverage::current_partial();
+        let mut coverage = FinalFootprintCoverage::current();
         coverage
             .missing_classes
             .push(FinalFootprintClass::AdmittedLeaves);
@@ -549,7 +546,7 @@ mod tests {
                 byte_fingerprint: 1,
             });
         assert!(
-            FinalFootprintCertificate::current_partial(
+            FinalFootprintCertificate::current(
                 None,
                 0,
                 0,
@@ -558,6 +555,7 @@ mod tests {
                     final_compiler_text_fingerprint: 0,
                     relocation_envelope_fingerprint: 0,
                     checked_instruction_validation_fingerprint: 0,
+                    checked_instruction_footprint_fingerprint: 0,
                     derivation_fingerprint: 0,
                     text_relocation_count: 0,
                     checked_instruction_validation_count: 0,

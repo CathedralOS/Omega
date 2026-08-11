@@ -116,6 +116,7 @@ pub fn validate_final_text_relocation_envelope(
         final_compiler_text_fingerprint,
         relocation_envelope_fingerprint,
         checked_instruction_validation_fingerprint: 0,
+        checked_instruction_footprint_fingerprint: 0,
         derivation_fingerprint,
         text_relocation_count: text_relocations.len(),
         checked_instruction_validation_count: 0,

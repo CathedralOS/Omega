@@ -886,6 +886,12 @@ volatile register banks plus caller-volatile condition flags. Flag-producing
 comparisons and dispatch branches are therefore representable without granting
 that state to an interrupt boundary which did not save it.
 
+A compiler-selected implicit freestanding program entry is the admitted boot
+root, so its normalized ceiling additionally permits instruction-pointer,
+balanced-stack, and control-state use by checked catalog instructions. An
+explicit source-selected boundary `StatePlan` remains authoritative and is
+never widened by that compatibility entry rule.
+
 The final realized artifact is validated after inlining, relaxation,
 veneers/thunks, generated stubs, and admitted indirect leaves:
 
@@ -907,10 +913,11 @@ relocated bytes, rejects overlap or gaps, and replays each supported class
 against its closed target recipe and relocation envelope.
 
 One typed certificate binds final placement, text derivation, executable-region
-inventory, boundary contract, and composed implementation evidence. It remains
-incomplete until the ENT3 coverage listed in [`TASKS.md`](../../TASKS.md)
-closes; missing or mismatched evidence rejects, and no second whole-image
-decoder supplies an alternate answer.
+inventory, boundary contract, and composed implementation evidence. The current
+closed region vocabulary is complete: compiler/catalog text and import thunks
+are replayed, and unsupported generated or admitted executable classes are
+explicitly absent by construction. Missing or mismatched evidence rejects, and
+no second whole-image decoder supplies an alternate answer.
 
 ## Symbolic materialization and admitted executable installation
 

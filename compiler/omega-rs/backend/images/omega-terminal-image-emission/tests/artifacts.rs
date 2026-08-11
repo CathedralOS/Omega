@@ -344,7 +344,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "56529ae57ff0dddb4d8c82b120cdfe2587464ab5f29321a020ff347d0469774c"
+        "1f34d55bc653e72bf35fc53b3b50ae89a9f593f7138b53c4e128aa6df5fd44e3"
     );
 
     let mut changed_plan = plan;
@@ -412,7 +412,7 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     );
 
     let mut zero_provider = bytes.clone();
-    zero_provider[166..174].copy_from_slice(&0_u64.to_le_bytes());
+    zero_provider[174..182].copy_from_slice(&0_u64.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&zero_provider),
         Err(TerminalInstallationError::ZeroProviderPlan)

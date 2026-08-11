@@ -63,10 +63,14 @@ pub fn emit_checked_executable_image(
                 "checked-assembly validation count disagrees with the final instruction partition",
             ));
         }
+        let checked_instruction_footprint_fingerprint =
+            validate_checked_assembly_footprint(encoded_machine_code, encoded_machine_semantics)?;
         compiler_text_validation.checked_instruction_validation_count =
             checked_instruction_validation_count;
         compiler_text_validation.checked_instruction_validation_fingerprint =
             checked_instruction_validation_fingerprint;
+        compiler_text_validation.checked_instruction_footprint_fingerprint =
+            checked_instruction_footprint_fingerprint;
         let mut derivation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
         fingerprint_into(
             &mut derivation_fingerprint,
@@ -77,6 +81,10 @@ pub fn emit_checked_executable_image(
         fingerprint_into(
             &mut derivation_fingerprint,
             &checked_instruction_validation_fingerprint.to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &checked_instruction_footprint_fingerprint.to_le_bytes(),
         );
         fingerprint_into(
             &mut derivation_fingerprint,
@@ -11763,7 +11771,18 @@ fn validate_compiler_composed_footprint(
     let final_footprint = omega_calling_conventions::compose_state_footprints(
         derived.iter().map(|(_, evidence)| evidence),
     );
-    let retained_footprint = semantics.boundaries.footprints.composed_evidence();
+    let retained_footprint = omega_calling_conventions::compose_state_footprints(
+        semantics
+            .boundaries
+            .footprints
+            .fragments
+            .iter()
+            .filter(|fragment| {
+                fragment.origin
+                    != omega_machine_instructions::BoundaryFootprintFragmentOrigin::CheckedAssemblyCatalog
+            })
+            .map(|fragment| &fragment.evidence),
+    );
     if final_footprint != retained_footprint {
         return Err(Diagnostic::error(format!(
             "complete final compiler-row footprint does not equal the StatePlan-validated semantic union: retained={retained_footprint:?}, replayed={final_footprint:?}"
@@ -18074,6 +18093,168 @@ fn validate_final_text_relocation_envelope(
 /// assembly subset. Instruction boundaries and normalized operand facts come
 /// from the encoded carrier; arbitrary byte scanning could mistake immediates
 /// or data for opcodes.
+fn checked_assembly_instruction_footprint(
+    instruction: &omega_machine_bytes::EncodedMachineInstruction,
+) -> omega_calling_conventions::StateFootprintEvidence {
+    use omega_calling_conventions::{
+        MachineRegister, MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
+    };
+    use omega_machine_bytes::CheckedInstructionValidationKind as Kind;
+
+    let kind = instruction
+        .checked_validation_kind
+        .expect("checked footprint rows have a validation kind");
+    let (registers, fixed_state) = match kind {
+        Kind::MachineHalt => (
+            RegisterSet::default(),
+            MachineStateSet::new([MachineState::InstructionPointer, MachineState::ControlState]),
+        ),
+        Kind::LoadFence | Kind::StoreFence | Kind::FullFence => {
+            (RegisterSet::default(), MachineStateSet::empty())
+        }
+        Kind::InterruptDisable | Kind::InterruptEnable => (
+            RegisterSet::default(),
+            MachineStateSet::new([MachineState::Flags]),
+        ),
+        Kind::PortWriteImmediatePort { .. } | Kind::PortWriteRuntimePort { .. } => (
+            RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+            ]),
+            MachineStateSet::empty(),
+        ),
+        Kind::PortReadImmediatePort { .. } | Kind::PortReadRuntimePort { .. } => (
+            RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R10,
+                MachineRegister::X86R15,
+            ]),
+            MachineStateSet::empty(),
+        ),
+        Kind::FlagsSnapshot { .. } => (
+            RegisterSet::new([MachineRegister::X86R10, MachineRegister::X86R15]),
+            MachineStateSet::new([MachineState::StackPointer]),
+        ),
+        Kind::FlagsRestore { .. } => (
+            RegisterSet::new([MachineRegister::X86R10, MachineRegister::X86R15]),
+            MachineStateSet::new([MachineState::Flags, MachineState::StackPointer]),
+        ),
+        Kind::MsrReadImmediateIndex { .. } | Kind::MsrReadRuntimeIndex { .. } => (
+            RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+            ]),
+            MachineStateSet::new([MachineState::Flags]),
+        ),
+        Kind::MsrWriteImmediateIndex { .. } | Kind::MsrWriteRuntimeIndex { .. } => (
+            RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+            ]),
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::StackPointer,
+                MachineState::ControlState,
+            ]),
+        ),
+        Kind::ControlRegisterRead { .. } => (
+            RegisterSet::new([MachineRegister::X86R10, MachineRegister::X86R15]),
+            MachineStateSet::empty(),
+        ),
+        Kind::ControlRegisterWrite { .. } => (
+            RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+            ]),
+            MachineStateSet::new([MachineState::ControlState]),
+        ),
+    };
+    let loader_state = instruction
+        .checked_operand_loaders
+        .into_iter()
+        .flatten()
+        .fold(MachineStateSet::empty(), |state, loader| {
+            state.union(checked_operand_loader_footprint(loader))
+        });
+    StateFootprintEvidence::new(registers, fixed_state.union(loader_state))
+}
+
+fn checked_operand_loader_footprint(
+    loader: omega_machine_bytes::CheckedOperandLoaderValidation,
+) -> omega_calling_conventions::MachineStateSet {
+    use omega_calling_conventions::{MachineState, MachineStateSet};
+    use omega_machine_bytes::CheckedOperandLoaderKind as Kind;
+
+    match loader.kind {
+        Kind::Pointee {
+            field_byte_offset, ..
+        } if field_byte_offset != 0 => MachineStateSet::new([MachineState::Flags]),
+        Kind::FrameBaseIndexed { .. } | Kind::FrameIndexed { .. } | Kind::MachineIndexed { .. } => {
+            MachineStateSet::new([MachineState::Flags])
+        }
+        Kind::Immediate { .. }
+        | Kind::Storage { .. }
+        | Kind::Pointee { .. }
+        | Kind::FrameFixedIndexed { .. } => MachineStateSet::empty(),
+    }
+}
+
+fn validate_checked_assembly_footprint(
+    code: &omega_machine_bytes::EncodedMachineCode,
+    semantics: &omega_machine_bytes::EncodedMachineSemanticSummary,
+) -> Result<u64, Diagnostic> {
+    use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
+
+    let derived = code
+        .instructions
+        .iter()
+        .filter_map(|(_, instruction)| instruction.checked_validation_kind.map(|_| instruction))
+        .map(checked_assembly_instruction_footprint)
+        .collect::<Vec<_>>();
+    let composed = omega_calling_conventions::compose_state_footprints(derived.iter());
+    let retained = semantics
+        .boundaries
+        .footprints
+        .fragments
+        .iter()
+        .filter(|fragment| {
+            fragment.origin == BoundaryFootprintFragmentOrigin::CheckedAssemblyCatalog
+        })
+        .collect::<Vec<_>>();
+    let composed_is_empty =
+        composed.registers().as_slice().is_empty() && composed.machine_state().is_empty();
+    if composed_is_empty {
+        if !retained.is_empty() {
+            return Err(Diagnostic::error(
+                "retained checked-assembly footprint has no final catalog instruction rows",
+            ));
+        }
+    } else if retained.len() != 1 || retained[0].evidence != composed {
+        return Err(Diagnostic::error(format!(
+            "final checked-assembly catalog footprint does not match its StatePlan-validated semantic fragment: retained={:?}, replayed={composed:?}",
+            retained
+                .iter()
+                .map(|fragment| &fragment.evidence)
+                .collect::<Vec<_>>()
+        )));
+    }
+    Ok(composed.evidence_fingerprint())
+}
+
 fn validate_checked_instruction_bytes(
     architecture: Architecture,
     code: &omega_machine_bytes::EncodedMachineCode,
@@ -18092,6 +18273,35 @@ fn validate_checked_instruction_bytes(
             return Err(Diagnostic::error(
                 "checked-assembly validation found an x86 instruction on a non-x86 target",
             ));
+        }
+        let expected_loaders = match kind {
+            CheckedInstructionValidationKind::PortWriteImmediatePort { .. }
+            | CheckedInstructionValidationKind::PortWriteRuntimePort { .. }
+            | CheckedInstructionValidationKind::MsrWriteImmediateIndex { .. }
+            | CheckedInstructionValidationKind::MsrWriteRuntimeIndex { .. } => [true, true],
+            CheckedInstructionValidationKind::PortReadImmediatePort { .. }
+            | CheckedInstructionValidationKind::PortReadRuntimePort { .. }
+            | CheckedInstructionValidationKind::MsrReadImmediateIndex { .. }
+            | CheckedInstructionValidationKind::MsrReadRuntimeIndex { .. }
+            | CheckedInstructionValidationKind::ControlRegisterWrite { .. }
+            | CheckedInstructionValidationKind::FlagsRestore { .. } => [true, false],
+            CheckedInstructionValidationKind::MachineHalt
+            | CheckedInstructionValidationKind::LoadFence
+            | CheckedInstructionValidationKind::StoreFence
+            | CheckedInstructionValidationKind::FullFence
+            | CheckedInstructionValidationKind::InterruptDisable
+            | CheckedInstructionValidationKind::InterruptEnable
+            | CheckedInstructionValidationKind::ControlRegisterRead { .. }
+            | CheckedInstructionValidationKind::FlagsSnapshot { .. } => [false, false],
+        };
+        let retained_loaders = instruction
+            .checked_operand_loaders
+            .map(|loader| loader.is_some());
+        if retained_loaders != expected_loaders {
+            return Err(Diagnostic::error(format!(
+                "checked-assembly instruction #{} does not retain its complete operand-loader validation envelope",
+                instruction.selected_instruction_index
+            )));
         }
         if instruction.bytes.is_empty() || !instruction.bytes.start().is_valid() {
             return Err(Diagnostic::error(format!(
@@ -21583,6 +21793,50 @@ mod tests {
         )
         .expect_err("a changed final fence kind must reject");
         assert!(diagnostic.message.contains("changed after encoding"));
+    }
+
+    #[test]
+    fn checked_assembly_rejects_an_incomplete_operand_loader_envelope() {
+        use omega_machine_bytes::{
+            CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
+        };
+        use psi_arena::Arena;
+
+        let mut bytes = Arena::with_capacity(1);
+        let span = bytes.insert_many([0xee]);
+        let mut instructions = Arena::with_capacity(1);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 7,
+            bytes: span,
+            compiler_validation_kind: None,
+            checked_validation_kind: Some(
+                CheckedInstructionValidationKind::PortWriteImmediatePort {
+                    port: 0x3f8,
+                    value_operand_byte_width: 10,
+                },
+            ),
+            checked_operand_loaders: [None, None],
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            runtime_value_operands: Arena::new(),
+            byte_count: 1,
+        };
+
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &[0xee],
+            &RelocationPlan::with_target(NativeTarget::linux_x64()),
+        )
+        .expect_err("catalog validation must not omit required operand loaders");
+        assert!(
+            diagnostic
+                .message
+                .contains("complete operand-loader validation envelope")
+        );
     }
 
     #[test]

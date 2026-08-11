@@ -69,6 +69,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     RuntimeTextGuardComparison,
     PlaceGuardComparison,
     RuntimeValueGuardComparison,
+    CheckedAssemblyCatalog,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

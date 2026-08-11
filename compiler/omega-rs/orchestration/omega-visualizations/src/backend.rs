@@ -273,6 +273,9 @@ pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison => {
                     "runtime_value_guard_comparison"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::CheckedAssemblyCatalog => {
+                    "checked_assembly_catalog"
+                }
             },
         );
         json.push_str(", \"evidence\": ");

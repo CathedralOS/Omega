@@ -93,6 +93,7 @@ pub struct CompilerTextValidationEvidence {
     /// Checked-assembly instructions whose fixed encoding or normalized
     /// privilege-bearing envelope was validated at retained final boundaries.
     pub checked_instruction_validation_fingerprint: u64,
+    pub checked_instruction_footprint_fingerprint: u64,
     pub derivation_fingerprint: u64,
     pub text_relocation_count: usize,
     pub checked_instruction_validation_count: usize,

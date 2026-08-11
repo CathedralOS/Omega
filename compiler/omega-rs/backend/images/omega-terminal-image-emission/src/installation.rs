@@ -221,6 +221,12 @@ pub fn encode_terminal_installation_record(
     );
     push_u64(
         &mut bytes,
+        record
+            .compiler_text_validation
+            .checked_instruction_footprint_fingerprint,
+    );
+    push_u64(
+        &mut bytes,
         record.compiler_text_validation.derivation_fingerprint,
     );
     push_u64(&mut bytes, text_relocation_count);
@@ -279,6 +285,7 @@ pub fn decode_terminal_installation_record(
     let final_compiler_text_fingerprint = reader.u64()?;
     let relocation_envelope_fingerprint = reader.u64()?;
     let checked_instruction_validation_fingerprint = reader.u64()?;
+    let checked_instruction_footprint_fingerprint = reader.u64()?;
     let derivation_fingerprint = reader.u64()?;
     let text_relocation_count = usize::try_from(reader.u64()?)
         .map_err(|_| TerminalInstallationError::CountNotRepresentable("text relocations"))?;
@@ -324,6 +331,7 @@ pub fn decode_terminal_installation_record(
             final_compiler_text_fingerprint,
             relocation_envelope_fingerprint,
             checked_instruction_validation_fingerprint,
+            checked_instruction_footprint_fingerprint,
             derivation_fingerprint,
             text_relocation_count,
             checked_instruction_validation_count,
