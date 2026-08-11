@@ -1,4 +1,7 @@
-use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
+use omega_compiler::{
+    CompileOptions, CompileReport, PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile,
+    compile_to_checked,
+};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
@@ -42835,6 +42838,12 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(manifest.contains("\"status\": \"required\""));
     assert!(manifest.contains("validate_both_before_consuming_either_grant"));
 
+    fs::write(
+        build_dir.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT),
+        "stale completed installation",
+    )
+    .expect("seed stale completed-installation artifact");
+
     let hosted = pass_canary("build/explicit_program_entry_binding");
     compile(CompileOptions {
         root_path: hosted.join("main.omg"),
@@ -42846,6 +42855,12 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(
         !build_dir.join("10_program_storage_entry.json").exists(),
         "a hosted build must remove a stale program-storage entry artifact"
+    );
+    assert!(
+        !build_dir
+            .join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT)
+            .exists(),
+        "a new compilation must remove a stale completed-installation claim"
     );
     let _ = fs::remove_dir_all(build_dir);
 }

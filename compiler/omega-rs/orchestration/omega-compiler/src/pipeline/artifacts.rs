@@ -364,6 +364,159 @@ pub(super) fn write_program_storage_entry_snapshot(
     )
 }
 
+/// Stable file name for the audit record emitted after both program-storage
+/// roots have actually been installed.
+pub const PROGRAM_STORAGE_INSTALLATION_ARTIFACT: &str = "10_program_storage_installation.json";
+
+/// Render one completed program-storage installation without carrying or
+/// recreating either consumed root grant.
+pub fn program_storage_installation_record_json(
+    record: &super::ProgramStorageInstallationRecord,
+) -> String {
+    let binding = record.binding();
+    let mut output = String::from(
+        "{\n  \"authority\": \"non_authoritative_audit_record\",\n  \"installation_status\": \"completed\",\n  \"root_slot\": \"",
+    );
+    push_normalized_identity(&mut output, binding.root_slot().normalized_identity());
+    output.push_str("\",\n  \"requirement\": ");
+    push_json_string(&mut output, binding.requirement_identity());
+    output.push_str(",\n  \"calling_plan_fingerprint\": \"");
+    push_normalized_identity(&mut output, binding.boundary_contract_fingerprint());
+    output.push_str("\",\n  \"roots\": [\n    ");
+    push_program_storage_installed_root_json(
+        &mut output,
+        "image",
+        binding.image().parameter_index(),
+        record.image(),
+    );
+    output.push_str(",\n    ");
+    push_program_storage_installed_root_json(
+        &mut output,
+        "initial_storage",
+        binding.initial_storage().parameter_index(),
+        record.initial_storage(),
+    );
+    output.push_str("\n  ]\n}\n");
+    output
+}
+
+/// Emit the completed, non-authoritative installation audit record. The
+/// compiler pipeline does not call this function: only the bridge that owns a
+/// successfully completed installation has the required record.
+pub fn write_program_storage_installation_record(
+    artifact_directory: &Path,
+    record: &super::ProgramStorageInstallationRecord,
+) -> Result<(), Diagnostic> {
+    ArtifactWriter::new(artifact_directory)?.write_text(
+        PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
+        &program_storage_installation_record_json(record),
+    )
+}
+
+fn push_program_storage_installed_root_json(
+    output: &mut String,
+    role: &str,
+    parameter_index: usize,
+    root: &super::ProgramStorageInstalledExtentRecord,
+) {
+    output.push_str("{\"role\": ");
+    push_json_string(output, role);
+    output.push_str(", \"parameter_index\": ");
+    output.push_str(&parameter_index.to_string());
+    output.push_str(", \"base\": \"");
+    push_normalized_identity(output, root.base());
+    output.push_str("\", \"length\": \"");
+    push_normalized_identity(output, root.length());
+    output.push_str("\", \"end\": \"");
+    push_normalized_identity(output, root.end());
+    output.push_str("\", \"address_space\": \"");
+    push_normalized_identity(output, root.address_space().normalized_identity());
+    output.push_str("\", \"rights\": [");
+    for (index, right) in root.rights().iter().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        output.push('"');
+        push_normalized_identity(output, right.normalized_identity());
+        output.push('"');
+    }
+    output.push_str("], \"provenance\": \"");
+    push_normalized_identity(output, root.provenance().normalized_identity());
+    output.push_str("\", \"mapping_era\": \"");
+    push_normalized_identity(output, root.mapping_era().normalized_identity());
+    output.push_str("\", \"lineage_root\": \"");
+    push_normalized_identity(output, root.lineage_root().normalized_identity());
+    output.push_str("\", \"origin\": ");
+    push_extent_root_origin_json(output, root.origin());
+    output.push('}');
+}
+
+fn push_extent_root_origin_json(output: &mut String, origin: psi_extents::ExtentRootOrigin) {
+    match origin {
+        psi_extents::ExtentRootOrigin::ProviderIssued(issuance) => {
+            let invocation = issuance.invocation();
+            output.push_str("{\"kind\": \"provider_issued\", \"issuance\": \"");
+            push_normalized_identity(output, issuance.issuance().normalized_identity());
+            output.push_str("\", \"backing\": \"");
+            push_normalized_identity(output, issuance.backing().normalized_identity());
+            output.push_str("\", \"provider\": \"");
+            push_normalized_identity(output, issuance.provider().normalized_identity());
+            output.push_str("\", \"live_issuance_premise\": \"");
+            push_normalized_identity(
+                output,
+                issuance.live_issuance_premise().normalized_identity(),
+            );
+            output.push_str("\", \"custody_root\": \"");
+            push_normalized_identity(output, issuance.custody_root().normalized_identity());
+            output.push_str("\", \"alias_class\": \"");
+            push_normalized_identity(output, issuance.alias_class().normalized_identity());
+            output.push_str("\", \"correspondence\": \"");
+            push_normalized_identity(output, issuance.correspondence().normalized_identity());
+            output.push_str("\", \"trust_provenance\": \"");
+            push_normalized_identity(output, issuance.trust_provenance().normalized_identity());
+            output.push_str("\", \"invocation\": {\"provider_plan\": \"");
+            push_normalized_identity(output, invocation.provider_plan().normalized_identity());
+            output.push_str("\", \"invocation\": \"");
+            push_normalized_identity(output, invocation.invocation().normalized_identity());
+            output.push_str("\", \"establishment_route\": \"");
+            push_normalized_identity(
+                output,
+                invocation.establishment_route().normalized_identity(),
+            );
+            output.push_str("\", \"capacity\": \"");
+            push_normalized_identity(output, invocation.capacity().normalized_identity());
+            output.push_str("\", \"qualification\": \"");
+            push_normalized_identity(output, invocation.qualification().normalized_identity());
+            output.push_str("\"}}");
+        }
+        psi_extents::ExtentRootOrigin::CompilerProvisioned(provisioning) => {
+            output.push_str("{\"kind\": \"compiler_provisioned\", \"provision\": \"");
+            push_normalized_identity(output, provisioning.provision().normalized_identity());
+            output.push_str("\", \"owner\": \"");
+            push_normalized_identity(output, provisioning.owner().normalized_identity());
+            output.push_str("\", \"sealed_declaration\": \"");
+            push_normalized_identity(
+                output,
+                provisioning.sealed_declaration().normalized_identity(),
+            );
+            output.push_str("\", \"establishment_route\": \"");
+            push_normalized_identity(
+                output,
+                provisioning.establishment_route().normalized_identity(),
+            );
+            output.push_str("\", \"capacity\": \"");
+            push_normalized_identity(output, provisioning.capacity().normalized_identity());
+            output.push_str("\", \"qualification\": \"");
+            push_normalized_identity(output, provisioning.qualification().normalized_identity());
+            output.push_str("\"}");
+        }
+    }
+}
+
+fn push_normalized_identity(output: &mut String, identity: u64) {
+    output.push_str(&format!("0x{identity:016x}"));
+}
+
 fn program_storage_entry_manifest_json(binding: &super::ProgramStorageEntryPlanBinding) -> String {
     let mut output = String::from("{\n  \"root_slot\": \"");
     output.push_str(&format!(
@@ -588,6 +741,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "09_target_operations.html",
             "10_assigned_target_operations.html",
             "10_program_storage_entry.json",
+            PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
             "11_machine_instructions.html",
             "backend_report.html",
             "10_boundary.txt",

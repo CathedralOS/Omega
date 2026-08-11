@@ -149,9 +149,12 @@ the target schema states how the launch environment supplies those needs.
 > record. Provider-issued roots also bind their admitted issuance, backing,
 > provider, live-issuance, custody, alias, correspondence, and trust identities
 > to one selected provider plan/invocation, establishment route, capacity
-> account, and qualification through that record. Binding this portable
-> evidence to the selected physical provider and emitting the completed record
-> remain. Actual receiver provisioning, corpus
+> account, and qualification through that record. A canonical
+> non-authoritative completed-installation JSON renderer and atomic artifact
+> writer cover both provider-issued and compiler-provisioned origins; ordinary
+> compilation removes stale copies and never claims completion. Binding this
+> portable evidence to the selected physical provider and invoking the writer
+> after that bridge succeeds remain. Actual receiver provisioning, corpus
 > migration, and removal of transitional entry-name discovery also remain under
 > `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
