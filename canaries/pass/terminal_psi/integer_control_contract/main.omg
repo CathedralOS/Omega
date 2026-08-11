@@ -143,6 +143,49 @@ ensures true == true
     inverted
 }
 
+machine terminal_call_identity(value: bool) -> bool
+requires true == true
+ensures true == true
+{
+    value
+}
+
+machine terminal_call_forward(flag: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let forwarded: bool = terminal_call_identity(flag);
+    forwarded
+}
+
+machine terminal_call_guarded_callee(flag: bool) -> bool
+requires true == true
+ensures true == true
+crashes Trap
+    flag
+{
+    transition flag {
+        true -> fail()
+        _ -> succeed()
+    }
+
+    state fail() -> bool {
+        crash Trap;
+    }
+
+    state succeed() -> bool { false }
+}
+
+machine terminal_call_guarded_caller(flag: bool) -> bool
+requires true == true
+ensures true == true
+crashes Trap
+{
+    let forwarded: bool = flag;
+    let result: bool = terminal_call_guarded_callee(forwarded);
+    result
+}
+
 machine terminal_short_circuit_boolean_local(first: bool, second: bool) -> bool
 requires true == true
 ensures true == true
