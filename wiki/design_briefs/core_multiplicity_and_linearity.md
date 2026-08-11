@@ -159,70 +159,27 @@ through checked control flow. The IR needs:
 - path-sensitive resource state for sums; and
 - explicit create, transfer, consume, and affine-drop events.
 
-Current implementation: these events
-survive the full semantic pipeline with multiplicity, access, and
-transfer-stable provenance.
-Existing shared/exclusive borrow loans enter the same permission context at
-activation and leave it at weakening; their mature legality checks are not
-reimplemented. The linear judgment reads this context exclusively. Affine
-cleanup is discovered directly from typed state ownership. Semantic transfers
-and consumes run the canonical typed move-discovery traversal directly into
-the permission producer. Checked trees and every later IR carry only the
-canonical permission ledger; the parallel move/drop summaries are deleted.
-The backend ledger now also records one fail-closed realization per canonical
-event: exact selected instruction indices, or a narrow checked no-code reason
-for an explicit zero-code terminal consume, no-live-debt event, or trivial
-affine discard. An empty selection site alone cannot prove a live establishment
-or transfer. Provenance-preserving folds deliberately let one materialization realize
-several transfers of the same obligation. Missing/foreign candidates or an
-invalid no-code proof publish no partial ledger and surface as `UNLINKED` in the
-backend report. Dispatch-edge and state-call argument materialization are joined
-to target-state entry establishment, exact ordinals survive runtime/direct state
-calls and statement-position host calls, and every current ownership pass canary
-has a complete ledger. Named transition targets reserve their canonical ordinal
-before nested argument calls, and target-symbol filtering separates their
-permission events. A live linear obligation also remains intact across a
-dispatched call's synthesized continuation and is consumed afterward; this is a
-same-place/provenance carry, so the continuation itself does not add a semantic
-permission event. Repeated same-symbol nested transition calls retain distinct
-ordinals and join both materializations to their shared target-state event.
-Normalized platform-entry parameter writes now realize program StateEntry
-events directly; missing inbound code fails closed, and later consumes cannot
-launder zero storage into establishment. Affine exit events are ordered in
-reverse declaration order and backend realization fails closed, but the
-explicit per-edge cleanup plan, contextual cleanup-contract checking, cycle
-composition, and retained whole-edge conservation witness remain CML4 work.
-Composite field extraction uses
-one path-indexed frontier: an explicit `[linear]` declaration contributes one
-nominal root, while a transparent aggregate derives contained child claims
-without adding another root. The first live slice covers statically named
-transparent-record fields through local construction, whole-record transfer,
-and extraction: moving one field leaves its sibling obligations live, and
-duplicate moves reject. The permission ledger retains each field path and its
-independently propagated source provenance through backend realization. Fresh
-claim identity is distinct from provenance/root lineage and survives those
-local transformations. Checked state results conserve multiple claims when
-direct paths or record-constructor fields provide a unique structural output
-map; checked bodies now publish that complete map for opaque n-ary callers to
-consume. Input-relative entries bind through actual arguments, established
-entries retain their exact identity and provenance, and fixed-point composition
-covers expression calls, qualified tail transitions, and multi-hop wrappers.
-Ambiguous or bodyless targets remain fail-closed. The structured maps are
-retained in the checked `05_claim_outcomes.json` proof/debug artifact.
-Carry policy is retained independently by transfer-stable claim identity:
-every qualification-evidence origin starts strict, exact positive permissions
-relax only that origin, and both multiple origins and multiple claims
-intersect. The identity-preserving n-ary outcome maps therefore preserve each
-child's policy without copying domain membership, and checked carry artifacts
-publish the effective policy per claim. Literal-length fixed arrays now
-enumerate canonical fixed-index paths through construction, literal-index
-extraction, partial moves, and n-ary output maps; runtime-indexed owned
-extraction remains fail-closed. Active sums likewise enumerate canonical
-case-plus-field paths: known construction activates only the selected case,
-same-case siblings remain independent, impossible alternatives stay inactive,
-and checked output maps propagate live case paths through opaque calls.
-Symbol-keyed substitutions already retain contained claims through nested
-generic transparent records.
+One canonical permission ledger survives the semantic pipeline with
+multiplicity, access, transfer-stable provenance, and carry policy kept as
+independent fields. Shared and exclusive loans enter that same context without
+being redefined as linear obligations. Every canonical event has one
+fail-closed backend realization: exact selected instructions or a narrow
+checked no-code reason. Empty, missing, foreign, or invalid realizations publish
+no partial ledger.
+
+Permission debt is path-indexed through transparent records, literal-length
+arrays, active sum cases, and generic substitutions. A nominal `[linear]` root
+owns the obligation; transparent child paths do not create duplicate roots.
+Partial moves preserve sibling debt, claim identity, provenance, and effective
+carry policy, while duplicate moves and runtime-indexed owned extraction reject.
+Unique structural output maps preserve multiple claims through calls,
+transitions, and wrappers; ambiguous or bodyless targets fail closed.
+
+Platform-entry writes, dispatch/state-call arguments, and synthesized
+continuations obey the same event and provenance rules. Affine exits run in
+reverse declaration order. Explicit per-edge cleanup plans, contextual cleanup
+contracts, repeated-cycle composition, and the retained whole-edge
+conservation witness remain CML4 work.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
