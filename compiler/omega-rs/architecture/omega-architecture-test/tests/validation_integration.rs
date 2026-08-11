@@ -2007,7 +2007,7 @@ fn named_generic_bound_authorizes_its_selected_trait_surface() {
             machine rank(&self) -> i32;
         }
         data Card {}
-        machine Card::rank(&self) -> i32 satisfies Ranked { 1 }
+        machine Card::rank(&self) -> i32 satisfies Ranked::rank { 1 }
         PowerOrder: Card satisfies Ranked;
 
         machine rank_selected<C>(card: &C) -> i32
@@ -5224,7 +5224,7 @@ fn rejects_machine_service_reaches_outside_trait_ceiling() {
     data ConsoleImpl {
     }
 
-    machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
+    machine ConsoleImpl::write_line(text: &[u8]) satisfies Console::write_line
     reaches
         Console + Filesystem
     {
@@ -5265,7 +5265,7 @@ fn accepts_machine_service_reaches_within_trait_ceiling() {
     data ConsoleImpl {
     }
 
-    machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
+    machine ConsoleImpl::write_line(text: &[u8]) satisfies Console::write_line
     reaches
         Console
     {
@@ -5300,7 +5300,7 @@ fn accepts_machine_service_reaches_below_trait_ceiling() {
     data TestConsole {
     }
 
-    machine TestConsole::write_line(text: &[u8]) satisfies Console {
+    machine TestConsole::write_line(text: &[u8]) satisfies Console::write_line {
     }
 
     data Main {
@@ -5471,7 +5471,7 @@ mod effects_analysis {
         data ConsoleImpl {
         }
 
-        machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
+        machine ConsoleImpl::write_line(text: &[u8]) satisfies Console::write_line
         reaches
             Console
         {
@@ -5541,6 +5541,53 @@ mod effects_analysis {
     }
 
     #[test]
+    fn exact_requirement_adapter_does_not_revoke_boundary_provider_approval() {
+        let program = lower(
+            r#"
+            boundary trait Console {
+                machine write_line(text: &[u8]);
+            }
+
+            data ConsoleAdapter {}
+
+            machine ConsoleAdapter::write_line(text: &[u8])
+            satisfies Console::write_line
+            reaches
+                Console
+            {
+            }
+
+            data Main {
+                console: ConsoleAdapter;
+            }
+
+            machine Main::main(&mut self) {
+                self.console.write_line("hello");
+            }
+            "#,
+        );
+        let operations = infer_operational_may(&program);
+        let registry = build_boundary_provider_approval_registry(&program);
+        let console = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Console")
+            .expect("Console boundary");
+
+        assert!(
+            registry
+                .provider(console.symbol)
+                .expect("Console approval")
+                .approved,
+            "an exact requirement adapter is a supply edge, not a whole-trait implementation",
+        );
+        assert!(
+            audit_boundary_provider_calls(&program, &operations, &registry).is_empty(),
+            "calls through the exact adapter should retain boundary provider approval",
+        );
+    }
+
+    #[test]
     fn in_package_host_provider_is_unapproved() {
         let program = lower(
             r#"
@@ -5551,7 +5598,9 @@ mod effects_analysis {
             data Disk {
             }
 
-            machine Disk::write_bytes(path: &[u8]) satisfies LocalFiles {
+            DiskLocalFiles: Disk satisfies LocalFiles;
+
+            machine Disk::write_bytes(path: &[u8]) satisfies LocalFiles::write_bytes {
             }
 
             data Main {
@@ -5592,7 +5641,9 @@ mod effects_analysis {
 
             data FakeClock {}
 
-            machine FakeClock::tick(token: i32) satisfies LocalClock {}
+            FakeClockLocalClock: FakeClock satisfies LocalClock;
+
+            machine FakeClock::tick(token: i32) satisfies LocalClock::tick {}
 
             data Main {
                 clock: FakeClock;

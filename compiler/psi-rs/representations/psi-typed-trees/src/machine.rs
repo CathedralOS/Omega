@@ -79,9 +79,8 @@ pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
-    /// The single-requirement binding (`satisfies Trait::requirement`,
-    /// rearrange settle 2026-07-18): `Some` conforms the machine to that one
-    /// requirement instead of the whole trait; `alias` names the satisfier
+    /// The exact requirement binding (`satisfies Trait::requirement`). Source
+    /// lowering always supplies `Some`; `alias` names the satisfier
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,

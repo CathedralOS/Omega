@@ -25,15 +25,17 @@ data Main {
     canvas: Canvas;
 }
 
-machine Sprite::reset(&mut self) {
+SpriteManagedDrawable: Sprite satisfies ManagedDrawable;
+
+machine Sprite::reset(&mut self) satisfies Resettable::reset {
     self.value = 0;
 }
 
-machine Sprite::draw(&self, canvas: &mut Canvas) {
+machine Sprite::draw(&self, canvas: &mut Canvas) satisfies Drawable::draw {
     canvas.width = 80;
 }
 
-machine Sprite::update(&mut self) satisfies ManagedDrawable {
+machine Sprite::update(&mut self) satisfies ManagedDrawable::update {
     self.value = 1;
 }
 

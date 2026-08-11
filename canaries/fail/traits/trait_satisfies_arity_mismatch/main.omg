@@ -13,7 +13,7 @@ data Main {
     sprite: Sprite;
 }
 
-machine Sprite::draw(&self, canvas: &mut Canvas) satisfies Drawable {
+machine Sprite::draw(&self, canvas: &mut Canvas) satisfies Drawable::draw {
 }
 
 machine Main::main(&mut self) {

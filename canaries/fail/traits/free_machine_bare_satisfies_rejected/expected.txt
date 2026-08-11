@@ -1,1 +1,1 @@
-binds the requirement bearing its own name
+bind one exact requirement

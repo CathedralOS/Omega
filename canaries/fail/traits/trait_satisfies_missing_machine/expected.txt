@@ -1,1 +1,1 @@
-machine `Sprite::paint` satisfies trait `Drawable` but is missing machine `draw`
+data `Sprite` does not satisfy trait `Drawable`

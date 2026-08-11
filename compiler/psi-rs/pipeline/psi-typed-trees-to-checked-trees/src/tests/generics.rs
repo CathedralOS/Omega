@@ -780,7 +780,7 @@ fn bounded_generic_call_specializes_to_concrete_attached_state() {
             machine increment(&mut self);
         }
         data Counter { value: i32 in Wrapping; }
-        machine Counter::increment(&mut self) satisfies Incrementable {
+        machine Counter::increment(&mut self) satisfies Incrementable::increment {
             self.value = self.value + 1;
         }
         CounterIncrementable: Counter satisfies Incrementable;

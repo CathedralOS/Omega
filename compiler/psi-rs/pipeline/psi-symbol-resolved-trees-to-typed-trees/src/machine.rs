@@ -197,10 +197,8 @@ pub(crate) fn lower_machine(
 /// in reach -- so the TPR3-migrated checker's plan gate then enforces the
 /// inherited claim for free (a cyclic inheritor without a witness fails
 /// with the missing-witness diagnostic). Requirement matching mirrors the
-/// conformance validator's carrier model: an explicitly named requirement,
-/// or the machine's own SIMPLE name (free machines conform
-/// machine-by-machine; attached machines' whole-trait conformance matches
-/// requirements by simple name). An authored guarantee is never overwritten.
+/// conformance validator's exact requirement identity. An authored guarantee
+/// is never overwritten.
 fn inherit_requirement_guarantee(
     lowerer: &Lowerer,
     machine: &resolved::machine::Machine,
@@ -214,12 +212,6 @@ fn inherit_requirement_guarantee(
     ) {
         return plan;
     }
-    let simple_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str());
     for conformance in lowerer
         .source_trees
         .machine_trait_conformances(machine.satisfies)
@@ -232,11 +224,13 @@ fn inherit_requirement_guarantee(
         else {
             continue;
         };
-        let required_name = conformance
+        let Some(required_name) = conformance
             .requirement
             .as_ref()
             .map(|requirement| requirement.as_str())
-            .unwrap_or(simple_name);
+        else {
+            continue;
+        };
         let inherited = lowerer
             .source_trees
             .trait_machine_signatures(trait_definition.machines)

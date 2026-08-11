@@ -11,7 +11,7 @@ data Main {
     counter: Counter;
 }
 
-machine Counter::increment(&mut self) satisfies ManagedCounter {
+machine Counter::increment(&mut self) satisfies ManagedCounter::increment {
     self.value = self.value + 1;
 }
 

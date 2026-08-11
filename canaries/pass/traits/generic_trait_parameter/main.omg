@@ -13,7 +13,7 @@ data Player {
     health: i32;
 }
 
-machine Player::to_wire(&self, out: &mut PlayerMessage) satisfies WireEncodable<PlayerMessage> {
+machine Player::to_wire(&self, out: &mut PlayerMessage) satisfies WireEncodable<PlayerMessage>::to_wire {
     out.health = self.health;
 }
 

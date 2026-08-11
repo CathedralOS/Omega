@@ -8,7 +8,7 @@ trait BoundedCounter {
     machine snapshot(&self);
 }
 
-machine Counter::increment(&mut self) satisfies BoundedCounter {
+machine Counter::increment(&mut self) satisfies BoundedCounter::increment {
     self.value = self.value + 1;
 }
 

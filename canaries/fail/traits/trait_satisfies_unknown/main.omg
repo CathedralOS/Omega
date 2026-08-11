@@ -5,7 +5,7 @@ data Main {
     sprite: Sprite;
 }
 
-machine Sprite::draw(&self) satisfies Drawable {
+machine Sprite::draw(&self) satisfies Drawable::draw {
 }
 
 machine Main::main(&mut self) {

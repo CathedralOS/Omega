@@ -1538,7 +1538,7 @@ fn implementation_inherits_requirement_guarantee() {
 
     data Main {}
 
-    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker {
+    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker::run {
         n
     }
 
@@ -1587,7 +1587,7 @@ fn public_termination_omission_is_distinct_from_private_derivation() {
 
     data Main {}
 
-    machine Main::run(&self) -> u64 satisfies Worker {
+    machine Main::run(&self) -> u64 satisfies Worker::run {
         1
     }
 
@@ -1643,7 +1643,7 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
 
     data Main {{}}
 
-    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker
+    machine Main::run(&mut self, n: u64) -> u64 satisfies Worker::run
     {witness_clause}
     {{
         transition n > 0 {{

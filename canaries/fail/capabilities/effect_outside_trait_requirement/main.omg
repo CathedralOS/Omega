@@ -16,7 +16,7 @@ data MyConsole {
     id: i32;
 }
 
-machine MyConsole::write_line(text: &[u8]) satisfies Console
+machine MyConsole::write_line(text: &[u8]) satisfies Console::write_line
 reaches
     Console
     Filesystem

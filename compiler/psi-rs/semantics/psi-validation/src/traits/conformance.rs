@@ -426,42 +426,21 @@ pub(crate) fn validate_machine_trait_conformances(
             diagnostics,
         );
 
-        // SINGLE-REQUIREMENT conformance (rearrange settle 2026-07-18): an
-        // explicit `satisfies Trait::requirement`, or a bare trait name on a
-        // FREE machine (free proof machines conform machine-by-machine to the
-        // requirement bearing their own name -- whole-trait candidate lookup
-        // never existed for them: a free machine's candidate set is itself).
-        // Data-attached machines with a bare trait name keep the whole-trait
-        // semantics below, unchanged.
-        let named_requirement = conformance.requirement.clone();
-        let single_requirement = named_requirement.clone().or_else(|| {
-            machine
-                .attached_data
-                .is_none()
-                .then(|| machine.name.clone())
-        });
-        if let Some(requirement_name) = single_requirement {
-            validate_machine_single_requirement(
-                program,
-                machine,
-                trait_definition,
-                &requirement_name,
-                named_requirement.is_some(),
-                conformance.alias.as_ref().map(|alias| alias.as_str()),
-                explicit_type_arguments,
-                diagnostics,
-            );
+        let Some(requirement_name) = conformance.requirement.as_ref() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has a malformed conformance to `{}` without an exact requirement",
+                machine.name, trait_definition.name
+            )));
             continue;
-        }
-
-        let mut visited_traits = Vec::new();
-        validate_machine_satisfies_trait(
+        };
+        validate_machine_single_requirement(
             program,
             machine,
             trait_definition,
+            requirement_name,
+            conformance.alias.as_ref().map(|alias| alias.as_str()),
             explicit_type_arguments,
             diagnostics,
-            &mut visited_traits,
         );
     }
 }
@@ -1176,7 +1155,6 @@ fn validate_machine_single_requirement(
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement_name: &psi_typed_trees::name::Identifier,
-    explicitly_named: bool,
     conformance_alias: Option<&str>,
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -1198,23 +1176,14 @@ fn validate_machine_single_requirement(
         .filter(|requirement| requirement.name == *requirement_name)
         .collect::<Vec<_>>();
     if named_requirements.is_empty() {
-        if explicitly_named {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` satisfies `{}::{}`, but trait `{}` has no requirement named `{}`",
-                machine.name,
-                trait_definition.name,
-                requirement_name,
-                trait_definition.name,
-                requirement_name
-            )));
-        } else {
-            diagnostics.push(Diagnostic::error(format!(
-                "free machine `{}` satisfies trait `{}`, which has no requirement named `{}` -- \
-                 a free machine's bare `satisfies` binds the requirement bearing its own name; \
-                 name one explicitly with `satisfies {}::<requirement>`",
-                machine.name, trait_definition.name, machine.name, trait_definition.name
-            )));
-        }
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` satisfies `{}::{}`, but trait `{}` has no requirement named `{}`",
+            machine.name,
+            trait_definition.name,
+            requirement_name,
+            trait_definition.name,
+            requirement_name
+        )));
         return;
     }
     let matching_requirements = if named_requirements.len() == 1 {
@@ -1267,71 +1236,6 @@ fn validate_machine_single_requirement(
     );
 }
 
-fn validate_machine_satisfies_trait(
-    program: &TypedTrees,
-    machine: &Machine,
-    trait_definition: &TraitDefinition,
-    explicit_type_arguments: &[TypeReferenceHandle],
-    diagnostics: &mut Vec<Diagnostic>,
-    visited_traits: &mut Vec<SymbolHandle>,
-) {
-    if visited_traits
-        .iter()
-        .any(|symbol| *symbol == trait_definition.symbol)
-    {
-        return;
-    }
-
-    visited_traits.push(trait_definition.symbol);
-
-    for requirement in program.trait_machine_signatures(trait_definition) {
-        let Some((state_machine, state)) = trait_requirement_state(program, machine, requirement)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` satisfies trait `{}` but is missing machine `{}`",
-                machine.name, trait_definition.name, requirement.name
-            )));
-            continue;
-        };
-
-        validate_machine_state_satisfies_trait_signature_with_arguments(
-            program,
-            state_machine,
-            state,
-            trait_definition,
-            requirement,
-            explicit_type_arguments,
-            diagnostics,
-        );
-    }
-
-    for requirement in program.trait_requirements(trait_definition) {
-        let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
-            continue;
-        };
-
-        let required_arguments = compose_forwarded_trait_arguments(
-            program,
-            trait_definition,
-            explicit_type_arguments,
-            program
-                .type_reference_table
-                .type_reference_handles(requirement.arguments),
-        );
-
-        validate_machine_satisfies_trait(
-            program,
-            machine,
-            required_trait,
-            &required_arguments,
-            diagnostics,
-            visited_traits,
-        );
-    }
-
-    visited_traits.pop();
-}
-
 /// Compose a parent edge such as `Forwarded<U>: Sink<U>` with the concrete
 /// arguments of the child instance. The returned handles are existing nodes;
 /// exact forwarded parameters need no allocation and cover the canonical
@@ -1362,62 +1266,6 @@ pub(super) fn compose_forwarded_trait_arguments(
                 .unwrap_or(*argument)
         })
         .collect()
-}
-
-fn trait_requirement_state<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-    requirement: &StateSignature,
-) -> Option<(&'program Machine, &'program State)> {
-    let required_dispatch = program.normalized_result_dispatch_set(requirement.return_type);
-    let overloaded = program
-        .traits()
-        .iter()
-        .find(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|candidate| candidate.symbol == requirement.symbol)
-        })
-        .is_some_and(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(|candidate| candidate.name == requirement.name)
-                .count()
-                > 1
-        });
-    trait_conformance_candidate_machines(program, machine)
-        .into_iter()
-        .find_map(|candidate| {
-            program
-                .machine_states(candidate)
-                .iter()
-                .find(|state| {
-                    state.name == requirement.name
-                        && (!overloaded
-                            || program.normalized_result_dispatch_set(state.return_type)
-                                == required_dispatch)
-                })
-                .map(|state| (candidate, state))
-        })
-}
-
-fn trait_conformance_candidate_machines<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-) -> Vec<&'program Machine> {
-    let Some(attached_data) = machine.attached_data.as_ref() else {
-        return vec![machine];
-    };
-
-    let mut candidates = Vec::new();
-    candidates.push(machine);
-    candidates.extend(program.machines().iter().filter(|candidate| {
-        !std::ptr::eq(*candidate, machine)
-            && candidate.attached_data.as_ref() == Some(attached_data)
-    }));
-    candidates
 }
 
 pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(

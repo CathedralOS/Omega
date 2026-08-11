@@ -664,13 +664,17 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
         // `satisfies Trait::requirement [as Alias]` conforms THIS machine to
         // that one requirement; the alias names the satisfier when signatures
         // collide or the same machine fills different slots (plural algebras).
-        let mut requirement = None;
-        if rest.at_punctuation(PunctuationKind::ColonColon) {
-            let next = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let (member, next) = next.take_identifier()?;
-            requirement = Some(member);
-            rest = next;
+        if !rest.at_punctuation(PunctuationKind::ColonColon) {
+            return Err(rest.error_here(format!(
+                "bare `satisfies {}` on a machine is retired; bind one exact requirement as `satisfies {}::requirement`",
+                trait_name.as_str(),
+                trait_name.as_str(),
+            )));
         }
+        let next = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (member, next) = next.take_identifier()?;
+        let requirement = Some(member);
+        rest = next;
         let mut alias = None;
         if rest.at_keyword(KeywordKind::As) {
             let next = rest.take_keyword(KeywordKind::As, "as")?;
