@@ -286,6 +286,7 @@ fn reconstruct_machine_semantics(
                     callee,
                     arguments,
                     requirement_obligations,
+                    ..
                 } => {
                     let callee = machines
                         .get(&callee)

@@ -81,14 +81,45 @@ fn scalar_call_rejects_incomplete_or_crash_erasing_shapes() {
         }
     );
 
-    let mut may_crash = call_module();
-    may_crash.machines[1].contract.crash_routes = vec![CrashRouteBucket {
+    let unconditional_trap = CrashRouteBucket {
         cause: CrashCause::Trap,
         alternatives: vec![CrashRouteGuard::Truth],
-    }];
+    };
+    let mut may_crash = call_module();
+    may_crash.machines[1].contract.crash_routes = vec![unconditional_trap.clone()];
     assert_eq!(
         validate_module(&may_crash).unwrap_err(),
-        ModuleError::CallTargetMayCrash {
+        ModuleError::CallCrashContinuationsMismatch {
+            operation: operation_id(2),
+            callee: machine_id(2),
+        }
+    );
+
+    call_crash_continuations_mut(&mut may_crash).push(unconditional_trap.clone());
+    assert_eq!(
+        validate_module(&may_crash).unwrap_err(),
+        ModuleError::CallCrashContinuationUncovered {
+            operation: operation_id(2),
+            cause: CrashCause::Trap,
+        }
+    );
+    may_crash.machines[0].contract.crash_routes = vec![unconditional_trap];
+    validate_module(&may_crash)
+        .expect("an explicit covered in-module crash continuation validates");
+
+    let guarded = CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(
+            psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![1]),
+        )],
+    };
+    let mut guarded_call = call_module();
+    guarded_call.machines[0].contract.crash_routes = vec![guarded.clone()];
+    guarded_call.machines[1].contract.crash_routes = vec![guarded.clone()];
+    *call_crash_continuations_mut(&mut guarded_call) = vec![guarded];
+    assert_eq!(
+        validate_module(&guarded_call).unwrap_err(),
+        ModuleError::GuardedCallCrashRouteNotYetSupported {
             operation: operation_id(2),
             callee: machine_id(2),
         }
@@ -142,6 +173,7 @@ fn call_module() -> TerminalModule {
                                 callee: machine_id(2),
                                 arguments: vec![caller_constant],
                                 requirement_obligations: vec![obligation_id(1)],
+                                crash_continuations: Vec::new(),
                             },
                         },
                     ],
@@ -199,11 +231,23 @@ fn call_kind_mut(
         callee,
         arguments,
         requirement_obligations,
+        ..
     } = &mut module.machines[0].blocks[0].operations[1].kind
     else {
         unreachable!()
     };
     (callee, arguments, requirement_obligations)
+}
+
+fn call_crash_continuations_mut(module: &mut TerminalModule) -> &mut Vec<CrashRouteBucket> {
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    crash_continuations
 }
 
 fn semantic_axiom_evidence(

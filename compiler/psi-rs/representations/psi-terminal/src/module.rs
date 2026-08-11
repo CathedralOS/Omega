@@ -296,13 +296,15 @@ pub struct Operation {
 pub enum OperationKind {
     /// Invoke one in-module machine with positional scalar arguments. Each
     /// callee `requires` clause has the obligation identity at the same index;
-    /// successful return binds the operation result. The current operation
-    /// slice admits only callees with no published crash route, because crash
-    /// continuations are control rather than scalar data.
+    /// successful return binds the operation result. `crash_continuations`
+    /// records the invocation-specific no-successor routes that survive call
+    /// composition. The first crash-capable slice admits only unconditional
+    /// in-module routes; guarded substitution remains fail-closed.
     Call {
         callee: MachineId,
         arguments: Vec<ValueId>,
         requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     IntegerConstant {
         value: IntegerValue,

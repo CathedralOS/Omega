@@ -314,6 +314,7 @@ fn call_fixture() -> TerminalModule {
                                 callee: machine_id(2),
                                 arguments: vec![value_id(1)],
                                 requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                             },
                         },
                     ],

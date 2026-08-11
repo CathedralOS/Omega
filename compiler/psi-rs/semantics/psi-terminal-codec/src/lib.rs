@@ -145,16 +145,29 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         return Err(CodecError::NonCanonicalOrder("machines by MachineId"));
     }
     for machine in &module.machines {
-        if machine
-            .contract
-            .crash_routes
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
+        if !crash_routes_are_canonical(&machine.contract.crash_routes) {
             return Err(CodecError::NonCanonicalOrder("crash route buckets"));
         }
         if !strictly_increasing(machine.blocks.iter().map(|block| block.id)) {
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
+        }
+        if machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                matches!(
+                    &operation.kind,
+                    OperationKind::Call {
+                        crash_continuations,
+                        ..
+                    } if !crash_routes_are_canonical(crash_continuations)
+                )
+            })
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "call crash continuation buckets",
+            ));
         }
         if !strictly_increasing(machine.structural_places.iter().map(|place| place.id)) {
             return Err(CodecError::NonCanonicalOrder(
@@ -250,6 +263,19 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         }
     }
     Ok(())
+}
+
+fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
+    !routes.windows(2).any(|pair| pair[0] >= pair[1])
+        && routes.iter().all(|bucket| {
+            !bucket.alternatives.is_empty()
+                && !bucket
+                    .alternatives
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                && (!bucket.alternatives.contains(&CrashRouteGuard::Truth)
+                    || bucket.alternatives == [CrashRouteGuard::Truth])
+        })
 }
 
 fn validate_canonical_proposition(
@@ -623,6 +649,7 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 callee,
                 arguments,
                 requirement_obligations,
+                crash_continuations,
             } => {
                 writer.u8(33);
                 writer.id(callee);
@@ -637,6 +664,7 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 for obligation in requirement_obligations {
                     writer.id(obligation);
                 }
+                encode_crash_routes(writer, &crash_continuations)?;
             }
             OperationKind::IntegerConstant { value } => {
                 writer.u8(1);
@@ -919,8 +947,25 @@ fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Resu
 
 fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<(), CodecError> {
     writer.id(contract.id);
-    writer.len("crash route buckets", contract.crash_routes.len())?;
-    for bucket in &contract.crash_routes {
+    encode_crash_routes(writer, &contract.crash_routes)?;
+    writer.len("requires", contract.requires.len())?;
+    for proposition in &contract.requires {
+        encode_proposition(writer, proposition, 0)?;
+    }
+    writer.len("ensures", contract.ensures.len())?;
+    for clause in &contract.ensures {
+        writer.id(clause.obligation);
+        encode_proposition(writer, &clause.proposition, 0)?;
+    }
+    Ok(())
+}
+
+fn encode_crash_routes(
+    writer: &mut Writer,
+    crash_routes: &[CrashRouteBucket],
+) -> Result<(), CodecError> {
+    writer.len("crash route buckets", crash_routes.len())?;
+    for bucket in crash_routes {
         writer.u8(match bucket.cause {
             CrashCause::Trap => 1,
             CrashCause::Abort => 2,
@@ -935,15 +980,6 @@ fn encode_contract(writer: &mut Writer, contract: &MachineContract) -> Result<()
                 }
             }
         }
-    }
-    writer.len("requires", contract.requires.len())?;
-    for proposition in &contract.requires {
-        encode_proposition(writer, proposition, 0)?;
-    }
-    writer.len("ensures", contract.ensures.len())?;
-    for clause in &contract.ensures {
-        writer.id(clause.obligation);
-        encode_proposition(writer, &clause.proposition, 0)?;
     }
     Ok(())
 }
@@ -1861,10 +1897,12 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 for _ in 0..requirement_count {
                     requirement_obligations.push(reader.id("ObligationId")?);
                 }
+                let crash_continuations = decode_crash_routes(reader)?;
                 OperationKind::Call {
                     callee,
                     arguments,
                     requirement_obligations,
+                    crash_continuations,
                 }
             }
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
@@ -1950,6 +1988,29 @@ fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, Codec
 
 fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
     let id = reader.id("ContractId")?;
+    let crash_routes = decode_crash_routes(reader)?;
+    let requires_count = reader.count()?;
+    let mut requires = Vec::new();
+    for _ in 0..requires_count {
+        requires.push(decode_proposition(reader, 0)?);
+    }
+    let ensures_count = reader.count()?;
+    let mut ensures = Vec::new();
+    for _ in 0..ensures_count {
+        ensures.push(ContractClause {
+            obligation: reader.id("ObligationId")?,
+            proposition: decode_proposition(reader, 0)?,
+        });
+    }
+    Ok(MachineContract {
+        id,
+        crash_routes,
+        requires,
+        ensures,
+    })
+}
+
+fn decode_crash_routes(reader: &mut Reader<'_>) -> Result<Vec<CrashRouteBucket>, CodecError> {
     let count = reader.count()?;
     let mut crash_routes = Vec::with_capacity(count as usize);
     for _ in 0..count {
@@ -1972,25 +2033,7 @@ fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecErro
             alternatives,
         });
     }
-    let requires_count = reader.count()?;
-    let mut requires = Vec::new();
-    for _ in 0..requires_count {
-        requires.push(decode_proposition(reader, 0)?);
-    }
-    let ensures_count = reader.count()?;
-    let mut ensures = Vec::new();
-    for _ in 0..ensures_count {
-        ensures.push(ContractClause {
-            obligation: reader.id("ObligationId")?,
-            proposition: decode_proposition(reader, 0)?,
-        });
-    }
-    Ok(MachineContract {
-        id,
-        crash_routes,
-        requires,
-        ensures,
-    })
+    Ok(crash_routes)
 }
 
 fn decode_crash_predicate(reader: &mut Reader<'_>) -> Result<CrashPredicateIdentity, CodecError> {

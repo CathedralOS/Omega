@@ -336,6 +336,7 @@ fn validate_machine(
                 OperationKind::Call {
                     callee,
                     requirement_obligations,
+                    crash_continuations,
                     ..
                 } => {
                     let callee =
@@ -346,11 +347,45 @@ fn validate_machine(
                                 operation: operation.id,
                                 callee,
                             })?;
-                    if !callee.contract.crash_routes.is_empty() {
-                        return Err(ModuleError::CallTargetMayCrash {
+                    if callee
+                        .contract
+                        .crash_routes
+                        .iter()
+                        .any(|bucket| bucket.alternatives != [CrashRouteGuard::Truth])
+                    {
+                        return Err(ModuleError::GuardedCallCrashRouteNotYetSupported {
                             operation: operation.id,
                             callee: callee.id,
                         });
+                    }
+                    if crash_continuations
+                        .windows(2)
+                        .any(|pair| pair[0] >= pair[1])
+                        || crash_continuations
+                            .iter()
+                            .any(|bucket| bucket.alternatives != [CrashRouteGuard::Truth])
+                    {
+                        return Err(ModuleError::NonCanonicalCallCrashContinuations(
+                            operation.id,
+                        ));
+                    }
+                    if crash_continuations != callee.contract.crash_routes {
+                        return Err(ModuleError::CallCrashContinuationsMismatch {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    }
+                    for continuation in &crash_continuations {
+                        let covered = machine.contract.crash_routes.iter().any(|published| {
+                            published.cause == continuation.cause
+                                && published.alternatives == [CrashRouteGuard::Truth]
+                        });
+                        if !covered {
+                            return Err(ModuleError::CallCrashContinuationUncovered {
+                                operation: operation.id,
+                                cause: continuation.cause,
+                            });
+                        }
                     }
                     if !callee.structural_places.is_empty()
                         || !callee.content_entry_claims.is_empty()
@@ -2343,9 +2378,18 @@ pub enum ModuleError {
         operation: OperationId,
         callee: MachineId,
     },
-    CallTargetMayCrash {
+    GuardedCallCrashRouteNotYetSupported {
         operation: OperationId,
         callee: MachineId,
+    },
+    NonCanonicalCallCrashContinuations(OperationId),
+    CallCrashContinuationsMismatch {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    CallCrashContinuationUncovered {
+        operation: OperationId,
+        cause: CrashCause,
     },
     CallTargetHasStructuralContract {
         operation: OperationId,

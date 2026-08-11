@@ -144,25 +144,32 @@ program identity.
 ### Direct scalar call slice
 
 The current `Call` operation names one canonical callee, carries positional
-scalar arguments, and carries exactly one caller obligation identity for each
-published callee `requires` clause. Validation checks the complete signature,
-argument definedness and types, result type, obligation arity, and global
-obligation uniqueness. Verification substitutes the positional arguments into
-the callee requirements and guarantees: requirements become caller proof
-obligations, while verified guarantees enter the caller's semantic axioms.
+scalar arguments, carries exactly one caller obligation identity for each
+published callee `requires` clause, and explicitly records the normalized
+no-successor crash continuations that survive at that invocation. Validation
+checks the complete signature, argument definedness and types, result type,
+obligation arity, global obligation uniqueness, and crash-continuation
+coverage. Verification substitutes the positional arguments into the callee
+requirements and guarantees: requirements become caller proof obligations,
+while verified guarantees enter the caller's normal-return semantic axioms.
 
-This first call slice is deliberately crash-free and value-only. A callee with
-published crash routes or structural/content contracts rejects because silently
-discarding its crash continuation or custody effects would change the program.
-Those shapes require their own control and structural vertical slices; they are
-not flags on the scalar operation.
+The first crash-capable call slice accepts exact unconditional routes from an
+in-module callee. The continuation set must equal the callee's published crash
+set and every cause must be covered by the caller's published ceiling; an empty
+set therefore cannot erase a crash. Guarded route substitution and imported
+crash capsules remain fail-closed. Structural/content contracts also still
+reject because custody effects require their own vertical slice rather than an
+ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid
-call. Validation rejects recursive call graphs until terminal Psi can carry and
-verify the required tail-position and ranking evidence. Fixed-fuel derivation
-includes complete acyclic callee bounds and retains its own cycle rejection as
-defense in depth.
+call. A callee crash escapes as the original no-successor crash site and uses
+that callee edge's fuel charge; call composition records the surviving route
+without fabricating or double-charging another executable crash. Validation
+rejects recursive call graphs until terminal Psi can carry and verify the
+required tail-position and ranking evidence. Fixed-fuel derivation includes
+complete acyclic callee bounds and retains its own cycle rejection as defense
+in depth.
 
 Omega selects each callee's native calling plan and evaluates arguments into
 disjoint frame spills before filling their ABI homes. Assignment retains
@@ -173,6 +180,12 @@ relocation tied to the exact Psi operation and callee. Conditional-control
 emission preserves live entry registers across condition calls and rebases
 relocations from independently encoded conditions and arms into final function
 order.
+
+An unconditional crash continuation requires no caller-side machine-code
+branch: the verified internal call reaches the emitted callee crash leaf and
+cannot return along that execution. Omega still resolves the typed call
+relocation and preserves the callee leaf; it does not reinterpret a crash as a
+scalar result.
 
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends
