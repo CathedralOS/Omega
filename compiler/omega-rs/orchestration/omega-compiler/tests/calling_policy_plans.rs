@@ -611,8 +611,14 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     );
     assert_eq!(
         (
-            installed.initial_storage().base(),
-            installed.initial_storage().length()
+            installed
+                .initial_storage()
+                .expect("free entry retains whole initial storage")
+                .base(),
+            installed
+                .initial_storage()
+                .expect("free entry retains whole initial storage")
+                .length()
         ),
         (0x8000, 0x2000)
     );
@@ -755,6 +761,87 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .is_file()
     );
 
+    let receiver_binding = installation
+        .binding()
+        .clone()
+        .with_checked_receiver_layout(
+            "&mut Boot".into(),
+            omega_layout::TypeLayout {
+                size: 8,
+                alignment: 8,
+            },
+        )
+        .expect("checked receiver layout should attach to the selected entry");
+    let receiver_artifact_directory = main_path
+        .parent()
+        .expect("temporary policy directory")
+        .join("receiver-completed-installation");
+    let rejected = install_program_storage_entry_roots(
+        &receiver_artifact_directory,
+        receiver_binding,
+        compiler_root_input(401, 0x4000, 0x400),
+        compiler_root_input(402, 0x8003, 11),
+    )
+    .expect_err("receiver alignment and capacity must validate before grant consumption");
+    let ProgramStorageInstallationHandoffError::Rejected(rejected) = rejected else {
+        panic!("receiver capacity failure must precede record emission")
+    };
+    assert!(rejected.diagnostic().0.contains("cannot reserve"));
+    let (receiver_binding, image_input, storage_input) = rejected.into_parts();
+    let receiver_installation = install_program_storage_entry_roots(
+        &receiver_artifact_directory,
+        receiver_binding,
+        image_input,
+        storage_input.with_geometry(0x8003, 0x20),
+    )
+    .expect("returned grants should install after receiver capacity is corrected");
+    let receiver_record = receiver_installation.installation_record();
+    let receiver = receiver_record
+        .receiver()
+        .expect("completed record should retain receiver placement");
+    assert_eq!((receiver.base(), receiver.length()), (0x8008, 8));
+    assert_eq!(receiver.initial_storage_offset(), 5);
+    assert_eq!(
+        receiver.lineage_root(),
+        receiver_record.initial_storage().lineage_root()
+    );
+    let receiver_json = program_storage_installation_record_json(&receiver_record);
+    assert!(receiver_json.contains("\"status\": \"reserved\""));
+    assert!(receiver_json.contains("\"initialization\": \"bridge_required\""));
+    assert!(receiver_json.contains("\"base\": \"0x0000000000008008\""));
+    let receiver_roots = receiver_installation.into_roots();
+    assert!(receiver_roots.initial_storage().is_none());
+    let receiver_storage = receiver_roots
+        .receiver_storage()
+        .expect("nonzero receiver should hold a conserved initial-storage partition");
+    assert_eq!(
+        receiver_storage
+            .before()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x8003, 5))
+    );
+    assert_eq!(
+        receiver_storage
+            .storage()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x8008, 8))
+    );
+    assert_eq!(
+        receiver_storage
+            .after()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x8010, 0x13))
+    );
+    let reserved_partition = receiver_roots
+        .partition_initial_storage(0, 1)
+        .expect_err("a receiver reservation must hide the original whole root");
+    assert!(
+        reserved_partition
+            .diagnostic()
+            .0
+            .contains("already reserves")
+    );
+
     let static_view = installed
         .image_subextent(0x100, 0x80)
         .expect("static geometry stays a borrowed image view");
@@ -798,8 +885,14 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let restored = partitioned.rejoin();
     assert_eq!(
         (
-            restored.initial_storage().base(),
-            restored.initial_storage().length()
+            restored
+                .initial_storage()
+                .expect("rejoined allocation restores whole initial storage")
+                .base(),
+            restored
+                .initial_storage()
+                .expect("rejoined allocation restores whole initial storage")
+                .length()
         ),
         (0x8000, 0x2000)
     );

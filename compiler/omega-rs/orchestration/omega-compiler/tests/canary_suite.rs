@@ -42827,6 +42827,12 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(binding.image().parameter_index(), 0);
     assert_eq!(binding.initial_storage().parameter_index(), 1);
     assert_ne!(binding.boundary_contract_fingerprint(), 0);
+    let receiver = binding
+        .receiver()
+        .expect("receiver-bound entry should retain its checked storage demand");
+    assert!(receiver.type_identity().contains("Boot"));
+    assert_eq!(receiver.byte_size(), 8);
+    assert_eq!(receiver.byte_alignment(), 8);
 
     let manifest = fs::read_to_string(build_dir.join("10_program_storage_entry.json"))
         .expect("program-storage entry manifest should be emitted");
@@ -42835,8 +42841,13 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(manifest.contains("\"domain\": \"Extent::Granted\""));
     assert!(manifest.contains("\"copy_stack_byte_offset\": 32"));
     assert!(manifest.contains("\"copy_stack_byte_offset\": 48"));
+    assert!(manifest.contains("\"status\": \"reservation_required\""));
+    assert!(manifest.contains("\"byte_size\": 8"));
     assert!(manifest.contains("\"status\": \"required\""));
-    assert!(manifest.contains("validate_both_before_consuming_either_grant"));
+    assert!(
+        manifest
+            .contains("validate_geometry_and_receiver_reservation_before_consuming_either_grant")
+    );
 
     fs::write(
         build_dir.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT),

@@ -396,7 +396,27 @@ pub fn program_storage_installation_record_json(
         binding.initial_storage().parameter_index(),
         record.initial_storage(),
     );
-    output.push_str("\n  ]\n}\n");
+    output.push_str("\n  ],\n  \"receiver_storage\": ");
+    if let Some(receiver) = record.receiver() {
+        output.push_str("{\"status\": \"reserved\", \"initialization\": \"bridge_required\", \"activation\": \"one_exclusive_loan\", \"type_identity\": ");
+        push_json_string(&mut output, receiver.type_identity());
+        output.push_str(", \"base\": \"");
+        push_normalized_identity(&mut output, receiver.base());
+        output.push_str("\", \"length\": \"");
+        push_normalized_identity(&mut output, receiver.length());
+        output.push_str("\", \"end\": \"");
+        push_normalized_identity(&mut output, receiver.end());
+        output.push_str("\", \"alignment\": ");
+        output.push_str(&receiver.alignment().to_string());
+        output.push_str(", \"initial_storage_offset\": ");
+        output.push_str(&receiver.initial_storage_offset().to_string());
+        output.push_str(", \"lineage_root\": \"");
+        push_normalized_identity(&mut output, receiver.lineage_root().normalized_identity());
+        output.push_str("\"}");
+    } else {
+        output.push_str("null");
+    }
+    output.push_str("\n}\n");
     output
 }
 
@@ -534,8 +554,20 @@ fn program_storage_entry_manifest_json(binding: &super::ProgramStorageEntryPlanB
     push_program_storage_parameter_json(&mut output, "image", binding.image());
     output.push_str(",\n    ");
     push_program_storage_parameter_json(&mut output, "initial_storage", binding.initial_storage());
+    output.push_str("\n  ],\n  \"receiver_storage\": ");
+    if let Some(receiver) = binding.receiver() {
+        output.push_str("{\"status\": \"reservation_required\", \"type_identity\": ");
+        push_json_string(&mut output, receiver.type_identity());
+        output.push_str(", \"byte_size\": ");
+        output.push_str(&receiver.byte_size().to_string());
+        output.push_str(", \"byte_alignment\": ");
+        output.push_str(&receiver.byte_alignment().to_string());
+        output.push('}');
+    } else {
+        output.push_str("null");
+    }
     output.push_str(
-        "\n  ],\n  \"runtime_installation\": {\n    \"status\": \"required\",\n    \"geometry_source\": \"selected_entry_provider\",\n    \"predicate\": \"no_wrap\",\n    \"admission_order\": \"validate_both_before_consuming_either_grant\"\n  }\n}\n",
+        ",\n  \"runtime_installation\": {\n    \"status\": \"required\",\n    \"geometry_source\": \"selected_entry_provider\",\n    \"predicate\": \"no_wrap\",\n    \"admission_order\": \"validate_geometry_and_receiver_reservation_before_consuming_either_grant\"\n  }\n}\n",
     );
     output
 }

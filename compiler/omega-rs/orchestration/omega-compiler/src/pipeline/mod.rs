@@ -52,13 +52,15 @@ pub use layout_plans::{
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
+    ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
     ProgramStorageInstallationHandoffError, ProgramStorageInstallationRecord,
     ProgramStorageInstalledExtentRecord, ProgramStoragePartitionError,
     ProgramStorageRecordEmissionError, ProgramStorageRootInput,
     ProgramStorageRootInstallationError, RecordedProgramStorageInstallation,
-    SelectedProgramStorageEntryPlan, bind_generated_program_storage_entry_plan,
-    bind_program_storage_entry_plan, install_program_storage_entry_roots,
+    ReservedProgramEntryReceiverStorage, SelectedProgramStorageEntryPlan,
+    bind_generated_program_storage_entry_plan, bind_program_storage_entry_plan,
+    install_program_storage_entry_roots,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, SelectedExternalRootEntryFactBinding,

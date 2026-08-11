@@ -155,7 +155,7 @@ pub(crate) fn selected_program_entry_machine<'config>(
 pub(crate) fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Option<String>, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     let Some(machine) = typed
         .machines()
@@ -277,7 +277,11 @@ pub(crate) fn validate_selected_program_entry_shape(
     }
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(self_parameters.first().map(|receiver| {
+            typed
+                .normalized_type_identity(receiver.type_reference)
+                .into_string()
+        }))
     } else {
         Err(diagnostics)
     }

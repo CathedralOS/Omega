@@ -407,11 +407,16 @@ fingerprint to the generated captures for positions 0 and 1. Both runtime
 geometries must satisfy
 `Granted`'s `no_wrap` predicate before either admitted grant is consumed; a
 rejected handoff returns both grants without importing a complete qualified
-fact. A completed installation produces a non-authoritative audit record with
+fact. A receiver-bound entry additionally validates its checked layout's
+alignment and capacity before either grant is consumed, then reserves a
+conserved owned partition beneath initial storage. The reservation record does
+not establish a value: the physical bridge must still zero those bytes into the
+checked ZII receiver and lend that occurrence once. A completed installation
+produces a non-authoritative audit record with
 the exact binding, geometry, authority metadata, lineage, and whole root-origin
-evidence. The installing handoff releases the roots only after successfully
-emitting its canonical JSON record; a write failure seals the installed roots
-for retry.
+evidence, plus the exact receiver placement when present. The installing
+handoff releases the roots only after successfully emitting its canonical JSON
+record; a write failure seals the installed roots for retry.
 Ordinary compilation only emits the pending contract and removes stale
 completion records. Thus an artifact cannot claim installation merely because
 the compiler selected a target entry. Image sections derive as borrowed

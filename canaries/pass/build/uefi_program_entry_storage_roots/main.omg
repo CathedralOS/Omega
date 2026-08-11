@@ -98,7 +98,12 @@ machine UefiX86_64::plan(
 boundary trait UefiApplication: ProgramStorageEntry + Calling<UefiX86_64> {
 }
 
-machine launch(
+data Boot {
+    launch_count: u64;
+}
+
+machine Boot::launch(
+    &mut self,
     image: Extent in Granted,
     initial_storage: Extent in Granted
 ) {
@@ -106,7 +111,7 @@ machine launch(
         _ -> retain(image as Extent, initial_storage as Extent)
     }
 
-    state retain(image: Extent, initial_storage: Extent) {
+    state retain(&mut self, image: Extent, initial_storage: Extent) {
         transition {
             _ -> retain(image, initial_storage)
         }

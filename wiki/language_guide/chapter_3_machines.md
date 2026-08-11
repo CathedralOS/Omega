@@ -154,10 +154,13 @@ the target schema states how the launch environment supplies those needs.
 > writer cover both provider-issued and compiler-provisioned origins. The
 > installation handoff releases roots only after that record is emitted and
 > seals them for retry across a write failure; ordinary compilation removes
-> stale copies and never claims completion. Binding this portable evidence to
-> the selected physical provider remains. Actual receiver provisioning, corpus
-> migration, and removal of transitional entry-name discovery also remain under
-> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
+> stale copies and never claims completion. Receiver-bound entries now retain
+> their checked layout, reject insufficient or misaligned storage before grant
+> consumption, conserve every reservation remainder, and audit the exact
+> placement. Binding this portable evidence to the selected physical provider,
+> physically zeroing the reservation and lending the ZII occurrence once,
+> corpus migration, and removal of transitional entry-name discovery remain
+> under `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
 ## Parameters And Returns
 
