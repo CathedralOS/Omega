@@ -42,3 +42,19 @@ binds a second target-owned slot for the platform handoff. The decision must
 keep `ProgramStorageEntry::enter` as the sole root-introduction requirement,
 avoid treating firmware handles as `Extent` values, and leave the generated
 bridge with one exact auditable physical ABI and source-visible shape.
+
+## Q3 — Sealed local-capacity declaration form
+
+Compiler provisioning may originate a program-local content root only from an
+owner-authored sealed declaration with declared capacity. The semantic model
+settles that this is a compile-time root origin, not a runtime establishment or
+provider issuance, but no approved source declaration form identifies the
+owner, capacity algebra/value, qualification, and authorized establishment
+route.
+
+Choose that declaration form and where it may appear. The decision must keep
+the declaration owner-unique and sealed, make its finite capacity explicit,
+define whether it provisions one root or a declared family of roots, and bind
+the resulting account to an exact qualification and establishment route.
+Ordinary construction, proof terms, and firing a checked runtime route must not
+be able to reproduce the provisioning evidence.

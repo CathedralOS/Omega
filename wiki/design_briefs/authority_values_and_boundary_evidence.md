@@ -7,6 +7,12 @@ first admitted `Granted` root, and ordinary interrupt
 obligation carriers are live; further provider, carry, resource-frontier, and
 artifact work remains staged in `TASKS.md`.
 
+The target-neutral Extent ledger represents both permitted fresh root origins:
+selected provider issuance with its exact invocation and supply/custody record,
+and compiler provisioning with owner, sealed declaration, route, capacity, and
+qualification identities. The source declaration form for the latter remains
+open as owner Q3.
+
 ## Purpose
 
 Omega represents runtime authority with ordinary data plus compiler-tracked
