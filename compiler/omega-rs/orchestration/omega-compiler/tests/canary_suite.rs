@@ -5217,18 +5217,17 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
 }
 
 #[test]
-fn capability_pass_canaries_compile_in_isolation() {
-    // A focused guard for the capability canaries, independent of the batched
-    // `pass_canaries_compile` sweep (which also covers them).
+fn checked_only_capability_canaries_compile_in_isolation() {
+    // A focused guard for the checked authority-flow canaries, independent of
+    // the batched `pass_canaries_compile` sweep (which also covers them).
     for canary_name in [
         "capabilities/uses_caller_folder",
-        "capabilities/acquires_filesystem_authority",
-        "capabilities/stores_capability",
+        "capabilities/uses_caller_capability_requires",
     ] {
         let canary = pass_canary(canary_name);
-        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+        if let Err(diagnostics) = check_canary(&canary) {
             panic!(
-                "expected capability canary {} to compile, but got diagnostics:\n{}",
+                "expected capability canary {} to reach checked semantics, but got diagnostics:\n{}",
                 canary.display(),
                 diagnostics
                     .iter()
@@ -5263,7 +5262,7 @@ fn signed_rat_metric_canaries_compile_in_isolation() {
 }
 
 #[test]
-fn checked_only_rat_metric_canaries_are_not_backend_umbrella_members() {
+fn checked_only_canaries_are_not_backend_umbrella_members() {
     for canary_name in CHECKED_ONLY_PASS_CANARIES {
         assert!(
             !ACTIVE_PASS_CANARIES.contains(canary_name),
@@ -42796,12 +42795,16 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    "capabilities/uses_caller_folder",
+    "capabilities/uses_caller_capability_requires",
     "proofs/rat_metric_compile",
     "proofs/signed_rat_metric_compile",
     "proofs/cauchy_predicates_compile",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "capabilities/boundary_qualification_subject_rejected",
+    "capabilities/direct_accepted_qualification_rejected",
     "proofs/cauchy_zero_precision_rejected",
     "proofs/nat_metric_false_gap_zero",
     "proofs/rat_metric_false_reflexivity",
@@ -47363,7 +47366,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/boundary_trait_effects_host_call",
     "traits/equatable_sum_stale_payload_exit",
     "traits/dyn_trait_object_dispatch",
-    "capabilities/uses_caller_folder",
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "capabilities/external_leaf_binding_forms",
@@ -48149,7 +48151,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",
     "capabilities/transitive_effect_inference",
-    "capabilities/uses_caller_capability_requires",
     "constraints/multi_fact_contract_without_separators",
     "constraints/proof_machine_order_fact",
     "constraints/nat_proof_literal_suffix",
@@ -48333,8 +48334,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
-    "capabilities/boundary_qualification_subject_rejected",
-    "capabilities/direct_accepted_qualification_rejected",
     "capabilities/native_slice_external_leaf_rejected",
     "capabilities/native_bounded_text_external_leaf_rejected",
     "capabilities/native_vector_external_leaf_rejected",
