@@ -60,10 +60,10 @@ Remaining:
   that last naming fallback; three single-target hosted canaries now exercise
   explicit Windows x86-64, Linux x86-64, and Linux AArch64 bindings. The bulk
   multi-target corpus still needs target-scoped build engineering. Curated
-  Rat/metric, ring, proposition/quotient, higher-order-machine-schema, and
-  static-machine-indexed-data proof clusters now use explicit checked-only
-  harnesses; the rest of the semantic corpus still needs classification away
-  from deployable compilation.
+  Rat/metric, ring, proposition/quotient, higher-order-machine-schema,
+  static-machine-indexed-data, and nonrecursive L0–L6 proof-ladder clusters now
+  use explicit checked-only harnesses; the rest of the semantic corpus still
+  needs classification away from deployable compilation.
   Production/dev checked-tree interpreter callers now receive
   Omega's exact entry choice, and Psi's implicit `Main::main` interpreter
   wrappers are retired. `Main::run` discovery is retired. No ambient `static`
