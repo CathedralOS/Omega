@@ -5,10 +5,9 @@
 //!
 //! This crate consumes only owned terminal machine-code functions. It does not
 //! reconstruct the legacy `EncodedMachineCode` carrier or any source-shaped
-//! lowering state. Current terminal functions contain no calls, data, imports,
-//! or relocations, so final compiler text must be byte-for-byte identical to
-//! the emitted input and every byte must belong to one provenance-bearing
-//! function region.
+//! lowering state. Typed internal-call relocations may change only their exact
+//! architecture-native immediate fields; every other compiler-authored bit and
+//! every provenance-bearing function region remains final-byte validated.
 //!
 //! The adjacent canonical installation record is manifest metadata over the
 //! resulting sealed image. It does not grant executable authority or replace
@@ -20,12 +19,12 @@ pub use installation::*;
 
 use omega_image::{
     CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
-    FinalImageInput, emitted_direct_executable_output,
+    FinalImageInput, emitted_direct_executable_output, validate_final_text_relocation_envelope,
 };
 use omega_object_file::{
-    ObjectContainerInput, ObjectContainerOutput, ObjectPlan, ObjectSymbolHandle, RelocationPlan,
-    SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection, emit_omega_object_container,
-    entry_symbol_name,
+    ObjectContainerInput, ObjectContainerOutput, ObjectPlan, ObjectSymbolHandle, RelocationKind,
+    RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind,
+    SymbolPlan, SymbolSection, emit_omega_object_container, entry_symbol_name,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::TerminalMachineCodePlan;
@@ -124,6 +123,30 @@ pub fn build_terminal_object_artifact(
         if function.bytes.is_empty() {
             return Err(TerminalObjectError::EmptyFunction(function.machine));
         }
+        if function
+            .internal_calls
+            .windows(2)
+            .any(|pair| pair[0].offset >= pair[1].offset)
+        {
+            return Err(TerminalObjectError::NonCanonicalInternalCallOrder(
+                function.machine,
+            ));
+        }
+        let mut call_operations = std::collections::BTreeSet::new();
+        for call in &function.internal_calls {
+            if !function.provenance.operations.contains(&call.psi_operation) {
+                return Err(TerminalObjectError::InternalCallOperationNotInProvenance {
+                    caller: function.machine,
+                    operation: call.psi_operation,
+                });
+            }
+            if !call_operations.insert(call.psi_operation) {
+                return Err(TerminalObjectError::DuplicateInternalCallOperation {
+                    caller: function.machine,
+                    operation: call.psi_operation,
+                });
+            }
+        }
         previous = Some(function.machine);
         saw_entry |= function.machine == plan.entry;
         text_size = text_size
@@ -143,6 +166,7 @@ pub fn build_terminal_object_artifact(
 
     let mut text_bytes = Vec::with_capacity(text_size);
     let mut functions = Vec::with_capacity(plan.functions.len());
+    let mut symbols_by_machine = std::collections::BTreeMap::new();
     for function in &plan.functions {
         let text_offset = text_bytes.len();
         text_bytes.extend_from_slice(&function.bytes);
@@ -162,6 +186,7 @@ pub fn build_terminal_object_artifact(
         if is_entry {
             object.layout.entry_symbol = symbol;
         }
+        symbols_by_machine.insert(function.machine, symbol);
         functions.push(TerminalObjectFunction {
             machine: function.machine,
             provenance: function.provenance.clone(),
@@ -171,14 +196,85 @@ pub fn build_terminal_object_artifact(
         });
     }
 
+    let mut relocations = RelocationPlan::with_record_capacity(
+        plan.target,
+        plan.functions
+            .iter()
+            .map(|function| function.internal_calls.len())
+            .sum(),
+    );
+    for (function, emitted) in plan.functions.iter().zip(&functions) {
+        for call in &function.internal_calls {
+            let target_symbol = symbols_by_machine.get(&call.target).copied().ok_or(
+                TerminalObjectError::UnknownInternalCallTarget {
+                    caller: function.machine,
+                    target: call.target,
+                },
+            )?;
+            let (kind, byte_width) = validate_internal_call_site(
+                plan.target.architecture,
+                function.machine,
+                &function.bytes,
+                *call,
+            )?;
+            let offset = emitted
+                .text_offset
+                .checked_add(call.offset)
+                .ok_or(TerminalObjectError::TextSizeOverflow)?;
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: emitted.symbol,
+                    operation_identity: call.psi_operation.get(),
+                },
+                section: SectionKind::Text,
+                offset,
+                byte_width,
+                symbol_handle: target_symbol,
+                addend: 0,
+                kind,
+            });
+        }
+    }
+
     Ok(TerminalObjectArtifact {
         terminal_psi: plan.terminal_psi,
         target: plan.target,
         entry: plan.entry,
         object,
-        relocations: RelocationPlan::with_target(plan.target),
+        relocations,
         text_bytes,
         functions,
+    })
+}
+
+fn validate_internal_call_site(
+    architecture: Architecture,
+    caller: MachineId,
+    bytes: &[u8],
+    call: omega_terminal_machine_code::TerminalInternalCallRelocation,
+) -> Result<(RelocationKind, usize), TerminalObjectError> {
+    let valid = match architecture {
+        Architecture::X86_64 => {
+            call.offset >= 1
+                && bytes.get(call.offset - 1) == Some(&0xe8)
+                && bytes.get(call.offset..call.offset.saturating_add(4)) == Some(&[0; 4])
+        }
+        Architecture::Aarch64 => {
+            call.offset.is_multiple_of(4)
+                && bytes.get(call.offset..call.offset.saturating_add(4))
+                    == Some(&0x9400_0000u32.to_le_bytes())
+        }
+    };
+    if !valid {
+        return Err(TerminalObjectError::InvalidInternalCallSite {
+            caller,
+            operation: call.psi_operation,
+            offset: call.offset,
+        });
+    }
+    Ok(match architecture {
+        Architecture::X86_64 => (RelocationKind::X86_64Relative32, 4),
+        Architecture::Aarch64 => (RelocationKind::Aarch64Branch26, 4),
     })
 }
 
@@ -217,9 +313,10 @@ pub fn can_emit_terminal_executable_image(target: NativeTarget) -> bool {
 
 /// Emit and validate one direct executable image.
 ///
-/// The current clean lane has no relocation or import vocabulary. Therefore
-/// any final-text mutation, appended thunk, overlapping/missing function span,
-/// or unclassified executable byte is a hard failure.
+/// The clean lane admits only typed internal-call relocations. Final-text
+/// mutation outside their architecture-specific immediate bits, imports,
+/// appended thunks, overlapping/missing function spans, and unclassified
+/// executable bytes are hard failures.
 pub fn emit_terminal_executable_image(
     artifact: &TerminalObjectArtifact,
     subsystem: u16,
@@ -258,8 +355,7 @@ pub fn emit_terminal_executable_image(
         }
     }?;
     let mut output = emitted_direct_executable_output(output);
-    validate_terminal_image(artifact, &output)?;
-    output.compiler_text_validation = Some(exact_text_evidence(&artifact.text_bytes));
+    output.compiler_text_validation = Some(validate_terminal_image(artifact, &output)?);
     Ok(TerminalExecutableImage {
         terminal_psi: artifact.terminal_psi,
         target: artifact.target,
@@ -299,11 +395,18 @@ impl TerminalExecutableImage {
 fn validate_terminal_image(
     artifact: &TerminalObjectArtifact,
     output: &EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    if output.final_text_bytes != artifact.text_bytes {
+) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    if output.final_image_imports != 0 {
         return Err(Diagnostic::error(
-            "terminal-Psi final .text differs from its relocation-free machine-code artifact",
+            "terminal-Psi internal-call image unexpectedly retained imports",
         ));
+    }
+    if output.final_image_relocations != artifact.relocations.record_count() {
+        return Err(Diagnostic::error(format!(
+            "terminal-Psi image retained {} relocation(s), expected {}",
+            output.final_image_relocations,
+            artifact.relocations.record_count()
+        )));
     }
     if let Some(gap) = output.executable_regions.unclassified_gaps.first() {
         return Err(Diagnostic::error(format!(
@@ -341,55 +444,11 @@ fn validate_terminal_image(
             )));
         }
     }
-    Ok(())
-}
-
-fn exact_text_evidence(bytes: &[u8]) -> CompilerTextValidationEvidence {
-    let text_fingerprint = fingerprint_bytes(bytes);
-    let relocation_envelope_fingerprint = FNV_OFFSET;
-    let mut relocation_derivation = FNV_OFFSET;
-    fingerprint_into(&mut relocation_derivation, &text_fingerprint.to_le_bytes());
-    fingerprint_into(&mut relocation_derivation, &text_fingerprint.to_le_bytes());
-    fingerprint_into(
-        &mut relocation_derivation,
-        &relocation_envelope_fingerprint.to_le_bytes(),
-    );
-    fingerprint_into(&mut relocation_derivation, &0_u64.to_le_bytes());
-    let checked_instruction_fingerprint = FNV_OFFSET;
-    let mut derivation_fingerprint = FNV_OFFSET;
-    fingerprint_into(
-        &mut derivation_fingerprint,
-        &relocation_derivation.to_le_bytes(),
-    );
-    fingerprint_into(
-        &mut derivation_fingerprint,
-        &checked_instruction_fingerprint.to_le_bytes(),
-    );
-    fingerprint_into(&mut derivation_fingerprint, &0_u64.to_le_bytes());
-    CompilerTextValidationEvidence {
-        encoded_text_fingerprint: text_fingerprint,
-        final_compiler_text_fingerprint: text_fingerprint,
-        relocation_envelope_fingerprint,
-        checked_instruction_validation_fingerprint: checked_instruction_fingerprint,
-        derivation_fingerprint,
-        text_relocation_count: 0,
-        checked_instruction_validation_count: 0,
-    }
-}
-
-const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-
-fn fingerprint_bytes(bytes: &[u8]) -> u64 {
-    let mut fingerprint = FNV_OFFSET;
-    fingerprint_into(&mut fingerprint, bytes);
-    fingerprint
-}
-
-fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *fingerprint ^= u64::from(*byte);
-        *fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
-    }
+    validate_final_text_relocation_envelope(
+        &artifact.text_bytes,
+        &output.final_text_bytes,
+        &artifact.relocations,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -400,6 +459,24 @@ pub enum TerminalObjectError {
         current: MachineId,
     },
     EmptyFunction(MachineId),
+    NonCanonicalInternalCallOrder(MachineId),
+    UnknownInternalCallTarget {
+        caller: MachineId,
+        target: MachineId,
+    },
+    InvalidInternalCallSite {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+        offset: usize,
+    },
+    InternalCallOperationNotInProvenance {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    DuplicateInternalCallOperation {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
     EntryFunctionMissing(MachineId),
     TextSizeOverflow,
 }

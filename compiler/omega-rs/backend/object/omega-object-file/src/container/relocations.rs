@@ -13,18 +13,26 @@ pub(super) fn write_relocations(
     );
 
     for (_, relocation) in relocations.records() {
-        let (origin_id, origin_symbol, selected_instruction_index) = match relocation.origin {
+        let (origin_id, origin_symbol, origin_identity) = match relocation.origin {
             RelocationOrigin::Instruction {
                 function_symbol_handle,
                 selected_instruction_index,
-            } => (1, function_symbol_handle, selected_instruction_index),
+            } => (
+                1,
+                function_symbol_handle,
+                u64::from(selected_instruction_index),
+            ),
             RelocationOrigin::Materialization {
                 object_symbol_handle,
             } => (2, object_symbol_handle, 0),
+            RelocationOrigin::SemanticOperation {
+                function_symbol_handle,
+                operation_identity,
+            } => (3, function_symbol_handle, operation_identity),
         };
         write_u32(bytes, origin_id);
         write_string(bytes, object_symbol_name(object, origin_symbol));
-        write_u32(bytes, selected_instruction_index);
+        write_u64(bytes, origin_identity);
         write_u32(bytes, section_kind_id(relocation.section));
         write_u64(
             bytes,

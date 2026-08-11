@@ -37,7 +37,7 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
 
     let mut bytes = Vec::new();
     bytes.extend(b"OMGOBJ\0\0");
-    write_u32(&mut bytes, 4);
+    write_u32(&mut bytes, 5);
     write_u32(&mut bytes, architecture_id(input.target.architecture));
     write_u32(&mut bytes, object_format_id(input.target.object_format));
     write_u64(

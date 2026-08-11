@@ -191,6 +191,14 @@ fn write_relocation_record(
             object_symbol_name(backend_plan.object, function_symbol_handle),
             selected_instruction_index
         ),
+        RelocationOrigin::SemanticOperation {
+            function_symbol_handle,
+            operation_identity,
+        } => format!(
+            "semantic operation {} #{}",
+            object_symbol_name(backend_plan.object, function_symbol_handle),
+            operation_identity
+        ),
         RelocationOrigin::Materialization {
             object_symbol_handle,
         } => format!(

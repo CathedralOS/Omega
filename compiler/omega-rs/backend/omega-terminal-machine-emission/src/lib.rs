@@ -217,6 +217,7 @@ fn emit_function(
         machine: function.machine,
         provenance: function.provenance.clone(),
         bytes,
+        internal_calls: Vec::new(),
     })
 }
 
