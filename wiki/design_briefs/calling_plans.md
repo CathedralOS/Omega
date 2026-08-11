@@ -709,9 +709,9 @@ indirect large aggregates, runtime-indexed places, string and bounded-buffer
 operations, compact bit fields, and the built-in OS/runtime catalogs. Dedicated
 no-plan paths exist only as differential oracles.
 
-Remaining work is to finish general plan-driven outbound lowering, derive
-inbound and outbound machinery from the same plan, add state-ceiling-aware
-selection/allocation, and validate composed footprints at the final artifact.
+Remaining work is to derive inbound and outbound machinery from the same plan,
+add state-ceiling-aware selection/allocation, and validate composed footprints
+at the final artifact.
 
 ## Still open
 
