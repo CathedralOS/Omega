@@ -1,4 +1,4 @@
-//! End-to-end versioned scalar terminal-Psi canaries, including host execution.
+//! End-to-end scalar terminal-Psi canaries, including host execution.
 
 use std::path::PathBuf;
 
@@ -12,10 +12,6 @@ use std::{
 #[cfg(unix)]
 static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-use omega_interpreter::{
-    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
-    interpret_terminal_artifact_measured,
-};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan,
@@ -44,6 +40,10 @@ use psi_terminal_codec::{
 };
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, TerminalFuelSchedule};
+use psi_terminal_interpreter::{
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
+};
 use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
 
 fn interpret_verified_artifact(

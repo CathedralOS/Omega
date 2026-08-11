@@ -16,10 +16,6 @@ use omega_external_roots::{
     FixedFuelProviderSummary, ProviderFuelSummaryId, RootProviderId,
     bind_installed_terminal_entry_fuel, compose_fixed_fuel, validate_installed_terminal_entry_fuel,
 };
-use omega_interpreter::{
-    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
-    TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_artifact_measured,
-};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
@@ -65,6 +61,10 @@ use psi_terminal_codec::{
 };
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use psi_terminal_interpreter::{
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
+    TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_artifact_measured,
+};
 use psi_terminal_verifier::{VerifiedTerminalModule, verify_module};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -137,7 +137,7 @@ fn expected_crash(module: &TerminalModule) -> TerminalExecutionStatus {
                 cause,
                 site_guard,
                 frontier_lower_bound,
-            } => Some(omega_interpreter::TerminalCrash {
+            } => Some(psi_terminal_interpreter::TerminalCrash {
                 edge: *edge,
                 cause: *cause,
                 site_guard: site_guard.clone(),
@@ -1563,7 +1563,7 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
             execution
                 .resume(&mut meter)
                 .expect("staged-local crash should execute"),
-            TerminalExecutionStatus::Crashed(omega_interpreter::TerminalCrash {
+            TerminalExecutionStatus::Crashed(psi_terminal_interpreter::TerminalCrash {
                 cause: CrashCause::Abort,
                 ..
             })

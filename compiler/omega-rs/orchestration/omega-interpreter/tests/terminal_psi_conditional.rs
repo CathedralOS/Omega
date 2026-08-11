@@ -1,7 +1,3 @@
-use omega_interpreter::{
-    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
-    interpret_terminal_artifact_measured,
-};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan,
@@ -32,6 +28,10 @@ use psi_terminal_fixed_fuel::{
     validate_fixed_safe_point_segments,
 };
 use psi_terminal_fuel::FuelChargeSite;
+use psi_terminal_interpreter::{
+    MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
+};
 use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
 
 fn interpret_verified_artifact(

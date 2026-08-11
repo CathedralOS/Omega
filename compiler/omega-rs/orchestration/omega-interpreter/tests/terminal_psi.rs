@@ -1,8 +1,3 @@
-use omega_interpreter::{
-    TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
-    TerminalInterpretError, TerminalScalarValue, interpret_terminal_artifact,
-    interpret_terminal_artifact_measured,
-};
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
@@ -18,6 +13,11 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use psi_terminal_interpreter::{
+    TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionStatus,
+    TerminalInterpretError, TerminalScalarValue, interpret_terminal_artifact,
+    interpret_terminal_artifact_measured,
+};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]

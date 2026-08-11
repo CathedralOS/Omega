@@ -660,6 +660,7 @@ dependencies = [
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
  "psi-terminal-fuel",
+ "psi-terminal-interpreter",
  "psi-terminal-verifier",
  "psi-typed-trees",
 ]
@@ -1484,6 +1485,18 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "psi-terminal-interpreter"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+ "psi-proof-kernel",
+ "psi-terminal",
+ "psi-terminal-codec",
+ "psi-terminal-fuel",
+ "psi-terminal-verifier",
 ]
 
 [[package]]
