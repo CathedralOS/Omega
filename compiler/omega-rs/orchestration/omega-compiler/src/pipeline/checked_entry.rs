@@ -14,11 +14,16 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
+    selected_program_entry_machine: Option<String>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     task_activations: omega_task_plans::TaskActivationPlanSet,
 }
 
 impl CheckedCompilation {
+    pub fn selected_program_entry_machine(&self) -> Option<&str> {
+        self.selected_program_entry_machine.as_deref()
+    }
+
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
         &self.selected_provider_plans
     }
@@ -105,6 +110,9 @@ pub fn compile_to_checked(
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
     let build_config =
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+    let selected_program_entry_machine =
+        crate::pipeline::build_config::selected_program_entry_machine(&build_config, target_name)?
+            .map(|entry| entry.machine_name.to_owned());
     let target_provider_defaults = crate::pipeline::build_config::compute_target_provider_defaults(
         &typed,
         &target_default_machine_names,
@@ -166,6 +174,7 @@ pub fn compile_to_checked(
     // caller (this is the only owner at this point in the pipeline).
     Ok(CheckedCompilation {
         program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
+        selected_program_entry_machine,
         selected_provider_plans: selected_provider_plan_facts,
         task_activations,
     })
