@@ -534,6 +534,12 @@ impl Compiler {
                 self.executable_tcb_policy.profile.as_ref(),
             )?;
         checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
+        let callback_bindings =
+            crate::pipeline::callback_plans::elaborate_static_callback_binding_plans(
+                &checked.program,
+                &boundary_calling_plan_realizations,
+            )?;
+        checked.callback_bindings = Arc::new(callback_bindings);
         crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),
