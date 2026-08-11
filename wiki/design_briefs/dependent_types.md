@@ -319,11 +319,13 @@ may-write equations to a fixed point and instantiates the result through
 resolved callers. Within one state, a direct `self` loop, or an acyclic named
 state graph, a stable local mutable alias initialized from an exact non-indexed
 `self` or state-parameter place substitutes that origin through positional
-transition arguments, including member suffixes and resolved calls. Potential
-rebinding, local/computed/indexed origins, alias chains, and transport through a
-named state SCC remain opaque. Non-bijective, computed, or otherwise
-unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
-`TASKS.md` R5 owns further relational candidates.
+transition arguments, including member suffixes and resolved calls. A stable
+bare local reborrow (`let child: &mut T = &mut parent`) flattens through an
+already-exact parent alias to that same origin. Potential rebinding,
+local/computed/indexed origins, projected or call-produced alias chains, and
+transport through a named state SCC remain opaque. Non-bijective, computed, or
+otherwise unrepresentable cyclic rebinding retains only the coarse ownership
+ceiling; `TASKS.md` R5 owns further relational candidates.
 
 ## 6. Dynamic lowering — the runtime half
 

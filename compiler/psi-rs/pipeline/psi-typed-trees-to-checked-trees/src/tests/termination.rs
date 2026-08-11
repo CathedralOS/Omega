@@ -2412,6 +2412,51 @@ fn write_frame_substitutes_exact_local_exclusive_alias_origins() {
     machine Main::call_alias_parameter_named(&mut self) {
         alias_parameter_named(&mut self.value);
     }
+
+    machine Main::local_alias_chain(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        let third: &mut u64 = &mut second;
+        third = 10;
+    }
+
+    machine Main::local_alias_chain_member_write(&mut self) {
+        let first: &mut Cell = &mut self.cell;
+        let second: &mut Cell = &mut first;
+        second.value = 11;
+    }
+
+    machine Main::local_alias_chain_call(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        write_local_alias(second);
+    }
+
+    machine alias_parameter_chain(value: &mut u64) {
+        let first: &mut u64 = &mut value;
+        let second: &mut u64 = &mut first;
+        second = 12;
+    }
+
+    machine Main::call_alias_parameter_chain(&mut self) {
+        alias_parameter_chain(&mut self.value);
+    }
+
+    machine Main::local_alias_chain_self_loop(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        second = 13;
+        transition { _ -> self }
+    }
+
+    machine Main::named_alias_chain(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        transition { _ -> finish(second) }
+        state finish(&mut self, value: &mut u64) {
+            value = 14;
+        }
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -2434,6 +2479,13 @@ fn write_frame_substitutes_exact_local_exclusive_alias_origins() {
         ("Main::named_alias_member", "self.cell.value"),
         ("alias_parameter_named", "$P0"),
         ("Main::call_alias_parameter_named", "self.value"),
+        ("Main::local_alias_chain", "self.value"),
+        ("Main::local_alias_chain_member_write", "self.cell.value"),
+        ("Main::local_alias_chain_call", "self.value"),
+        ("alias_parameter_chain", "$P0"),
+        ("Main::call_alias_parameter_chain", "self.value"),
+        ("Main::local_alias_chain_self_loop", "self.value"),
+        ("Main::named_alias_chain", "self.value"),
     ];
     for (name, expected_path) in expected {
         let machine = typed
@@ -2458,7 +2510,8 @@ fn write_frame_substitutes_exact_local_exclusive_alias_origins() {
 #[test]
 fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
     let source = r#"
-    data Main { value: u64; other: u64; cells: [u64; 2]; }
+    data Cell { value: u64; }
+    data Main { value: u64; other: u64; cell: Cell; cells: [u64; 2]; }
 
     machine Main::rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
@@ -2466,9 +2519,29 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         alias = 1;
     }
 
-    machine Main::alias_chain(&mut self) {
+    machine Main::alias_chain_upstream_rebind(&mut self) {
         let first: &mut u64 = &mut self.value;
         let second: &mut u64 = &mut first;
+        first = &mut self.other;
+        second = 2;
+    }
+
+    machine Main::alias_chain_leaf_rebind(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        second = &mut self.other;
+        second = 2;
+    }
+
+    machine Main::alias_chain_member_projection(&mut self) {
+        let first: &mut Cell = &mut self.cell;
+        let second: &mut u64 = &mut first.value;
+        second = 2;
+    }
+
+    machine Main::alias_chain_indexed_projection(&mut self) {
+        let first: &mut [u64; 2] = &mut self.cells;
+        let second: &mut u64 = &mut first[0];
         second = 2;
     }
 
@@ -2487,22 +2560,40 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         value = 5;
     }
 
+    machine return_alias(value: &mut u64) -> &mut u64 {
+        value
+    }
+
     machine Main::call_rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
         overwrite_alias_binding(&mut alias);
     }
 
+    machine Main::call_escaped_alias_chain(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut first;
+        overwrite_alias_binding(&mut second);
+    }
+
+    machine Main::call_produced_alias_chain(&mut self) {
+        let first: &mut u64 = return_alias(&mut self.value);
+        let second: &mut u64 = &mut first;
+        second = 3;
+    }
+
     machine Main::named_alias_cycle(&mut self) {
         transition { _ -> cycle() }
         state cycle(&mut self) {
-            let alias: &mut u64 = &mut self.value;
-            alias = 4;
+            let first: &mut u64 = &mut self.value;
+            let second: &mut u64 = &mut first;
+            second = 4;
             transition { _ -> cycle() }
         }
     }
 
     machine Main::named_alias_multistate_cycle(&mut self) {
-        let alias: &mut u64 = &mut self.value;
+        let root: &mut u64 = &mut self.value;
+        let alias: &mut u64 = &mut root;
         transition { _ -> first(alias) }
         state first(&mut self, value: &mut u64) {
             transition { _ -> second(value) }
@@ -2544,10 +2635,15 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
 
     for name in [
         "Main::rebound_alias",
-        "Main::alias_chain",
+        "Main::alias_chain_upstream_rebind",
+        "Main::alias_chain_leaf_rebind",
+        "Main::alias_chain_member_projection",
+        "Main::alias_chain_indexed_projection",
         "Main::local_origin",
         "Main::indexed_alias",
         "Main::call_rebound_alias",
+        "Main::call_escaped_alias_chain",
+        "Main::call_produced_alias_chain",
         "Main::named_alias_cycle",
         "Main::named_alias_multistate_cycle",
         "Main::named_alias_downstream_cycle",

@@ -302,10 +302,11 @@ customer-shaped compiler concept is introduced.
   bijective permutations, including resolved caller instantiation. Stable
   single-state, direct-self-loop, and acyclic named-state local mutable aliases
   now substitute exact `self` or state-parameter origins through positional
-  transition arguments; rebinding, local/computed/indexed origins, alias chains,
-  and named-SCC transport remain opaque. Continue with other representable
-  relational candidates; non-bijective or computed cyclic rebinding remains
-  opaque. Do not restore an authored `stores` clause.
+  transition arguments; stable bare local reborrow chains flatten to the same
+  exact origin. Rebinding, local/computed/indexed origins, projected or
+  call-produced chains, and named-SCC transport remain opaque. Continue with
+  other representable relational candidates; non-bijective or computed cyclic
+  rebinding remains opaque. Do not restore an authored `stores` clause.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
