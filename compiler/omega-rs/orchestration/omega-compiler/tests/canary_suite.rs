@@ -42801,6 +42801,17 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
 }
 
 #[test]
+fn checked_compilation_retains_the_exact_selected_program_entry() {
+    let canary = pass_canary("build/explicit_program_entry_binding");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x64"))
+        .expect("explicit entry canary should reach checked semantics");
+
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+    let outcome = psi_checked_interpreter::interpret_entry(&checked, "launch", &[]);
+    assert_eq!(outcome.error, None);
+}
+
+#[test]
 fn uefi_program_entry_retains_exact_storage_root_binding() {
     let canary = pass_canary("build/uefi_program_entry_storage_roots");
     let build_dir = std::env::temp_dir().join(format!(

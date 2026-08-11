@@ -78,7 +78,11 @@ fn main() {
     if both {
         match compile_to_checked(&main_path, None) {
             Ok(checked) => {
-                let outcome = psi_checked_interpreter::interpret(&checked, &[]);
+                let outcome = if let Some(entry) = checked.selected_program_entry_machine() {
+                    psi_checked_interpreter::interpret_entry(&checked, entry, &[])
+                } else {
+                    psi_checked_interpreter::interpret(&checked, &[])
+                };
                 if let Some(reason) = &outcome.error {
                     eprintln!("interp: DECLINED ({reason})");
                 } else {
