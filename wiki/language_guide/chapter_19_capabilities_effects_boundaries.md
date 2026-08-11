@@ -261,7 +261,7 @@ compiled consumer.
 
 No masking, subtraction, scoped allowance, or algebraic handlers exist. A
 checked in-memory Readable provider can remove a trust receipt and refine
-operational behavior, but the abstract Readable reach remains visible. V1 also
+operational behavior, but the abstract Readable reach remains visible. Omega
 has no quantitative service members: heap/region bounds use capability contracts;
 task and version capacity use their own declared budgets.
 
@@ -412,7 +412,7 @@ Console boundaries should use the same shape:
 ```omega
 // The result of a byte-level read. `Eof` is ordinal 0: a zero-initialized
 // ByteRead IS end-of-input -- ZII, no sentinel value anywhere (ruled
-// 2026-07-16; the -1 spelling was rejected as legacy non-ZII).
+// 2026-07-16; the -1 spelling was rejected as non-ZII).
 data ByteRead {
     case Eof;
     case Byte(value: i32 [0..=255]);
@@ -453,24 +453,11 @@ for free, and native lowerings exploit the ZII rule directly (the result
 slot is pre-zeroed; only an arrived byte writes the non-zero tag, so the
 EOF path executes no write at all).
 
-Implementation state: the standard Console is a boundary trait with canonical
-service rows. Each hosted target package selects one complete
-`ConsoleNativeProvider` plan. Its friendly `write` and `write_line` members are
-ordinary checked Omega adapters over `write_byte`: they accept a borrowed byte
-view directly and walk it with a measured state machine. The remaining rows use
-the closed `Binding::CompilerIntrinsic` case to select compiler-owned target
-lowerings; this case installs no foreign binding and must exactly name an
-existing `Trait::method` lowering on the selected target. `read_line` therefore
-retains a mutable byte view without publishing it as a foreign ABI. Its
-owned-destination route requires a concrete `[u8; N]::D` carrier at the call
-site: boundary planning derives `N` from that place, writes directly into its
-inline bytes, and establishes the carrier's runtime length. A shorter carrier
-never inherits the old implementation's 256-byte scratch ceiling.
-
-Bounded in-place text construction is likewise proof-carrying: straight-line
-reaching writes supply the current maximum length, overlapping writes invalidate
-it, and calls or opaque service reach erase it conservatively. The provider never
-receives a request to append beyond the destination's proved capacity.
+Each hosted target selects one complete Console provider. Friendly sequence
+operations remain checked Omega adapters over the provider's byte operations;
+compiler-owned leaves must name an exact registered requirement lowering. An
+owned read destination derives its capacity from the actual place, and bounded
+text writes must prove they fit that capacity.
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
@@ -486,8 +473,8 @@ boundary trait Filesystem {
 }
 ```
 
-The same idea likely extends to text encodings and ABI string constraints.
-Instead of growing separate surface types such as `CString`, `OsString`, or
+The same rule applies to text encodings and ABI string constraints. Instead of
+growing separate surface types such as `CString`, `OsString`, or
 `Utf16String`, a boundary should usually ask for the string domains it
 actually needs:
 
@@ -979,146 +966,34 @@ There is no general `ExecutableMemory` grant to classify. Executable
 installation accepts only an already-admitted immutable artifact and an exact
 authorized destination.
 
-## Invariant Parameters
+## Views, domains, and foreign shapes
 
-Imported signatures should lean on invariant-parameterized types rather than
-duplicating normal type facts in ad-hoc `requires` clauses.
+Imported signatures use ordinary types, domain qualifications, and contracts;
+there is no parallel invariant-parameter list. For example, `&[u8]::NonEmpty`
+or `&[u8]::Utf8 & NoNul` carries the same owner-defined facts used everywhere
+else in Omega.
 
-```omega
-&[u8, [non_empty, initialized]]
-&mut [u8, [writable, initialized]]
-HANDLE<[process, vm_read]>
-RemoteBuffer<const u8, [readable_by<process>]>
-```
+`Array` owns fixed inline storage, `Vec` owns dynamic contiguous storage, and
+both borrow as `Slice`. Text is bytes plus an encoding domain: `[u8; N]::Utf8`,
+`Vec<u8>::Utf8`, and `&[u8]::Utf8` are owned, growable, and borrowed forms of
+the same semantic content. Public declarations expose browsable contracts such
+as `Slice::range` and proof views such as `Slice::Length`; private pointer,
+length, capacity, and provenance carriers remain compiler-managed.
 
-The invariant names are resolved in the namespace of the type being
-instantiated. `&[u8, [initialized]]` and `HANDLE<[initialized]>` do not
-have to mean the same thing.
-
-A type can define which invariant parameters it accepts:
-
-```omega
-builtin slice &[T, I]
-    where I subset {non_empty, initialized}
-    exposes len: u64
-    invariant non_empty = len > 0
-    invariant initialized = elements.initialized
-
-builtin slice &mut [T, I]
-    where I subset {non_empty, initialized, writable}
-    exposes len: u64
-    invariant non_empty = len > 0
-    invariant initialized = elements.initialized
-    invariant writable = elements.writable
-```
-
-The exact declaration syntax is provisional. The important point is that
-`&[T]` and `&mut [T]` are built-in borrowed slice-view types with a core
-semantic surface, not ordinary user-defined machines. They expose proof-visible
-facts such as `len`, and they define the invariant names that callers may
-attach to that slice view.
-
-The public semantic name should be short and browsable, such as `Slice`, even
-if the compiler lowers it through a private descriptor such as pointer plus
-length. Users should be able to navigate to names like `Slice::Length` and
-read the ordering or measure the proof checker uses. They should not need to
-inspect the raw pointer carrier used by code generation.
-
-The same split applies to the core collection and text concepts:
-
-- `Array` owns fixed-size inline storage and can borrow as `Slice`.
-- `Vec` owns dynamic contiguous storage and can borrow as `Slice`.
-- Text is not a separate carrier: `[u8; N]::Utf8` is bounded owned text,
-  `Vec<u8>::Utf8` is the eventual growable form, and `&[u8]::Utf8` is the
-  borrowed window. The text window is the ordinary `{ptr,len}` byte-slice
-  descriptor plus a carried domain fact.
-- Low-level carriers such as `Ptr` or buffer descriptors may exist in core or
-  a primitive layer, but they are the boundary where boundary/compiler-managed
-  representation begins.
-
-Working private carrier model:
-
-- `Slice<T>` / `&[T]` lowers to a descriptor containing a primitive element
-  pointer plus a length.
-- `&mut [T]` uses the same descriptor shape, plus the type/borrow checker owns
-  the uniqueness and writable-region facts.
-- `&[u8]::Utf8` lowers to a byte pointer plus live byte length; the domain
-  fact states that those bytes satisfy the selected encoding.
-- `Array<T, N>` owns inline storage and can produce a slice descriptor whose
-  base points at the first element and whose length is `N`.
-- `Vec<T>` owns a growable buffer carrier with base pointer, length, capacity,
-  and allocator/runtime provenance.
-- `[u8; N]::Utf8` owns `{len, inline bytes}`; `Vec<u8>::Utf8` will use the
-  ordinary vector carrier plus the same text-domain facts once allocation is
-  available.
-- `Ptr<T>` and pointer-range construction are primitive-boundary concepts, not
-  ordinary fields users manipulate through safe collection APIs.
-
-This keeps the magic boundary narrow. Core declarations expose contracts such
-as `Slice::range`; private carriers and boundary primitive providers implement
-descriptor rewrites and pointer offsets after the proof obligations are
-satisfied. Allocation is reached through an explicit `Arena`; `Vec` has no
-ambient constructor that silently selects an allocator.
-
-This sketch needs more design work, but the direction is important:
-
-- Callers name exported invariants.
-- Invariant names are scoped to the type that defines them.
-- The type implementation maps public invariant names to private facts.
-- Callers should not need to know private field layout to state proof
-  requirements.
-- Safe Omega source does not expose raw pointer fields for ordinary slices or
-  vectors. Address-level representation belongs to compiler/runtime lowering
-  and explicit boundary modeling, not the normal surface language.
-- Core operators such as slice indexing and subslicing should have visible
-  signatures and contracts; their implementations may be bound to explicitly
-  boundary compiler/runtime primitives below the public core surface.
-
-Private carriers do not define native boundary ABI. A calling policy may
-structurally classify a value only when its public normalized semantic/layout
-contract determines the ABI-relevant facts. Fixed arrays and fixed records meet
-that test and are classified or rejected under the selected platform policy.
-Byte size alone is never sufficient, and Omega never applies C source-level
-array decay.
-
-Safe slices, text views, vectors, and bounded text carriers deliberately leave
-foreign choices unstated. Their private `{pointer, length}` or
-`{pointer, length, capacity}` lowering is therefore not a stable boundary
-descriptor. A native leaf declares the counterparty's actual shape: separate
-pointer and length parameters, a null-terminated pointer, or a declared record
-only when the foreign API genuinely takes that record. A checked adapter scopes
-a borrowed-out pointer for a synchronous call. An API whose foreign use
-survives return instead consumes the backing keepalive/authority into an
-ordinary linear protocol claim and returns it only at a protocol-correlated
-completion; it is not a long borrow. Conservation maps the consumed input into
-the produced claim, so a bare borrow cannot establish such a result.
-Process-lifetime retention requires an already-established static or
-process-lifetime root; Omega currently has no general permanent-custodian
-surface. Foreign-owned views use ordinary borrows when exclusive receiver
-access dominates every invalidator, and explicit linear view claims otherwise.
-Text crosses as bytes, with `Utf8` forgotten outbound or validated and
-established inbound.
+Those private carriers do not define a foreign ABI. A calling policy may
+classify a value only when its public normalized semantic/layout contract fixes
+the ABI facts. Otherwise the native leaf declares the counterparty's actual
+shape—separate pointer and length, null-terminated pointer, or a declared
+record—and a checked adapter performs the conversion. Foreign retention must
+consume a backing keepalive or authority into a linear protocol claim; a bare
+borrow cannot survive return.
 
 `addr` and `Ptr<T>` are inert representation carriers, never memory authority.
-Calling and marshaling policies may explain how parameters encode an extent,
-but safe types, ownership, `requires`, and `ensures` state what may be accessed
-and when it returns. A selected provider era is retained only by values whose
-meaning depends on that exact era; a rebindable service binding names a slot
-and creates no old-era pin.
-
-Accordingly, core does not publish raw `Ptr::read` or `Ptr::write` operations.
-Pointer offset/range primitives transform an inert carrier only. A
-`PointerAccess` provider category is reserved for authority-bearing view
-implementations; registering such a provider never turns possession of a raw
-pointer into access authority.
-
-The rule is one test: when the semantic type determines the ABI, the policy may
-classify it; when ABI facts remain choices, the leaf must declare them. A custom
-`Calling<C>` policy may explicitly publish a canonical descriptor ABI, but the
-compiler never infers one from a private carrier.
-
-Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
-extra invariant parameters.
+Core exposes no raw `Ptr::read` or `Ptr::write`; access requires an
+authority-bearing view. Allocation likewise comes through an explicit arena or
+provider, never an ambient `Vec` constructor. The single rule is: when the
+semantic type fixes the ABI, a policy may classify it; when it leaves choices,
+the leaf must state them.
 
 ## Boundary evidence and authority values
 
