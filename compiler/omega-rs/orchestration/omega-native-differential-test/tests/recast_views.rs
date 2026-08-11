@@ -1,14 +1,14 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
 use omega_compiler::compile_to_checked;
-use omega_interpreter::interpret;
+use psi_checked_interpreter::interpret;
 use std::path::{Path, PathBuf};
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
-        .expect("omega-interpreter lives under compiler/orchestration/omega-interpreter")
+        .expect("omega-native-differential-test lives under compiler/omega-rs/orchestration")
         .to_path_buf()
 }
 

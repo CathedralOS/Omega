@@ -677,7 +677,7 @@ fn typed_frontend_does_not_retain_concrete_calling_conventions() {
 }
 
 #[test]
-fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
+fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
     let root = workspace_root();
     assert!(
         root.join("compiler/psi-rs/semantics/psi-terminal-interpreter/src/lib.rs")
@@ -685,10 +685,20 @@ fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
         "canonical terminal-Psi reference execution must remain Psi-owned"
     );
     assert!(
+        root.join("compiler/psi-rs/semantics/psi-checked-interpreter/src/lib.rs")
+            .is_file(),
+        "transitional checked-tree reference execution must remain Psi-owned"
+    );
+    assert!(
         !root
-            .join("compiler/omega-rs/orchestration/omega-interpreter/src/terminal_psi.rs")
+            .join("compiler/omega-rs/orchestration/omega-interpreter")
             .exists(),
-        "Omega's legacy checked-tree interpreter must not reclaim terminal-Psi execution"
+        "the retired production Omega interpreter must not return"
+    );
+    assert!(
+        root.join("compiler/omega-rs/orchestration/omega-native-differential-test/src/lib.rs")
+            .is_file(),
+        "cross-layer interpreter/native comparisons must remain a test-only Omega harness"
     );
 
     let graph = load_graph();

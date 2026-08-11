@@ -6,7 +6,7 @@
 //! machinery makes (programmable_layouts.md).
 
 use omega_compiler::compile_to_checked;
-use omega_interpreter::{
+use psi_checked_interpreter::{
     BuildTimeValue, evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret,
 };
 use std::fs;

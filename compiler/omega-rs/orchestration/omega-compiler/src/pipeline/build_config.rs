@@ -28,7 +28,7 @@
 //!   declaration harvested from the same authoritative build machine. It
 //!   selects the exact source entry and performs no name-based discovery.
 
-use omega_interpreter::BuildTimeValue;
+use psi_checked_interpreter::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
@@ -602,18 +602,18 @@ pub(crate) fn compute_build_config(
     // build runs the granted entry (real filesystem, unscoped under the
     // current owner policy).
     let mut arguments = if transitive.is_empty() {
-        omega_interpreter::evaluate_build_time_machine_arguments(
+        psi_checked_interpreter::evaluate_build_time_machine_arguments(
             typed,
             machine_name,
             vec![zero_build],
         )
     } else {
-        omega_interpreter::evaluate_build_machine_with_filesystem(
+        psi_checked_interpreter::evaluate_build_machine_with_filesystem(
             typed,
             machine_name,
             vec![zero_build],
-            omega_interpreter::InterpretOptions {
-                filesystem: omega_interpreter::FilesystemAccess::RealUnscoped,
+            psi_checked_interpreter::InterpretOptions {
+                filesystem: psi_checked_interpreter::FilesystemAccess::RealUnscoped,
             },
         )
     }

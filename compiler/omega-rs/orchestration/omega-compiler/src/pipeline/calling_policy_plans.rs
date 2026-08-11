@@ -11,7 +11,7 @@ use omega_calling_conventions::{
     SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
     ValueShape, evaluate_ordinary_boundary_entry_plan, validate_boundary_plan_result,
 };
-use omega_interpreter::BuildTimeValue;
+use psi_checked_interpreter::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -927,7 +927,7 @@ fn evaluate_materialized_calling_policy_plan(
         .ok_or_else(|| format!("no calling-policy machine named `{policy_machine}` exists"))?;
     admission.require_common_floor(typed, machine)?;
 
-    let value = omega_interpreter::evaluate_build_time_machine(
+    let value = psi_checked_interpreter::evaluate_build_time_machine(
         typed,
         policy_machine,
         vec![build_boundary_signature(signature)],

@@ -6131,7 +6131,7 @@ fn runtime_time_host_virtual_interpreter_oracle() {
     let canary = pass_canary("time/runtime_time_host_virtual_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("time host virtual canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "time host ops should interpret cleanly"
@@ -6154,7 +6154,7 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
     let canary = pass_canary("time/runtime_time_elapsed_since_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("elapsed-since canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "elapsed-since chain should interpret cleanly"
@@ -6572,7 +6572,7 @@ fn runtime_checked_time_arith_exit_canary_runs() {
     let canary = pass_canary("time/runtime_checked_time_arith_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("checked time arith canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "checked arith should interpret cleanly"
@@ -6613,7 +6613,7 @@ fn runtime_sleep_for_exit_canary_runs() {
     let canary = pass_canary("time/runtime_sleep_for_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("sleep_for canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "sleep_for should interpret cleanly");
     assert_eq!(
         outcome.exit_code, 70,
@@ -6653,7 +6653,7 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
     let canary = pass_canary("time/runtime_system_time_after_2026_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("system-time canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "system-time chain should interpret cleanly"
@@ -6694,7 +6694,7 @@ fn runtime_instant_elapsed_exit_canary_runs() {
     let canary = pass_canary("time/runtime_instant_elapsed_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("instant elapsed canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "instant chain should interpret cleanly"
@@ -6799,7 +6799,7 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
     let canary = pass_canary("time/runtime_fs_mtime_system_time_interop_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("fs-time interop canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "interop should interpret cleanly");
     assert_eq!(
         outcome.exit_code, 70,
@@ -6842,7 +6842,7 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
     let canary = pass_canary("time/runtime_fs_mtime_interop_windows_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("windows fs-time interop canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "interop should interpret cleanly");
     assert_eq!(
         outcome.exit_code, 70,
@@ -6878,7 +6878,7 @@ fn runtime_duration_totals_exit_canary_runs() {
     let canary = pass_canary("time/runtime_duration_totals_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration totals canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "totals should interpret cleanly");
     assert_eq!(
         outcome.exit_code, 70,
@@ -6914,7 +6914,7 @@ fn runtime_duration_constructors_interpreter_oracle() {
     let canary = pass_canary("time/runtime_duration_constructors_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration constructors canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "constructors should interpret cleanly");
     assert_eq!(
         outcome.exit_code, 70,
@@ -6935,7 +6935,7 @@ fn runtime_duration_core_exit_canary_runs() {
     let canary = pass_canary("time/runtime_duration_core_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration core canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for the Duration chain, got {}",
@@ -9054,7 +9054,7 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("carrier byte-write coercion canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (carrier byte write coerces to u8), got {}",
@@ -16032,7 +16032,7 @@ fn sum_field_storage_roundtrip_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("sum field-storage canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (sum tag+payload survive field round-trip), got {}",
@@ -16074,7 +16074,7 @@ fn sum_mixed_width_payload_layout_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("sum mixed-width payload canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for mixed-width payload reads, got {}",
@@ -18528,7 +18528,7 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("whole-struct mutation copy canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (both fields survive the copy), got {}",
@@ -18944,7 +18944,7 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("saturating multiply canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (+overflow->INT_MAX, -overflow->INT_MIN), got {}",
@@ -18984,7 +18984,7 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("saturating INT_MIN/-1 canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (INT_MIN/-1 clamps to INT_MAX, %0), got {}",
@@ -19025,7 +19025,7 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("wrapping INT_MIN/-1 canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (INT_MIN/-1 wraps to INT_MIN, %0), got {}",
@@ -19100,7 +19100,7 @@ fn runtime_shift_right_signedness_canary_runs() {
     // Interpreter oracle first: it must agree the exit is 70.
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("shift-right signedness canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (sar for signed, shr for unsigned), got {}",
@@ -19147,7 +19147,7 @@ fn const_fold_saturating_narrow_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("saturating narrow const-fold canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should clamp narrow saturating folds (exit 70), got {}",
@@ -19193,7 +19193,7 @@ fn const_fold_wrapping_narrow_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("wrapping narrow const-fold canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should wrap narrow folds to width (exit 70), got {}",
@@ -19238,7 +19238,7 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("adapter-dispatch canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "interpreter dispatches the adapter");
 
     let build_dir =
@@ -19268,7 +19268,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("checked boundary-operator canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter dispatches the selected checked operator body; error: {:?}",
@@ -19306,7 +19306,7 @@ fn runtime_result_domain_requirement_overload_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("result-overloaded provider requirements should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must dispatch each exact requirement overload; error: {:?}",
@@ -19345,7 +19345,7 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("selected-provider adapter canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must dispatch only the selected SecondProvider adapter; error: {:?}",
@@ -19437,7 +19437,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
             && call_targets.contains(&"ConsoleNativeProvider::write_line"),
         "std Console composite calls must rewrite to the selected nominal adapters: {call_targets:?}"
     );
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "forwarding adapter should interpret cleanly"
@@ -19484,7 +19484,7 @@ fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("boundary capability should forward through a state parameter");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);
     assert_eq!(outcome.stdout, b"K".to_vec());
@@ -19520,7 +19520,7 @@ fn runtime_console_byte_literal_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("byte-literal canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "byte-literal writes should interpret cleanly"
@@ -19657,7 +19657,7 @@ fn mutual_cycle_tail_admitted_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("admitted mutual tail cycle should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should run the admitted cycle to 0 (exit 70), got {}",
@@ -19705,7 +19705,7 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("landed-ops const-fold canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (u32 wrap + logical shift/unsigned div), got {}",
@@ -19752,7 +19752,7 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("shift-right arg-delivery canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (u32 logical shift through the arg), got {}",
@@ -19798,7 +19798,7 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("divide/mod arg-delivery canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (u32 unsigned div + mod through args), got {}",
@@ -19845,7 +19845,7 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("unsigned min/max local canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter oracle should exit 77 (unsigned max witness), got {}",
@@ -19892,7 +19892,7 @@ fn unsigned_min_max_operand_position_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("operand-position min/max canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter oracle should exit 77 (unsigned max witness), got {}",
@@ -19938,7 +19938,7 @@ fn suffix_boundary_magnitudes_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("suffix boundary canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all boundary magnitudes intact), got {}",
@@ -19981,7 +19981,7 @@ fn float_value_call_return_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("float return canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (passthru(3.5) == 3.5), got {}",
@@ -20025,7 +20025,7 @@ fn expansion_float_local_guard_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("expansion float guard canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (finite literal routes true), got {}",
@@ -20071,7 +20071,7 @@ fn float_value_call_runtime_arg_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("float runtime-arg canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (is_zeroish(inf) == false), got {}",
@@ -20117,7 +20117,7 @@ fn f32_chain_per_op_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 chain canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (per-op f32 rounding), got {}",
@@ -20162,7 +20162,7 @@ fn runtime_std_is_finite_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("is_finite canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all three is_finite legs), got {}",
@@ -20207,7 +20207,7 @@ fn bool_value_call_return_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("bool value-call canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all three bool faces), got {}",
@@ -20252,7 +20252,7 @@ fn struct_literal_transition_arg_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("struct-literal arg canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (13 + 6 across both legs), got {}",
@@ -20298,7 +20298,7 @@ fn runtime_indexed_element_copy_write_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("indexed element write canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (element 1 = {{9,4}}), got {}",
@@ -20344,7 +20344,7 @@ fn suffix_landed_operand_position_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("suffix-landed canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter oracle should exit 77 (unsigned max witness), got {}",
@@ -20389,7 +20389,7 @@ fn suffix_f32_single_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 single-rounding canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter oracle should exit 77 (single-rounded f32 witness), got {}",
@@ -20435,7 +20435,7 @@ fn unsuffixed_f32_destination_single_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("unsuffixed f32 destination canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter oracle should exit 77 (all three faces single-rounded), got {}",
@@ -20480,7 +20480,7 @@ fn unsuffixed_f32_argument_single_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("unsuffixed f32 argument canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter should single-round call, return, and transition faces"
@@ -20521,7 +20521,7 @@ fn f32_per_operation_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 per-operation rounding canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter should round every f32 arithmetic node"
@@ -20560,7 +20560,7 @@ fn anonymous_exact_rat_const_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("anonymous exact-Rat canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter should consume exact folds"
@@ -20599,7 +20599,7 @@ fn finite_core_domain_range_discharge_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("Finite core-domain canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 77,
         "interpreter should preserve ranged f32 value"
@@ -20639,7 +20639,7 @@ fn struct_literal_field_coercion_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("struct-literal coercion canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (struct field truncates to u8 width), got {}",
@@ -20680,7 +20680,7 @@ fn array_element_write_width_domain_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("array-element coercion canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (element width truncation + array Saturating clamp), got {}",
@@ -20721,7 +20721,7 @@ fn int_transition_arg_width_wrap_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("int transition-arg width canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (int arg wraps to u8 param width), got {}",
@@ -20762,7 +20762,7 @@ fn f32_transition_arg_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 transition-arg canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (f32 rounds at param binding), got {}",
@@ -20803,7 +20803,7 @@ fn f32_field_store_rounding_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 field store canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (f32 store rounds, plateaus at 16777216), got {}",
@@ -20846,7 +20846,7 @@ fn const_fold_cast_signedness_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("const-fold cast canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for const-folded casts, got {}",
@@ -20948,7 +20948,7 @@ fn runtime_chained_string_append_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("chained bounded-carrier append canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
     let build_dir = std::env::temp_dir().join(format!(
@@ -20987,7 +20987,7 @@ fn runtime_string_append_in_place_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("descriptor text append-in-place canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
     let build_dir = std::env::temp_dir().join(format!(
@@ -21024,7 +21024,7 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("two-carrier text concat canary should compile to checked trees");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
         "interpreter should join the same two runtime bounded text carriers"
@@ -21066,7 +21066,7 @@ fn runtime_machine_string_append_in_place_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("bounded-carrier append-in-place canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
     let build_dir = std::env::temp_dir().join(format!(
@@ -21142,7 +21142,7 @@ fn runtime_call_value_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("bounded-carrier return-value canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter should preserve a returned bounded carrier (exit 70), got {}",
@@ -22522,7 +22522,7 @@ fn runtime_param_domain_forward_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("param domain forward canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for a forwarded domained param, got {}",
@@ -22569,7 +22569,7 @@ fn runtime_case_payload_domain_forward_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("case payload domain forward canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 for a forwarded case payload, got {}",
@@ -22708,7 +22708,7 @@ fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime clear/carve/render carrier fields canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 198);
     assert_eq!(interpreted.stdout, Vec::<u8>::new());
@@ -22747,7 +22747,7 @@ fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime full-level wrapper carrier lookup canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 202);
     let build_dir = std::env::temp_dir().join(format!(
@@ -24578,7 +24578,7 @@ fn float_to_int_saturating_exit_canary_runs() {
     // The interpreter leg mirrors the same clamp arm.
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("saturating float->int canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "interp Saturating cast should clamp");
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -24606,7 +24606,7 @@ fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
     );
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("unsigned/narrow Saturating canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter cast shapes should agree"
@@ -24639,7 +24639,7 @@ fn float_saturating_overflow_exit_canary_runs() {
     );
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("saturating float overflow canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interp Saturating clamp should agree"
@@ -24680,7 +24680,7 @@ fn float_trapping_overflow_traps_aborts() {
     );
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping float overflow canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     let reason = outcome
         .error
         .expect("the interpreter must trap the float overflow");
@@ -24717,7 +24717,7 @@ fn assert_float_trapping_policy_canary_aborts(name: &str, reason_fragment: &str)
     );
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("Trapping float policy canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     let reason = outcome
         .error
         .expect("the interpreter must trap the float policy violation");
@@ -24785,7 +24785,7 @@ fn trapping_float_to_int_cast_traps_aborts() {
     // The interpreter leg: same trap, spelled as an eval error.
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping float->int cast canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     let reason = outcome
         .error
         .expect("the interpreter must trap the out-of-range Trapping cast");
@@ -24825,7 +24825,7 @@ fn trapping_float_to_narrow_int_cast_traps_aborts() {
     assert!(!output.status.success(), "u8 out-of-range cast must trap");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("narrow Trapping canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert!(
         outcome
             .error
@@ -24883,7 +24883,7 @@ fn trapping_shift_count_traps_aborts() {
     // The interpreter leg: same trap, spelled as an eval error.
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping shift-count canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     let reason = outcome
         .error
         .expect("the interpreter must trap the out-of-range Trapping shift count");
@@ -25136,7 +25136,7 @@ fn zii_string_host_write_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("ZII carrier host-write canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70);
     assert_eq!(outcome.stdout, b"\nafter-zii\n".to_vec());
     let build_dir = std::env::temp_dir().join(format!("omega-ziihost-{}", std::process::id()));
@@ -25169,7 +25169,7 @@ fn zii_default_string_equality_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("ZII carrier equality canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should treat ZII carriers as empty text (exit 70), got {}",
@@ -25205,7 +25205,7 @@ fn runtime_owned_string_byte_view_exit_canary_runs() {
     let canary = pass_canary("text/runtime_owned_string_byte_view_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("owned String byte-view canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         interpreted.error, None,
         "owned String byte-view canary should interpret"
@@ -25262,7 +25262,7 @@ fn runtime_text_not_equals_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("carrier text not-equals canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should pass all carrier not-equals legs (exit 70), got {}",
@@ -25298,7 +25298,7 @@ fn runtime_text_equals_boolean_operand_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("carrier text boolean-operand canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should pass all nested carrier equality legs (exit 70), got {}",
@@ -25335,7 +25335,7 @@ fn case_literal_texteq_terminal_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("carrier texteq terminal canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should deliver carrier equality in the terminal payload (exit 70), got {}",
@@ -25372,7 +25372,7 @@ fn case_literal_texteq_field_store_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("carrier texteq field-store canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should deliver carrier equality in the stored payload (exit 70), got {}",
@@ -25408,7 +25408,7 @@ fn runtime_text_equals_value_positions_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("carrier text value-position canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should pass all carrier value-position legs (exit 70), got {}",
@@ -25721,7 +25721,7 @@ fn runtime_gui_foreground_window_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("gui foreground-window canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (virtual foreground call + destroy), got {}",
@@ -25840,7 +25840,7 @@ fn trait_generic_bound_static_dispatch_canary_runs() {
     let canary = pass_canary("traits/trait_generic_bound_static_dispatch");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("bounded generic call should specialize to its nominal conformance");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 1);
 
@@ -25873,7 +25873,7 @@ fn runtime_generic_param_position_inference_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_param_position_inference_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("borrowed-place parameter inference canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -25918,7 +25918,7 @@ fn runtime_generic_multiple_specializations_exit_canary_runs() {
             .count(),
         2
     );
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 14);
 
@@ -26243,7 +26243,7 @@ fn closed_indexed_domain_canaries() {
     let contracts = omega_visualizations::machine_contract_manifest_json(&checked);
     assert!(contracts.contains("\"const_arguments\":"));
 
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -26339,7 +26339,7 @@ fn std_units_package_conversion_and_operator_canaries() {
             )),
         "closed unit flows should retain their closed-evaluation verification condition"
     );
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -26430,7 +26430,7 @@ fn open_computed_quantity_result_canary_runs() {
     assert!(compatibility.contains("\"name\": \"index-equality:"));
     assert!(compatibility.contains("\"discharge\": \"licensed_normalization\""));
     assert!(compatibility.contains("\"operation_count\": "));
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -26512,7 +26512,7 @@ fn open_index_exact_local_fact_canary_runs() {
     let compatibility = omega_visualizations::index_compatibility_manifest_json(&checked);
     assert!(compatibility.contains("\"discharge\": \"established_local_fact\""));
     assert!(compatibility.contains("\"evidence_facts\": ["));
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -28844,7 +28844,7 @@ fn numeric_trapping_conversion_overflow_aborts() {
 
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping numeric conversion should reach checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert!(
         outcome
             .error
@@ -28886,7 +28886,7 @@ fn runtime_numeric_cross_signed_conversion_surface_exit_canary_runs() {
 
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("cross-signed surface should reach checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must agree on cross-signed conversions, got {:?}",
@@ -28945,7 +28945,7 @@ fn numeric_cross_signed_trapping_conversions_abort() {
 
         let checked = compile_to_checked(&canary.join("main.omg"), None)
             .unwrap_or_else(|_| panic!("{label} should reach checked trees"));
-        let outcome = omega_interpreter::interpret(&checked, &[]);
+        let outcome = psi_checked_interpreter::interpret(&checked, &[]);
         assert!(
             outcome
                 .error
@@ -31024,7 +31024,7 @@ fn borrow_carrying_data_field_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("borrow-carrying data canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should read the borrowed field as 70, got {}",
@@ -31774,7 +31774,7 @@ fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("binary-local call-argument canary should compile to checked trees");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -31854,7 +31854,7 @@ fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("threaded mutable receiver phase canary should compile to checked trees");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
@@ -31954,7 +31954,7 @@ fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
     let canary = pass_canary("time/runtime_value_machine_receiver_field_postentry_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("receiver-field postentry canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "should interpret cleanly");
     assert_eq!(outcome.exit_code, 70, "interp oracle should exit 70");
     let build_dir = std::env::temp_dir().join(format!(
@@ -32341,7 +32341,7 @@ fn runtime_multiarm_texteq_local_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("multi-arm carrier text-equality local canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should preserve both multi-arm carrier comparisons (exit 70), got {}",
@@ -32381,7 +32381,7 @@ fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("pre-guard carrier text-equality canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should observe the initialized carrier comparison (exit 70), got {}",
@@ -32420,7 +32420,7 @@ fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("forwarded carrier text-equality local canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should forward the initialized carrier comparison (exit 70), got {}",
@@ -33587,7 +33587,7 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("slice indexed binary RMW canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (element 2 bumped 30 -> 31), got {}",
@@ -33636,7 +33636,7 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("mut-ref forward canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (forwarded write lands), got {}",
@@ -33681,7 +33681,7 @@ fn runtime_local_slice_forward_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("local-slice forward canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (forwarded slice RMW lands), got {}",
@@ -33725,7 +33725,7 @@ fn f32_guard_const_arith_landed_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 guard const-arith canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter should fold the guard tree per-op at f32 (exit 70), got {}",
@@ -33769,7 +33769,7 @@ fn f32_arg_const_arith_landed_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("f32 arg const-arith canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter should exact-fold then land the arg tree once at f32 (exit 70), got {}",
@@ -33929,7 +33929,7 @@ fn windows_fs_wrapper_dark_methods_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("dark-methods canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (create/sync/try_clone/set_permissions/remove), got {}",
@@ -33974,7 +33974,7 @@ fn windows_fs_wrapper_results_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows fs wrapper canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (wrapper result shapes on the virtual fs), got {}",
@@ -34023,7 +34023,7 @@ fn runtime_local_host_result_dispatch_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("local-host-result canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (open of absent path -> fd < 0), got {}",
@@ -34073,7 +34073,7 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows fs roundtrip canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (virtual-fs roundtrip + ENOENT errno), got {}",
@@ -34127,7 +34127,7 @@ fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("self-value-call literal path canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (self-call literal reached open), got {}",
@@ -34178,7 +34178,7 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("discarded self-call literal canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (discarded open executed, errno ENOENT), got {}",
@@ -34228,7 +34228,7 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("wrapper param-shadow canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (shadowed params never capture operands), got {}",
@@ -34276,7 +34276,7 @@ fn windows_fs_wrapper_open_with_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("open_with matrix canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (full OpenOptions matrix), got {}",
@@ -34324,7 +34324,7 @@ fn windows_fs_field_receiver_method_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("field-receiver method canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (is_file true through the field receiver), got {}",
@@ -34374,7 +34374,7 @@ fn runtime_arm_target_host_result_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("arm-target host-result canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (errno 2 through the arm target), got {}",
@@ -34422,7 +34422,7 @@ fn runtime_qualified_case_value_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("qualified-case-value canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (Signal::Green in value position), got {}",
@@ -34471,7 +34471,7 @@ fn single_target_internal_machine_skipped_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("single-target internal canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 past the filtered internal, got {}",
@@ -34519,7 +34519,7 @@ fn target_machine_gating_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("target-machine canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (63 + 7 through two selected target machines), got {}",
@@ -34568,7 +34568,7 @@ fn windows_wrapper_create_new_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("create_new canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (create_new + O_EXCL AlreadyExists), got {}",
@@ -34616,7 +34616,7 @@ fn ring_requirement_satisfies_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("ring-requirement canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (2 + 1 = depth 3 through the conformed ops), got {}",
@@ -34666,7 +34666,7 @@ fn windows_find_enumeration_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("find-enumeration canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (dots + a.txt + b.txt + end + close), got {}",
@@ -34714,7 +34714,7 @@ fn windows_read_dir_nth_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("read_dir_nth canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (file aaa, dir ccc, then End), got {}",
@@ -34761,7 +34761,7 @@ fn windows_set_file_time_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("set_file_time canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (stamp + stat round-trip), got {}",
@@ -34817,7 +34817,7 @@ fn windows_wrapper_set_times_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows set_times wrapper canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (wrapper stamp + metadata round-trip), got {}",
@@ -34869,7 +34869,7 @@ fn windows_wrapper_lock_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows lock wrapper canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (exclusive/shared contention), got {}",
@@ -34918,7 +34918,7 @@ fn windows_canonicalize_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows canonicalize canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (resolve + spelling + NotFound leg), got {}",
@@ -34966,7 +34966,7 @@ fn windows_hard_link_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows hard-link canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (link + survive + taken-name refusal), got {}",
@@ -35013,7 +35013,7 @@ fn windows_positioned_io_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows positioned-io canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (write_at + read_at + cursor unmoved), got {}",
@@ -35062,7 +35062,7 @@ fn windows_wrapper_metadata_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows metadata canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (metadata len + regular-file mode), got {}",
@@ -35111,7 +35111,7 @@ fn windows_wrapper_exists_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows exists canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (exists/try_exists absent->present), got {}",
@@ -35153,7 +35153,7 @@ fn windows_wrapper_set_len_exit_canary_runs() {
     let main_path = pass_canary("filesystem/windows_wrapper_set_len_exit").join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("set_len canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "set_len interpreter oracle should exit 70, got {}",
@@ -35191,7 +35191,7 @@ fn windows_wrapper_copy_exit_canary_runs() {
     let main_path = pass_canary("filesystem/windows_wrapper_copy_exit").join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("copy canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "copy interpreter oracle should exit 70, got {}",
@@ -35994,7 +35994,7 @@ fn windows_fs_wrapper_breadth_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows wrapper breadth canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (wrapper rename/append/read_all pass), got {}",
@@ -36049,7 +36049,7 @@ fn repeated_dir_walk_scan_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("repeated dir-walk canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (66 + 2 + 2 across two scans), got {}",
@@ -36097,7 +36097,7 @@ fn windows_fs_raw_breadth_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("windows fs breadth canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (virtual-fs breadth pass), got {}",
@@ -36153,7 +36153,7 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("entry-field-write canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (Alive{{hp:9}} then bare Dead with hp 0), got {}",
@@ -36205,7 +36205,7 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("post-entry-lets canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 24,
         "interpreter oracle should exit 24 (swap_digits(42)), got {}",
@@ -36250,7 +36250,7 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("value-machine self-array index canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 99,
         "interpreter oracle should exit 99 (self.buf[j] in a value machine), got {}",
@@ -36298,7 +36298,7 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("value-machine const-index canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 99,
         "interpreter oracle should exit 99 (self.buf[4 + 1] in a value machine), got {}",
@@ -36343,7 +36343,7 @@ fn runtime_post_entry_deep_chain_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("post-entry deep-chain canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 30,
         "interpreter oracle should exit 30 (proc(5) 4-deep chain), got {}",
@@ -36388,7 +36388,7 @@ fn runtime_post_entry_chained_let_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("post-entry chained-let canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 2,
         "interpreter oracle should exit 2 (proc(100,7) rem = 100 - (100/7)*7), got {}",
@@ -36430,7 +36430,7 @@ fn runtime_cross_callee_division_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("cross-callee division canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (shared-named divisions deliver), got {}",
@@ -36479,7 +36479,7 @@ fn runtime_cross_callee_let_names_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("cross-callee let-names canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (both callees' results delivered), got {}",
@@ -36529,7 +36529,7 @@ fn runtime_nested_value_call_guard_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("nested-guard canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all non-ZII arms delivered), got {}",
@@ -36578,7 +36578,7 @@ fn runtime_two_site_struct_result_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("two-site struct result canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (both struct results delivered), got {}",
@@ -36627,7 +36627,7 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("same-callee-sites canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (every site holds its own call's result), got {}",
@@ -36676,7 +36676,7 @@ fn runtime_value_call_transition_args_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("transition-args canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all six params delivered), got {}",
@@ -36722,7 +36722,7 @@ fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("transition-args straight-line canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 12,
         "interpreter oracle should exit 12 (b = dbl(6)), got {}",
@@ -36768,7 +36768,7 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("shared-slot straight-line canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 22,
         "interpreter oracle should exit 22 (f=10 + g=12), got {}",
@@ -36817,7 +36817,7 @@ fn runtime_enum_self_method_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("enum-self-method canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all enum-self legs discriminate), got {}",
@@ -36866,7 +36866,7 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("dispatch-results canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (struct-to-field + free-pick legs), got {}",
@@ -36916,7 +36916,7 @@ fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("literal-len arm-guard canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (opposite arms across two call sites), got {}",
@@ -36967,7 +36967,7 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("guard-subject canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (all three guard legs discriminate), got {}",
@@ -37010,7 +37010,7 @@ fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("effectful guard/local and self-terminal canary should reach checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter should return both call values and execute each call once, got {}",
@@ -37052,7 +37052,7 @@ fn runtime_guarded_effectful_transition_argument_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("guarded effectful transition-argument canary should reach checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter should preserve hot/cold execution plus ordered parameter/local delivery, got {}",
@@ -37101,7 +37101,7 @@ fn runtime_value_call_nested_entry_call_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("nested-entry-call canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (both nested-entry shapes deliver), got {}",
@@ -37151,7 +37151,7 @@ fn runtime_value_call_shared_payload_name_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("shared-payload-name canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (Transfer{{to:42, amount:99}} delivered), got {}",
@@ -37198,7 +37198,7 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
     // Interpreter oracle first: it must agree the exit is 70.
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("value-call cast-field payload canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter oracle should exit 70 (full 16-field payload incl. the cast field), got {}",
@@ -37284,7 +37284,7 @@ fn value_call_entry_host_state_payload_canary_runs() {
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("entry-host-state payload canary should compile to checked trees");
     for (stdin, expected) in [(&b"ok\n"[..], 70), (&b"no\n"[..], 75)] {
-        let outcome = omega_interpreter::interpret(&checked, stdin);
+        let outcome = psi_checked_interpreter::interpret(&checked, stdin);
         assert_eq!(
             outcome.exit_code,
             expected,
@@ -37968,7 +37968,7 @@ fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime mutable carrier parameter concat/write canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 77);
     assert_eq!(interpreted.stdout, b"prefix omega\n".to_vec());
@@ -38009,7 +38009,7 @@ fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime wrapped mutable carrier concat/write canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 77);
     assert_eq!(interpreted.stdout, b"prefix omega done\n".to_vec());
@@ -38149,7 +38149,7 @@ fn runtime_lookup_struct_field_concat_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("runtime lookup carrier concat should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 190, "interpreter lookup carrier concat");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-lookup-struct-field-concat-{}",
@@ -38186,7 +38186,7 @@ fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("large lookup carrier concat should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 192,
         "interpreter large lookup carrier concat"
@@ -38226,7 +38226,7 @@ fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("large room lookup carrier concat should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 200,
         "interpreter large-room lookup carrier concat"
@@ -38354,7 +38354,7 @@ fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime mutable struct carrier field copy/write canary should check");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 77);
     assert_eq!(interpreted.stdout, b"prefix omega done\n".to_vec());
@@ -39631,7 +39631,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per operation and format"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must execute the complete primitive float matrix; error: {:?}",
@@ -39782,7 +39782,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per direction"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must execute nearest-even format conversion; error: {:?}",
@@ -39930,7 +39930,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per source/destination slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must execute the complete integer-to-float matrix; error: {:?}",
@@ -40109,7 +40109,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         );
     }
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "interpreter must execute the complete float-to-integer matrix; error: {:?}",
@@ -40225,7 +40225,7 @@ fn named_float_to_integer_trapping_requirements_trap_in_both_engines() {
         let main_path = canary.join("main.omg");
         let checked = omega_compiler::compile_to_checked(&main_path, None)
             .expect("named Trapping float-to-integer requirement should compile");
-        let interpreted = omega_interpreter::interpret(&checked, &[]);
+        let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
         assert!(
             interpreted.error.is_some(),
             "{name} reached its post-conversion sentinel in the interpreter"
@@ -40350,7 +40350,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per operation/format slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "rewritten builtins must execute");
 
     let build_dir =
@@ -40527,7 +40527,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per operation/format slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "rewritten negate/is_nan expressions must execute in the interpreter"
@@ -40703,7 +40703,7 @@ fn named_float_classification_predicates_select_and_execute() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per predicate/format slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "classification builtins must interpret"
@@ -40891,7 +40891,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "classify builtin must interpret");
 
     let build_dir =
@@ -41034,7 +41034,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "selected multiply-then-add must keep its two-rounding semantics in the interpreter"
@@ -41186,7 +41186,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "selected FMA must preserve its single-rounding semantics in the interpreter"
@@ -41329,7 +41329,7 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "directed-FMA interpreter semantics must distinguish half-ULP edges"
@@ -41400,7 +41400,7 @@ fn retained_float_differential_result_identity(
     coverage: &[&str],
     selected_intrinsics: &std::collections::BTreeSet<String>,
     selected_plan_identities: &[u64],
-    outcome: &omega_interpreter::InterpretOutcome,
+    outcome: &psi_checked_interpreter::InterpretOutcome,
     output: &std::process::Output,
     cross_targets: &[&str],
 ) -> u64 {
@@ -41453,7 +41453,7 @@ fn retained_float_policy_differential_result_identity(
     selected_plan_identities: &[u64],
     observations: &[(
         &str,
-        &omega_interpreter::InterpretOutcome,
+        &psi_checked_interpreter::InterpretOutcome,
         &std::process::Output,
     )],
     cross_builds: &std::collections::BTreeSet<String>,
@@ -41581,7 +41581,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "directed-add interpreter semantics must distinguish half-ULP edges"
@@ -41723,7 +41723,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "directed-subtract interpreter semantics must distinguish midpoint edges"
@@ -41866,7 +41866,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "directed-multiply interpreter semantics must distinguish exact-product edges"
@@ -42009,7 +42009,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "directed-divide interpreter semantics must distinguish exact-quotient edges"
@@ -42152,7 +42152,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
         "directed-square-root interpreter semantics must distinguish irrational-result edges"
@@ -42493,7 +42493,7 @@ fn float_policy_adapters_retain_differential_results() {
             selected_plan_identities.push(plan.identity_fingerprint());
         }
 
-        let outcome = omega_interpreter::interpret(&checked, &[]);
+        let outcome = psi_checked_interpreter::interpret(&checked, &[]);
         let build_dir = std::env::temp_dir().join(format!(
             "omega-float-policy-differential-{}-{}",
             case_name.replace('/', "-"),
@@ -46020,7 +46020,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
 
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("total-order satisfier canary should compile to checked trees");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         interpreted.error, None,
         "interpreter should support the total-order satisfier path"
@@ -46138,7 +46138,7 @@ fn build_runtime_float_semantics_twins_agree() {
         "{DIFFERENTIAL_SUITE_ID} must retain one exact plan per selected intrinsic"
     );
 
-    let outcome = omega_interpreter::interpret(&checked, &[]);
+    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.error, None,
         "the runtime half of the float semantic twins should interpret"
@@ -46252,7 +46252,7 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let checked = compile_to_checked(&main_path, None)
         .expect("compact-bit plan-laid canary should compile to checked trees");
     assert_eq!(
-        omega_interpreter::interpret(&checked, &[]).exit_code,
+        psi_checked_interpreter::interpret(&checked, &[]).exit_code,
         70,
         "the interpreter must preserve compact logical fields"
     );
@@ -46314,7 +46314,7 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_integer_at_projection_exit");
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("IntegerAt projection canary should compile to checked trees");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
         "interpreter must apply the same signed/unsigned stored-width decode"
@@ -46423,7 +46423,7 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("proved-fit IntegerAt mutation canary should compile to checked trees");
-    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 72,
         "interpreter must preserve proved-fit direct and mutable-recast IntegerAt writes"
@@ -46575,7 +46575,7 @@ fn plan_laid_record_view_exit_canary_runs() {
     let checked = compile_to_checked(&main_path, None)
         .expect("plan-laid record-view canary should compile to checked trees");
     assert_eq!(
-        omega_interpreter::interpret(&checked, &[]).exit_code,
+        psi_checked_interpreter::interpret(&checked, &[]).exit_code,
         70,
         "the interpreter must decode the validated plan offsets"
     );
@@ -46637,7 +46637,7 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
     let checked = compile_to_checked(&main_path, None)
         .expect("mutable plan-laid record view should compile to checked trees");
     assert_eq!(
-        omega_interpreter::interpret(&checked, &[]).exit_code,
+        psi_checked_interpreter::interpret(&checked, &[]).exit_code,
         70,
         "the interpreter must write and reread the validated plan offsets"
     );

@@ -16,7 +16,7 @@
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
 use omega_compiler::{CompileOptions, compile, compile_to_checked};
-use omega_interpreter::interpret;
+use psi_checked_interpreter::interpret;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -2619,7 +2619,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
-        .expect("interpreter crate should live under compiler/orchestration/omega-interpreter")
+        .expect("omega-native-differential-test lives under compiler/omega-rs/orchestration")
         .to_path_buf()
 }
 

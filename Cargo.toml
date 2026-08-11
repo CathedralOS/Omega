@@ -33,6 +33,7 @@ members = [
     "compiler/psi-rs/semantics/psi-terminal-fuel",
     "compiler/psi-rs/semantics/psi-terminal-fixed-fuel",
     "compiler/psi-rs/semantics/psi-terminal-interpreter",
+    "compiler/psi-rs/semantics/psi-checked-interpreter",
     "compiler/psi-rs/semantics/psi-validation",
     "compiler/psi-rs/semantics/psi-proof",
     "compiler/psi-rs/semantics/psi-types",
@@ -101,7 +102,7 @@ members = [
     "compiler/omega-rs/orchestration/omega-artifacts",
     "compiler/omega-rs/orchestration/omega-backend-pipeline",
     "compiler/omega-rs/orchestration/omega-compiler",
-    "compiler/omega-rs/orchestration/omega-interpreter",
+    "compiler/omega-rs/orchestration/omega-native-differential-test",
     "compiler/omega-rs/orchestration/omega-visualizations",
     "compiler/omega-rs/architecture/omega-architecture-test",
 ]

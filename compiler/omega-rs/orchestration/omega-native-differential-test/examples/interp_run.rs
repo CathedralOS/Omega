@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use omega_compiler::compile_to_checked;
-use omega_interpreter::interpret;
+use psi_checked_interpreter::interpret;
 
 fn main() {
     let path = std::env::args()

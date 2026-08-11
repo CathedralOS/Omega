@@ -17,7 +17,7 @@
 //! absent from real disk afterwards.
 
 use omega_compiler::compile_to_checked;
-use omega_interpreter::{
+use psi_checked_interpreter::{
     BuildTimeValue, FilesystemAccess, FsGrants, InterpretOptions,
     evaluate_build_machine_with_filesystem, interpret, interpret_with_options,
 };
