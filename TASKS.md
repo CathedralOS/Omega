@@ -64,7 +64,11 @@ Remaining:
   hosted builds remove the artifact. `build.omg` names one machine and performs
   no discovery.
   Install the physical arrival bridge and admitted grants, and record their
-  concrete image/runtime geometry and lineage in emitted artifacts.
+  concrete image/runtime geometry and lineage in emitted artifacts. The generic
+  two-grant installer already validates both `no_wrap` obligations before
+  consuming either grant and now produces a report-only record retaining exact
+  geometry, address space, rights, provenance, mapping era, and root lineage.
+  Bind it to the selected physical provider and emit that completed record.
   The final UEFI bridge/source-visible composition of semantic roots with the
   firmware `ImageHandle`/`SystemTable` handoff is design-blocked on owner Q2;
   artifact reporting and generic grant-installation mechanics remain actionable.

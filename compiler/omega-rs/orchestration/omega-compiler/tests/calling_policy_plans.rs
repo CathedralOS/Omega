@@ -604,6 +604,42 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         ),
         (0x8000, 0x2000)
     );
+    let installation = installed.installation_record();
+    assert_eq!(installation.binding().root_slot(), selected.root_slot());
+    assert_eq!(
+        (installation.image().base(), installation.image().length()),
+        (0x1000, 0x800)
+    );
+    assert_eq!(
+        (
+            installation.initial_storage().base(),
+            installation.initial_storage().length()
+        ),
+        (0x8000, 0x2000)
+    );
+    assert_eq!(installation.image().end(), 0x1800);
+    assert_eq!(installation.initial_storage().end(), 0xa000);
+    assert_eq!(
+        installation.image().address_space().normalized_identity(),
+        100
+    );
+    assert!(installation.image().rights().is_empty());
+    assert_eq!(installation.image().provenance().normalized_identity(), 101);
+    assert_eq!(
+        installation.image().mapping_era().normalized_identity(),
+        102
+    );
+    assert_eq!(
+        installation.image().lineage_root().normalized_identity(),
+        91
+    );
+    assert_eq!(
+        installation
+            .initial_storage()
+            .lineage_root()
+            .normalized_identity(),
+        92
+    );
 
     let static_view = installed
         .image_subextent(0x100, 0x80)

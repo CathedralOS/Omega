@@ -210,6 +210,89 @@ pub struct InstalledProgramStorageRoots {
     initial_storage: Extent,
 }
 
+/// Report-only identity and geometry of one installed program-storage root.
+/// This value carries no grant and cannot recreate an [`Extent`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramStorageInstalledExtentRecord {
+    base: u64,
+    length: u64,
+    address_space: psi_extents::AddressSpaceId,
+    rights: Vec<psi_extents::ExtentRightId>,
+    provenance: psi_extents::ExtentProvenanceId,
+    mapping_era: psi_extents::MappingEraId,
+    lineage_root: psi_extents::ExtentLineageId,
+}
+
+impl ProgramStorageInstalledExtentRecord {
+    fn from_extent(extent: &Extent) -> Self {
+        Self {
+            base: extent.base(),
+            length: extent.length(),
+            address_space: extent.address_space(),
+            rights: extent.rights().identities().collect(),
+            provenance: extent.provenance(),
+            mapping_era: extent.era(),
+            lineage_root: extent.lineage_root(),
+        }
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.base
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.length
+    }
+
+    pub const fn end(&self) -> u64 {
+        self.base + self.length
+    }
+
+    pub const fn address_space(&self) -> psi_extents::AddressSpaceId {
+        self.address_space
+    }
+
+    pub fn rights(&self) -> &[psi_extents::ExtentRightId] {
+        &self.rights
+    }
+
+    pub const fn provenance(&self) -> psi_extents::ExtentProvenanceId {
+        self.provenance
+    }
+
+    pub const fn mapping_era(&self) -> psi_extents::MappingEraId {
+        self.mapping_era
+    }
+
+    pub const fn lineage_root(&self) -> psi_extents::ExtentLineageId {
+        self.lineage_root
+    }
+}
+
+/// Stable audit record produced only after both program-storage geometries
+/// validate and both admitted grants are consumed. Cloning this record clones
+/// observations, never authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramStorageInstallationRecord {
+    binding: ProgramStorageEntryPlanBinding,
+    image: ProgramStorageInstalledExtentRecord,
+    initial_storage: ProgramStorageInstalledExtentRecord,
+}
+
+impl ProgramStorageInstallationRecord {
+    pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
+        &self.binding
+    }
+
+    pub const fn image(&self) -> &ProgramStorageInstalledExtentRecord {
+        &self.image
+    }
+
+    pub const fn initial_storage(&self) -> &ProgramStorageInstalledExtentRecord {
+        &self.initial_storage
+    }
+}
+
 impl InstalledProgramStorageRoots {
     pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
         &self.binding
@@ -221,6 +304,16 @@ impl InstalledProgramStorageRoots {
 
     pub const fn initial_storage(&self) -> &Extent {
         &self.initial_storage
+    }
+
+    pub fn installation_record(&self) -> ProgramStorageInstallationRecord {
+        ProgramStorageInstallationRecord {
+            binding: self.binding.clone(),
+            image: ProgramStorageInstalledExtentRecord::from_extent(&self.image),
+            initial_storage: ProgramStorageInstalledExtentRecord::from_extent(
+                &self.initial_storage,
+            ),
+        }
     }
 
     /// Derive a section/static view without splitting the installed image's

@@ -50,6 +50,7 @@ pub use layout_plans::{
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
+    ProgramStorageInstallationRecord, ProgramStorageInstalledExtentRecord,
     ProgramStoragePartitionError, ProgramStorageRootInput, ProgramStorageRootInstallationError,
     SelectedProgramStorageEntryPlan, bind_generated_program_storage_entry_plan,
     bind_program_storage_entry_plan, install_program_storage_entry_roots,

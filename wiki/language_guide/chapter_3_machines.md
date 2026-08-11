@@ -144,9 +144,12 @@ the target schema states how the launch environment supplies those needs.
 > both storage positions; the machine-readable program-storage artifact renders
 > their semantic roles, normalized ABI placements, frame capture ranges, strict
 > carry, and the pending two-grant installation rule. Physical bridge/grant
-> installation and provider-supplied runtime geometry/lineage, actual receiver
-> provisioning, corpus migration, and removal of transitional entry-name
-> discovery remain under `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
+> installation is generically modeled with all-or-nothing predicate validation
+> and a non-authoritative geometry/address-space/rights/provenance/era/lineage
+> record, but binding that operation to a selected physical provider and
+> emitting its completed record remain. Actual receiver provisioning, corpus
+> migration, and removal of transitional entry-name discovery also remain under
+> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
 ## Parameters And Returns
 
