@@ -324,16 +324,9 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("where") {
             let after_where = input.take_contextual("where")?;
             if after_where.at_keyword(KeywordKind::Machine) {
-                // The legacy one-off `where machine T::member(...)` surface
-                // still has no semantic carrier. Preserve its existing
-                // compatibility behavior independently; ordinary nominal
-                // conformance bounds below are no longer swallowed with it.
-                input = after_where;
-                while !input.at_punctuation(PunctuationKind::LeftBrace) {
-                    let (_, rest) = input.expect_token()?;
-                    input = rest;
-                }
-                continue;
+                return Err(after_where.error_here(
+                    "one-off `where machine T::member(...)` requirements are unsupported; declare a trait and bind an explicit conformance",
+                ));
             }
             let (bounds, rest) = parse_generic_conformance_bounds(syntax_trees, input)?;
             conformance_bounds = bounds;
