@@ -112,7 +112,39 @@ pub(super) fn crash_predicate_from_expression(
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum SummaryCrashRouteGuard {
     Truth,
-    Predicate(CrashPredicateExpression),
+    Predicate(SummaryCrashPredicate),
+}
+
+#[derive(Debug, Clone)]
+struct SummaryCrashPredicate {
+    identity: CrashPredicateExpression,
+    scalar: Option<psi_checked_trees::CheckedBooleanExpression>,
+}
+
+impl PartialEq for SummaryCrashPredicate {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity == other.identity
+    }
+}
+
+impl Eq for SummaryCrashPredicate {}
+
+impl PartialOrd for SummaryCrashPredicate {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SummaryCrashPredicate {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.identity.cmp(&other.identity)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CallArgumentSubstitution {
+    identity: Vec<Option<CrashPredicateExpression>>,
+    scalar: Vec<Option<psi_checked_trees::CheckedScalarExpression>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -129,18 +161,23 @@ impl SummaryCrashBucket {
         }
     }
 
-    fn substitute(&self, arguments: &[Option<CrashPredicateExpression>]) -> Self {
+    fn substitute(&self, arguments: &CallArgumentSubstitution) -> Self {
         let mut guards = self
             .alternative_guards
             .iter()
             .filter_map(|guard| match guard {
                 SummaryCrashRouteGuard::Truth => Some(SummaryCrashRouteGuard::Truth),
                 SummaryCrashRouteGuard::Predicate(predicate) => {
-                    let predicate = predicate.substitute(arguments);
-                    match predicate.boolean_value() {
+                    let identity = predicate.identity.substitute(&arguments.identity);
+                    match identity.boolean_value() {
                         Some(false) => None,
                         Some(true) => Some(SummaryCrashRouteGuard::Truth),
-                        None => Some(SummaryCrashRouteGuard::Predicate(predicate)),
+                        None => Some(SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                            identity,
+                            scalar: predicate.scalar.as_ref().and_then(|scalar| {
+                                substitute_checked_boolean_expression(scalar, &arguments.scalar)
+                            }),
+                        })),
                     }
                 }
             })
@@ -160,9 +197,17 @@ impl SummaryCrashBucket {
                 .map(|guard| match guard {
                     SummaryCrashRouteGuard::Truth => psi_checked_trees::CrashRouteGuard::Truth,
                     SummaryCrashRouteGuard::Predicate(predicate) => {
-                        psi_checked_trees::CrashRouteGuard::Predicate(
-                            psi_checked_trees::CrashPredicateIdentity::from_expression(predicate),
-                        )
+                        let identity = if let Some(scalar) = predicate.scalar {
+                            psi_checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
+                                predicate.identity,
+                                scalar,
+                            )
+                        } else {
+                            psi_checked_trees::CrashPredicateIdentity::from_expression(
+                                predicate.identity,
+                            )
+                        };
+                        psi_checked_trees::CrashRouteGuard::Predicate(identity)
                     }
                 })
                 .collect(),
@@ -171,12 +216,29 @@ impl SummaryCrashBucket {
 }
 
 fn normalize_summary_guards(guards: &mut Vec<SummaryCrashRouteGuard>) {
-    guards.sort();
-    guards.dedup();
     if guards.contains(&SummaryCrashRouteGuard::Truth) {
         guards.clear();
         guards.push(SummaryCrashRouteGuard::Truth);
+        return;
     }
+    guards.sort();
+    let mut normalized = Vec::<SummaryCrashRouteGuard>::with_capacity(guards.len());
+    for guard in guards.drain(..) {
+        if let (
+            Some(SummaryCrashRouteGuard::Predicate(existing)),
+            SummaryCrashRouteGuard::Predicate(candidate),
+        ) = (normalized.last_mut(), &guard)
+        {
+            if existing.identity == candidate.identity {
+                if existing.scalar.is_none() {
+                    existing.scalar.clone_from(&candidate.scalar);
+                }
+                continue;
+            }
+        }
+        normalized.push(guard);
+    }
+    *guards = normalized;
 }
 
 fn normalize_summary_buckets(buckets: Vec<SummaryCrashBucket>) -> Vec<SummaryCrashBucket> {
@@ -213,40 +275,169 @@ enum SelectedTargetCrashRoutes<'a> {
 
 fn call_argument_substitution(
     program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
     target_parameters: &[psi_typed_trees::signature::StateParameter],
     arguments: &[psi_typed_trees::expression::ExpressionHandle],
     caller_parameter_names: &[String],
-) -> Vec<Option<CrashPredicateExpression>> {
+    caller_state: SymbolHandle,
+    before_statement: usize,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+) -> CallArgumentSubstitution {
+    let state = program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == caller_state)
+    });
     let mut argument_index = 0usize;
-    target_parameters
-        .iter()
-        .map(|parameter| {
-            if parameter.is_self {
-                // Direct crash-route instantiation has historically retained
-                // `self` as an ordinary named expression rather than treating
-                // the receiver as a positional call argument.
-                return Some(CrashPredicateExpression::Name(vec![
-                    parameter.name.as_str().to_owned(),
-                ]));
+    let mut identity = Vec::with_capacity(target_parameters.len());
+    let mut scalar = Vec::with_capacity(target_parameters.len());
+    for parameter in target_parameters {
+        if parameter.is_self {
+            // Receiver substitution remains outside the free scalar-call
+            // slice. Preserve its identity spelling but no portable scalar
+            // meaning.
+            identity.push(Some(CrashPredicateExpression::Name(vec![
+                parameter.name.as_str().to_owned(),
+            ])));
+            scalar.push(None);
+            continue;
+        }
+        let argument = arguments.get(argument_index).copied();
+        argument_index = argument_index.saturating_add(1);
+        identity.push(Some(argument.map_or_else(
+            || CrashPredicateExpression::Name(vec![parameter.name.as_str().to_owned()]),
+            |argument| {
+                crash_predicate_from_expression(program, argument, caller_parameter_names, None)
+            },
+        )));
+        scalar.push(argument.and_then(|argument| {
+            let expected = program.primitive_type_reference(parameter.type_reference)?;
+            crate::values::lower_state_scalar_expression(
+                program,
+                operators,
+                state?,
+                before_statement,
+                argument,
+                expected,
+                exact_integer_casts,
+            )
+        }));
+    }
+    CallArgumentSubstitution { identity, scalar }
+}
+
+fn substitute_checked_boolean_expression(
+    expression: &psi_checked_trees::CheckedBooleanExpression,
+    arguments: &[Option<psi_checked_trees::CheckedScalarExpression>],
+) -> Option<psi_checked_trees::CheckedBooleanExpression> {
+    use psi_checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+
+    Some(match expression {
+        CheckedBooleanExpression::Constant(value) => CheckedBooleanExpression::Constant(*value),
+        CheckedBooleanExpression::Parameter { position } => {
+            let CheckedScalarExpression::Boolean(expression) =
+                arguments.get(*position)?.as_ref()?.clone()
+            else {
+                return None;
+            };
+            *expression
+        }
+        // A callee contract is parameter-relative. A local can appear only
+        // after composing a private body summary; it cannot be rebound by the
+        // outer call and therefore deliberately loses portable structure.
+        CheckedBooleanExpression::Local { .. } => return None,
+        CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
+            substitute_checked_boolean_expression(operand, arguments)?,
+        )),
+        CheckedBooleanExpression::Equal { left, right } => CheckedBooleanExpression::Equal {
+            left: Box::new(substitute_checked_boolean_expression(left, arguments)?),
+            right: Box::new(substitute_checked_boolean_expression(right, arguments)?),
+        },
+        CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+            CheckedBooleanExpression::IntegerComparison {
+                kind: *kind,
+                left: Box::new(substitute_checked_scalar_expression(left, arguments)?),
+                right: Box::new(substitute_checked_scalar_expression(right, arguments)?),
             }
-            let argument = arguments.get(argument_index).copied();
-            argument_index = argument_index.saturating_add(1);
-            Some(argument.map_or_else(
-                || CrashPredicateExpression::Name(vec![parameter.name.as_str().to_owned()]),
-                |argument| {
-                    // This matches the existing direct-call encoder: content
-                    // theorem substitution belongs to the callee route, while an
-                    // ordinary argument uses the caller expression encoding.
-                    crash_predicate_from_expression(program, argument, caller_parameter_names, None)
-                },
-            ))
-        })
-        .collect()
+        }
+        CheckedBooleanExpression::And { left, right } => CheckedBooleanExpression::And {
+            left: Box::new(substitute_checked_boolean_expression(left, arguments)?),
+            right: Box::new(substitute_checked_boolean_expression(right, arguments)?),
+        },
+        CheckedBooleanExpression::Or { left, right } => CheckedBooleanExpression::Or {
+            left: Box::new(substitute_checked_boolean_expression(left, arguments)?),
+            right: Box::new(substitute_checked_boolean_expression(right, arguments)?),
+        },
+    })
+}
+
+fn substitute_checked_scalar_expression(
+    expression: &psi_checked_trees::CheckedScalarExpression,
+    arguments: &[Option<psi_checked_trees::CheckedScalarExpression>],
+) -> Option<psi_checked_trees::CheckedScalarExpression> {
+    use psi_checked_trees::CheckedScalarExpression;
+
+    Some(match expression {
+        CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        } => {
+            let substituted = arguments.get(*position)?.as_ref()?.clone();
+            (crate::values::scalar_expression_type(&substituted) == Some(*primitive_type))
+                .then_some(substituted)?
+        }
+        CheckedScalarExpression::Local { .. } => return None,
+        CheckedScalarExpression::IntegerLiteral { literal } => {
+            CheckedScalarExpression::IntegerLiteral {
+                literal: literal.clone(),
+            }
+        }
+        CheckedScalarExpression::IntegerBinary {
+            kind,
+            primitive_type,
+            left,
+            right,
+        } => CheckedScalarExpression::IntegerBinary {
+            kind: *kind,
+            primitive_type: *primitive_type,
+            left: Box::new(substitute_checked_scalar_expression(left, arguments)?),
+            right: Box::new(substitute_checked_scalar_expression(right, arguments)?),
+        },
+        CheckedScalarExpression::IntegerBitwiseNot {
+            primitive_type,
+            operand,
+        } => CheckedScalarExpression::IntegerBitwiseNot {
+            primitive_type: *primitive_type,
+            operand: Box::new(substitute_checked_scalar_expression(operand, arguments)?),
+        },
+        CheckedScalarExpression::IntegerWiden {
+            primitive_type,
+            operand,
+        } => CheckedScalarExpression::IntegerWiden {
+            primitive_type: *primitive_type,
+            operand: Box::new(substitute_checked_scalar_expression(operand, arguments)?),
+        },
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type,
+            operand,
+            range,
+        } => CheckedScalarExpression::IntegerExactCast {
+            primitive_type: *primitive_type,
+            operand: Box::new(substitute_checked_scalar_expression(operand, arguments)?),
+            range: range.clone(),
+        },
+        CheckedScalarExpression::Boolean(expression) => CheckedScalarExpression::Boolean(Box::new(
+            substitute_checked_boolean_expression(expression, arguments)?,
+        )),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
 fn refine_published_crash_routes(
     program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
     state_flow: &psi_checked_trees::FlowStateFact,
     call_flow: &psi_checked_trees::FlowCallFact,
     call_site: &crate::CallSite<'_>,
@@ -267,9 +458,13 @@ fn refine_published_crash_routes(
     let arguments = crate::call_site_argument_expressions(program, call_site);
     let substitution = call_argument_substitution(
         program,
+        operators,
         target_parameters,
         arguments,
         caller_parameter_names,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        exact_integer_casts,
     );
     let mut surviving = Vec::new();
     for bucket in buckets {
@@ -301,11 +496,21 @@ fn refine_published_crash_routes(
                                 target_parameter_names,
                                 Some(content_conservation),
                             )
-                            .substitute(&substitution);
+                            .substitute(&substitution.identity);
                             match predicate.boolean_value() {
                                 Some(false) => {}
                                 Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
-                                None => guards.push(SummaryCrashRouteGuard::Predicate(predicate)),
+                                None => guards.push(SummaryCrashRouteGuard::Predicate(
+                                    SummaryCrashPredicate {
+                                        identity: predicate,
+                                        scalar: identity.scalar_expression().and_then(|scalar| {
+                                            substitute_checked_boolean_expression(
+                                                scalar,
+                                                &substitution.scalar,
+                                            )
+                                        }),
+                                    },
+                                )),
                             }
                         }
                     }
@@ -333,13 +538,22 @@ fn refine_published_crash_routes(
 /// without reopening source trees.
 pub(super) fn attach_checked_crash_calls(
     program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
     flow: &psi_checked_trees::FlowFacts,
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     crash_capsules: &[psi_checked_trees::CrashContractCapsule],
     plans: &mut [psi_checked_trees::MachineContractPlan],
 ) {
-    let inferred_body_summaries =
-        infer_private_body_summaries(program, flow, content_conservation, crash_capsules, plans);
+    let inferred_body_summaries = infer_private_body_summaries(
+        program,
+        operators,
+        exact_integer_casts,
+        flow,
+        content_conservation,
+        crash_capsules,
+        plans,
+    );
     let mut calls_by_caller =
         Vec::<(SymbolHandle, Vec<psi_checked_trees::CheckedCrashCallSite>)>::new();
     for (_, state_flow) in flow.control.states.iter() {
@@ -471,6 +685,8 @@ pub(super) fn attach_checked_crash_calls(
                 SelectedTargetCrashRoutes::Published { buckets, contracts } => {
                     refine_published_crash_routes(
                         program,
+                        operators,
+                        exact_integer_casts,
                         state_flow,
                         call_flow,
                         &call_site,
@@ -486,9 +702,13 @@ pub(super) fn attach_checked_crash_calls(
                 SelectedTargetCrashRoutes::Private(summary) => {
                     let substitution = call_argument_substitution(
                         program,
+                        operators,
                         target_parameters,
                         arguments,
                         &caller_parameter_names,
+                        state_flow.state_symbol,
+                        call_flow.statement_index,
+                        exact_integer_casts,
                     );
                     normalize_summary_buckets(
                         summary
@@ -544,6 +764,8 @@ pub(super) fn attach_checked_crash_calls(
 
 fn infer_private_body_summaries(
     program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
     flow: &psi_checked_trees::FlowFacts,
     content_conservation: &[psi_validation::ContentConservationSourcePlan],
     crash_capsules: &[psi_checked_trees::CrashContractCapsule],
@@ -678,9 +900,13 @@ fn infer_private_body_summaries(
                         machine: invocation.target_machine,
                         substitution: call_argument_substitution(
                             program,
+                            operators,
                             target_parameters,
                             arguments,
                             &caller_parameter_names,
+                            invocation.caller_state,
+                            invocation.statement_index,
+                            exact_integer_casts,
                         ),
                         recursive: private_dependency_reaches(
                             &nodes,
@@ -692,6 +918,8 @@ fn infer_private_body_summaries(
                 } else if !target_plan.crash.published().is_empty() {
                     published_dependencies.extend(refine_published_crash_routes(
                         program,
+                        operators,
+                        exact_integer_casts,
                         state_flow,
                         call_flow,
                         &call_site,
@@ -728,6 +956,8 @@ fn infer_private_body_summaries(
                     .collect::<Vec<_>>();
                 published_dependencies.extend(refine_published_crash_routes(
                     program,
+                    operators,
+                    exact_integer_casts,
                     state_flow,
                     call_flow,
                     &call_site,
@@ -775,7 +1005,7 @@ struct PrivateSummaryEquation {
 
 struct PrivateSummaryDependency {
     machine: SymbolHandle,
-    substitution: Vec<Option<CrashPredicateExpression>>,
+    substitution: CallArgumentSubstitution,
     recursive: bool,
 }
 
@@ -973,6 +1203,42 @@ fn crash_route_expressions_by_identity(
 mod tests {
     use super::*;
 
+    fn predicate(identity: CrashPredicateExpression) -> SummaryCrashRouteGuard {
+        SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+            identity,
+            scalar: None,
+        })
+    }
+
+    fn identity_substitution(
+        identity: Vec<Option<CrashPredicateExpression>>,
+    ) -> CallArgumentSubstitution {
+        CallArgumentSubstitution {
+            scalar: vec![None; identity.len()],
+            identity,
+        }
+    }
+
+    #[test]
+    fn summary_guard_normalization_keeps_checked_scalar_structure() {
+        let identity = CrashPredicateExpression::Parameter(0);
+        let scalar = psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 };
+        let mut guards = vec![
+            predicate(identity.clone()),
+            SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                identity,
+                scalar: Some(scalar.clone()),
+            }),
+        ];
+
+        normalize_summary_guards(&mut guards);
+
+        let [SummaryCrashRouteGuard::Predicate(predicate)] = guards.as_slice() else {
+            panic!("equivalent predicates should merge into one guarded route")
+        };
+        assert_eq!(predicate.scalar, Some(scalar));
+    }
+
     #[test]
     fn private_summary_fixed_point_closes_recursive_components() {
         let first = SymbolHandle::from_arena_index(1);
@@ -980,9 +1246,7 @@ mod tests {
         let abort = SummaryCrashBucket::unconditional(psi_checked_trees::CrashCause::Abort);
         let guarded_abort = SummaryCrashBucket {
             cause: psi_checked_trees::CrashCause::Abort,
-            alternative_guards: vec![SummaryCrashRouteGuard::Predicate(
-                CrashPredicateExpression::Parameter(0),
-            )],
+            alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
         };
         let trap = SummaryCrashBucket::unconditional(psi_checked_trees::CrashCause::Trap);
         let equations = vec![
@@ -991,7 +1255,7 @@ mod tests {
                 direct: Vec::new(),
                 private_dependencies: vec![PrivateSummaryDependency {
                     machine: second,
-                    substitution: Vec::new(),
+                    substitution: identity_substitution(Vec::new()),
                     recursive: true,
                 }],
                 published_dependencies: vec![guarded_abort],
@@ -1001,7 +1265,7 @@ mod tests {
                 direct: vec![trap.clone()],
                 private_dependencies: vec![PrivateSummaryDependency {
                     machine: first,
-                    substitution: Vec::new(),
+                    substitution: identity_substitution(Vec::new()),
                     recursive: true,
                 }],
                 published_dependencies: Vec::new(),
@@ -1025,9 +1289,7 @@ mod tests {
         let wrapper = SymbolHandle::from_arena_index(2);
         let route = SummaryCrashBucket {
             cause: psi_checked_trees::CrashCause::Trap,
-            alternative_guards: vec![SummaryCrashRouteGuard::Predicate(
-                CrashPredicateExpression::Parameter(0),
-            )],
+            alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
         };
         let equations = vec![
             PrivateSummaryEquation {
@@ -1041,7 +1303,9 @@ mod tests {
                 direct: Vec::new(),
                 private_dependencies: vec![PrivateSummaryDependency {
                     machine: leaf,
-                    substitution: vec![Some(CrashPredicateExpression::Parameter(1))],
+                    substitution: identity_substitution(vec![Some(
+                        CrashPredicateExpression::Parameter(1),
+                    )]),
                     recursive: false,
                 }],
                 published_dependencies: Vec::new(),
@@ -1058,9 +1322,7 @@ mod tests {
         };
         assert_eq!(
             bucket.alternative_guards,
-            vec![SummaryCrashRouteGuard::Predicate(
-                CrashPredicateExpression::Parameter(1)
-            )]
+            vec![predicate(CrashPredicateExpression::Parameter(1))]
         );
     }
 }

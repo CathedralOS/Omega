@@ -489,7 +489,8 @@ impl CheckedCrashSite {
 /// Invocation-specific refinement of a selected callee crash summary. The
 /// summary may be a published ceiling or conservative same-unit checked-body
 /// evidence. `surviving_buckets` are already expressed in the caller's
-/// canonical parameter namespace. Exact incoming conjuncts remain distinct
+/// canonical scalar value namespace, including direct caller-local arguments.
+/// Exact incoming conjuncts remain distinct
 /// from the sound structural consequences used by ceiling coverage. An empty
 /// surviving set is meaningful evidence that the selected summary is
 /// crash-free at this invocation, so such records are retained rather than

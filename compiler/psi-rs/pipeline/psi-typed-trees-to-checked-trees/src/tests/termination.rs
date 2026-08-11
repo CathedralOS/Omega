@@ -3088,6 +3088,11 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         flag
     { risky(flag) }
 
+    machine local_forwarded(flag: bool) -> i32 {
+        let forwarded: bool = flag;
+        risky(forwarded)
+    }
+
     machine conditioned(flag: bool) -> i32
     crashes Trap
         flag
@@ -3162,6 +3167,28 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     assert_eq!(
         forwarded_route, published_route,
         "argument substitution should move the callee route into the caller's positional namespace"
+    );
+    assert_eq!(
+        forwarded_route.scalar_expression(),
+        Some(&psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
+        "invocation refinement must retain checked scalar meaning, not only predicate identity",
+    );
+
+    let [local_forwarded_call] = plan("local_forwarded").crash.checked_calls() else {
+        panic!("the local-argument invocation should retain one checked call row")
+    };
+    let [local_forwarded_bucket] = local_forwarded_call.surviving_buckets() else {
+        panic!("the local-argument route should survive")
+    };
+    let [psi_checked_trees::CrashRouteGuard::Predicate(local_forwarded_route)] =
+        local_forwarded_bucket.alternative_guards()
+    else {
+        panic!("the local-argument route should remain a predicate")
+    };
+    assert_eq!(
+        local_forwarded_route.scalar_expression(),
+        Some(&psi_checked_trees::CheckedBooleanExpression::Local { position: 1 }),
+        "direct refinement should retain the caller-local value position assigned after its one parameter",
     );
 
     let [conditioned_call] = plan("conditioned").crash.checked_calls() else {
@@ -3332,6 +3359,11 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     };
     assert_eq!(outer_route, covered_route);
     assert_eq!(covered_route, published_route);
+    assert_eq!(
+        covered_route.scalar_expression(),
+        Some(&psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
+        "acyclic private-summary substitution must preserve terminal-lowerable scalar meaning",
+    );
 
     let [disproved_call] = plan("disproved").crash.checked_calls() else {
         panic!("disproved should retain positive evidence for its outer call")
