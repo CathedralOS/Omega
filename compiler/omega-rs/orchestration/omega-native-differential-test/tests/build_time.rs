@@ -7,7 +7,7 @@
 
 use omega_compiler::compile_to_checked;
 use psi_checked_interpreter::{
-    BuildTimeValue, evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret,
+    BuildTimeValue, evaluate_build_time_machine, evaluate_build_time_machine_measured,
     interpret_entry,
 };
 use std::fs;
@@ -79,7 +79,7 @@ machine Main::main(&mut self) { }
     );
 
     let checked = compile_to_checked(&main_path, None).expect("pilot program should compile");
-    let interpreted = interpret(&checked, &[]);
+    let interpreted = interpret_entry(&checked, checked.program_entry_machine(), &[]);
     assert!(interpreted.error.is_none());
     assert_eq!(interpreted.usage.schedule().marker(), 1);
     assert!(interpreted.usage.fuel_units() > 0);
