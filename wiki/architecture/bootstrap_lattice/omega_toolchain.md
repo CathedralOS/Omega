@@ -38,11 +38,6 @@ must either place an auditable reference verifier on the bootstrap spine, make
 the Psi verifier emit a reconstruction derivation checked by the low kernel, or
 list the Psi verifier explicitly in the trusted base.
 
-## Open work
-
-- Move the full Psi/Omega implementation onto Delta without weakening the
-  canonical terminal-Psi contract.
-- Emit and check per-compilation refinement evidence for native artifacts.
-- Connect terminal-Psi obligation reconstruction to the low-rung proof-kernel
-  route and close its final trust-placement decision.
-- Keep production optimization outside the trusted proof kernel.
+Bootstrap hosting, native refinement evidence, and the terminal-verifier trust
+closure remain execution work under P3 in [`TASKS.md`](../../../TASKS.md).
+Production optimization remains outside the trusted proof kernel.
