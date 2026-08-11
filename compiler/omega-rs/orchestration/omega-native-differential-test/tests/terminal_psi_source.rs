@@ -1003,6 +1003,92 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
 }
 
 #[test]
+fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("the short-circuit call source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_call_short_argument")
+        .expect("a checked short-circuit call argument should lower through terminal control");
+    assert_eq!(lowered.semantic_module.machines.len(), 2);
+    let caller = &lowered.semantic_module.machines[0];
+    let (call_block, call) = caller
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .operations
+                .iter()
+                .find(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+                .map(|operation| (block, operation))
+        })
+        .expect("the staged convergence block should contain one terminal call");
+    let OperationKind::Call { arguments, .. } = &call.kind else {
+        unreachable!()
+    };
+    assert_eq!(arguments.len(), 2);
+    assert!(arguments.iter().all(|argument| {
+        call_block
+            .parameters
+            .iter()
+            .any(|parameter| parameter.id == *argument)
+    }));
+    assert!(caller.blocks.iter().any(|block| matches!(
+        block.terminator,
+        psi_terminal::Terminator::Conditional { .. }
+    )));
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the staged source-call closure should verify");
+    for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
+        assert_eq!(
+            interpret_verified_artifact(
+                &verified,
+                &[
+                    TerminalScalarValue::Boolean(first),
+                    TerminalScalarValue::Boolean(second),
+                ],
+            )
+            .expect("the staged source call should interpret")
+            .value(),
+            TerminalScalarValue::Boolean(first || second),
+        );
+    }
+    let abstract_operations = lower_verified_artifact(&verified)
+        .expect("the staged source call should reach Omega lowering");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("the staged source call should select a native calling plan");
+        let assigned =
+            assign_registers(&target_operations).expect("the staged source call should assign");
+        let emitted = emit_machine_code(&assigned).expect("the staged source call should emit");
+        assert_eq!(emitted.functions.len(), 2);
+        assert!(!emitted.functions[0].internal_calls.is_empty());
+        assert!(
+            emitted.functions[0]
+                .internal_calls
+                .iter()
+                .all(|call| call.target == MachineId::new(2).expect("callee identity"))
+        );
+    }
+}
+
+#[test]
+fn checked_source_guarded_short_circuit_call_argument_fails_closed() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("the guarded short-circuit call canary should compile");
+    assert_eq!(
+        lower_machine(&checked, "terminal_call_short_guarded_unsupported")
+            .expect_err("guarded staged arguments need argument-relative checked crash rows"),
+        LoweringError::Unsupported(
+            "guarded short-circuit call arguments require terminal argument-relative crash rows"
+        ),
+    );
+}
+
+#[test]
 fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("the guarded-call source canary should compile");

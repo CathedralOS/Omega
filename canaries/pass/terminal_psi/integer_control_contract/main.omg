@@ -150,11 +150,26 @@ ensures true == true
     value
 }
 
+machine terminal_call_second(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    second
+}
+
 machine terminal_call_forward(flag: bool) -> bool
 requires true == true
 ensures true == true
 {
     let forwarded: bool = terminal_call_identity(flag);
+    forwarded
+}
+
+machine terminal_call_short_argument(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+{
+    let forwarded: bool = terminal_call_second(first && second, first || second);
     forwarded
 }
 
@@ -183,6 +198,15 @@ crashes Trap
 {
     let forwarded: bool = !flag;
     let result: bool = terminal_call_guarded_callee(forwarded);
+    result
+}
+
+machine terminal_call_short_guarded_unsupported(first: bool, second: bool) -> bool
+requires true == true
+ensures true == true
+crashes Trap
+{
+    let result: bool = terminal_call_guarded_callee(first && second);
     result
 }
 

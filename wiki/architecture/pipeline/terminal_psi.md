@@ -169,10 +169,15 @@ caller-local scalar arguments. Checked scalar graphs also retain direct
 call-valued bindings, their exact call coordinate, and positional scalar
 argument plans. Source production composes the reachable in-module checked
 scalar call closure, consumes each matching crash row, and emits `Call` with
-parameter or computed direct-local substitutions intact. Short-circuit call
-arguments, wider aggregate/member predicates, and imported crash capsules
-remain fail-closed. Structural/content contracts also reject because custody
-effects require their own vertical slice rather than an ordinary scalar flag.
+parameter or computed direct-local substitutions intact. Crash-free calls stage
+short-circuit scalar arguments left-to-right and Omega target lowering accepts
+the resulting calls inside conditional control. Guarded staged arguments remain
+fail-closed until checked invocation rows retain callee-parameter-relative route
+provenance: reverse-matching substituted expressions is not exact when two
+parameters receive equal or overlapping expressions. Wider aggregate/member
+predicates and imported crash capsules also remain fail-closed.
+Structural/content contracts reject because custody effects require their own
+vertical slice rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid
