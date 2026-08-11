@@ -16,7 +16,6 @@ pub struct CheckedCompilation {
     program: CheckedTrees,
     selected_program_entry_machine: Option<String>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
-    callback_bindings: super::callback_plans::StaticCallbackBindingPlanSet,
     task_activations: omega_task_plans::TaskActivationPlanSet,
 }
 
@@ -31,10 +30,6 @@ impl CheckedCompilation {
 
     pub const fn task_activations(&self) -> &omega_task_plans::TaskActivationPlanSet {
         &self.task_activations
-    }
-
-    pub const fn callback_bindings(&self) -> &super::callback_plans::StaticCallbackBindingPlanSet {
-        &self.callback_bindings
     }
 
     pub fn into_program(self) -> CheckedTrees {
@@ -111,7 +106,7 @@ pub fn compile_to_checked(
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
-    let boundary_calling_plan_realizations =
+    let _boundary_calling_plan_realizations =
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
     let build_config =
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
@@ -163,11 +158,6 @@ pub fn compile_to_checked(
         checked_program,
         &selected_provider_plan_facts,
     )?;
-    let callback_bindings =
-        crate::pipeline::callback_plans::elaborate_static_callback_binding_plans(
-            checked_program,
-            &boundary_calling_plan_realizations,
-        )?;
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
     crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
@@ -186,7 +176,6 @@ pub fn compile_to_checked(
         program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
         selected_program_entry_machine,
         selected_provider_plans: selected_provider_plan_facts,
-        callback_bindings,
         task_activations,
     })
 }

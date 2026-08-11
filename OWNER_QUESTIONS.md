@@ -76,3 +76,22 @@ partial provider write into readable initialized content. It must preserve
 ordinary lifetime and nonaliasing checks without implying provider read
 authority, and it must remain distinct from `Placed<P, T>` field accessors and
 from durable custody transfer.
+
+## Q5 — Static callback-parameter requirement form
+
+Registered-callback lowering requires a foreign operation to bind one static
+machine-parameter position to one exact boundary callback requirement. The
+implemented `where machine Selected(...)` clause carries only a structural
+callable contract; signature coincidence or a selected machine's unique
+conformance cannot establish the nominal relationship. `invokes` is also not
+that relationship: it declares synchronous entry before return and therefore
+cannot type a deferred durable registration.
+
+Choose the source form and checked representation for this binding. The
+decision must settle whether it belongs on the machine-parameter declaration,
+its `where machine` contract, or the foreign operation parameter; how trait
+requirements and satisfying implementations retain the same exact relation;
+and how overload identity is named. It must produce a per-use checked fact
+containing the call site, machine-argument ordinal, selected machine, and exact
+callback trait requirement so native lowering can place one private relocation
+without creating a runtime machine value or exposing a code address.

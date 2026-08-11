@@ -221,10 +221,13 @@ Owners:
 
 #### ENT4 — registered callbacks
 
-- Static contextual selection and exact address-free `CallPlan + StatePlan`
-  retention are live for one uniquely conformed boundary machine. Emit its
-  thunk only from the selected binding lowering. Registration is linear,
-  explicitly unregisters, and retains required code/component leases.
+- **CALLBACK-PARAMETER-REQUIREMENT — design blocked on owner Q5.** The source
+  operation must nominally bind one static machine-parameter position to one
+  exact callback requirement; callable-shape coincidence and unique conformance
+  are insufficient. Once settled, retain a checked per-use row and exact
+  call/state plan, then emit its thunk only from selected binding lowering.
+  Registration is linear, explicitly unregisters, and retains required code/
+  component leases.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.
