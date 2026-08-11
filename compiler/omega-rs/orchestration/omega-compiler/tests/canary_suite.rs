@@ -42812,6 +42812,38 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
 }
 
 #[test]
+fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() {
+    for (canary_name, target) in [
+        (
+            "capabilities/win64_scalar_float_import_compile",
+            "windows_x64",
+        ),
+        (
+            "text/runtime_x86_general_double_indexed_string_concat_compile",
+            "linux_x64",
+        ),
+        (
+            "slices/runtime_aarch64_cross_region_frame_indexed_rmw_compile",
+            "linux_arm64",
+        ),
+    ] {
+        let canary = pass_canary(canary_name);
+        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "{canary_name} should retain its explicit {target} ProgramEntry binding: {diagnostics:?}"
+                )
+            });
+
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            Some("Main::main"),
+            "{canary_name} must select Main::main through its target-owned ProgramEntry slot"
+        );
+    }
+}
+
+#[test]
 fn uefi_program_entry_retains_exact_storage_root_binding() {
     let canary = pass_canary("build/uefi_program_entry_storage_roots");
     let build_dir = std::env::temp_dir().join(format!(

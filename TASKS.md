@@ -57,8 +57,11 @@ Remaining:
   the bridge zero the conserved receiver reservation into the checked ZII value
   and lend it for one `&mut self` activation. Migrate the remaining
   `Main::main` corpus to exact target-owned `ProgramEntry` bindings and delete
-  that last naming fallback; `Main::run` discovery is retired. No ambient
-  `static` storage. Final
+  that last naming fallback; three single-target hosted canaries now exercise
+  explicit Windows x86-64, Linux x86-64, and Linux AArch64 bindings. The bulk
+  multi-target and checker-only corpus still needs target-scoped build and
+  analysis-without-deployment-entry engineering. `Main::run` discovery is
+  retired. No ambient `static` storage. Final
   composition of firmware `ImageHandle`/`SystemTable` inputs with the semantic
   roots is design-blocked on owner Q2; the other bridge and migration work is
   not.
