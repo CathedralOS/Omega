@@ -40,9 +40,10 @@ current packages.
 > under **`compiler/psi-rs/`**, beginning with
 > `foundation/psi-source`, `foundation/psi-core`, `representations/psi-tokens`,
 > `representations/psi-terminal`, `pipeline/psi-source-files-to-tokens`,
-> `semantics/psi-proof-kernel`, `semantics/psi-terminal-verifier`, and
-> `semantics/psi-terminal-interpreter`; parsing-through-lowering crates now live
-> there; their former Omega package adapters are retired. The unused
+> `semantics/psi-proof-kernel`, `semantics/psi-checked-interpreter`,
+> `semantics/psi-terminal-verifier`, and `semantics/psi-terminal-interpreter`;
+> parsing-through-lowering crates now live there; their former Omega package
+> adapters are retired. The unused
 > `omega-core` source/span, exact-bignum, const-value,
 > content, built-in-value-domain, atomic-ordering, cast-form,
 > operator-spelling, and inline-assembly aliases are retired; consumers use
@@ -97,6 +98,7 @@ Omega/
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
+|   |       |-- [CRATE] psi-checked-interpreter/        # Checked-tree build-time and transitional reference execution.
 |   |       |-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |       `-- [CRATE] psi-terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
 |   |
@@ -171,6 +173,7 @@ Omega/
 |       |-- [CRATE] omega-backend-pipeline/           # Backend phase sequencing at the orchestration edge.
 |       |-- [CRATE] omega-compiler/                   # Top-level check/build API used by cli/tests.
 |       |-- [CRATE] omega-external-roots/             # Installed provider/root execution, receipts, and resource evidence.
+|       |-- [CRATE] omega-native-differential-test/    # Cross-layer Psi-interpreter/native differential tests only.
 |       `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
 |-- omega/
@@ -252,8 +255,9 @@ Omega/
   vertical slices replace their source-shaped handles.
 - `compiler/omega-rs/` begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
-  target lowering, and native execution machinery. Psi owns canonical reference
-  interpretation of terminal Psi.
+  target lowering, and native execution machinery. Psi owns both transitional
+  checked-tree reference execution and canonical terminal-Psi interpretation;
+  Omega contains only the cross-layer native differential-test harness.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
   invariants, and validation. Borrow, invariant, contract, and const-evaluation
   reasoning live chiefly in `psi-types`, `psi-facts`, `psi-validation`, and
@@ -264,8 +268,8 @@ Omega/
 - `psi-checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. Legacy
   state/control representations and transforms, artifact/backend orchestration,
-  the transitional checked-tree interpreter, and backend leaf consumers depend
-  on the Psi owner directly.
+  the Psi-owned transitional checked-tree interpreter, and backend leaf
+  consumers depend on the Psi owner directly.
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts; target-neutral
   consumers depend on it directly. `omega-effects` retains provider

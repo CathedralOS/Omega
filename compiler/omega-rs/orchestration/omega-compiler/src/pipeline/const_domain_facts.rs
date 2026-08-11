@@ -8,8 +8,8 @@
 //! other typed const-evaluation pass and replaces a proven concrete membership
 //! with the ordinary `true` fact consumed by checking.
 
-use omega_interpreter::BuildTimeValue;
 use psi_arena::Handle;
+use psi_checked_interpreter::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::{ProofFact, ProofMembershipFact};
@@ -224,7 +224,7 @@ fn evaluate_machine_fact(
         ));
     }
 
-    let fact_holds = match omega_interpreter::evaluate_build_time_machine(
+    let fact_holds = match psi_checked_interpreter::evaluate_build_time_machine(
         typed,
         machine_name,
         vec![BuildTimeValue::Int(self_value)],

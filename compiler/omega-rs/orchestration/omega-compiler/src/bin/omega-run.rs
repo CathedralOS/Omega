@@ -78,7 +78,7 @@ fn main() {
     if both {
         match compile_to_checked(&main_path, None) {
             Ok(checked) => {
-                let outcome = omega_interpreter::interpret(&checked, &[]);
+                let outcome = psi_checked_interpreter::interpret(&checked, &[]);
                 if let Some(reason) = &outcome.error {
                     eprintln!("interp: DECLINED ({reason})");
                 } else {

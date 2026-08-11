@@ -48,9 +48,9 @@ impl std::ops::DerefMut for CheckedCompilation {
 
 /// Runs ONLY the four frontend stages (lex/parse -> symbol resolution -> typing ->
 /// checking) and returns the in-memory `CheckedTrees` program. No backend lowering,
-/// no file output. This is the source-of-truth semantic representation that the
-/// reference interpreter (`omega-interpreter`) evaluates as a differential oracle for
-/// the native backend.
+/// no file output. The Psi checked-tree interpreter evaluates this transitional
+/// representation as a differential oracle for the native backend while terminal-Psi
+/// coverage grows.
 pub fn compile_to_checked(
     root_path: &Path,
     target_name: Option<&str>,

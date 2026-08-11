@@ -73,6 +73,9 @@ Current roots:
   and checking;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
   checking, evidence envelopes, and sealed admission validation;
+- `semantics/psi-checked-interpreter`: build-time and differential reference
+  execution of checked/source-shaped semantics not yet represented in terminal
+  Psi;
 - `semantics/psi-terminal-verifier`: structural module validation,
   verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
   evidence checking;
@@ -82,4 +85,6 @@ Current roots:
 Every workspace harness invokes the Psi source-to-checked stages directly.
 Omega begins at provider selection and realization: it consumes terminal Psi
 where that vocabulary exists and otherwise lowers checked Psi semantics while
-the remaining terminal slices are implemented.
+the remaining terminal slices are implemented. Cross-layer interpreter/native
+comparisons live in an Omega test-only harness; both reference interpreters
+remain Psi-owned.

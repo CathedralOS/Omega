@@ -8,7 +8,7 @@ fn source_canary() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
-        .expect("omega-interpreter lives under compiler/omega-rs/orchestration")
+        .expect("omega-native-differential-test lives under compiler/omega-rs/orchestration")
         .join("canaries/pass/terminal_psi/integer_control_contract/main.omg")
 }
 

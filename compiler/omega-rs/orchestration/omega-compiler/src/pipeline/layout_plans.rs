@@ -6,7 +6,7 @@
 //! array position, so policies may reorder entries or fragment one logical
 //! field.
 
-use omega_interpreter::BuildTimeValue;
+use psi_checked_interpreter::BuildTimeValue;
 pub use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
@@ -45,11 +45,12 @@ pub fn compute_layout_plan(
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     BuildTimeAdmissionPlan::infer(typed).require_common_floor(typed, machine)?;
 
-    let plan =
-        omega_interpreter::evaluate_build_time_machine(typed, policy_machine, vec![schema_value])
-            .map_err(|reason| {
-            format!("build-time evaluation of `{policy_machine}` failed: {reason}")
-        })?;
+    let plan = psi_checked_interpreter::evaluate_build_time_machine(
+        typed,
+        policy_machine,
+        vec![schema_value],
+    )
+    .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
 
     validate_plan(&plan, &schema_fields, schema_identity, policy_machine)
 }

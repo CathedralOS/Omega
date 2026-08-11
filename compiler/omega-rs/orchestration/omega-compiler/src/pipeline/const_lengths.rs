@@ -9,11 +9,10 @@
 //! - EARLY enough that range checking (`typed-trees-to-checked-trees`), proof
 //!   facts, layout, and codegen all see an ordinary `FixedArrayLength::Literal`
 //!   -- indistinguishable from a written `[T; 16]`.
-//! - LATE enough that the whole program is typed, so the reference interpreter
-//!   (`omega-interpreter`, the differential oracle) can evaluate the callee
-//!   over the very trees the rest of the pipeline consumes. The dependency is
-//!   acyclic: the interpreter depends only on `omega-core`/`psi-typed-trees`
-//!   /`psi-checked-trees` (its `omega-compiler` edge is dev-only).
+//! - LATE enough that the whole program is typed, so the Psi checked-tree
+//!   interpreter can evaluate the callee over the very trees the rest of the
+//!   pipeline consumes. The interpreter is target-neutral and has no Omega
+//!   dependency.
 //!
 //! LEGALITY GATE: the callee's normalized effective service reach must be empty
 //! and its modular operational summary must neither suspend nor block. The
@@ -132,7 +131,7 @@ pub(super) fn evaluate_zero_argument_machine(
 
     admission.require_common_floor(typed, machine)?;
 
-    omega_interpreter::evaluate_const_machine(typed, machine_name)
+    psi_checked_interpreter::evaluate_const_machine(typed, machine_name)
 }
 
 /// The parameter count of the machine's entry state (the body of a free

@@ -1,15 +1,15 @@
-//! Transitional checked/typed-tree interpreter used as a differential oracle
-//! while the source producer migrates to terminal Psi.
+//! Psi-owned checked/typed-tree interpreter used for build-time evaluation and
+//! as a differential oracle while the terminal producer grows.
 //!
 //! Canonical portable execution belongs to the Psi-owned
-//! `psi-terminal-interpreter` crate. This crate retains only the legacy
-//! source-shaped evaluator and build-time evaluation support.
+//! `psi-terminal-interpreter` crate. This crate retains the source-shaped
+//! evaluator for constructs not yet represented in terminal Psi.
 //!
 //! The interpreter evaluates the program at the level of the typed/checked trees
 //! (`psi_checked_trees::CheckedTrees`, which derefs to `psi_typed_trees::TypedTrees`)
-//! -- the source-of-truth semantics, ABOVE all backend lowering. It is therefore
-//! independent of the backend bugs it must catch: if `interpret()` and the native
-//! binary disagree on exit code or stdout for the same program, the backend is wrong.
+//! -- above all backend lowering. It is therefore independent of the backend bugs
+//! it must catch: if `interpret()` and the native binary disagree on exit code or
+//! stdout for the same checked program, the backend is wrong.
 //!
 //! ## Value & store model (the crux: aliasing)
 //! Every storage place -- local, struct field, machine instance -- is an

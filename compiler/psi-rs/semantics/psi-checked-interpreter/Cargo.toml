@@ -1,0 +1,19 @@
+[package]
+name = "psi-checked-interpreter"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_checked_interpreter"
+path = "src/lib.rs"
+
+[dependencies]
+psi-arena = { path = "../../foundation/psi-arena" }
+psi-symbols = { path = "../../foundation/psi-symbols" }
+psi-language-core = { path = "../../foundation/psi-language-core" }
+psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
+psi-numerics = { path = "../../foundation/psi-numerics" }
+psi-layout-plans = { path = "../../foundation/psi-layout-plans" }
+psi-typed-trees = { path = "../../representations/psi-typed-trees" }
+psi-checked-trees = { path = "../../representations/psi-checked-trees" }

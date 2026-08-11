@@ -5879,10 +5879,10 @@ impl<'program> Evaluator<'program> {
             _ => return Ok(None),
         };
 
-        // The named F32/F64 requirements are checked boundary contracts whose
-        // current omega-core provider is hermetic, so semantic evaluation may
-        // consume them. Compatibility imports still represent an actual host
-        // boundary and must trip the dynamic build-time purity backstop.
+        // The named F32/F64 requirements are checked boundary contracts with a
+        // hermetic intrinsic provider, so semantic evaluation may consume them.
+        // Compatibility imports still represent an actual host boundary and
+        // must trip the dynamic build-time purity backstop.
         if compatibility_call {
             self.host_boundary_touched = true;
             self.non_fs_host_boundary_touched = true;

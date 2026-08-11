@@ -24,7 +24,7 @@
 //! selection then proceeds exactly as before (its own blockers reject the
 //! call), so the pass can never turn a working program into a broken one.
 
-use omega_interpreter::BuildTimeValue;
+use psi_checked_interpreter::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
@@ -193,7 +193,7 @@ fn evaluate_wire_policy(
     admission.require_common_floor(typed, machine)?;
 
     let schema_value = build_wire_schema_value(fields);
-    let plan = omega_interpreter::evaluate_build_time_machine(
+    let plan = psi_checked_interpreter::evaluate_build_time_machine(
         typed,
         WIRE_GRAMMAR_POLICY,
         vec![schema_value],

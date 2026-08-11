@@ -83,7 +83,7 @@ fn source_canary() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
-        .expect("omega-interpreter lives under compiler/omega-rs/orchestration")
+        .expect("omega-native-differential-test lives under compiler/omega-rs/orchestration")
         .join("canaries/pass/terminal_psi/integer_control_contract/main.omg")
 }
 
@@ -6553,7 +6553,7 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
             lowered.semantic_module.vocabulary_marker,
             VocabularyMarker::CURRENT
         );
-        let operation = lowered.semantic_module.machines[0].blocks[0].operations[0].kind;
+        let operation = &lowered.semantic_module.machines[0].blocks[0].operations[0].kind;
         assert!(matches!(
             (kind, operation),
             (0, OperationKind::IntegerBitwiseAnd { .. })
@@ -7114,7 +7114,7 @@ fn checked_source_policy_retags_and_unary_negation_reuse_terminal_arithmetic() {
             .expect("policy arithmetic should retain one terminal operation");
         assert!(
             matches!(
-                (expected_kind, operation.kind),
+                (expected_kind, &operation.kind),
                 (0, OperationKind::SaturatingIntegerAdd { .. })
                     | (1, OperationKind::WrappingIntegerSubtract { .. })
                     | (2, OperationKind::SaturatingIntegerSubtract { .. })

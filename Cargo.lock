@@ -349,7 +349,6 @@ dependencies = [
  "omega-image",
  "omega-image-emission",
  "omega-instruction-selection",
- "omega-interpreter",
  "omega-layout",
  "omega-machine-bytes",
  "omega-object-file",
@@ -372,6 +371,7 @@ dependencies = [
  "omega-visualizations",
  "psi-access-plans",
  "psi-arena",
+ "psi-checked-interpreter",
  "psi-checked-trees",
  "psi-diagnostics",
  "psi-effects",
@@ -629,43 +629,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-interpreter"
-version = "0.1.0"
-dependencies = [
- "omega-compiler",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-target",
- "omega-terminal-abstract-operations",
- "omega-terminal-abstract-operations-to-target-operations",
- "omega-terminal-assigned-target-operations",
- "omega-terminal-image-emission",
- "omega-terminal-machine-emission",
- "omega-terminal-psi-to-abstract-operations",
- "omega-terminal-target-operations",
- "omega-terminal-target-operations-to-assigned-target-operations",
- "psi-arena",
- "psi-checked-trees",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-extents",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-proof-kernel",
- "psi-symbols",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-fuel",
- "psi-terminal-interpreter",
- "psi-terminal-verifier",
- "psi-typed-trees",
-]
-
-[[package]]
 name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
@@ -763,6 +726,44 @@ dependencies = [
  "omega-target-operations",
  "psi-arena",
  "psi-language-core",
+]
+
+[[package]]
+name = "omega-native-differential-test"
+version = "0.1.0"
+dependencies = [
+ "omega-compiler",
+ "omega-executable-installation",
+ "omega-external-roots",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-assigned-target-operations",
+ "omega-terminal-image-emission",
+ "omega-terminal-machine-emission",
+ "omega-terminal-psi-to-abstract-operations",
+ "omega-terminal-target-operations",
+ "omega-terminal-target-operations-to-assigned-target-operations",
+ "psi-arena",
+ "psi-checked-interpreter",
+ "psi-checked-trees",
+ "psi-checked-trees-to-terminal",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-extents",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-layout-plans",
+ "psi-numerics",
+ "psi-proof-kernel",
+ "psi-symbols",
+ "psi-terminal",
+ "psi-terminal-codec",
+ "psi-terminal-fixed-fuel",
+ "psi-terminal-fuel",
+ "psi-terminal-interpreter",
+ "psi-terminal-verifier",
+ "psi-typed-trees",
 ]
 
 [[package]]
@@ -1249,6 +1250,20 @@ name = "psi-arena"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
+]
+
+[[package]]
+name = "psi-checked-interpreter"
+version = "0.1.0"
+dependencies = [
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-layout-plans",
+ "psi-numerics",
+ "psi-symbols",
+ "psi-typed-trees",
 ]
 
 [[package]]
