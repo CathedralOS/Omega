@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-09.
+Last pruned: 2026-08-11.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -52,54 +52,29 @@ Owners:
 
 Remaining:
 
-- **ENTRY-CONTENT-ROOTS.** Complete physical entry bridges and the remaining
-  typed root slots around the live target-owned `ProgramEntry` schema carrier
-  and exact binding. The UEFI source-visible roots now match the canonical
-  typed `ProgramStorageEntry::enter` positions, and the UEFI target now retains,
-  validates, and lowers with its source-evaluated calling policy. Its compile
-  report binds the exact target root slot and checked arrival requirement to
-  the generated captures for both semantic root positions. The emitted
-  program-storage manifest publishes those roles, ABI placements, frame capture
-  ranges, strict carry, and the still-required installation predicate/order;
-  hosted builds remove the artifact. `build.omg` names one machine and performs
-  no discovery.
-  Install the physical arrival bridge and admitted grants, and record their
-  concrete image/runtime geometry and lineage in emitted artifacts. The generic
-  two-grant installer already validates both `no_wrap` obligations before
-  consuming either grant and now produces a report-only record retaining exact
-  geometry, address space, rights, provenance, mapping era, root lineage, and
-  the complete admitted provider-issuance tuple. That completed record now has
-  a canonical non-authoritative JSON form and atomic artifact writer for both
-  provider-issued and compiler-provisioned origins; normal compilation removes
-  stale completed-installation artifacts rather than claiming an installation
-  occurred.
-  Bind the installer to the selected physical provider and have that successful
-  bridge invoke the completed-record writer.
-  The final UEFI bridge/source-visible composition of semantic roots with the
-  firmware `ImageHandle`/`SystemTable` handoff is design-blocked on owner Q2;
-  artifact reporting and generic grant-installation mechanics remain actionable.
-  Provision a receiver only for a ZII-valid `&mut self` entry, under admitted
-  storage and for one activation. Record image/runtime placement, derive image
-  subextents, migrate the corpus, and delete `main`/`Main::run` fallback
-  discovery. No ambient `static` storage.
+- **ENTRY-CONTENT-ROOTS.** Complete the physical entry bridge, receiver
+  provisioning, and explicit-entry corpus migration. Exact target-owned
+  `ProgramEntry` selection, typed `ProgramStorageEntry::enter` positions,
+  calling-plan/capture binding, all-or-nothing two-grant installation, derived
+  image/storage subextents, and pending/completed audit artifacts are live.
+  Bind the installer to the selected physical provider and emit its completed
+  record only after successful installation. Provision a ZII-valid receiver
+  from admitted storage for one `&mut self` activation, record its placement,
+  migrate the corpus, and delete `main`/`Main::run` discovery. No ambient
+  `static` storage. Final composition of firmware `ImageHandle`/`SystemTable`
+  inputs with the semantic roots is design-blocked on owner Q2; the other
+  bridge and migration work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
   boundaries, and admit only provider custody. Infer identity-preserving
   reshuffles; partition changes require an authored theorem.
-- **ROOT-INTRODUCTION-AND-BACKING.** Give each content root one algebra account.
-  Fresh capacity is either compiler-provisioned sealed local capacity or
-  selected provider issuance; runtime establishment only transforms an existing
-  account. Provider-issued `Extent` grants now bind issuance, backing, provider,
-  live-issuance premise, custody root, alias class, correspondence, and trust
-  provenance to one exact selected provider plan/invocation plus establishment
-  route, capacity account, and qualification. The complete record survives
-  mint, split, borrow, mapping, rejoin, and entry installation; differing
-  evidence cannot recompose or replay mapping receipts. Compiler-provisioned
-  roots now separately retain provision, owner, sealed declaration, route,
-  capacity account, and qualification through the same operations; provider,
-  local, and independently provisioned local origins cannot recompose. Wiring
-  this origin to an authored source declaration is design-blocked on owner Q3.
+- **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
+  and compiler-provisioned origins, complete evidence preservation, and
+  cross-origin/replay rejection are live. Once the sealed local-capacity source
+  form is settled, lower that declaration into the existing compiler-owned
+  origin, terminal evidence, and artifact rows and add a source-level
+  conservation canary.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
   parameters, entry places, and results. Keep ownership, issuance, custody,
   aliasing, and partition succession distinct. Providers may attest custody,
@@ -462,6 +437,13 @@ can produce installed code; validation binds exact final bytes and placement.
 
 These entries are pointers, not duplicate specifications.
 
+- **FIXED-OPERATOR-SURFACE-BINDING:** blocked on the source form in owner Q1;
+  named operator identities and operand-directed semantics remain settled.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** the Q2 portion of
+  `ENTRY-CONTENT-ROOTS` is blocked on how platform-private handoff values
+  compose with the portable semantic root requirement.
+- **SEALED-LOCAL-CAPACITY-SOURCE-FORM:** the source-facing remainder of
+  `ROOT-INTRODUCTION-AND-BACKING` is blocked on owner Q3.
 - **ATOMIC-EVENT-MODEL:** blocked on the portable atomic axioms and target
   refinement choices in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** blocked on whether failure-returning checked

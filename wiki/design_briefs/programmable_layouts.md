@@ -342,58 +342,25 @@ durable-storage API can require a policy whose plan carries stable identity and
 reader-tolerance guarantees. Dropping identity for an explicitly ephemeral
 cache is a different policy choice made at that boundary.
 
-## Engineering order
+## Implementation boundary
 
-1. Build-time evaluation for `Layout::plan`.
-2. `Schema`, `Plan`, and the closed placement vocabulary.
-3. Deterministic plan validation and normalized identity.
-4. Name-keyed fragment placement and exact source/destination tiling.
-5. Plan-laid type layout and field projection.
-6. Representation-compatible recast checking.
-7. Authored and plan-generated codec realizations with roundtrip-contract
-   checking and trust classification.
-8. Symbolic materializer derivation and consumer-applicability validation.
-9. Home-policy resolution and artifact reporting.
-10. Converge legacy repr/format paths on normalized policy plans.
+The live slice covers normalized primitive-record plans; whole, fragmented,
+and stored-width scalar placement; typed/interpreter/native projection;
+representation-compatible structural recasts; bounded scalar wire repetition;
+and sealed symbolic data/entry materialization. Validation is atomic with
+respect to the destination. Decoding establishes no domain, trust, authority,
+or device-correspondence fact. Target and OS table lifecycle remains package
+work.
 
-Current implementation covers plan normalization, primitive record schemas,
-and named whole or fragmented scalar placement. Validation rejects incomplete,
-overlapping, out-of-bounds, or mixed placement before changing a destination;
-reads reconstruct logical values and writes preserve neighboring bits. Erased
-bindings remain outside physical placement, and decoding establishes no domain,
-trust, or authority fact. Target and OS packages consume plans; their table
-hierarchies and lifecycle remain outside the compiler.
-
-`IntegerAt` retains offset, stored width, and signedness through plan identity,
-typed projection, interpreter/native access, recast, relocation, and boundary
-classification. Reads extend from the stored width. Writes require either
-plan-wide fit evidence or a Psi-proved use-site range; unresolved or
-out-of-range values fail before publication or mutation. Target policies own
-physical integer widths while portable records keep their semantic carriers.
-
-`compact_binary` derives bounded repetition from `[T; N]`, `FixedVec<T, N>`,
-and borrowed-slice semantics. Scalar-slice encoding measures before emitting
-and uses no staging buffer. Packed scalar decode still needs owned or
-caller-provided mutable storage, and `Vec<T>` awaits its allocator contract.
-
-Symbolic materialization uses sealed `Data(DataSymbolId) |
-Entry(EntryStubId)` identities and validates range, alignment, phase, machine
-regime, and installation scope before mutation. Post-handoff writers separate
-an address-free AOT fragment from exact invocation evidence, resolve each
-symbolic target once, and publish nothing after failure. The same model covers
-initialized-data relocations and admitted executable entries on both target
-families. Final artifact propagation, source-level symbolic data derivation,
-and provider-key establishment remain; consumer table lifecycle is not a
-compiler type.
-
-## Still open
+Remaining compiler and language work:
 
 - extend the live fixed-layout `Schema` reflection and `Plan` vocabulary beyond
   the current primitive-field slice;
 - exact source types for unions and runtime strides (the fixed-layout fragment
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
-  placement constraints through linker/loader/provider artifacts;
+  placement constraints through linker/loader/provider artifacts, including
+  provider-key establishment;
 - finish `Placed<P, T>` projection (generic atomic-family helper contracts and
   qualified-borrow admission) and target-specific accessor lowering over the
   live normalized access/resource validator; direct atomic operation-family
