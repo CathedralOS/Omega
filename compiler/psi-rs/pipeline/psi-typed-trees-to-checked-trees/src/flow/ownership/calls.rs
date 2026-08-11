@@ -1,5 +1,47 @@
 use super::*;
 
+/// Resolve the owned `self` place bound through a method-form call receiver.
+///
+/// Static spelling includes `self` in the positional argument span, while
+/// method spelling binds it through the receiver and exposes only the
+/// non-self arguments. Ownership discovery and permission-event
+/// classification must use the same distinction so the latter does not
+/// mistake a terminal method consume for an ordinary transfer.
+pub(crate) fn owned_method_receiver_place(
+    program: &psi_typed_trees::TypedTrees,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_site: &CallSite<'_>,
+    target_state: &psi_typed_trees::state::State,
+    fallback_receiver_symbol: SymbolHandle,
+) -> Option<CanonicalPlace> {
+    let arguments = call_site_argument_expressions(program, call_site);
+    let declared_parameters = program.state_parameters(target_state);
+    let positional_parameter_count = declared_parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    if arguments.len() != positional_parameter_count
+        || !declared_parameters.iter().any(|parameter| {
+            parameter.is_self && type_requires_ownership(program, parameter.type_reference)
+        })
+    {
+        return None;
+    }
+
+    match call_site {
+        CallSite::Expression { call, .. } => canonical_place_from_expression_in_state(
+            program,
+            caller_state_symbol,
+            statement_index,
+            call.receiver,
+        ),
+        CallSite::Statement(call) => canonical_place_from_symbol(call.receiver_symbol),
+        CallSite::TransitionNamed(_) => None,
+    }
+    .or_else(|| canonical_place_from_symbol(fallback_receiver_symbol))
+}
+
 pub(in crate::flow) fn append_call_ownership_events(
     program: &psi_typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
@@ -43,24 +85,15 @@ pub(in crate::flow) fn append_call_ownership_events(
     // that receiver and must emit the same move event as the explicit static
     // spelling (`Type::consume(value)`). Without this edge, `value.finish()`
     // left the original linear obligation live at scope exit.
-    if !includes_explicit_self
-        && borrow_call.has_receiver
-        && declared_parameters.iter().any(|parameter| {
-            parameter.is_self && type_requires_ownership(program, parameter.type_reference)
-        })
-    {
-        let receiver = match &call_site {
-            CallSite::Expression { call, .. } => canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                borrow_call.statement_index,
-                call.receiver,
-            ),
-            CallSite::Statement(call) => canonical_place_from_symbol(call.receiver_symbol),
-            CallSite::TransitionNamed(_) => None,
-        }
-        .or_else(|| canonical_place_from_symbol(borrow_call.receiver_symbol));
-        if let Some(receiver) = receiver {
+    if !includes_explicit_self && borrow_call.has_receiver {
+        if let Some(receiver) = owned_method_receiver_place(
+            program,
+            state.symbol,
+            borrow_call.statement_index,
+            &call_site,
+            target_state,
+            borrow_call.receiver_symbol,
+        ) {
             append_move_event_for_place(program, sink, receiver, source);
         }
     }
