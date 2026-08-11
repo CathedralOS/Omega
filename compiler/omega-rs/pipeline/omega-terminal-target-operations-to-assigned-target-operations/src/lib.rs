@@ -169,8 +169,9 @@ fn assign_function(
             when_true,
             when_false,
         } => {
+            let preserved = integer_control_arms_parameter_locations(when_true, when_false)?;
             let (condition_frame, condition) =
-                assign_boolean_expression_frame(condition, architecture)?;
+                assign_boolean_expression_frame_preserving(condition, architecture, preserved)?;
             TerminalAssignedOperation::ReturnIntegerExpressionConditionalControl {
                 condition_source: *condition_source,
                 condition_frame,
@@ -203,8 +204,9 @@ fn assign_function(
             when_true,
             when_false,
         } => {
+            let preserved = boolean_control_arms_parameter_locations(when_true, when_false)?;
             let (condition_frame, condition) =
-                assign_boolean_expression_frame(condition, architecture)?;
+                assign_boolean_expression_frame_preserving(condition, architecture, preserved)?;
             TerminalAssignedOperation::ReturnBooleanExpressionConditionalControl {
                 condition_source: *condition_source,
                 condition_frame,
@@ -314,8 +316,9 @@ fn assign_boolean_control(
             when_true,
             when_false,
         } => {
+            let preserved = boolean_control_arms_parameter_locations(when_true, when_false)?;
             let (condition_frame, condition) =
-                assign_boolean_expression_frame(condition, architecture)?;
+                assign_boolean_expression_frame_preserving(condition, architecture, preserved)?;
             TerminalAssignedBooleanControl::ConditionalExpression {
                 condition_source: *condition_source,
                 condition_frame,
@@ -389,8 +392,9 @@ fn assign_integer_control(
             when_true,
             when_false,
         } => {
+            let preserved = integer_control_arms_parameter_locations(when_true, when_false)?;
             let (condition_frame, condition) =
-                assign_boolean_expression_frame(condition, architecture)?;
+                assign_boolean_expression_frame_preserving(condition, architecture, preserved)?;
             TerminalAssignedIntegerControl::ConditionalExpression {
                 condition_source: *condition_source,
                 condition_frame,
@@ -519,7 +523,16 @@ fn assign_boolean_expression_frame(
     expression: &TerminalTargetBooleanExpression,
     architecture: Architecture,
 ) -> Result<(TerminalExpressionFrame, TerminalAssignedBooleanExpression), AssignmentError> {
-    let locations = boolean_expression_parameter_locations(expression)?;
+    assign_boolean_expression_frame_preserving(expression, architecture, BTreeMap::new())
+}
+
+fn assign_boolean_expression_frame_preserving(
+    expression: &TerminalTargetBooleanExpression,
+    architecture: Architecture,
+    preserved: BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
+) -> Result<(TerminalExpressionFrame, TerminalAssignedBooleanExpression), AssignmentError> {
+    let mut locations = boolean_expression_parameter_locations(expression)?;
+    merge_expression_locations(&mut locations, preserved)?;
     let (mut frame, assigned_locations) = assign_expression_locations(
         architecture,
         &locations,
@@ -1445,6 +1458,127 @@ fn boolean_expression_parameter_locations(
 
     let mut locations = BTreeMap::new();
     collect(expression, &mut locations)?;
+    Ok(locations)
+}
+
+fn integer_control_arms_parameter_locations(
+    when_true: &omega_terminal_target_operations::TerminalTargetConditionalIntegerArm,
+    when_false: &omega_terminal_target_operations::TerminalTargetConditionalIntegerArm,
+) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, AssignmentError> {
+    let mut locations = integer_control_parameter_locations(&when_true.control)?;
+    merge_expression_locations(
+        &mut locations,
+        integer_control_parameter_locations(&when_false.control)?,
+    )?;
+    Ok(locations)
+}
+
+fn integer_control_parameter_locations(
+    control: &TerminalTargetIntegerControl,
+) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, AssignmentError> {
+    let mut locations = BTreeMap::new();
+    match control {
+        TerminalTargetIntegerControl::Crash { .. } => {}
+        TerminalTargetIntegerControl::Return { expression, .. } => {
+            locations = expression_parameter_locations(expression)?;
+        }
+        TerminalTargetIntegerControl::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } => {
+            locations.insert(
+                *condition_parameter_index,
+                (*condition_source, *condition_location),
+            );
+            merge_expression_locations(
+                &mut locations,
+                integer_control_arms_parameter_locations(when_true, when_false)?,
+            )?;
+        }
+        TerminalTargetIntegerControl::ConditionalExpression {
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => {
+            locations = boolean_expression_parameter_locations(condition)?;
+            merge_expression_locations(
+                &mut locations,
+                integer_control_arms_parameter_locations(when_true, when_false)?,
+            )?;
+        }
+    }
+    Ok(locations)
+}
+
+fn boolean_control_arms_parameter_locations(
+    when_true: &omega_terminal_target_operations::TerminalTargetConditionalBooleanArm,
+    when_false: &omega_terminal_target_operations::TerminalTargetConditionalBooleanArm,
+) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, AssignmentError> {
+    let mut locations = boolean_control_parameter_locations(&when_true.control)?;
+    merge_expression_locations(
+        &mut locations,
+        boolean_control_parameter_locations(&when_false.control)?,
+    )?;
+    Ok(locations)
+}
+
+fn boolean_control_parameter_locations(
+    control: &TerminalTargetBooleanControl,
+) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, AssignmentError> {
+    let mut locations = BTreeMap::new();
+    match control {
+        TerminalTargetBooleanControl::Crash { .. }
+        | TerminalTargetBooleanControl::ReturnImmediate { .. } => {}
+        TerminalTargetBooleanControl::ReturnParameter {
+            source_value,
+            parameter_index,
+            location,
+            ..
+        }
+        | TerminalTargetBooleanControl::ReturnNotParameter {
+            source_value,
+            parameter_index,
+            location,
+            ..
+        } => {
+            locations.insert(*parameter_index, (*source_value, *location));
+        }
+        TerminalTargetBooleanControl::ReturnExpression { expression, .. } => {
+            locations = boolean_expression_parameter_locations(expression)?;
+        }
+        TerminalTargetBooleanControl::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } => {
+            locations.insert(
+                *condition_parameter_index,
+                (*condition_source, *condition_location),
+            );
+            merge_expression_locations(
+                &mut locations,
+                boolean_control_arms_parameter_locations(when_true, when_false)?,
+            )?;
+        }
+        TerminalTargetBooleanControl::ConditionalExpression {
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => {
+            locations = boolean_expression_parameter_locations(condition)?;
+            merge_expression_locations(
+                &mut locations,
+                boolean_control_arms_parameter_locations(when_true, when_false)?,
+            )?;
+        }
+    }
     Ok(locations)
 }
 

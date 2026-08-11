@@ -153,20 +153,30 @@ fn emit_function(
             when_false,
             ..
         } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_conditional_integer_control(
-                *condition_source,
-                *condition_location,
-                *scalar_type,
-                when_true,
-                when_false,
-            )?,
-            Architecture::X86_64 => emit_x86_64_conditional_integer_control(
-                *condition_source,
-                *condition_location,
-                *scalar_type,
-                when_true,
-                when_false,
-            )?,
+            Architecture::Aarch64 => {
+                let fragment = emit_aarch64_conditional_integer_control(
+                    *condition_source,
+                    *condition_location,
+                    *scalar_type,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
+            Architecture::X86_64 => {
+                let fragment = emit_x86_64_conditional_integer_control(
+                    *condition_source,
+                    *condition_location,
+                    *scalar_type,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
         },
         TerminalAssignedOperation::ReturnIntegerExpressionConditionalControl {
             condition_frame,
@@ -176,20 +186,30 @@ fn emit_function(
             when_false,
             ..
         } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_conditional_integer_expression_control(
-                condition_frame,
-                condition,
-                *scalar_type,
-                when_true,
-                when_false,
-            )?,
-            Architecture::X86_64 => emit_x86_64_conditional_integer_expression_control(
-                condition_frame,
-                condition,
-                *scalar_type,
-                when_true,
-                when_false,
-            )?,
+            Architecture::Aarch64 => {
+                let fragment = emit_aarch64_conditional_integer_expression_control(
+                    condition_frame,
+                    condition,
+                    *scalar_type,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
+            Architecture::X86_64 => {
+                let fragment = emit_x86_64_conditional_integer_expression_control(
+                    condition_frame,
+                    condition,
+                    *scalar_type,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
         },
         TerminalAssignedOperation::ReturnBooleanConditionalControl {
             condition_source,
@@ -198,18 +218,28 @@ fn emit_function(
             when_false,
             ..
         } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_conditional_boolean_control(
-                *condition_source,
-                *condition_location,
-                when_true,
-                when_false,
-            )?,
-            Architecture::X86_64 => emit_x86_64_conditional_boolean_control(
-                *condition_source,
-                *condition_location,
-                when_true,
-                when_false,
-            )?,
+            Architecture::Aarch64 => {
+                let fragment = emit_aarch64_conditional_boolean_control(
+                    *condition_source,
+                    *condition_location,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
+            Architecture::X86_64 => {
+                let fragment = emit_x86_64_conditional_boolean_control(
+                    *condition_source,
+                    *condition_location,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
         },
         TerminalAssignedOperation::ReturnBooleanExpressionConditionalControl {
             condition_frame,
@@ -218,18 +248,28 @@ fn emit_function(
             when_false,
             ..
         } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_conditional_boolean_expression_control(
-                condition_frame,
-                condition,
-                when_true,
-                when_false,
-            )?,
-            Architecture::X86_64 => emit_x86_64_conditional_boolean_expression_control(
-                condition_frame,
-                condition,
-                when_true,
-                when_false,
-            )?,
+            Architecture::Aarch64 => {
+                let fragment = emit_aarch64_conditional_boolean_expression_control(
+                    condition_frame,
+                    condition,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
+            Architecture::X86_64 => {
+                let fragment = emit_x86_64_conditional_boolean_expression_control(
+                    condition_frame,
+                    condition,
+                    when_true,
+                    when_false,
+                    target,
+                )?;
+                internal_calls = fragment.internal_calls;
+                fragment.bytes
+            }
         },
     };
     Ok(TerminalMachineCodeFunction {
@@ -247,35 +287,67 @@ fn emit_native_crash(architecture: Architecture) -> Vec<u8> {
     }
 }
 
+struct EmissionFragment {
+    bytes: Vec<u8>,
+    internal_calls: Vec<TerminalInternalCallRelocation>,
+}
+
+impl EmissionFragment {
+    fn without_calls(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes,
+            internal_calls: Vec::new(),
+        }
+    }
+
+    fn append(&mut self, mut fragment: Self) -> Result<(), EmissionError> {
+        let base = self.bytes.len();
+        for relocation in &mut fragment.internal_calls {
+            relocation.offset = relocation
+                .offset
+                .checked_add(base)
+                .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+        }
+        self.bytes.append(&mut fragment.bytes);
+        self.internal_calls.append(&mut fragment.internal_calls);
+        Ok(())
+    }
+}
+
 fn emit_x86_64_conditional_integer_control(
     condition_source: ValueId,
     condition_location: TerminalAssignedScalarLocation,
     scalar_type: IntegerType,
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     let mut bytes = emit_x86_64_parameter_return(condition_source, false, condition_location)?;
     if bytes.pop() != Some(0xc3) {
         return Err(EmissionError::ConditionalBranchEncodingInvalid);
     }
     bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
-    let true_bytes = emit_x86_64_integer_control(scalar_type, &when_true.control)?;
-    let false_bytes = emit_x86_64_integer_control(scalar_type, &when_false.control)?;
-    let displacement = i32::try_from(true_bytes.len())
+    let true_fragment = emit_x86_64_integer_control(scalar_type, &when_true.control, target)?;
+    let false_fragment = emit_x86_64_integer_control(scalar_type, &when_false.control, target)?;
+    let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_x86_64_integer_control(
     scalar_type: IntegerType,
     control: &TerminalAssignedIntegerControl,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     match control {
-        TerminalAssignedIntegerControl::Crash { .. } => Ok(emit_native_crash(Architecture::X86_64)),
+        TerminalAssignedIntegerControl::Crash { .. } => Ok(EmissionFragment::without_calls(
+            emit_native_crash(Architecture::X86_64),
+        )),
         TerminalAssignedIntegerControl::Return {
             source_value,
             frame,
@@ -283,7 +355,17 @@ fn emit_x86_64_integer_control(
             ..
         } => {
             require_native_integer_width(*source_value, scalar_type)?;
-            emit_x86_64_integer_expression(scalar_type, frame, expression, None)
+            let mut internal_calls = Vec::new();
+            let bytes = emit_x86_64_integer_expression(
+                scalar_type,
+                frame,
+                expression,
+                Some((&mut internal_calls, target)),
+            )?;
+            Ok(EmissionFragment {
+                bytes,
+                internal_calls,
+            })
         }
         TerminalAssignedIntegerControl::Conditional {
             condition_source,
@@ -297,6 +379,7 @@ fn emit_x86_64_integer_control(
             scalar_type,
             when_true,
             when_false,
+            target,
         ),
         TerminalAssignedIntegerControl::ConditionalExpression {
             condition_frame,
@@ -310,6 +393,7 @@ fn emit_x86_64_integer_control(
             scalar_type,
             when_true,
             when_false,
+            target,
         ),
     }
 }
@@ -320,18 +404,27 @@ fn emit_x86_64_conditional_integer_expression_control(
     scalar_type: IntegerType,
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
-) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition, None)?;
-    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
-    let true_bytes = emit_x86_64_integer_control(scalar_type, &when_true.control)?;
-    let false_bytes = emit_x86_64_integer_control(scalar_type, &when_false.control)?;
-    let displacement = i32::try_from(true_bytes.len())
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
+    let mut internal_calls = Vec::new();
+    let mut bytes = emit_x86_64_boolean_condition_value(
+        condition_frame,
+        condition,
+        Some((&mut internal_calls, target)),
+    )?;
+    let true_fragment = emit_x86_64_integer_control(scalar_type, &when_true.control, target)?;
+    let false_fragment = emit_x86_64_integer_control(scalar_type, &when_false.control, target)?;
+    let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let mut fragment = EmissionFragment {
+        bytes,
+        internal_calls,
+    };
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_x86_64_conditional_boolean_control(
@@ -339,21 +432,23 @@ fn emit_x86_64_conditional_boolean_control(
     condition_location: TerminalAssignedScalarLocation,
     when_true: &TerminalAssignedConditionalBooleanArm,
     when_false: &TerminalAssignedConditionalBooleanArm,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     let mut bytes = emit_x86_64_parameter_return(condition_source, false, condition_location)?;
     if bytes.pop() != Some(0xc3) {
         return Err(EmissionError::ConditionalBranchEncodingInvalid);
     }
     bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
-    let true_bytes = emit_x86_64_boolean_control(&when_true.control)?;
-    let false_bytes = emit_x86_64_boolean_control(&when_false.control)?;
-    let displacement = i32::try_from(true_bytes.len())
+    let true_fragment = emit_x86_64_boolean_control(&when_true.control, target)?;
+    let false_fragment = emit_x86_64_boolean_control(&when_false.control, target)?;
+    let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_x86_64_conditional_boolean_expression_control(
@@ -361,41 +456,68 @@ fn emit_x86_64_conditional_boolean_expression_control(
     condition: &TerminalAssignedBooleanExpression,
     when_true: &TerminalAssignedConditionalBooleanArm,
     when_false: &TerminalAssignedConditionalBooleanArm,
-) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = emit_x86_64_boolean_expression_value(condition_frame, condition, None)?;
-    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
-    let true_bytes = emit_x86_64_boolean_control(&when_true.control)?;
-    let false_bytes = emit_x86_64_boolean_control(&when_false.control)?;
-    let displacement = i32::try_from(true_bytes.len())
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
+    let mut internal_calls = Vec::new();
+    let mut bytes = emit_x86_64_boolean_condition_value(
+        condition_frame,
+        condition,
+        Some((&mut internal_calls, target)),
+    )?;
+    let true_fragment = emit_x86_64_boolean_control(&when_true.control, target)?;
+    let false_fragment = emit_x86_64_boolean_control(&when_false.control, target)?;
+    let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let mut fragment = EmissionFragment {
+        bytes,
+        internal_calls,
+    };
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_x86_64_boolean_control(
     control: &TerminalAssignedBooleanControl,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     match control {
-        TerminalAssignedBooleanControl::Crash { .. } => Ok(emit_native_crash(Architecture::X86_64)),
-        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
-            Ok(emit_x86_64_boolean_return(*value))
-        }
+        TerminalAssignedBooleanControl::Crash { .. } => Ok(EmissionFragment::without_calls(
+            emit_native_crash(Architecture::X86_64),
+        )),
+        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => Ok(
+            EmissionFragment::without_calls(emit_x86_64_boolean_return(*value)),
+        ),
         TerminalAssignedBooleanControl::ReturnParameter {
             source_value,
             location,
             ..
-        } => emit_x86_64_parameter_return(*source_value, false, *location),
+        } => Ok(EmissionFragment::without_calls(
+            emit_x86_64_parameter_return(*source_value, false, *location)?,
+        )),
         TerminalAssignedBooleanControl::ReturnNotParameter {
             source_value,
             location,
             ..
-        } => emit_x86_64_boolean_not_parameter_return(*source_value, *location),
+        } => Ok(EmissionFragment::without_calls(
+            emit_x86_64_boolean_not_parameter_return(*source_value, *location)?,
+        )),
         TerminalAssignedBooleanControl::ReturnExpression {
             frame, expression, ..
-        } => emit_x86_64_boolean_expression(frame, expression, None),
+        } => {
+            let mut internal_calls = Vec::new();
+            let bytes = emit_x86_64_boolean_expression(
+                frame,
+                expression,
+                Some((&mut internal_calls, target)),
+            )?;
+            Ok(EmissionFragment {
+                bytes,
+                internal_calls,
+            })
+        }
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -407,6 +529,7 @@ fn emit_x86_64_boolean_control(
             *condition_location,
             when_true,
             when_false,
+            target,
         ),
         TerminalAssignedBooleanControl::ConditionalExpression {
             condition_frame,
@@ -419,6 +542,7 @@ fn emit_x86_64_boolean_control(
             condition,
             when_true,
             when_false,
+            target,
         ),
     }
 }
@@ -429,12 +553,14 @@ fn emit_aarch64_conditional_integer_control(
     scalar_type: IntegerType,
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     let (mut bytes, condition_register) =
         emit_aarch64_condition_load(condition_source, condition_location)?;
-    let true_bytes = emit_aarch64_integer_control(scalar_type, &when_true.control)?;
-    let false_bytes = emit_aarch64_integer_control(scalar_type, &when_false.control)?;
-    let branch_words = true_bytes
+    let true_fragment = emit_aarch64_integer_control(scalar_type, &when_true.control, target)?;
+    let false_fragment = emit_aarch64_integer_control(scalar_type, &when_false.control, target)?;
+    let branch_words = true_fragment
+        .bytes
         .len()
         .checked_div(4)
         .and_then(|words| words.checked_add(1))
@@ -444,19 +570,21 @@ fn emit_aarch64_conditional_integer_control(
     }
     let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(condition_register);
     bytes.extend_from_slice(&cbz.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_aarch64_integer_control(
     scalar_type: IntegerType,
     control: &TerminalAssignedIntegerControl,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     match control {
-        TerminalAssignedIntegerControl::Crash { .. } => {
-            Ok(emit_native_crash(Architecture::Aarch64))
-        }
+        TerminalAssignedIntegerControl::Crash { .. } => Ok(EmissionFragment::without_calls(
+            emit_native_crash(Architecture::Aarch64),
+        )),
         TerminalAssignedIntegerControl::Return {
             source_value,
             frame,
@@ -464,7 +592,17 @@ fn emit_aarch64_integer_control(
             ..
         } => {
             require_native_integer_width(*source_value, scalar_type)?;
-            emit_aarch64_integer_expression(scalar_type, frame, expression, None)
+            let mut internal_calls = Vec::new();
+            let bytes = emit_aarch64_integer_expression(
+                scalar_type,
+                frame,
+                expression,
+                Some((&mut internal_calls, target)),
+            )?;
+            Ok(EmissionFragment {
+                bytes,
+                internal_calls,
+            })
         }
         TerminalAssignedIntegerControl::Conditional {
             condition_source,
@@ -478,6 +616,7 @@ fn emit_aarch64_integer_control(
             scalar_type,
             when_true,
             when_false,
+            target,
         ),
         TerminalAssignedIntegerControl::ConditionalExpression {
             condition_frame,
@@ -491,6 +630,7 @@ fn emit_aarch64_integer_control(
             scalar_type,
             when_true,
             when_false,
+            target,
         ),
     }
 }
@@ -501,22 +641,18 @@ fn emit_aarch64_conditional_integer_expression_control(
     scalar_type: IntegerType,
     when_true: &TerminalAssignedConditionalIntegerArm,
     when_false: &TerminalAssignedConditionalIntegerArm,
-) -> Result<Vec<u8>, EmissionError> {
-    // Expression evaluation uses x0 as its result register, while the first
-    // entry argument also arrives in x0 and may still be consumed by either
-    // arm. Preserve it in the platform scratch register x16, retain the
-    // Boolean decision in x17, then restore x0 before entering either arm.
-    let mut bytes = 0xaa00_03f0_u32.to_le_bytes().to_vec(); // mov x16, x0
-    bytes.extend(emit_aarch64_boolean_expression_value(
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
+    let mut internal_calls = Vec::new();
+    let mut bytes = emit_aarch64_boolean_condition_value(
         condition_frame,
         condition,
-        None,
-    )?);
-    bytes.extend_from_slice(&0x2a00_03f1_u32.to_le_bytes()); // mov w17, w0
-    bytes.extend_from_slice(&0xaa10_03e0_u32.to_le_bytes()); // mov x0, x16
-    let true_bytes = emit_aarch64_integer_control(scalar_type, &when_true.control)?;
-    let false_bytes = emit_aarch64_integer_control(scalar_type, &when_false.control)?;
-    let branch_words = true_bytes
+        Some((&mut internal_calls, target)),
+    )?;
+    let true_fragment = emit_aarch64_integer_control(scalar_type, &when_true.control, target)?;
+    let false_fragment = emit_aarch64_integer_control(scalar_type, &when_false.control, target)?;
+    let branch_words = true_fragment
+        .bytes
         .len()
         .checked_div(4)
         .and_then(|words| words.checked_add(1))
@@ -524,11 +660,15 @@ fn emit_aarch64_conditional_integer_expression_control(
     if branch_words > 0x3ffff {
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
-    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | 17; // cbz w17, false
-    bytes.extend_from_slice(&cbz.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let branch_equal = 0x5400_0000_u32 | ((branch_words as u32) << 5); // b.eq false
+    bytes.extend_from_slice(&branch_equal.to_le_bytes());
+    let mut fragment = EmissionFragment {
+        bytes,
+        internal_calls,
+    };
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_aarch64_conditional_boolean_control(
@@ -536,12 +676,14 @@ fn emit_aarch64_conditional_boolean_control(
     condition_location: TerminalAssignedScalarLocation,
     when_true: &TerminalAssignedConditionalBooleanArm,
     when_false: &TerminalAssignedConditionalBooleanArm,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     let (mut bytes, condition_register) =
         emit_aarch64_condition_load(condition_source, condition_location)?;
-    let true_bytes = emit_aarch64_boolean_control(&when_true.control)?;
-    let false_bytes = emit_aarch64_boolean_control(&when_false.control)?;
-    let branch_words = true_bytes
+    let true_fragment = emit_aarch64_boolean_control(&when_true.control, target)?;
+    let false_fragment = emit_aarch64_boolean_control(&when_false.control, target)?;
+    let branch_words = true_fragment
+        .bytes
         .len()
         .checked_div(4)
         .and_then(|words| words.checked_add(1))
@@ -551,9 +693,10 @@ fn emit_aarch64_conditional_boolean_control(
     }
     let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(condition_register);
     bytes.extend_from_slice(&cbz.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_aarch64_conditional_boolean_expression_control(
@@ -561,18 +704,18 @@ fn emit_aarch64_conditional_boolean_expression_control(
     condition: &TerminalAssignedBooleanExpression,
     when_true: &TerminalAssignedConditionalBooleanArm,
     when_false: &TerminalAssignedConditionalBooleanArm,
-) -> Result<Vec<u8>, EmissionError> {
-    let mut bytes = 0xaa00_03f0_u32.to_le_bytes().to_vec(); // mov x16, x0
-    bytes.extend(emit_aarch64_boolean_expression_value(
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
+    let mut internal_calls = Vec::new();
+    let mut bytes = emit_aarch64_boolean_condition_value(
         condition_frame,
         condition,
-        None,
-    )?);
-    bytes.extend_from_slice(&0x2a00_03f1_u32.to_le_bytes()); // mov w17, w0
-    bytes.extend_from_slice(&0xaa10_03e0_u32.to_le_bytes()); // mov x0, x16
-    let true_bytes = emit_aarch64_boolean_control(&when_true.control)?;
-    let false_bytes = emit_aarch64_boolean_control(&when_false.control)?;
-    let branch_words = true_bytes
+        Some((&mut internal_calls, target)),
+    )?;
+    let true_fragment = emit_aarch64_boolean_control(&when_true.control, target)?;
+    let false_fragment = emit_aarch64_boolean_control(&when_false.control, target)?;
+    let branch_words = true_fragment
+        .bytes
         .len()
         .checked_div(4)
         .and_then(|words| words.checked_add(1))
@@ -580,36 +723,56 @@ fn emit_aarch64_conditional_boolean_expression_control(
     if branch_words > 0x3ffff {
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
-    let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | 17; // cbz w17, false
-    bytes.extend_from_slice(&cbz.to_le_bytes());
-    bytes.extend_from_slice(&true_bytes);
-    bytes.extend_from_slice(&false_bytes);
-    Ok(bytes)
+    let branch_equal = 0x5400_0000_u32 | ((branch_words as u32) << 5); // b.eq false
+    bytes.extend_from_slice(&branch_equal.to_le_bytes());
+    let mut fragment = EmissionFragment {
+        bytes,
+        internal_calls,
+    };
+    fragment.append(true_fragment)?;
+    fragment.append(false_fragment)?;
+    Ok(fragment)
 }
 
 fn emit_aarch64_boolean_control(
     control: &TerminalAssignedBooleanControl,
-) -> Result<Vec<u8>, EmissionError> {
+    target: NativeTarget,
+) -> Result<EmissionFragment, EmissionError> {
     match control {
-        TerminalAssignedBooleanControl::Crash { .. } => {
-            Ok(emit_native_crash(Architecture::Aarch64))
-        }
-        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => {
-            Ok(emit_aarch64_boolean_return(*value))
-        }
+        TerminalAssignedBooleanControl::Crash { .. } => Ok(EmissionFragment::without_calls(
+            emit_native_crash(Architecture::Aarch64),
+        )),
+        TerminalAssignedBooleanControl::ReturnImmediate { value, .. } => Ok(
+            EmissionFragment::without_calls(emit_aarch64_boolean_return(*value)),
+        ),
         TerminalAssignedBooleanControl::ReturnParameter {
             source_value,
             location,
             ..
-        } => emit_aarch64_parameter_return(*source_value, false, *location),
+        } => Ok(EmissionFragment::without_calls(
+            emit_aarch64_parameter_return(*source_value, false, *location)?,
+        )),
         TerminalAssignedBooleanControl::ReturnNotParameter {
             source_value,
             location,
             ..
-        } => emit_aarch64_boolean_not_parameter_return(*source_value, *location),
+        } => Ok(EmissionFragment::without_calls(
+            emit_aarch64_boolean_not_parameter_return(*source_value, *location)?,
+        )),
         TerminalAssignedBooleanControl::ReturnExpression {
             frame, expression, ..
-        } => emit_aarch64_boolean_expression(frame, expression, None),
+        } => {
+            let mut internal_calls = Vec::new();
+            let bytes = emit_aarch64_boolean_expression(
+                frame,
+                expression,
+                Some((&mut internal_calls, target)),
+            )?;
+            Ok(EmissionFragment {
+                bytes,
+                internal_calls,
+            })
+        }
         TerminalAssignedBooleanControl::Conditional {
             condition_source,
             condition_location,
@@ -621,6 +784,7 @@ fn emit_aarch64_boolean_control(
             *condition_location,
             when_true,
             when_false,
+            target,
         ),
         TerminalAssignedBooleanControl::ConditionalExpression {
             condition_frame,
@@ -633,6 +797,7 @@ fn emit_aarch64_boolean_control(
             condition,
             when_true,
             when_false,
+            target,
         ),
     }
 }
@@ -939,6 +1104,55 @@ fn emit_x86_64_boolean_expression_value(
         emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
     }
     Ok(bytes)
+}
+
+fn emit_x86_64_boolean_condition_value(
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedBooleanExpression,
+    mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+) -> Result<Vec<u8>, EmissionError> {
+    if frame.byte_size == 0 && !frame.register_spills.is_empty() {
+        return Err(EmissionError::AssignedFrameSizeMismatch);
+    }
+    let mut bytes = Vec::new();
+    if frame.byte_size != 0 {
+        emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, false);
+        for spill in &frame.register_spills {
+            let register = x86_gpr_code(spill.source_value, spill.register)?;
+            if register == 4 {
+                return Err(EmissionError::ExpressionScratchRegisterConflict {
+                    value: spill.source_value,
+                    register: spill.register,
+                });
+            }
+            emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
+        }
+    }
+    emit_x86_64_boolean_expression_node(
+        &mut bytes,
+        expression,
+        frame.byte_size,
+        0,
+        &mut internal_calls,
+    )?;
+    bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+    for spill in &frame.register_spills {
+        let register = x86_gpr_code(spill.source_value, spill.register)?;
+        emit_x86_64_stack_load(&mut bytes, register, spill.byte_offset);
+    }
+    if frame.byte_size != 0 {
+        emit_x86_64_restore_sp_preserving_flags(&mut bytes, frame.byte_size);
+    }
+    Ok(bytes)
+}
+
+fn emit_x86_64_restore_sp_preserving_flags(bytes: &mut Vec<u8>, byte_size: u32) {
+    if byte_size <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x48, 0x8d, 0x64, 0x24, byte_size as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x48, 0x8d, 0xa4, 0x24]);
+        bytes.extend_from_slice(&byte_size.to_le_bytes());
+    }
 }
 
 fn emit_x86_64_boolean_expression_node(
@@ -2034,6 +2248,51 @@ fn emit_aarch64_boolean_expression_value(
         0,
         &mut internal_calls,
     )?;
+    if frame.byte_size != 0 {
+        emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
+    }
+    Ok(instructions
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect())
+}
+
+fn emit_aarch64_boolean_condition_value(
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedBooleanExpression,
+    mut internal_calls: Option<(&mut Vec<TerminalInternalCallRelocation>, NativeTarget)>,
+) -> Result<Vec<u8>, EmissionError> {
+    if frame.byte_size == 0 && !frame.register_spills.is_empty() {
+        return Err(EmissionError::AssignedFrameSizeMismatch);
+    }
+    let mut instructions = Vec::new();
+    if frame.byte_size != 0 {
+        emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, false)?;
+        for spill in &frame.register_spills {
+            instructions.push(aarch64_stack_access(
+                0xf900_0000,
+                aarch64_spill_register(spill.source_value, spill.register)?,
+                spill.source_value,
+                spill.byte_offset,
+            )?);
+        }
+    }
+    emit_aarch64_boolean_expression_node(
+        &mut instructions,
+        expression,
+        frame,
+        0,
+        &mut internal_calls,
+    )?;
+    instructions.push(0x7100_001f); // cmp w0, #0
+    for spill in &frame.register_spills {
+        instructions.push(aarch64_stack_access(
+            0xf940_0000,
+            aarch64_spill_register(spill.source_value, spill.register)?,
+            spill.source_value,
+            spill.byte_offset,
+        )?);
+    }
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
     }
@@ -3244,6 +3503,7 @@ pub enum EmissionError {
     AssignedFrameSizeMismatch,
     ConditionalBranchDistanceNotEncodable,
     ConditionalBranchEncodingInvalid,
+    InternalCallRelocationOffsetNotEncodable,
     BooleanNotEncodingInvalid,
     UnsupportedCallArgumentRegister(MachineRegister),
     CallOutsideDirectReturnExpression,
@@ -3562,14 +3822,73 @@ mod tests {
         ))
         .unwrap();
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
-        assert!(instructions.windows(5).any(|window| window
+        assert!(instructions.windows(6).any(|window| window
             == [
                 0x1a9f_17e0,
+                0x7100_001f,
+                0xf940_03e0,
+                0xf940_07e1,
                 0x9100_43ff,
-                0x2a00_03f1,
-                0xaa10_03e0,
-                0x3400_0071,
+                0x5400_0060,
             ]));
+    }
+
+    #[test]
+    fn emits_and_rebases_calls_across_conditional_control() {
+        for (target, argument_register) in [
+            (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
+            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+        ] {
+            let emitted = emit_machine_code(&calling_conditional_plan(target, argument_register))
+                .expect("emit conditional calls");
+            let caller = &emitted.functions[0];
+            assert_eq!(caller.internal_calls.len(), 3);
+            assert_eq!(
+                caller
+                    .internal_calls
+                    .iter()
+                    .map(|relocation| relocation.psi_operation.get())
+                    .collect::<Vec<_>>(),
+                [1, 2, 3]
+            );
+            assert!(
+                caller
+                    .internal_calls
+                    .windows(2)
+                    .all(|pair| pair[0].offset < pair[1].offset)
+            );
+            for relocation in &caller.internal_calls {
+                assert_eq!(relocation.target, MachineId::new(2).unwrap());
+                match target.architecture {
+                    Architecture::X86_64 => {
+                        assert_eq!(caller.bytes[relocation.offset - 1], 0xe8);
+                    }
+                    Architecture::Aarch64 => assert_eq!(
+                        &caller.bytes[relocation.offset..relocation.offset + 4],
+                        &0x9400_0000_u32.to_le_bytes()
+                    ),
+                }
+            }
+            match target.architecture {
+                Architecture::X86_64 => {
+                    assert!(
+                        caller
+                            .bytes
+                            .windows(5)
+                            .any(|window| window == [0x48, 0x8d, 0x64, 0x24, 32])
+                    );
+                }
+                Architecture::Aarch64 => {
+                    let instructions = aarch64_instructions(&caller.bytes);
+                    assert!(instructions.contains(&0xf940_03e0)); // restore x0 from outer frame
+                    assert!(
+                        instructions
+                            .iter()
+                            .any(|instruction| instruction & 0xff00_001f == 0x5400_0000)
+                    ); // b.eq false arm
+                }
+            }
+        }
     }
 
     #[test]
@@ -4892,6 +5211,66 @@ mod tests {
                     when_false: arm(2, 4, false),
                 },
             }],
+        }
+    }
+
+    fn calling_conditional_plan(
+        target: NativeTarget,
+        argument_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        let caller = MachineId::new(1).unwrap();
+        let callee = MachineId::new(2).unwrap();
+        let parameter = ValueId::new(1).unwrap();
+        let call = |operation: u64, result: u64| TerminalTargetBooleanExpression::Call {
+            psi_operation: OperationId::new(operation).unwrap(),
+            source_value: ValueId::new(result).unwrap(),
+            callee,
+            arguments: vec![TerminalTargetCallArgument {
+                scalar_type: psi_core::ScalarType::Boolean,
+                location: TerminalScalarParameterLocation::Register(argument_register),
+                expression: TerminalTargetScalarExpression::Boolean(
+                    TerminalTargetBooleanExpression::Parameter {
+                        source_value: parameter,
+                        parameter_index: 0,
+                        location: TerminalScalarParameterLocation::Register(argument_register),
+                    },
+                ),
+            }],
+        };
+        let arm = |edge, return_edge, operation, result| TerminalTargetConditionalBooleanArm {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            control: Box::new(TerminalTargetBooleanControl::ReturnExpression {
+                psi_return_edge: EdgeId::new(return_edge).unwrap(),
+                source_value: ValueId::new(result).unwrap(),
+                expression: call(operation, result),
+            }),
+        };
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: caller,
+            functions: vec![
+                TerminalTargetFunction {
+                    machine: caller,
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::ReturnBooleanExpressionConditionalControl {
+                        condition_source: ValueId::new(10).unwrap(),
+                        condition: call(1, 10),
+                        when_true: arm(1, 3, 2, 11),
+                        when_false: arm(2, 4, 3, 12),
+                    },
+                },
+                TerminalTargetFunction {
+                    machine: callee,
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::ReturnBooleanParameter {
+                        psi_edge: EdgeId::new(5).unwrap(),
+                        source_value: parameter,
+                        parameter_index: 0,
+                        location: TerminalScalarParameterLocation::Register(argument_register),
+                    },
+                },
+            ],
         }
     }
 
