@@ -355,8 +355,11 @@ The current envelope is a typed `omega-image` value rather than a report-only
 JSON convention. Its closed class vocabulary, normalized coverage rows,
 completeness flags, final placement binding, compiler-text derivation, and
 region inventory all enter one replayed identity. The current producer remains
-explicitly partial while compiler-body footprint decoding and admitted-leaf
-rows are missing; serialization occurs only after internal identity validation.
+explicitly partial while complete compiler-body footprint decoding is missing.
+Its closed executable-region vocabulary contains only compiler functions and
+final-byte-validated import thunks, so in-image admitted leaves are absent by
+construction; adding an admitted-leaf origin must also add certificate replay.
+Serialization occurs only after internal identity validation.
 
 Exit realization is a second implementation-evidence axis. The external-root
 admission path now checks the realized return-control mechanism against

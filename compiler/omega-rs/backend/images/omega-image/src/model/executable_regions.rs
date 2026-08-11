@@ -1,6 +1,9 @@
 use crate::{FinalImage, FinalImageLayout};
 use psi_diagnostics::Diagnostic;
 
+/// Closed origin vocabulary for executable bytes in the current image model.
+/// There is no admitted-leaf origin: adding one must also add certificate
+/// replay, so admitted leaves are absent by construction until that slice lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FinalExecutableRegionOrigin {
     CompilerFunction,

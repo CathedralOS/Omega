@@ -89,6 +89,7 @@ impl FinalFootprintCoverage {
                 FinalFootprintClass::RelaxationProducts,
                 FinalFootprintClass::Veneers,
                 FinalFootprintClass::GeneratedStubs,
+                FinalFootprintClass::AdmittedLeaves,
             ],
             final_byte_validated_classes: vec![
                 FinalFootprintClass::CompilerFunctionRelocationEnvelope,
@@ -98,10 +99,7 @@ impl FinalFootprintCoverage {
                 FinalFootprintClass::CatalogCheckedAssembly,
                 FinalFootprintClass::ImportThunks,
             ],
-            missing_classes: vec![
-                FinalFootprintClass::CompilerFunctionBodyFootprintDecoding,
-                FinalFootprintClass::AdmittedLeaves,
-            ],
+            missing_classes: vec![FinalFootprintClass::CompilerFunctionBodyFootprintDecoding],
         }
     }
 
@@ -118,6 +116,33 @@ impl FinalFootprintCoverage {
             if classes.windows(2).any(|pair| pair[0] >= pair[1]) {
                 return Err(Diagnostic::error(format!(
                     "final footprint certificate {name} classes are not strictly normalized"
+                )));
+            }
+        }
+        for (left_name, left, right_name, right) in [
+            (
+                "covered",
+                &self.covered_classes,
+                "absent-by-construction",
+                &self.absent_by_construction_classes,
+            ),
+            (
+                "covered",
+                &self.covered_classes,
+                "missing",
+                &self.missing_classes,
+            ),
+            (
+                "absent-by-construction",
+                &self.absent_by_construction_classes,
+                "missing",
+                &self.missing_classes,
+            ),
+        ] {
+            if let Some(class) = left.iter().find(|class| right.contains(class)) {
+                return Err(Diagnostic::error(format!(
+                    "final footprint class `{}` is both {left_name} and {right_name}",
+                    class.name()
                 )));
             }
         }
@@ -477,6 +502,37 @@ mod tests {
         ] {
             assert!(drifted.validate_identity().is_err());
         }
+    }
+
+    #[test]
+    fn partial_coverage_classifies_admitted_leaves_as_absent() {
+        let coverage = FinalFootprintCoverage::current_partial();
+        assert!(
+            coverage
+                .absent_by_construction_classes
+                .contains(&FinalFootprintClass::AdmittedLeaves)
+        );
+        assert!(
+            !coverage
+                .missing_classes
+                .contains(&FinalFootprintClass::AdmittedLeaves)
+        );
+        coverage.validate_normalized().expect("normalized coverage");
+    }
+
+    #[test]
+    fn coverage_rejects_conflicting_class_statuses() {
+        let mut coverage = FinalFootprintCoverage::current_partial();
+        coverage
+            .missing_classes
+            .push(FinalFootprintClass::AdmittedLeaves);
+        assert!(
+            coverage
+                .validate_normalized()
+                .expect_err("one class cannot be both absent and missing")
+                .message
+                .contains("both absent-by-construction and missing")
+        );
     }
 
     #[test]

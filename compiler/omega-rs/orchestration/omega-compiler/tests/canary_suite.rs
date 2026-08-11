@@ -1190,7 +1190,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"region_enumeration_complete\": true")
             && executable_regions.contains("\"footprint_enumeration_complete\": false")
             && executable_regions.contains(
-                "\"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"]"
+                "\"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"]"
             )
             && executable_regions.contains("\"boundary_contract_fingerprint\": \"0x")
             && !executable_regions.contains("\"boundary_contract_fingerprint\": null")
@@ -1216,7 +1216,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"byte_fingerprint\": \"0x")
             && executable_regions.contains("\"unclassified_gaps\"")
             && executable_regions.contains(
-                "\"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"]"
+                "\"missing_classes\": [\"compiler_function_body_footprint_decoding\"]"
             ),
         "final executable inventory should classify placed compiler code without claiming complete footprint enumeration"
     );
@@ -42906,13 +42906,10 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
         .expect("final executable-region inventory should be written");
     assert!(
         executable_regions.contains("\"checked_instruction_validation_count\": 3")
-            && executable_regions.contains(
-                "\"checked_instruction_validation_fingerprint\": \"0x"
-            )
+            && executable_regions.contains("\"checked_instruction_validation_fingerprint\": \"0x")
             && executable_regions.contains("\"catalog_checked_assembly\"")
-            && executable_regions.contains(
-                "\"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"]"
-            ),
+            && executable_regions
+                .contains("\"missing_classes\": [\"compiler_function_body_footprint_decoding\"]"),
         "final image evidence should cover all three fixed fence instructions without claiming complete body decoding:\n{executable_regions}"
     );
 
