@@ -362,7 +362,11 @@ construction; adding an admitted-leaf origin must also add certificate replay.
 Every byte-bearing compiler instruction already carrying a final-byte
 validation identity must also produce a target footprint row; an unsupported
 shape rejects rather than disappearing from the partial union. The checker
-then composes the complete compiler-row union, requires exact equality with the
+independently requires every nonempty retained instruction row to choose
+exactly one replay authority (compiler target specification or checked-
+assembly catalog), while zero-width scaffolds may choose neither. It binds the
+catalog-row count to the independently replayed catalog validation count, then
+composes the complete compiler-row union, requires exact equality with the
 earlier `StatePlan`-validated semantic union, and binds its normalized
 fingerprint into the typed certificate. Serialization occurs only after
 internal identity validation.

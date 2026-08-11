@@ -56,6 +56,13 @@ pub fn emit_checked_executable_image(
                 final_compiler_text_bytes,
                 relocations,
             )?;
+        if checked_instruction_validation_count
+            != compiler_function_validation.checked_assembly_instruction_count
+        {
+            return Err(Diagnostic::error(
+                "checked-assembly validation count disagrees with the final instruction partition",
+            ));
+        }
         compiler_text_validation.checked_instruction_validation_count =
             checked_instruction_validation_count;
         compiler_text_validation.checked_instruction_validation_fingerprint =
@@ -92,6 +99,10 @@ pub fn emit_checked_executable_image(
         fingerprint_into(
             &mut derivation_fingerprint,
             &(compiler_function_validation.zero_width_instruction_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(compiler_function_validation.checked_assembly_instruction_count as u64).to_le_bytes(),
         );
         fingerprint_into(
             &mut derivation_fingerprint,
@@ -3654,6 +3665,7 @@ fn validate_compiler_function_instruction_boundaries(
     let mut expected_instruction_arena_index = 1u32;
     let mut instruction_count = 0usize;
     let mut zero_width_instruction_count = 0usize;
+    let mut checked_assembly_instruction_count = 0usize;
     let mut fixed_mechanics_instruction_count = 0usize;
     let mut fixed_mechanics_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     let mut body_specification_instruction_count = 0usize;
@@ -3708,6 +3720,8 @@ fn validate_compiler_function_instruction_boundaries(
         let mut instruction_byte_offset = function.byte_offset;
         for (instruction_index, instruction) in instructions.iter().enumerate() {
             let byte_count = instruction.bytes.len();
+            let has_compiler_validation = instruction.compiler_validation_kind.is_some();
+            let has_checked_validation = instruction.checked_validation_kind.is_some();
             fingerprint_into(
                 &mut fingerprint,
                 &u64::from(instruction.selected_instruction_index).to_le_bytes(),
@@ -3718,9 +3732,24 @@ fn validate_compiler_function_instruction_boundaries(
             );
             fingerprint_into(&mut fingerprint, &(byte_count as u64).to_le_bytes());
             if byte_count == 0 {
+                if has_compiler_validation || has_checked_validation {
+                    return Err(Diagnostic::error(format!(
+                        "zero-width compiler instruction #{} retains a final-byte validation identity",
+                        instruction.selected_instruction_index
+                    )));
+                }
                 zero_width_instruction_count += 1;
                 instruction_count += 1;
                 continue;
+            }
+            if has_compiler_validation == has_checked_validation {
+                return Err(Diagnostic::error(format!(
+                    "byte-bearing compiler instruction #{} must retain exactly one final-byte validation authority",
+                    instruction.selected_instruction_index
+                )));
+            }
+            if has_checked_validation {
+                checked_assembly_instruction_count += 1;
             }
             if instruction.bytes.start().arena_index() as usize != instruction_byte_offset + 1 {
                 return Err(Diagnostic::error(format!(
@@ -9489,6 +9518,11 @@ fn validate_compiler_function_instruction_boundaries(
     if expected_byte_offset != final_text_bytes.len()
         || instruction_count != code.instructions.len()
         || expected_instruction_arena_index != code.instructions.len() as u32 + 1
+        || zero_width_instruction_count
+            + checked_assembly_instruction_count
+            + fixed_mechanics_instruction_count
+            + body_specification_instruction_count
+            != instruction_count
     {
         return Err(Diagnostic::error(
             "compiler function rows do not enumerate every final byte and encoded instruction",
@@ -9511,6 +9545,7 @@ fn validate_compiler_function_instruction_boundaries(
         function_count: code.functions.len(),
         instruction_count,
         zero_width_instruction_count,
+        checked_assembly_instruction_count,
         fixed_mechanics_instruction_count,
         fixed_mechanics_validation_fingerprint,
         fixed_mechanics_boundary_contract_fingerprint,
@@ -19811,7 +19846,8 @@ mod tests {
     #[test]
     fn compiler_functions_retain_a_complete_final_instruction_partition() {
         use omega_machine_bytes::{
-            CompilerInstructionValidationKind, EncodedMachineFunction, EncodedMachineInstruction,
+            CheckedInstructionValidationKind, CompilerInstructionValidationKind,
+            EncodedMachineFunction, EncodedMachineInstruction,
         };
         use omega_machine_instructions::{
             BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin,
@@ -19875,7 +19911,7 @@ mod tests {
             compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionEnter),
             ..EncodedMachineInstruction::default()
         });
-        plan.code.instructions.insert(EncodedMachineInstruction {
+        let dispatch_row = plan.code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 5,
             bytes: dispatch_bytes,
             compiler_validation_kind: Some(CompilerInstructionValidationKind::DispatchLoopEnter {
@@ -19975,6 +20011,7 @@ mod tests {
         assert_eq!(evidence.function_count, 1);
         assert_eq!(evidence.instruction_count, 5);
         assert_eq!(evidence.zero_width_instruction_count, 1);
+        assert_eq!(evidence.checked_assembly_instruction_count, 0);
         assert_eq!(evidence.fixed_mechanics_instruction_count, 2);
         assert_ne!(evidence.fixed_mechanics_footprint_fingerprint, 0);
         assert_eq!(evidence.body_specification_instruction_count, 2);
@@ -19987,6 +20024,38 @@ mod tests {
                 .composed_evidence()
                 .evidence_fingerprint()
         );
+
+        let mut unclassified = plan.code.clone();
+        unclassified
+            .instructions
+            .get_mut(dispatch_row)
+            .compiler_validation_kind = None;
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &unclassified,
+            &final_bytes,
+            &object,
+            &relocations,
+            &semantics,
+        )
+        .expect_err("a byte-bearing row without validation authority must reject");
+        assert!(diagnostic.message.contains("exactly one"));
+
+        let mut conflicting = plan.code.clone();
+        conflicting
+            .instructions
+            .get_mut(dispatch_row)
+            .checked_validation_kind = Some(CheckedInstructionValidationKind::FullFence);
+        let diagnostic = validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &conflicting,
+            &final_bytes,
+            &object,
+            &relocations,
+            &semantics,
+        )
+        .expect_err("a row with two validation authorities must reject");
+        assert!(diagnostic.message.contains("exactly one"));
 
         let mut mismatched_mechanics = semantics.clone();
         mismatched_mechanics
