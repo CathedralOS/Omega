@@ -444,6 +444,7 @@ mod tests {
                 body_specification_validation_fingerprint: 15,
                 body_specification_boundary_contract_fingerprint: 1,
                 body_specification_footprint_fingerprint: 16,
+                composed_footprint_fingerprint: 18,
                 validation_fingerprint: 11,
             },
             PlacedExecutableRegionInventory {
@@ -572,6 +573,7 @@ mod tests {
                     body_specification_validation_fingerprint: 0,
                     body_specification_boundary_contract_fingerprint: 0,
                     body_specification_footprint_fingerprint: 0,
+                    composed_footprint_fingerprint: 0,
                     validation_fingerprint: 0,
                 },
                 inventory,

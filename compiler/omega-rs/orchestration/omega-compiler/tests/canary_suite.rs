@@ -1207,6 +1207,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"body_specification_validation_fingerprint\": \"0x")
             && executable_regions.contains("\"body_specification_boundary_contract_fingerprint\": \"0x")
             && executable_regions.contains("\"body_specification_footprint_fingerprint\": \"0x")
+            && executable_regions.contains("\"composed_footprint_fingerprint\": \"0x")
             && executable_regions.contains("\"compiler_function_body_specification_subset\"")
             && executable_regions.contains("\"compiler_function_instruction_enumeration\"")
             && executable_regions.contains("\"relocation_envelope_fingerprint\": \"0x")
