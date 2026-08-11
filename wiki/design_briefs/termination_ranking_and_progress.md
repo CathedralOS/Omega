@@ -257,7 +257,7 @@ terminates by items -> Slice::Length;
 
 The parser, typed and checked trees, proof cache, diagnostics, canaries, core,
 standard library, samples, and compiler lattice corpus must migrate as one
-deliberate compatibility-breaking pass. Historical decision records may quote
+deliberate source-breaking pass. Historical decision records may quote
 the old spelling when clearly labeled; normative documentation may not.
 
 ## Deferred, explicitly

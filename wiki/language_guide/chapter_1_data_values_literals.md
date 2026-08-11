@@ -16,7 +16,7 @@ Omega starts with explicit data shapes and explicit values.
 > a hidden field default. This prohibition includes scalar, record, array, and
 > every other aggregate initializer after a data field. *Settled model; not yet
 > implemented — today scalar defaults emit and array defaults silently drop;
-> the compatibility-breaking retirement is tracked in `TASKS.md`.*
+> the source-breaking correction is tracked in `TASKS.md`.*
 
 ## Hello World
 

@@ -4,8 +4,8 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 
 /// Transitional entry name used only while the corpus moves to explicit
 /// target-owned `ProgramEntry` bindings.
-const LEGACY_MAIN_MACHINE_NAME: &str = "Main::main";
-const LEGACY_MAIN_STATE_NAME: &str = "main";
+const TRANSITIONAL_MAIN_MACHINE_NAME: &str = "Main::main";
+const TRANSITIONAL_MAIN_STATE_NAME: &str = "main";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct BackendEntryPoint {
@@ -25,9 +25,11 @@ pub(super) fn resolve_backend_entry_point(
         });
     }
 
-    if let Some(entry_point) =
-        find_entry_point(program, LEGACY_MAIN_MACHINE_NAME, LEGACY_MAIN_STATE_NAME)
-    {
+    if let Some(entry_point) = find_entry_point(
+        program,
+        TRANSITIONAL_MAIN_MACHINE_NAME,
+        TRANSITIONAL_MAIN_STATE_NAME,
+    ) {
         return Ok(entry_point);
     }
 

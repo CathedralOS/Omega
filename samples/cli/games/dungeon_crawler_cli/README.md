@@ -46,9 +46,9 @@ Sample layout:
 
 The ordinary target defaults supply console input/output and process exit, so
 the settled `build.omg` needs only target selection and an exact program-entry
-binding, not per-provider bindings. The current source still uses the
-compatibility `Main::main` entry path pending the corpus migration tracked by
-`ENTRY-CONTENT-ROOTS`.
+binding, not per-provider bindings. The current source still uses temporary
+`Main::main` discovery pending the corpus migration tracked by
+`ENTRY-CONTENT-ROOTS`; this is not supported language behavior.
 
 Build output:
 

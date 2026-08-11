@@ -13,7 +13,7 @@ parameterized by a format record {radix, precision, emin, emax,
 special-values policy, rounding rule}. Omega adopts that shape outright,
 because the pieces already exist: exact arithmetic is the N2 bignum
 engine, finite nonzero floats embed exactly in signed Rat, and
-per-target binding tables are the landed compatibility mechanism being
+per-target binding tables are the landed bootstrap mechanism being
 migrated to explicit conformances from which the toolchain derives typed
 `ProviderPlan` artifacts.
 
@@ -43,7 +43,7 @@ they never TEACH the backend encodings (an .omg that emits arbitrary bytes
 is an assembler in a costume — parsed checked assembly is the honest surface).
 Today's hardcoded IEEE instruction selection is the bootstrap binding. F7
 migrates it to target conformances plus the checked instruction catalog. The
-former `Binding::Instruction` compatibility carrier is already retired.
+former `Binding::Instruction` bootstrap carrier is already retired.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A

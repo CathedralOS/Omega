@@ -45,8 +45,8 @@ Sample layout:
   and `rewards/`: domain-owned models plus their behavior
 - `platform/`: console boundary
 
-The source currently uses the compatibility `Main::main` spelling and the
-legacy target manifest. In the settled model, an installable `build.omg` binds
+The source currently relies on temporary `Main::main` discovery and a retired
+target manifest. In the settled model, an installable `build.omg` binds
 the target's program-entry slot to that exact attached machine. The binding
 requests one target-provisioned receiver; it does not make `Main` static, pass a
 receiver value, or give the `data` declaration storage authority.
