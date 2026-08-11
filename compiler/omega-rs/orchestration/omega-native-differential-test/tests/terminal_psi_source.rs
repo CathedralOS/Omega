@@ -1015,6 +1015,7 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
         .find(|operation| matches!(operation.kind, OperationKind::Call { .. }))
         .expect("the caller should contain one terminal call");
     let OperationKind::Call {
+        arguments,
         crash_continuations,
         ..
     } = &call.kind
@@ -1043,8 +1044,12 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
         other => panic!("unexpected guarded continuation term: {other:?}"),
     };
     assert_eq!(
+        predicate_value, arguments[0],
+        "the checked computed local should lower to the call argument's terminal ValueId",
+    );
+    assert_ne!(
         predicate_value, lowered.semantic_module.machines[0].parameters[0].id,
-        "the checked caller-local alias should lower to its canonical terminal ValueId",
+        "the computed local must not collapse to the caller parameter",
     );
 
     let verified = verify_module(
@@ -1054,12 +1059,12 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
     )
     .expect("the guarded source-call closure should verify");
     assert_eq!(
-        interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(false)])
+        interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(true)])
             .expect("the disproved call route should return")
             .value(),
         TerminalScalarValue::Boolean(false),
     );
-    let mut execution = start_verified_artifact(&verified, &[TerminalScalarValue::Boolean(true)])
+    let mut execution = start_verified_artifact(&verified, &[TerminalScalarValue::Boolean(false)])
         .expect("start the proved guarded-crash invocation");
     assert!(matches!(
         execution

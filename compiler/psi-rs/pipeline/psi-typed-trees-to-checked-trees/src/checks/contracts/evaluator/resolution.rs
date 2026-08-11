@@ -81,9 +81,13 @@ impl ContractExpressionEvaluator<'_, '_> {
         let mut argument_index = 0usize;
 
         for parameter in self.target_parameters {
-            let parameter_matches = (head_symbol.is_valid() && head_symbol == parameter.symbol)
-                || (symbol.is_valid() && symbol == parameter.symbol)
-                || name.is_some_and(|name| name == parameter.name.as_str());
+            let has_resolved_symbol = head_symbol.is_valid() || symbol.is_valid();
+            let parameter_matches = if has_resolved_symbol {
+                (head_symbol.is_valid() && head_symbol == parameter.symbol)
+                    || (symbol.is_valid() && symbol == parameter.symbol)
+            } else {
+                name.is_some_and(|name| name == parameter.name.as_str())
+            };
             if parameter.is_self {
                 if parameter_matches {
                     return None;
@@ -121,9 +125,14 @@ impl ContractExpressionEvaluator<'_, '_> {
                 let StatementNode::LocalData(local) = statement else {
                     return None;
                 };
-                let symbol_matches = (head_symbol.is_valid() && head_symbol == local.symbol)
-                    || (symbol.is_valid() && symbol == local.symbol);
-                (symbol_matches || local.name == *name).then_some(local.initial_value)
+                let has_resolved_symbol = head_symbol.is_valid() || symbol.is_valid();
+                let local_matches = if has_resolved_symbol {
+                    (head_symbol.is_valid() && head_symbol == local.symbol)
+                        || (symbol.is_valid() && symbol == local.symbol)
+                } else {
+                    local.name == *name
+                };
+                local_matches.then_some(local.initial_value)
             })
     }
 }

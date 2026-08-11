@@ -155,11 +155,11 @@ Remaining:
   bridge.
 - **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
   scalar slice. Source-produced direct calls now consume checked
-  invocation-specific rows, preserve parameter and direct-local substitutions,
-  and emit verifier-reconstructed guarded continuations. Computed caller-local
-  predicates currently overflow checked crash implication instead of reaching
-  this terminal route; fixing that is engineering work. Imported crash capsules
-  remain design-blocked on artifact identity and certificate binding.
+  invocation-specific rows, preserve parameter and computed direct-local
+  substitutions, and emit verifier-reconstructed guarded continuations. Add
+  staged short-circuit call arguments and wider aggregate/member predicates.
+  Imported crash capsules remain design-blocked on artifact identity and
+  certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
