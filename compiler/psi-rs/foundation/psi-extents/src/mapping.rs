@@ -199,10 +199,10 @@ impl MappingSource<'_> {
         }
     }
 
-    fn provider_issuance(&self) -> ExtentProviderIssuance {
+    fn origin(&self) -> ExtentRootOrigin {
         match self {
-            Self::Owned(extent) => extent.provider_issuance(),
-            Self::Borrowed(loan) => loan.provider_issuance(),
+            Self::Owned(extent) => extent.origin(),
+            Self::Borrowed(loan) => loan.origin(),
         }
     }
 
@@ -247,7 +247,7 @@ struct MappingEvidence {
     source_rights: ExtentRights,
     source_provenance: ExtentProvenanceId,
     source_era: MappingEraId,
-    source_provider_issuance: ExtentProviderIssuance,
+    source_origin: ExtentRootOrigin,
     source_lineage: ExtentLineageId,
     mapped_base: u64,
     mapped_length: u64,
@@ -255,7 +255,7 @@ struct MappingEvidence {
     mapped_rights: ExtentRights,
     mapped_provenance: ExtentProvenanceId,
     mapped_era: MappingEraId,
-    mapped_provider_issuance: ExtentProviderIssuance,
+    mapped_origin: ExtentRootOrigin,
     mapped_lineage: ExtentLineageId,
     destination: DestinationRestoration,
 }
@@ -339,8 +339,8 @@ impl<'source> PendingMap<'source> {
         self.mapping.source.era()
     }
 
-    pub fn source_provider_issuance(&self) -> ExtentProviderIssuance {
-        self.mapping.source.provider_issuance()
+    pub fn source_origin(&self) -> ExtentRootOrigin {
+        self.mapping.source.origin()
     }
 
     pub fn source_lineage_root(&self) -> ExtentLineageId {
@@ -367,8 +367,8 @@ impl<'source> PendingMap<'source> {
         self.mapping.mapped.rights()
     }
 
-    pub fn mapped_provider_issuance(&self) -> ExtentProviderIssuance {
-        self.mapping.mapped.provider_issuance()
+    pub fn mapped_origin(&self) -> ExtentRootOrigin {
+        self.mapping.mapped.origin()
     }
 
     pub fn mapped_provenance(&self) -> ExtentProvenanceId {
@@ -504,8 +504,8 @@ impl<'source> MappedExtent<'source> {
         self.mapped.era()
     }
 
-    pub const fn provider_issuance(&self) -> ExtentProviderIssuance {
-        self.mapped.provider_issuance()
+    pub const fn origin(&self) -> ExtentRootOrigin {
+        self.mapped.origin()
     }
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
@@ -651,7 +651,7 @@ fn map_with_source<'source>(
         source_rights: source.rights().clone(),
         source_provenance: source.provenance(),
         source_era: source.era(),
-        source_provider_issuance: source.provider_issuance(),
+        source_origin: source.origin(),
         source_lineage: source.lineage_root(),
         mapped_base: mapped.base(),
         mapped_length: mapped.length(),
@@ -659,7 +659,7 @@ fn map_with_source<'source>(
         mapped_rights: mapped.rights().clone(),
         mapped_provenance: mapped.provenance(),
         mapped_era: mapped.era(),
-        mapped_provider_issuance: mapped.provider_issuance(),
+        mapped_origin: mapped.origin(),
         mapped_lineage: mapped.lineage_root(),
         destination: destination_restoration.clone(),
     };
@@ -881,6 +881,19 @@ mod tests {
         .expect("normalized provider issuance")
     }
 
+    fn local_provisioning(seed: u64) -> ExtentCompilerProvisioning {
+        let base = seed * 8;
+        ExtentCompilerProvisioning::from_normalized_identities([
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+            base + 5,
+            base + 6,
+        ])
+        .expect("normalized compiler provisioning")
+    }
+
     fn rights(identities: &[u64]) -> ExtentRights {
         ExtentRights::from_normalized_identities(
             identities
@@ -908,6 +921,26 @@ mod tests {
         )
         .mint(base, length)
         .expect("root extent")
+    }
+
+    fn local_extent(
+        provision: u64,
+        lineage: u64,
+        base: u64,
+        space: u64,
+        provenance: u64,
+        extent_rights: &[u64],
+    ) -> Extent {
+        ExtentRootGrant::from_compiler_provisioning(
+            local_provisioning(provision),
+            id(lineage, ExtentLineageId::from_normalized_identity),
+            id(space, AddressSpaceId::from_normalized_identity),
+            rights(extent_rights),
+            id(provenance, ExtentProvenanceId::from_normalized_identity),
+            id(30, MappingEraId::from_normalized_identity),
+        )
+        .mint(base, 0x1000)
+        .expect("local root extent")
     }
 
     fn translation_fact(identity: u64) -> TranslationCompletionFactId {
@@ -978,8 +1011,14 @@ mod tests {
             &mapping_grant(MappingSourceMode::Owned),
         )
         .expect("owned map candidate");
-        assert_eq!(pending.source_provider_issuance(), provider_issuance(1));
-        assert_eq!(pending.mapped_provider_issuance(), provider_issuance(2));
+        assert_eq!(
+            pending.source_origin(),
+            ExtentRootOrigin::ProviderIssued(provider_issuance(1))
+        );
+        assert_eq!(
+            pending.mapped_origin(),
+            ExtentRootOrigin::ProviderIssued(provider_issuance(2))
+        );
         let mut wrong_mapping = TranslationActivationReceipt::from_admitted_provider(
             &pending.receipt_context(),
             true,
@@ -996,7 +1035,8 @@ mod tests {
             true,
             [activation_fact(600)],
         );
-        wrong_issuance.mapping.source_provider_issuance = provider_issuance_for_invocation(1, 99);
+        wrong_issuance.mapping.source_origin =
+            ExtentRootOrigin::ProviderIssued(provider_issuance_for_invocation(1, 99));
         let error = pending
             .complete(wrong_issuance)
             .expect_err("receipt cannot substitute provider issuance evidence");
@@ -1025,7 +1065,10 @@ mod tests {
         let receipt = activate(&pending);
         let mapping = pending.complete(receipt).expect("translations installed");
         assert_eq!(mapping.rights(), &rights(&[300]));
-        assert_eq!(mapping.provider_issuance(), provider_issuance(2));
+        assert_eq!(
+            mapping.origin(),
+            ExtentRootOrigin::ProviderIssued(provider_issuance(2))
+        );
 
         let pending = mapping.begin_unmap();
         let incomplete =
@@ -1041,10 +1084,56 @@ mod tests {
             .expect("translations released")
             .into_parts();
         assert_eq!(destination.rights(), &rights(&[200]));
-        assert_eq!(destination.provider_issuance(), provider_issuance(2));
+        assert_eq!(
+            destination.origin(),
+            ExtentRootOrigin::ProviderIssued(provider_issuance(2))
+        );
         let source = source.expect("owned source returned");
         assert_eq!(source.rights(), &rights(&[100]));
-        assert_eq!(source.provider_issuance(), provider_issuance(1));
+        assert_eq!(
+            source.origin(),
+            ExtentRootOrigin::ProviderIssued(provider_issuance(1))
+        );
+    }
+
+    #[test]
+    fn owned_mapping_round_trips_compiler_provisioned_origins() {
+        let source = local_extent(1, 11, 0x1000, 10, 20, &[100]);
+        let destination = local_extent(2, 12, 0xffff_8000_0000_0000, 11, 22, &[200]);
+        let pending = map_owned(
+            source,
+            destination,
+            mapping_id(52),
+            &mapping_grant(MappingSourceMode::Owned),
+        )
+        .expect("local owned map candidate");
+        assert_eq!(
+            pending.source_origin(),
+            ExtentRootOrigin::CompilerProvisioned(local_provisioning(1))
+        );
+        assert_eq!(
+            pending.mapped_origin(),
+            ExtentRootOrigin::CompilerProvisioned(local_provisioning(2))
+        );
+
+        let receipt = activate(&pending);
+        let mapping = pending.complete(receipt).expect("translations installed");
+        let pending = mapping.begin_unmap();
+        let receipt = release(&pending);
+        let (destination, source) = pending
+            .complete(receipt)
+            .expect("translations released")
+            .into_parts();
+        assert_eq!(
+            destination.compiler_provisioning(),
+            Some(local_provisioning(2))
+        );
+        assert_eq!(
+            source
+                .expect("owned local source returned")
+                .compiler_provisioning(),
+            Some(local_provisioning(1))
+        );
     }
 
     #[test]

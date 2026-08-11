@@ -1168,6 +1168,11 @@ backing or correspondence evidence for the selected provider. Terminal
 validation rejects external operations justified only by matching content
 arithmetic.
 
+The target-neutral Extent ledger now retains both origin records through mint,
+split, borrow, mapping, and rejoin, and rejects recomposition across origin
+kinds or independently provisioned local accounts. The source declaration form
+for sealed local provisioning remains open as owner Q3.
+
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned
 `separate(...)` performs the closed algebra's partial n-ary composition. Neither

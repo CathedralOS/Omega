@@ -629,7 +629,10 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         installation.image().mapping_era().normalized_identity(),
         102
     );
-    let image_issuance = installation.image().provider_issuance();
+    let image_issuance = installation
+        .image()
+        .provider_issuance()
+        .expect("program storage is provider issued");
     assert_eq!(image_issuance.issuance().normalized_identity(), 91 * 16 + 1);
     assert_eq!(image_issuance.backing().normalized_identity(), 91 * 16 + 2);
     assert_eq!(image_issuance.provider().normalized_identity(), 91 * 16 + 3);

@@ -220,7 +220,7 @@ pub struct ProgramStorageInstalledExtentRecord {
     rights: Vec<psi_extents::ExtentRightId>,
     provenance: psi_extents::ExtentProvenanceId,
     mapping_era: psi_extents::MappingEraId,
-    provider_issuance: psi_extents::ExtentProviderIssuance,
+    origin: psi_extents::ExtentRootOrigin,
     lineage_root: psi_extents::ExtentLineageId,
 }
 
@@ -233,7 +233,7 @@ impl ProgramStorageInstalledExtentRecord {
             rights: extent.rights().identities().collect(),
             provenance: extent.provenance(),
             mapping_era: extent.era(),
-            provider_issuance: extent.provider_issuance(),
+            origin: extent.origin(),
             lineage_root: extent.lineage_root(),
         }
     }
@@ -266,8 +266,12 @@ impl ProgramStorageInstalledExtentRecord {
         self.mapping_era
     }
 
-    pub const fn provider_issuance(&self) -> psi_extents::ExtentProviderIssuance {
-        self.provider_issuance
+    pub const fn origin(&self) -> psi_extents::ExtentRootOrigin {
+        self.origin
+    }
+
+    pub const fn provider_issuance(&self) -> Option<psi_extents::ExtentProviderIssuance> {
+        self.origin.provider_issuance()
     }
 
     pub const fn lineage_root(&self) -> psi_extents::ExtentLineageId {

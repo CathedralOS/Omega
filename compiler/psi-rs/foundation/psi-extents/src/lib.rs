@@ -96,6 +96,9 @@ normalized_extent_identity!(ExtentProviderInvocationId, "extent-provider-invocat
 normalized_extent_identity!(ExtentEstablishmentRouteId, "extent-establishment-route");
 normalized_extent_identity!(ExtentCapacityId, "extent-capacity");
 normalized_extent_identity!(ExtentQualificationId, "extent-qualification");
+normalized_extent_identity!(ExtentCompilerProvisionId, "extent-compiler-provision");
+normalized_extent_identity!(ExtentLocalOwnerId, "extent-local-owner");
+normalized_extent_identity!(ExtentSealedDeclarationId, "extent-sealed-declaration");
 
 use std::collections::BTreeSet;
 
@@ -315,13 +318,115 @@ impl ExtentProviderIssuance {
     }
 }
 
-/// Provider-admitted authority to mint exactly one root extent.
+/// Compiler-owned evidence for one program-local authority account.
 ///
-/// Compiler/provider code constructs this after admission. Omega source never
-/// receives a constructor for either this grant or `Extent` itself.
+/// This record can only represent capacity declared by the owning package in a
+/// sealed declaration. It deliberately carries no external backing, custody,
+/// or provider correspondence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtentCompilerProvisioning {
+    provision: ExtentCompilerProvisionId,
+    owner: ExtentLocalOwnerId,
+    sealed_declaration: ExtentSealedDeclarationId,
+    establishment_route: ExtentEstablishmentRouteId,
+    capacity: ExtentCapacityId,
+    qualification: ExtentQualificationId,
+}
+
+impl ExtentCompilerProvisioning {
+    pub fn from_normalized_identities(identities: [u64; 6]) -> Result<Self, ExtentDiagnostic> {
+        let [
+            provision,
+            owner,
+            declaration,
+            route,
+            capacity,
+            qualification,
+        ] = identities;
+        Ok(Self::from_sealed_declaration(
+            ExtentCompilerProvisionId::from_normalized_identity(provision)?,
+            ExtentLocalOwnerId::from_normalized_identity(owner)?,
+            ExtentSealedDeclarationId::from_normalized_identity(declaration)?,
+            ExtentEstablishmentRouteId::from_normalized_identity(route)?,
+            ExtentCapacityId::from_normalized_identity(capacity)?,
+            ExtentQualificationId::from_normalized_identity(qualification)?,
+        ))
+    }
+
+    pub const fn from_sealed_declaration(
+        provision: ExtentCompilerProvisionId,
+        owner: ExtentLocalOwnerId,
+        sealed_declaration: ExtentSealedDeclarationId,
+        establishment_route: ExtentEstablishmentRouteId,
+        capacity: ExtentCapacityId,
+        qualification: ExtentQualificationId,
+    ) -> Self {
+        Self {
+            provision,
+            owner,
+            sealed_declaration,
+            establishment_route,
+            capacity,
+            qualification,
+        }
+    }
+
+    pub const fn provision(self) -> ExtentCompilerProvisionId {
+        self.provision
+    }
+
+    pub const fn owner(self) -> ExtentLocalOwnerId {
+        self.owner
+    }
+
+    pub const fn sealed_declaration(self) -> ExtentSealedDeclarationId {
+        self.sealed_declaration
+    }
+
+    pub const fn establishment_route(self) -> ExtentEstablishmentRouteId {
+        self.establishment_route
+    }
+
+    pub const fn capacity(self) -> ExtentCapacityId {
+        self.capacity
+    }
+
+    pub const fn qualification(self) -> ExtentQualificationId {
+        self.qualification
+    }
+}
+
+/// The only two origins permitted to create a fresh Extent authority account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ExtentRootOrigin {
+    CompilerProvisioned(ExtentCompilerProvisioning),
+    ProviderIssued(ExtentProviderIssuance),
+}
+
+impl ExtentRootOrigin {
+    pub const fn compiler_provisioning(self) -> Option<ExtentCompilerProvisioning> {
+        match self {
+            Self::CompilerProvisioned(provisioning) => Some(provisioning),
+            Self::ProviderIssued(_) => None,
+        }
+    }
+
+    pub const fn provider_issuance(self) -> Option<ExtentProviderIssuance> {
+        match self {
+            Self::CompilerProvisioned(_) => None,
+            Self::ProviderIssued(issuance) => Some(issuance),
+        }
+    }
+}
+
+/// One-shot authority to mint exactly one root extent.
+///
+/// Compiler code constructs this from one of the two sealed root origins.
+/// Omega source never receives a constructor for either this grant or `Extent`
+/// itself.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtentRootGrant {
-    provider_issuance: ExtentProviderIssuance,
+    origin: ExtentRootOrigin,
     lineage: ExtentLineageId,
     address_space: AddressSpaceId,
     rights: ExtentRights,
@@ -367,13 +472,35 @@ impl ExtentRootGrant {
         era: MappingEraId,
     ) -> Self {
         Self {
-            provider_issuance,
+            origin: ExtentRootOrigin::ProviderIssued(provider_issuance),
             lineage,
             address_space,
             rights,
             provenance,
             era,
         }
+    }
+
+    pub const fn from_compiler_provisioning(
+        provisioning: ExtentCompilerProvisioning,
+        lineage: ExtentLineageId,
+        address_space: AddressSpaceId,
+        rights: ExtentRights,
+        provenance: ExtentProvenanceId,
+        era: MappingEraId,
+    ) -> Self {
+        Self {
+            origin: ExtentRootOrigin::CompilerProvisioned(provisioning),
+            lineage,
+            address_space,
+            rights,
+            provenance,
+            era,
+        }
+    }
+
+    pub const fn origin(&self) -> ExtentRootOrigin {
+        self.origin
     }
 
     pub fn mint(self, base: u64, length: u64) -> Result<Extent, MintError> {
@@ -393,7 +520,7 @@ impl ExtentRootGrant {
     /// checked before this operation began.
     pub fn mint_validated(self, geometry: ValidatedExtentGeometry) -> Extent {
         let Self {
-            provider_issuance,
+            origin,
             lineage,
             address_space,
             rights,
@@ -407,7 +534,7 @@ impl ExtentRootGrant {
             rights,
             provenance,
             era,
-            provider_issuance,
+            origin,
             lineage: Lineage {
                 root: lineage,
                 path: Vec::new(),
@@ -441,7 +568,7 @@ pub struct Extent {
     rights: ExtentRights,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
-    provider_issuance: ExtentProviderIssuance,
+    origin: ExtentRootOrigin,
     lineage: Lineage,
 }
 
@@ -474,8 +601,16 @@ impl Extent {
         self.era
     }
 
-    pub const fn provider_issuance(&self) -> ExtentProviderIssuance {
-        self.provider_issuance
+    pub const fn origin(&self) -> ExtentRootOrigin {
+        self.origin
+    }
+
+    pub const fn provider_issuance(&self) -> Option<ExtentProviderIssuance> {
+        self.origin.provider_issuance()
+    }
+
+    pub const fn compiler_provisioning(&self) -> Option<ExtentCompilerProvisioning> {
+        self.origin.compiler_provisioning()
     }
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
@@ -512,7 +647,7 @@ impl Extent {
             rights: self.rights.clone(),
             provenance: self.provenance,
             era: self.era,
-            provider_issuance: self.provider_issuance,
+            origin: self.origin,
             lineage: Lineage {
                 root: self.lineage.root,
                 path: lower_path,
@@ -525,7 +660,7 @@ impl Extent {
             rights: self.rights,
             provenance: self.provenance,
             era: self.era,
-            provider_issuance: self.provider_issuance,
+            origin: self.origin,
             lineage: Lineage {
                 root: self.lineage.root,
                 path: upper_path,
@@ -625,7 +760,7 @@ impl Extent {
             rights: lower.rights,
             provenance: lower.provenance,
             era: lower.era,
-            provider_issuance: lower.provider_issuance,
+            origin: lower.origin,
             lineage: Lineage {
                 root: lower.lineage.root,
                 path: parent_path,
@@ -706,9 +841,9 @@ fn validate_merge(first: &Extent, second: &Extent) -> Result<(), ExtentDiagnosti
             "numeric adjacency cannot merge independent authority lineages".into(),
         ));
     }
-    if first.provider_issuance != second.provider_issuance {
+    if first.origin != second.origin {
         return Err(ExtentDiagnostic(
-            "merge requires identical provider issuance evidence".into(),
+            "merge requires identical sealed root-origin evidence".into(),
         ));
     }
     let Some((first_branch, first_parent)) = first.lineage.path.split_last() else {
@@ -835,11 +970,19 @@ impl<'a> ExtentLoan<'a> {
         }
     }
 
-    pub const fn provider_issuance(&self) -> ExtentProviderIssuance {
+    pub const fn origin(&self) -> ExtentRootOrigin {
         match &self.backing {
-            LoanBacking::Shared(extent) => extent.provider_issuance,
-            LoanBacking::Exclusive(extent) => extent.provider_issuance,
+            LoanBacking::Shared(extent) => extent.origin,
+            LoanBacking::Exclusive(extent) => extent.origin,
         }
+    }
+
+    pub const fn provider_issuance(&self) -> Option<ExtentProviderIssuance> {
+        self.origin().provider_issuance()
+    }
+
+    pub const fn compiler_provisioning(&self) -> Option<ExtentCompilerProvisioning> {
+        self.origin().compiler_provisioning()
     }
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
@@ -1470,6 +1613,19 @@ mod tests {
         .expect("normalized provider issuance")
     }
 
+    fn local_provisioning(seed: u64) -> ExtentCompilerProvisioning {
+        let base = seed * 8;
+        ExtentCompilerProvisioning::from_normalized_identities([
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+            base + 5,
+            base + 6,
+        ])
+        .expect("normalized compiler provisioning")
+    }
+
     fn rights(identities: &[u64]) -> ExtentRights {
         ExtentRights::from_normalized_identities(
             identities
@@ -1486,6 +1642,17 @@ mod tests {
     fn root_grant(lineage: u64) -> ExtentRootGrant {
         ExtentRootGrant::from_admitted_provider(
             provider_issuance(lineage),
+            id(lineage, ExtentLineageId::from_normalized_identity),
+            id(10, AddressSpaceId::from_normalized_identity),
+            rights(&[100, 101]),
+            id(20, ExtentProvenanceId::from_normalized_identity),
+            id(30, MappingEraId::from_normalized_identity),
+        )
+    }
+
+    fn local_root_grant(lineage: u64, provision: u64) -> ExtentRootGrant {
+        ExtentRootGrant::from_compiler_provisioning(
+            local_provisioning(provision),
             id(lineage, ExtentLineageId::from_normalized_identity),
             id(10, AddressSpaceId::from_normalized_identity),
             rights(&[100, 101]),
@@ -1522,7 +1689,7 @@ mod tests {
             .expect("sibling merge is order independent");
         assert_eq!((restored.base(), restored.length()), (0x1000, 0x1000));
         assert_eq!(restored.lineage_root().normalized_identity(), 1);
-        assert_eq!(restored.provider_issuance(), provider_issuance(1));
+        assert_eq!(restored.provider_issuance(), Some(provider_issuance(1)));
     }
 
     #[test]
@@ -1649,7 +1816,7 @@ mod tests {
         let error = first
             .merge(second)
             .expect_err("matching numbers cannot erase provider issuance drift");
-        assert!(error.diagnostic().0.contains("provider issuance"));
+        assert!(error.diagnostic().0.contains("root-origin"));
     }
 
     #[test]
@@ -1669,7 +1836,53 @@ mod tests {
         let error = first
             .merge(second)
             .expect_err("matching supply cannot erase provider invocation drift");
-        assert!(error.diagnostic().0.contains("provider issuance"));
+        assert!(error.diagnostic().0.contains("root-origin"));
+    }
+
+    #[test]
+    fn compiler_provisioned_local_roots_conserve_their_sealed_origin() {
+        let root = local_root_grant(7, 3)
+            .mint(0x2000, 64)
+            .expect("compiler-provisioned root");
+        assert_eq!(root.provider_issuance(), None);
+        assert_eq!(root.compiler_provisioning(), Some(local_provisioning(3)));
+
+        let loan = root.loan(8, 8).expect("local root loan");
+        assert_eq!(loan.compiler_provisioning(), Some(local_provisioning(3)));
+        drop(loan);
+
+        let (lower, upper) = root.split_at(32).expect("local root split");
+        let restored = lower.merge(upper).expect("local root rejoin");
+        assert_eq!(
+            restored.compiler_provisioning(),
+            Some(local_provisioning(3))
+        );
+    }
+
+    #[test]
+    fn provider_and_local_origins_never_recompose() {
+        let provider = root_grant(1).mint(0, 32).expect("provider root");
+        let local = local_root_grant(1, 1).mint(32, 32).expect("local root");
+
+        let error = provider
+            .merge(local)
+            .expect_err("equal lineage and geometry cannot erase origin kind");
+        assert!(error.diagnostic().0.contains("root-origin"));
+    }
+
+    #[test]
+    fn independent_sealed_local_provisions_never_recompose() {
+        let first = local_root_grant(1, 1)
+            .mint(0, 32)
+            .expect("first local root");
+        let second = local_root_grant(1, 2)
+            .mint(32, 32)
+            .expect("second local root");
+
+        let error = first
+            .merge(second)
+            .expect_err("equal lineage and geometry cannot erase local provision");
+        assert!(error.diagnostic().0.contains("root-origin"));
     }
 
     #[test]
@@ -1678,7 +1891,7 @@ mod tests {
         let shared = extent.loan(4, 8).expect("shared loan");
         assert_eq!((shared.base(), shared.length()), (0x1004, 8));
         assert_eq!(shared.polarity(), LoanPolarity::Shared);
-        assert_eq!(shared.provider_issuance(), provider_issuance(1));
+        assert_eq!(shared.provider_issuance(), Some(provider_issuance(1)));
         drop(shared);
 
         let exclusive = extent.loan_mut(16, 8).expect("exclusive loan");

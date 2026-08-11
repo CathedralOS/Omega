@@ -145,7 +145,7 @@ the target schema states how the launch environment supplies those needs.
 > their semantic roles, normalized ABI placements, frame capture ranges, strict
 > carry, and the pending two-grant installation rule. Physical bridge/grant
 > installation is generically modeled with all-or-nothing predicate validation
-> and a non-authoritative geometry/address-space/rights/provenance/era/lineage
+> and a non-authoritative geometry/address-space/rights/provenance/era/lineage/root-origin
 > record. Provider-issued roots also bind their admitted issuance, backing,
 > provider, live-issuance, custody, alias, correspondence, and trust identities
 > to one selected provider plan/invocation, establishment route, capacity

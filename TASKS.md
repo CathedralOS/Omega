@@ -90,8 +90,11 @@ Remaining:
   provenance to one exact selected provider plan/invocation plus establishment
   route, capacity account, and qualification. The complete record survives
   mint, split, borrow, mapping, rejoin, and entry installation; differing
-  evidence cannot recompose or replay mapping receipts. Add the
-  compiler-provisioned sealed-local source. Reject cross-root recomposition.
+  evidence cannot recompose or replay mapping receipts. Compiler-provisioned
+  roots now separately retain provision, owner, sealed declaration, route,
+  capacity account, and qualification through the same operations; provider,
+  local, and independently provisioned local origins cannot recompose. Wiring
+  this origin to an authored source declaration is design-blocked on owner Q3.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
   parameters, entry places, and results. Keep ownership, issuance, custody,
   aliasing, and partition succession distinct. Providers may attest custody,
