@@ -359,7 +359,10 @@ explicitly partial while complete compiler-body footprint decoding is missing.
 Its closed executable-region vocabulary contains only compiler functions and
 final-byte-validated import thunks, so in-image admitted leaves are absent by
 construction; adding an admitted-leaf origin must also add certificate replay.
-Serialization occurs only after internal identity validation.
+Every byte-bearing compiler instruction already carrying a final-byte
+validation identity must also produce a target footprint row; an unsupported
+shape rejects rather than disappearing from the partial union. Serialization
+occurs only after internal identity validation.
 
 Exit realization is a second implementation-evidence axis. The external-root
 admission path now checks the realized return-control mechanism against

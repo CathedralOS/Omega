@@ -9416,13 +9416,13 @@ fn validate_compiler_function_instruction_boundaries(
                         instruction.selected_instruction_index
                     )));
                 }
-                if let Some(footprint) = compiler_instruction_footprint(
+                let footprint = require_compiler_instruction_footprint(
                     architecture,
                     &code.runtime_value_operands,
                     kind_for_footprint,
-                ) {
-                    compiler_instruction_footprints.push(footprint);
-                }
+                    instruction.selected_instruction_index,
+                )?;
+                compiler_instruction_footprints.push(footprint);
                 let (class_count, class_fingerprint) = if kind_tag <= 2 {
                     (
                         &mut fixed_mechanics_instruction_count,
@@ -11688,6 +11688,25 @@ fn compiler_instruction_footprint(
         origin,
         StateFootprintEvidence::new(registers, additional_state),
     ))
+}
+
+fn require_compiler_instruction_footprint(
+    architecture: Architecture,
+    runtime_value_operands: &psi_arena::Arena<omega_target_operations::RuntimeValueOperand>,
+    kind: omega_machine_bytes::CompilerInstructionValidationKind,
+    selected_instruction_index: u32,
+) -> Result<
+    (
+        omega_machine_instructions::BoundaryFootprintFragmentOrigin,
+        omega_calling_conventions::StateFootprintEvidence,
+    ),
+    Diagnostic,
+> {
+    compiler_instruction_footprint(architecture, runtime_value_operands, kind).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "compiler instruction #{selected_instruction_index} has a retained final-byte validation identity but no target footprint derivation"
+        ))
+    })
 }
 
 fn validate_compiler_body_specification_footprints(
@@ -19372,8 +19391,8 @@ mod tests {
         compiler_place_integer_write_address_sites, compiler_place_value_address_sites,
         compiler_runtime_value_compare_address_sites, emit_checked_executable_image,
         encode_aarch64_indirect_call_replay, outbound_syscall_argument_data_sites,
-        outbound_syscall_argument_storage_sites, validate_checked_instruction_bytes,
-        validate_compiler_data_address_relocations,
+        outbound_syscall_argument_storage_sites, require_compiler_instruction_footprint,
+        validate_checked_instruction_bytes, validate_compiler_data_address_relocations,
         validate_compiler_function_instruction_boundaries,
         validate_compiler_runtime_text_relocations, validate_executable_region_enumeration,
         validate_final_text_relocation_envelope,
@@ -19386,6 +19405,41 @@ mod tests {
     };
     use omega_target::NativeTarget;
     use psi_arena::Handle;
+
+    #[test]
+    fn compiler_validation_identity_without_a_footprint_derivation_rejects() {
+        use omega_machine_bytes::CompilerInstructionValidationKind;
+        use omega_target_operations::{Place, PlaceStep, RuntimeStorageRegion, StateGuardOperator};
+
+        let place = Place::at(RuntimeStorageRegion::RuntimeFrame, 16)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::Machine,
+                index_offset: 24,
+                index_byte_size: 8,
+                element_byte_size: 4,
+            })
+            .expect("indexed place");
+        let diagnostic = require_compiler_instruction_footprint(
+            omega_target::Architecture::Aarch64,
+            &psi_arena::Arena::new(),
+            CompilerInstructionValidationKind::PlaceValueGuard {
+                place,
+                byte_size: 4,
+                expected_value: 7,
+                failure_branch_distance: 12,
+                operator: StateGuardOperator::Equal,
+            },
+            41,
+        )
+        .expect_err("an unsupported final-body footprint must not be omitted");
+
+        assert!(diagnostic.message.contains("instruction #41"));
+        assert!(
+            diagnostic
+                .message
+                .contains("no target footprint derivation")
+        );
+    }
 
     #[test]
     fn aarch64_indirect_call_replay_reconstructs_bytes_and_page_sites() {
