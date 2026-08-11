@@ -1,8 +1,12 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
-use omega_compiler::compile_to_checked;
-use psi_checked_interpreter::interpret;
+use omega_compiler::{CheckedCompilation, compile_to_checked};
+use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
+
+fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
+    interpret_entry(checked, checked.program_entry_machine(), stdin)
+}
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

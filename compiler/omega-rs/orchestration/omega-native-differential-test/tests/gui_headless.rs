@@ -30,7 +30,8 @@ fn window_demo_runs_headless_to_native_exit() {
                 .join("\n")
         )
     });
-    let outcome = psi_checked_interpreter::interpret(&checked, &[]);
+    let outcome =
+        psi_checked_interpreter::interpret_entry(&checked, checked.program_entry_machine(), &[]);
     assert_eq!(
         outcome.error, None,
         "the headless run must not decline: {:?}",

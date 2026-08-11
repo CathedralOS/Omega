@@ -4,9 +4,14 @@
 //! carry its own end-to-end oracle without making that shared file responsible
 //! for another subsystem.
 
-use omega_compiler::{CompileOptions, compile, compile_to_checked};
+use omega_compiler::{CheckedCompilation, CompileOptions, compile, compile_to_checked};
+use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
+    interpret_entry(checked, checked.program_entry_machine(), stdin)
+}
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -186,7 +191,7 @@ fn record_recast_execution_canaries_run() {
     let checked = compile_to_checked(&array_canary.join("main.omg"), None)
         .expect("mutable record-array view should compile to checked trees");
     assert_eq!(
-        psi_checked_interpreter::interpret(&checked, &[]).exit_code,
+        interpret(&checked, &[]).exit_code,
         70,
         "the interpreter must preserve nested array/record offsets"
     );
@@ -208,7 +213,7 @@ fn fixed_array_recast_execution_and_fact_fence() {
     let checked =
         compile_to_checked(&main, None).expect("top-level fixed-array view should compile");
     assert_eq!(
-        psi_checked_interpreter::interpret(&checked, &[]).exit_code,
+        interpret(&checked, &[]).exit_code,
         70,
         "the interpreter must preserve top-level fixed-array view identity"
     );
@@ -232,7 +237,7 @@ fn slice_recast_execution_tiling_and_fact_fences() {
         .join(canary)
         .join("main.omg");
     let checked = compile_to_checked(&main, None).expect("unsized slice recast should compile");
-    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
+    let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
         "the interpreter must derive slice length and preserve write-through: {interpreted:?}"
@@ -262,7 +267,7 @@ fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
         .join(canary)
         .join("main.omg");
     let checked = compile_to_checked(&main, None).expect("interior slice recast should compile");
-    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
+    let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
         "the interpreter must preserve interior slice length and write-through: {interpreted:?}"
@@ -292,7 +297,7 @@ fn aggregate_slice_recasts_compose_leaf_representation_sets() {
         .join(canary)
         .join("main.omg");
     let checked = compile_to_checked(&main, None).expect("aggregate slice recast should compile");
-    let interpreted = psi_checked_interpreter::interpret(&checked, &[]);
+    let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
         "the interpreter must preserve aggregate slice facts and write-through: {interpreted:?}"
