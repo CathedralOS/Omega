@@ -9,7 +9,9 @@ data Main {
     sprite: Sprite;
 }
 
-machine Sprite::paint(&self) satisfies Drawable {
+SpriteDrawable: Sprite satisfies Drawable;
+
+machine Sprite::paint(&self) {
 }
 
 machine Main::main(&mut self) {

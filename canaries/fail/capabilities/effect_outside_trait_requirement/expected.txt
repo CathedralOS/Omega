@@ -1,1 +1,1 @@
-service `Filesystem` is not allowed by the trait requirement
+outside the requirement's declared service ceiling

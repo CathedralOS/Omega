@@ -13,7 +13,9 @@ data Main {
     counter: Counter;
 }
 
-machine Counter::put(&mut self, value: bool) satisfies IntSink {
+CounterIntSink: Counter satisfies IntSink;
+
+machine Counter::put(&mut self, value: bool) satisfies Sink<i32>::put {
     self.value = 0;
 }
 

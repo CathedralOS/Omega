@@ -86,20 +86,24 @@ pub fn audit_boundary_provider_calls(
 }
 
 fn boundary_trait_is_implemented(program: &TypedTrees, trait_symbol: SymbolHandle) -> bool {
-    program.machines().iter().any(|machine| {
-        program
-            .machine_trait_conformances(machine)
-            .iter()
-            .any(|conformance| {
-                // PRV4 supply edges: a machine satisfying ONE named
-                // requirement (a checked adapter forwarding already-held
-                // authority, or a `via` external leaf) is not an in-package
-                // implementation of the trait. Its attached data type, when
-                // present, identifies the selected provider/table layout; it
-                // does not mint authority. Whole-trait conformances still
-                // revoke approval: those are ordinary implementations.
-                conformance.symbol == trait_symbol && conformance.requirement.is_none()
-            })
+    let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == trait_symbol)
+    else {
+        return false;
+    };
+
+    // PRV4 supply edges: a machine satisfying ONE exact requirement (a
+    // checked adapter forwarding already-held authority, or a `via` external
+    // leaf) is not an in-package implementation of the trait. Whole-trait
+    // implementation is expressed only by a carrier-owned conformance item;
+    // that ordinary implementation revokes external provider approval.
+    program.conformances().iter().any(|conformance| {
+        matches!(
+            &conformance.subject,
+            psi_typed_trees::trait_definition::ConformanceSubject::Carrier(_)
+        ) && conformance.trait_name == trait_definition.name
     })
 }
 

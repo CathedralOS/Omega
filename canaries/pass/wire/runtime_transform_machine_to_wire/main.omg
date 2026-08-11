@@ -19,7 +19,7 @@ data CounterMessage {
 data Main {
 }
 
-machine Counter::to_wire(&self, out: &mut CounterMessage) satisfies WireWritable {
+machine Counter::to_wire(&self, out: &mut CounterMessage) satisfies WireWritable::to_wire {
     out.counter = self.counter;
 }
 

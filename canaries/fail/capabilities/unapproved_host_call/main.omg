@@ -13,7 +13,9 @@ data Disk {
     id: i32;
 }
 
-machine Disk::write_bytes(path: &[u8]) satisfies LocalDisk
+DiskLocalDisk: Disk satisfies LocalDisk;
+
+machine Disk::write_bytes(path: &[u8]) satisfies LocalDisk::write_bytes
 reaches
     LocalDisk
 {

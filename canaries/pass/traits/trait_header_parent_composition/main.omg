@@ -20,11 +20,13 @@ data Main {
     counter: Counter;
 }
 
-machine Counter::reset(&mut self) {
+CounterManagedCounter: Counter satisfies ManagedCounter;
+
+machine Counter::reset(&mut self) satisfies Resettable::reset {
     self.value = 0;
 }
 
-machine Counter::increment(&mut self) satisfies ManagedCounter {
+machine Counter::increment(&mut self) satisfies ManagedCounter::increment {
     self.value = 1;
 }
 

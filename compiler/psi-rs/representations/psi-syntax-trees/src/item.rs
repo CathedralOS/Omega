@@ -786,13 +786,11 @@ impl Default for ProofMembershipFact {
 }
 
 /// One `satisfies` binding on a machine (rearrange settle 2026-07-18):
-/// `satisfies Trait`, `satisfies Trait::requirement`, or
-/// `satisfies Trait::requirement as Alias`. A REQUIREMENT-named binding
+/// `satisfies Trait::requirement` or `satisfies Trait::requirement as Alias`.
+/// A REQUIREMENT-named binding
 /// conforms this machine to that single requirement (the machine-by-machine
 /// carrier model; the alias names the satisfier for plural algebras -- Nat
-/// under (max, add) is the tropical semiring); a bare trait name keeps the
-/// whole-trait semantics for data-attached machines and binds a FREE machine
-/// to the requirement matching its own name.
+/// under (max, add) is the tropical semiring).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SatisfiesClause {
     pub trait_name: Identifier,
