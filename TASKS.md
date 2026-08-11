@@ -145,23 +145,21 @@ Owners:
 Remaining:
 
 - **PSIIR.** Extend terminal Psi beyond general blocks, positional scalar direct
-  calls, and unconditional in-module call-crash continuations. Add aggregates,
-  structural/content call effects, guarded call-crash
-  substitution, cleanup, transfer, boundaries, loops, suspension, and scoped
-  ordering as complete vertical slices. Ranked tail-recursive call graphs stay
-  rejected until their tail-position and ranking evidence is terminal and
-  verifier-owned. Retire checked/source-tree consumers as each slice moves.
-  Nothing below terminal Psi may depend on typed/source trees,
-  `ExpressionHandle`, source rendering, or an Omega-to-Psi bridge.
-- **CRASH-CONTRACT.** Extend guarded implication beyond acyclic scalars.
-  Checked scalar contract routes and body crash sites now retain structured
-  predicate meaning; migrate invocation-specific guarded call rows into those
-  terminal terms. The verifier substitutes callee parameter values with
-  arbitrary caller-local `ValueId`s and reconstructs every surviving
-  continuation; call lowering must now supply those terms rather than fail
-  closed.
-  Imported crash capsules remain design-blocked on artifact identity and
-  certificate binding.
+  calls, and guarded in-module call-crash continuations. Add aggregates,
+  structural/content call effects, cleanup, transfer, boundaries, loops,
+  suspension, and scoped ordering as complete vertical slices. Ranked
+  tail-recursive call graphs stay rejected until their tail-position and
+  ranking evidence is terminal and verifier-owned. Retire checked/source-tree
+  consumers as each slice moves. Nothing below terminal Psi may depend on
+  typed/source trees, `ExpressionHandle`, source rendering, or an Omega-to-Psi
+  bridge.
+- **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
+  scalar slice. Source-produced direct calls now consume checked
+  invocation-specific rows, preserve parameter and direct-local substitutions,
+  and emit verifier-reconstructed guarded continuations. Computed caller-local
+  predicates currently overflow checked crash implication instead of reaching
+  this terminal route; fixing that is engineering work. Imported crash capsules
+  remain design-blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

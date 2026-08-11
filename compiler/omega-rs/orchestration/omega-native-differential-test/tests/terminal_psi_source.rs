@@ -940,6 +940,154 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
 }
 
 #[test]
+fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("the direct-call source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_call_forward")
+        .expect("checked direct calls should compose a terminal machine closure");
+    assert_eq!(lowered.semantic_module.machines.len(), 2);
+    let call = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .expect("the caller should contain one terminal call");
+    let OperationKind::Call {
+        callee,
+        arguments,
+        requirement_obligations,
+        crash_continuations,
+    } = &call.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(*callee, MachineId::new(2).expect("callee identity"));
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(requirement_obligations.len(), 1);
+    assert!(crash_continuations.is_empty());
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the source-produced direct-call closure should verify");
+    for value in [false, true] {
+        assert_eq!(
+            interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(value)])
+                .expect("verified direct call should interpret")
+                .value(),
+            TerminalScalarValue::Boolean(value),
+        );
+    }
+    let abstract_operations = lower_verified_artifact(&verified)
+        .expect("the verified source call should reach Omega lowering");
+    assert_eq!(abstract_operations.functions.len(), 2);
+    assert!(matches!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .find(|operation| matches!(operation, TerminalAbstractOperation::Call { .. })),
+        Some(TerminalAbstractOperation::Call { .. })
+    ));
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("the source-produced call closure should select a native calling plan");
+        let assigned = assign_registers(&target_operations)
+            .expect("the source-produced call arguments should assign");
+        let emitted =
+            emit_machine_code(&assigned).expect("the source-produced call closure should emit");
+        assert_eq!(emitted.functions.len(), 2);
+        assert_eq!(emitted.functions[0].internal_calls.len(), 1);
+    }
+}
+
+#[test]
+fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("the guarded-call source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_call_guarded_caller")
+        .expect("checked guarded calls should compose a terminal machine closure");
+    let call = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .expect("the caller should contain one terminal call");
+    let OperationKind::Call {
+        crash_continuations,
+        ..
+    } = &call.kind
+    else {
+        unreachable!()
+    };
+    let [continuation] = crash_continuations.as_slice() else {
+        panic!("the invocation should retain one guarded crash bucket")
+    };
+    let [psi_terminal::CrashRouteGuard::Predicate(predicate)] =
+        continuation.alternatives.as_slice()
+    else {
+        panic!("the invocation crash route should remain guarded")
+    };
+    let predicate_value = match predicate.proposition() {
+        psi_core::Proposition::Equal(left, right) => [left, right]
+            .into_iter()
+            .find_map(|term| match term {
+                psi_core::ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Boolean,
+                } => Some(*id),
+                _ => None,
+            })
+            .expect("the guarded continuation should refer to the caller-local value"),
+        other => panic!("unexpected guarded continuation term: {other:?}"),
+    };
+    assert_eq!(
+        predicate_value, lowered.semantic_module.machines[0].parameters[0].id,
+        "the checked caller-local alias should lower to its canonical terminal ValueId",
+    );
+
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the guarded source-call closure should verify");
+    assert_eq!(
+        interpret_verified_artifact(&verified, &[TerminalScalarValue::Boolean(false)])
+            .expect("the disproved call route should return")
+            .value(),
+        TerminalScalarValue::Boolean(false),
+    );
+    let mut execution = start_verified_artifact(&verified, &[TerminalScalarValue::Boolean(true)])
+        .expect("start the proved guarded-crash invocation");
+    assert!(matches!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("the callee crash should execute"),
+        TerminalExecutionStatus::Crashed(psi_terminal_interpreter::TerminalCrash {
+            cause: CrashCause::Trap,
+            ..
+        })
+    ));
+    let abstract_operations = lower_verified_artifact(&verified)
+        .expect("the guarded source call should reach Omega lowering");
+    assert!(matches!(
+        abstract_operations.functions[0]
+            .operations
+            .iter()
+            .find(|operation| matches!(operation, TerminalAbstractOperation::Call { .. })),
+        Some(TerminalAbstractOperation::Call { .. })
+    ));
+    assert!(
+        abstract_operations.functions[1]
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, TerminalAbstractOperation::Crash { .. }))
+    );
+}
+
+#[test]
 fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("short-circuit Boolean-local source canary should compile");
@@ -7901,7 +8049,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     assert_eq!(
         lower_machine(&checked, "Main::main").expect_err("attached main must fail closed"),
         LoweringError::Unsupported(
-            "attached machines are not in the first terminal-Psi source slice"
+            "attached machines are not in the current terminal-Psi source slice"
         )
     );
     assert_eq!(

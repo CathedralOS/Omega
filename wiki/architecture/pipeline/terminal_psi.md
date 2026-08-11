@@ -167,11 +167,12 @@ predicate meaning through terminal lowering. Invocation-specific guarded call
 rows now retain that same structure after substituting direct parameter and
 caller-local scalar arguments. Checked scalar graphs also retain direct
 call-valued bindings, their exact call coordinate, and positional scalar
-argument plans. Source call production must compose those plans and consume the
-matching crash rows when it emits `Call`; unrepresentable substitutions and
-imported crash capsules remain fail-closed. Structural/content contracts also
-still reject because custody effects require their own vertical slice rather
-than an ordinary scalar flag.
+argument plans. Source production composes the reachable in-module checked
+scalar call closure, consumes each matching crash row, and emits `Call` with
+parameter or direct-local substitutions intact. Computed caller-local
+implication remains outside this accepted slice, and imported crash capsules
+remain fail-closed. Structural/content contracts also reject because custody
+effects require their own vertical slice rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

@@ -13,11 +13,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineDebugPlan,
-    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
+    CheckedTerminalSignatureEligibility, CheckedTrees, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    types::PrimitiveType,
 };
 use psi_core::{
     BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
@@ -238,8 +239,41 @@ struct LoweredCrashExit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredScalarBranchState {
     parameter_types: Vec<ScalarType>,
-    bindings: Vec<LoweredDirectExpression>,
+    bindings: Vec<LoweredScalarBinding>,
     terminator: LoweredScalarBranchTerminator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LoweredScalarBinding {
+    Expression(LoweredDirectExpression),
+    DirectCall(LoweredDirectCallBinding),
+}
+
+impl LoweredScalarBinding {
+    const fn scalar_type(&self) -> ScalarType {
+        match self {
+            Self::Expression(expression) => expression.scalar_type(),
+            Self::DirectCall(call) => call.result_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoweredDirectCallBinding {
+    target_machine: psi_symbols::SymbolHandle,
+    result_type: ScalarType,
+    arguments: Vec<LoweredDirectExpression>,
+    crash_continuations: Vec<psi_checked_trees::CrashRouteBucket>,
+}
+
+struct PreparedScalarMachine {
+    source_machine: psi_symbols::SymbolHandle,
+    states: Vec<LoweredScalarBranchState>,
+    result_type: ScalarType,
+    contract_value: Option<KnownDirectScalar>,
+    crash_routes: Vec<psi_checked_trees::CrashRouteBucket>,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -300,6 +334,27 @@ impl std::ops::Deref for OperationBuffer {
 impl std::ops::DerefMut for OperationBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.operations
+    }
+}
+
+struct CallEmissionContext<'a> {
+    machine_ids: &'a [(psi_symbols::SymbolHandle, MachineId)],
+    requirement_counts: &'a [(psi_symbols::SymbolHandle, usize)],
+    next_obligation_identity: u64,
+    obligation_limit: u64,
+}
+
+impl CallEmissionContext<'_> {
+    fn allocate_requirement(&mut self) -> Result<ObligationId, LoweringError> {
+        if self.next_obligation_identity >= self.obligation_limit {
+            return unsupported("terminal call obligations exceed their machine identity range");
+        }
+        let obligation = obligation_id(self.next_obligation_identity);
+        self.next_obligation_identity = self
+            .next_obligation_identity
+            .checked_add(1)
+            .expect("terminal call obligation identities advance");
+        Ok(obligation)
     }
 }
 
@@ -1268,7 +1323,8 @@ fn lower_content_place(
     })
 }
 
-/// Lower one named checked free machine through the first terminal-Psi slice.
+/// Lower one named checked free machine and its reachable checked scalar callees
+/// through the current terminal-Psi source slice.
 ///
 /// Accepted shape:
 ///
@@ -1470,10 +1526,14 @@ fn lower_selected_machine(
     match selection.signature {
         CheckedTerminalSignatureEligibility::Eligible => {}
         CheckedTerminalSignatureEligibility::Attached => {
-            return unsupported("attached machines are not in the first terminal-Psi source slice");
+            return unsupported(
+                "attached machines are not in the current terminal-Psi source slice",
+            );
         }
         CheckedTerminalSignatureEligibility::Unsupported => {
-            return unsupported("machine signature is outside the first terminal-Psi source slice");
+            return unsupported(
+                "machine signature is outside the current terminal-Psi source slice",
+            );
         }
     }
 
@@ -1485,7 +1545,156 @@ fn lower_selected_machine(
         .ok_or(LoweringError::Unsupported(
             "machine has no source-independent checked scalar control plan",
         ))?;
-    lower_scalar_graph_machine(checked, selection.machine, graph)
+    let closure = checked_scalar_call_closure(checked, selection.machine)?;
+    if closure.len() == 1 {
+        lower_scalar_graph_machine(checked, selection.machine, graph)
+    } else {
+        lower_scalar_call_closure(checked, &closure)
+    }
+}
+
+fn checked_scalar_call_closure(
+    checked: &CheckedTrees,
+    entry: psi_symbols::SymbolHandle,
+) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
+    let mut closure = vec![entry];
+    let mut next = 0usize;
+    while let Some(machine) = closure.get(next).copied() {
+        next += 1;
+        let selection = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .find(|selection| selection.machine == machine)
+            .ok_or(LoweringError::Unsupported(
+                "direct scalar call target has no checked terminal selection",
+            ))?;
+        if selection.signature != CheckedTerminalSignatureEligibility::Eligible {
+            return unsupported("direct scalar call target has an unsupported terminal signature");
+        }
+        let graph = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine)
+            .ok_or(LoweringError::Unsupported(
+                "direct scalar call target has no checked scalar graph",
+            ))?;
+        for target in graph.states.iter().flat_map(|state| {
+            state.bindings.iter().filter_map(|binding| {
+                let CheckedScalarBindingValue::DirectCall { target_machine, .. } = &binding.value
+                else {
+                    return None;
+                };
+                Some(*target_machine)
+            })
+        }) {
+            if !closure.contains(&target) {
+                closure.push(target);
+            }
+        }
+    }
+    Ok(closure)
+}
+
+fn lower_scalar_call_closure(
+    checked: &CheckedTrees,
+    closure: &[psi_symbols::SymbolHandle],
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let prepared = closure
+        .iter()
+        .map(|machine| {
+            let graph = checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(*machine)
+                .ok_or(LoweringError::Unsupported(
+                    "terminal call-closure machine has no checked scalar graph",
+                ))?;
+            prepare_scalar_graph_machine(checked, *machine, graph)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if prepared.iter().any(|machine| {
+        !machine.identity_reshuffles.structural_places.is_empty()
+            || !machine.identity_reshuffles.entry_claims.is_empty()
+            || !machine.identity_reshuffles.reshuffles.is_empty()
+            || !machine.partition_compositions.structural_places.is_empty()
+            || !machine.partition_compositions.compositions.is_empty()
+    }) {
+        return unsupported(
+            "structural/content call effects require the terminal content-call slice",
+        );
+    }
+    let machine_ids = prepared
+        .iter()
+        .enumerate()
+        .map(|(index, machine)| {
+            Ok((
+                machine.source_machine,
+                machine_id(
+                    u64::try_from(index)
+                        .map_err(|_| {
+                            LoweringError::Unsupported("terminal call closure exceeds u64")
+                        })?
+                        .checked_add(1)
+                        .expect("terminal machine identities are one-based"),
+                ),
+            ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let requirement_counts = prepared
+        .iter()
+        .map(|machine| {
+            (
+                machine.source_machine,
+                usize::from(machine.contract_value.is_some()),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut machines = Vec::with_capacity(prepared.len());
+    let mut evidence = Vec::new();
+    for (index, machine) in prepared.into_iter().enumerate() {
+        let terminal_machine = machine_ids[index].1;
+        let identity_base = u64::try_from(index)
+            .map_err(|_| LoweringError::Unsupported("terminal call closure exceeds u64"))?
+            .checked_mul(TERMINAL_MACHINE_IDENTITY_STRIDE)
+            .ok_or(LoweringError::Unsupported(
+                "terminal call closure identity range overflows",
+            ))?;
+        let mut lowered = build_scalar_graph_module(
+            &machine.states,
+            machine.result_type,
+            machine.contract_value,
+            machine.crash_routes,
+            machine.identity_reshuffles,
+            machine.partition_compositions,
+            terminal_machine,
+            identity_base,
+            &machine_ids,
+            &requirement_counts,
+        )?;
+        let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
+            unreachable!("one prepared scalar graph emits one terminal machine")
+        };
+        machines.push(terminal_machine.clone());
+        evidence.append(&mut lowered.proof_bundle.evidence);
+    }
+    let mut lowered = LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine_id(1),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines,
+        },
+        proof_bundle: ProofBundle { evidence },
+        debug_map: None,
+    };
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
 }
 
 fn lower_checked_crash_frontier(
@@ -1678,7 +1887,12 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
             continue;
         };
         for binding in &states[state_index].bindings {
-            let value = evaluate_direct_expression(binding, &values);
+            let value = match binding {
+                LoweredScalarBinding::Expression(expression) => {
+                    evaluate_direct_expression(expression, &values)
+                }
+                LoweredScalarBinding::DirectCall(_) => None,
+            };
             values.push(value);
         }
         let evaluate_arguments = |arguments: &[LoweredDirectExpression]| {
@@ -1742,6 +1956,30 @@ fn lower_scalar_graph_machine(
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    let prepared = prepare_scalar_graph_machine(checked, machine, graph)?;
+    let machine_ids = [(machine, machine_id(1))];
+    let requirement_counts = [(machine, usize::from(prepared.contract_value.is_some()))];
+    let mut lowered = build_scalar_graph_module(
+        &prepared.states,
+        prepared.result_type,
+        prepared.contract_value,
+        prepared.crash_routes,
+        prepared.identity_reshuffles,
+        prepared.partition_compositions,
+        machine_id(1),
+        0,
+        &machine_ids,
+        &requirement_counts,
+    )?;
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
+}
+
+fn prepare_scalar_graph_machine(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    graph: &CheckedScalarMachineGraph,
+) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
@@ -1768,18 +2006,43 @@ fn lower_scalar_graph_machine(
         for (binding_index, binding) in state.bindings.iter().enumerate() {
             let binding_ordinal = u32::try_from(binding_index)
                 .map_err(|_| LoweringError::Unsupported("scalar local count exceeds u32"))?;
-            let expression = lower_checked_scalar_expression_at(
-                checked,
-                state.state,
-                binding.statement_ordinal,
-                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
-            )?;
             let binding_type = terminal_scalar_type(binding.primitive_type)?;
-            if expression.scalar_type() != binding_type {
-                return unsupported("checked scalar local initializer type must match its binding");
-            }
-            validate_direct_parameter_types(&expression, &value_types)?;
-            bindings.push(expression);
+            let lowered = match &binding.value {
+                CheckedScalarBindingValue::Expression => {
+                    let expression = lower_checked_scalar_expression_at(
+                        checked,
+                        state.state,
+                        binding.statement_ordinal,
+                        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+                    )?;
+                    if expression.scalar_type() != binding_type {
+                        return unsupported(
+                            "checked scalar local initializer type must match its binding",
+                        );
+                    }
+                    validate_direct_parameter_types(&expression, &value_types)?;
+                    LoweredScalarBinding::Expression(expression)
+                }
+                CheckedScalarBindingValue::DirectCall {
+                    target_machine,
+                    target_state,
+                    call_ordinal,
+                    argument_count,
+                } => LoweredScalarBinding::DirectCall(lower_checked_direct_call_binding(
+                    checked,
+                    machine,
+                    state.state,
+                    binding.statement_ordinal,
+                    binding_ordinal,
+                    *target_machine,
+                    *target_state,
+                    *call_ordinal,
+                    *argument_count,
+                    binding_type,
+                    &value_types,
+                )?),
+            };
+            bindings.push(lowered);
             value_types.push(binding_type);
         }
         let terminator = match &state.terminator {
@@ -1888,9 +2151,13 @@ fn lower_scalar_graph_machine(
         return unsupported("scalar graph control contains an unreachable state");
     }
 
-    let has_crash = lowered_states
-        .iter()
-        .any(|state| matches!(&state.terminator, LoweredScalarBranchTerminator::Crash(_)));
+    let has_crash = lowered_states.iter().any(|state| {
+        matches!(&state.terminator, LoweredScalarBranchTerminator::Crash(_))
+            || state.bindings.iter().any(|binding| {
+                matches!(binding, LoweredScalarBinding::DirectCall(call)
+                        if !call.crash_continuations.is_empty())
+            })
+    });
     let has_return = lowered_states.iter().any(|state| {
         matches!(
             &state.terminator,
@@ -1916,16 +2183,119 @@ fn lower_scalar_graph_machine(
         }
         None
     };
-    build_scalar_graph_module(
-        &lowered_states,
+    Ok(PreparedScalarMachine {
+        source_machine: machine,
+        states: lowered_states,
         result_type,
         contract_value,
-        lower_checked_crash_routes(checked, machine)?,
+        crash_routes: lower_checked_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
-        machine_id(1),
-        0,
-    )
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_checked_direct_call_binding(
+    checked: &CheckedTrees,
+    caller_machine: psi_symbols::SymbolHandle,
+    caller_state: psi_symbols::SymbolHandle,
+    statement_ordinal: u32,
+    binding_ordinal: u32,
+    target_machine: psi_symbols::SymbolHandle,
+    target_state: psi_symbols::SymbolHandle,
+    call_ordinal: u32,
+    argument_count: u32,
+    result_type: ScalarType,
+    caller_value_types: &[ScalarType],
+) -> Result<LoweredDirectCallBinding, LoweringError> {
+    let target_graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(target_machine)
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call target has no source-independent checked graph",
+        ))?;
+    let target_entry = target_graph
+        .states
+        .first()
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call target has no checked entry state",
+        ))?;
+    if target_entry.state != target_state {
+        return unsupported("direct scalar call must target the callee entry state");
+    }
+    if terminal_scalar_type(target_entry.result_type)? != result_type {
+        return unsupported("direct scalar call result type must match its local binding");
+    }
+    if usize::try_from(argument_count).ok() != Some(target_entry.parameter_types.len()) {
+        return unsupported("direct scalar call argument count must match the callee signature");
+    }
+    let arguments = target_entry
+        .parameter_types
+        .iter()
+        .enumerate()
+        .map(|(argument_index, target_type)| {
+            let argument_ordinal = u32::try_from(argument_index).map_err(|_| {
+                LoweringError::Unsupported("scalar call argument count exceeds u32")
+            })?;
+            let expression = lower_checked_scalar_expression_at(
+                checked,
+                caller_state,
+                statement_ordinal,
+                CheckedScalarExpressionRole::CallArgument {
+                    binding_ordinal,
+                    argument_ordinal,
+                },
+            )?;
+            let target_type = terminal_scalar_type(*target_type)?;
+            if expression.scalar_type() != target_type {
+                return unsupported(
+                    "checked scalar call argument type must match its callee parameter",
+                );
+            }
+            validate_direct_parameter_types(&expression, caller_value_types)?;
+            Ok(expression)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if arguments
+        .iter()
+        .any(direct_expression_contains_short_circuit)
+    {
+        return unsupported(
+            "short-circuit scalar call arguments require staged terminal call control",
+        );
+    }
+    let checked_call = checked
+        .facts
+        .contract_plans
+        .for_machine(caller_machine)
+        .and_then(|plan| {
+            plan.crash
+                .checked_call_at(caller_state, statement_ordinal, call_ordinal)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call has no matching checked crash-refinement row",
+        ))?;
+    if checked_call.target_machine() != target_machine
+        || checked_call.target_state() != target_state
+    {
+        return unsupported("checked scalar call target disagrees with crash refinement");
+    }
+    if checked_call.surviving_buckets().iter().any(|bucket| {
+        bucket.alternative_guards().iter().any(|guard| {
+            matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
+                if predicate.scalar_expression().is_none())
+        })
+    }) {
+        return unsupported("direct scalar call crash continuation lacks a checked scalar term");
+    }
+    Ok(LoweredDirectCallBinding {
+        target_machine,
+        result_type,
+        arguments,
+        crash_continuations: checked_call.surviving_buckets().to_vec(),
+    })
 }
 
 fn lower_scalar_graph_successor(
@@ -2260,14 +2630,16 @@ fn direct_expression_contains_short_circuit(expression: &LoweredDirectExpression
     )
 }
 
+fn scalar_binding_contains_short_circuit(binding: &LoweredScalarBinding) -> bool {
+    matches!(binding, LoweredScalarBinding::Expression(expression)
+        if direct_expression_contains_short_circuit(expression))
+}
+
 fn staged_short_circuit_bindings_terminator(
-    bindings: &[LoweredDirectExpression],
+    bindings: &[LoweredScalarBinding],
     terminator: &LoweredScalarBranchTerminator,
-) -> Option<(Vec<LoweredDirectExpression>, LoweredScalarBranchTerminator)> {
-    if !bindings
-        .iter()
-        .any(direct_expression_contains_short_circuit)
-    {
+) -> Option<(Vec<LoweredScalarBinding>, LoweredScalarBranchTerminator)> {
+    if !bindings.iter().any(scalar_binding_contains_short_circuit) {
         return None;
     }
     Some((bindings.to_vec(), terminator.clone()))
@@ -3861,6 +4233,8 @@ fn build_scalar_graph_module(
     partition_compositions: LoweredContentPartitionCompositions,
     terminal_machine: MachineId,
     identity_base: u64,
+    machine_ids: &[(psi_symbols::SymbolHandle, MachineId)],
+    requirement_counts: &[(psi_symbols::SymbolHandle, usize)],
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let parameters = states[0]
         .parameter_types
@@ -3909,6 +4283,17 @@ fn build_scalar_graph_module(
     }
 
     let mut all_operations = OperationBuffer::new(identity_base);
+    let call_obligation_base = identity_base
+        .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE / 2)
+        .expect("call obligation range fits the machine identity namespace");
+    let mut call_emission = CallEmissionContext {
+        machine_ids,
+        requirement_counts,
+        next_obligation_identity: call_obligation_base,
+        obligation_limit: identity_base
+            .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE)
+            .expect("machine identity namespace has a finite upper bound"),
+    };
     let mut next_edge_identity = identity_base
         .checked_add(1)
         .expect("edge identity base admits one-based identities");
@@ -3961,101 +4346,105 @@ fn build_scalar_graph_module(
                         parameter
                     })
                     .collect::<Vec<_>>();
-                let next_stage = if let LoweredDirectExpression::Boolean { expression } = binding
-                    && contains_short_circuit(expression)
-                {
-                    let decision = lower_boolean_value_decision(expression);
-                    let decision_block_count = boolean_decision_block_count(&decision);
-                    let first_child_identity = next_block_identity;
-                    let next_stage = block_id(
-                        next_block_identity
-                            .checked_add(
-                                u64::try_from(decision_block_count - 1)
-                                    .expect("staged Boolean child count fits a semantic identity"),
-                            )
-                            .expect("staged Boolean continuation identity advances"),
-                    );
-                    next_block_identity = next_stage
-                        .get()
-                        .checked_add(1)
-                        .expect("staged Boolean block identities advance");
-                    let carried_arguments = stage_parameters
-                        .iter()
-                        .map(|parameter| parameter.id)
-                        .collect::<Vec<_>>();
-                    let first_reserved_identity = if binding_index == 0 {
-                        first_child_identity
-                            .checked_sub(1)
-                            .expect("staged Boolean blocks follow source blocks")
+                let next_stage =
+                    if let LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean {
+                        expression,
+                    }) = binding
+                        && contains_short_circuit(expression)
+                    {
+                        let decision = lower_boolean_value_decision(expression);
+                        let decision_block_count = boolean_decision_block_count(&decision);
+                        let first_child_identity = next_block_identity;
+                        let next_stage =
+                            block_id(
+                                next_block_identity
+                                    .checked_add(u64::try_from(decision_block_count - 1).expect(
+                                        "staged Boolean child count fits a semantic identity",
+                                    ))
+                                    .expect("staged Boolean continuation identity advances"),
+                            );
+                        next_block_identity = next_stage
+                            .get()
+                            .checked_add(1)
+                            .expect("staged Boolean block identities advance");
+                        let carried_arguments = stage_parameters
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect::<Vec<_>>();
+                        let first_reserved_identity = if binding_index == 0 {
+                            first_child_identity
+                                .checked_sub(1)
+                                .expect("staged Boolean blocks follow source blocks")
+                        } else {
+                            stage_block.get()
+                        };
+                        let mut decision_blocks = Vec::with_capacity(decision_block_count);
+                        let entry = emit_reserved_boolean_tuple_stage_blocks(
+                            &decision,
+                            &stage_parameters,
+                            stage_block_parameters,
+                            next_stage,
+                            &carried_arguments,
+                            first_reserved_identity,
+                            &mut next_value_identity,
+                            &mut next_edge_identity,
+                            &mut all_operations,
+                            &mut decision_blocks,
+                        );
+                        assert_eq!(entry.get(), first_reserved_identity);
+                        let mut decision_blocks = decision_blocks
+                            .into_iter()
+                            .map(|block| block.expect("every staged Boolean block is finalized"));
+                        let mut root = decision_blocks
+                            .next()
+                            .expect("staged short-circuit Boolean has a decision root");
+                        if binding_index == 0 {
+                            root.id = source_block;
+                            blocks.push(root);
+                        } else {
+                            inlined_blocks.push(root);
+                        }
+                        inlined_blocks.extend(decision_blocks);
+                        next_stage
                     } else {
-                        stage_block.get()
+                        let next_stage = block_id(next_block_identity);
+                        next_block_identity = next_block_identity
+                            .checked_add(1)
+                            .expect("staged direct-local block identities advance");
+                        let stage_operation_start = all_operations.len();
+                        let value = emit_scalar_binding(
+                            binding,
+                            &stage_parameters,
+                            &mut next_value_identity,
+                            &mut all_operations,
+                            &mut call_emission,
+                        )?;
+                        let mut arguments = stage_parameters
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect::<Vec<_>>();
+                        arguments.push(value);
+                        let edge = edge_id(next_edge_identity);
+                        next_edge_identity = next_edge_identity
+                            .checked_add(1)
+                            .expect("staged direct-local edge identity advances");
+                        let block = Block {
+                            id: stage_block,
+                            parameters: stage_block_parameters,
+                            operations: all_operations[stage_operation_start..].to_vec(),
+                            terminator: Terminator::Jump {
+                                edge,
+                                target: next_stage,
+                                arguments,
+                            },
+                        };
+                        if binding_index == 0 {
+                            blocks.push(block);
+                        } else {
+                            inlined_blocks.push(block);
+                        }
+                        next_stage
                     };
-                    let mut decision_blocks = Vec::with_capacity(decision_block_count);
-                    let entry = emit_reserved_boolean_tuple_stage_blocks(
-                        &decision,
-                        &stage_parameters,
-                        stage_block_parameters,
-                        next_stage,
-                        &carried_arguments,
-                        first_reserved_identity,
-                        &mut next_value_identity,
-                        &mut next_edge_identity,
-                        &mut all_operations,
-                        &mut decision_blocks,
-                    );
-                    assert_eq!(entry.get(), first_reserved_identity);
-                    let mut decision_blocks = decision_blocks
-                        .into_iter()
-                        .map(|block| block.expect("every staged Boolean block is finalized"));
-                    let mut root = decision_blocks
-                        .next()
-                        .expect("staged short-circuit Boolean has a decision root");
-                    if binding_index == 0 {
-                        root.id = source_block;
-                        blocks.push(root);
-                    } else {
-                        inlined_blocks.push(root);
-                    }
-                    inlined_blocks.extend(decision_blocks);
-                    next_stage
-                } else {
-                    let next_stage = block_id(next_block_identity);
-                    next_block_identity = next_block_identity
-                        .checked_add(1)
-                        .expect("staged direct-local block identities advance");
-                    let stage_operation_start = all_operations.len();
-                    let value = emit_direct_expression(
-                        binding,
-                        &stage_parameters,
-                        &mut next_value_identity,
-                        &mut all_operations,
-                    );
-                    let mut arguments = stage_parameters
-                        .iter()
-                        .map(|parameter| parameter.id)
-                        .collect::<Vec<_>>();
-                    arguments.push(value);
-                    let edge = edge_id(next_edge_identity);
-                    next_edge_identity = next_edge_identity
-                        .checked_add(1)
-                        .expect("staged direct-local edge identity advances");
-                    let block = Block {
-                        id: stage_block,
-                        parameters: stage_block_parameters,
-                        operations: all_operations[stage_operation_start..].to_vec(),
-                        terminator: Terminator::Jump {
-                            edge,
-                            target: next_stage,
-                            arguments,
-                        },
-                    };
-                    if binding_index == 0 {
-                        blocks.push(block);
-                    } else {
-                        inlined_blocks.push(block);
-                    }
-                    next_stage
-                };
                 stage_block = next_stage;
                 stage_parameters = next_stage_parameters;
                 stage_parameter_types = next_stage_types;
@@ -4319,12 +4708,13 @@ fn build_scalar_graph_module(
             continue;
         }
         for binding in &state.bindings {
-            let id = emit_direct_expression(
+            let id = emit_scalar_binding(
                 binding,
                 &current_values,
                 &mut next_value_identity,
                 &mut all_operations,
-            );
+                &mut call_emission,
+            )?;
             current_values.push(ValueDeclaration {
                 id,
                 scalar_type: binding.scalar_type(),
@@ -4791,7 +5181,7 @@ fn build_scalar_graph_module(
         merge_content_place_declaration(&mut structural_places, place)
             .expect("checked lowering rejects conflicting structural places");
     }
-    let mut lowered = LoweredTerminalPsi {
+    Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
@@ -4824,7 +5214,10 @@ fn build_scalar_graph_module(
         },
         proof_bundle: ProofBundle { evidence },
         debug_map: None,
-    };
+    })
+}
+
+fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), LoweringError> {
     for site in reconstruct_operation_obligations(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?
     {
@@ -4846,7 +5239,7 @@ fn build_scalar_graph_module(
         .proof_bundle
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
-    Ok(lowered)
+    Ok(())
 }
 
 fn proof_from_semantic_axioms(
@@ -4857,6 +5250,12 @@ fn proof_from_semantic_axioms(
         return Some(ProofNode {
             conclusion: Proposition::Truth,
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+        });
+    }
+    if matches!(goal, Proposition::Equal(left, right) if left == right) {
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
         });
     }
     if let Some(index) = semantic_axioms.iter().position(|axiom| axiom == goal) {
@@ -4961,6 +5360,71 @@ fn emit_boolean_expression(
             unreachable!("short-circuit Boolean expressions lower through terminal control")
         }
     }
+}
+
+fn emit_scalar_binding(
+    binding: &LoweredScalarBinding,
+    parameters: &[ValueDeclaration],
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+    call_emission: &mut CallEmissionContext<'_>,
+) -> Result<ValueId, LoweringError> {
+    let LoweredScalarBinding::DirectCall(call) = binding else {
+        let LoweredScalarBinding::Expression(expression) = binding else {
+            unreachable!()
+        };
+        return Ok(emit_direct_expression(
+            expression,
+            parameters,
+            next_value_identity,
+            operations,
+        ));
+    };
+    let callee = call_emission
+        .machine_ids
+        .iter()
+        .find_map(|(source, terminal)| (*source == call.target_machine).then_some(*terminal))
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call target is absent from the terminal closure",
+        ))?;
+    let arguments = call
+        .arguments
+        .iter()
+        .map(|argument| {
+            emit_direct_expression(argument, parameters, next_value_identity, operations)
+        })
+        .collect::<Vec<_>>();
+    let crash_continuations =
+        lower_checked_crash_route_buckets(&call.crash_continuations, parameters)?;
+    let requirement_count = call_emission
+        .requirement_counts
+        .iter()
+        .find_map(|(source, count)| (*source == call.target_machine).then_some(*count))
+        .ok_or(LoweringError::Unsupported(
+            "direct scalar call target has no prepared contract",
+        ))?;
+    let requirement_obligations = (0..requirement_count)
+        .map(|_| call_emission.allocate_requirement())
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = value_id(*next_value_identity);
+    *next_value_identity = next_value_identity
+        .checked_add(1)
+        .expect("generated value identity advances after a direct call");
+    let operation = operations.allocate();
+    operations.push(Operation {
+        id: operation,
+        result: ValueDeclaration {
+            id: result,
+            scalar_type: call.result_type,
+        },
+        kind: OperationKind::Call {
+            callee,
+            arguments,
+            requirement_obligations,
+            crash_continuations,
+        },
+    });
+    Ok(result)
 }
 
 fn emit_direct_expression(
@@ -5095,7 +5559,7 @@ fn build_debug_map(
     let terminal_machine = module
         .machines
         .first()
-        .expect("the exact source slice always emits one terminal machine");
+        .expect("the selected entry machine is first in its terminal call closure");
     let source_states = &plan.states;
     let has_source_file = |span: psi_source::SourceSpan| {
         plan.source_files
@@ -5424,6 +5888,8 @@ mod tests {
             },
             machine_id(2),
             identity_base,
+            &[],
+            &[],
         )
         .expect("a nonentry machine should lower in its disjoint identity range");
 
