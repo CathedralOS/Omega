@@ -316,11 +316,12 @@ parameters cannot redirect caller-visible writes. A named state SCC also
 retains an exact finite frame when every cyclic edge forwards all write-capable
 parameters through a bijective permutation: the checker solves the positional
 may-write equations to a fixed point and instantiates the result through
-resolved callers. Within one state or a direct `self` loop, a stable local
-mutable alias initialized from an exact non-indexed `self` or state-parameter
-place substitutes that origin, including member suffixes and resolved calls.
-Potential rebinding, local/computed/indexed origins, alias chains, and transport
-through named states remain opaque. Non-bijective, computed, or otherwise
+resolved callers. Within one state, a direct `self` loop, or an acyclic named
+state graph, a stable local mutable alias initialized from an exact non-indexed
+`self` or state-parameter place substitutes that origin through positional
+transition arguments, including member suffixes and resolved calls. Potential
+rebinding, local/computed/indexed origins, alias chains, and transport through a
+named state SCC remain opaque. Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
 

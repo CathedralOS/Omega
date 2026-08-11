@@ -1919,12 +1919,16 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
 
         machine Main::touch_other_through_alias(&mut self) {
             let alias: &mut u32 = &mut self.other;
-            alias = 1;
+            transition { _ -> finish(alias) }
+            state finish(&mut self, value: &mut u32) {
+                value = 1;
+            }
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
-        .expect("an exact local-alias frame should preserve the disjoint boundary range witness");
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "an exact named-transition alias frame should preserve the disjoint boundary range witness",
+    );
 }
 
 #[test]
@@ -1984,12 +1988,16 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
 
         machine Main::touch_n_through_alias(&mut self) {
             let alias: &mut u32 = &mut self.n;
-            alias = 9;
+            transition { _ -> finish(alias) }
+            state finish(&mut self, value: &mut u32) {
+                value = 9;
+            }
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("an overlapping local-alias frame must invalidate the range witness");
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "an overlapping named-transition alias frame must invalidate the range witness",
+    );
     assert!(
         diagnostics
             .iter()
