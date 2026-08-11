@@ -14,9 +14,8 @@ Omega starts with explicit data shapes and explicit values.
 > makes the zero valid") to *all* data. A convenience non-zero default, if wanted, is
 > an explicit constructor machine (`Config::with_defaults() -> Config::Ready`), not
 > a hidden field default. This prohibition includes scalar, record, array, and
-> every other aggregate initializer after a data field. *Settled model; not yet
-> implemented — today scalar defaults emit and array defaults silently drop;
-> the source-breaking correction is tracked in `TASKS.md`.*
+> every other aggregate initializer after a data field. The parser rejects a
+> field initializer before it can be emitted or silently discarded.
 
 ## Hello World
 
