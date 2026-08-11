@@ -19,7 +19,7 @@ trait Equatable {
     machine equals(&self, other: &Self) -> bool;
 }
 
-RoomEvent satisfies Equatable;
+RoomEventEquatable: RoomEvent satisfies Equatable;
 
 data Main {
     console: Console;

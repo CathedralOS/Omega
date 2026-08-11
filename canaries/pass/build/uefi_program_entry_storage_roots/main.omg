@@ -2,7 +2,7 @@ use omega::language::core::extent;
 use omega::language::std::calling;
 
 data UefiX86_64 { }
-UefiX86_64 satisfies CallingPolicy;
+UefiX86_64CallingPolicy: UefiX86_64 satisfies CallingPolicy;
 
 machine UefiX86_64::plan(
     signature: BoundarySignature

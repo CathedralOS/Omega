@@ -956,7 +956,7 @@ impl TypedTrees {
         conformance: &'conformance trait_definition::Conformance,
     ) -> Option<&'conformance [trait_definition::ConformanceRow]> {
         match &conformance.implementation {
-            trait_definition::ConformanceImplementation::LegacyAttachedMachines => None,
+            trait_definition::ConformanceImplementation::AttachedRequirementMachines => None,
             trait_definition::ConformanceImplementation::Closed { rows } => Some(rows),
         }
     }

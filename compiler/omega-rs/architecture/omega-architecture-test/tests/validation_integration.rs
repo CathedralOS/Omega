@@ -451,7 +451,7 @@ fn concrete_proposition_family_substitutes_into_trait_application() {
         {
         }
 
-        Carrier satisfies RelationKind<Carrier, related>;
+        CarrierRelationKind: Carrier satisfies RelationKind<Carrier, related>;
         "#,
     );
 
@@ -470,7 +470,7 @@ fn trait_proposition_slot_rejects_a_data_type_argument() {
         {
         }
 
-        Carrier satisfies RelationKind<Carrier, Carrier>;
+        CarrierRelationKind: Carrier satisfies RelationKind<Carrier, Carrier>;
         "#,
     );
 
@@ -495,7 +495,7 @@ fn concrete_proposition_family_rejects_incompatible_signature() {
         {
         }
 
-        Carrier satisfies RelationKind<Carrier, related>;
+        CarrierRelationKind: Carrier satisfies RelationKind<Carrier, related>;
         "#,
     );
 
@@ -553,7 +553,7 @@ fn indexed_carrier_family_substitutes_a_relation_telescope() {
         {
         }
 
-        Stream satisfies RelationKind<Stream, stream_related>;
+        StreamRelationKind: Stream satisfies RelationKind<Stream, stream_related>;
         "#,
     );
 
@@ -584,7 +584,7 @@ fn indexed_relation_requires_a_fresh_telescope_per_representative() {
         {
         }
 
-        Stream satisfies RelationKind<Stream, aliases_index>;
+        StreamRelationKind: Stream satisfies RelationKind<Stream, aliases_index>;
         "#,
     );
 
@@ -1672,14 +1672,14 @@ fn concrete_trait_application_discharge_header_conformance_bound() {
         r#"
         trait CallingPolicy {}
         data Convention {}
-        Convention satisfies CallingPolicy;
+        ConventionCallingPolicy: Convention satisfies CallingPolicy;
 
         trait Calling<C>
         where C satisfies CallingPolicy
         {}
 
         data Device {}
-        Device satisfies Calling<Convention>;
+        DeviceCalling: Device satisfies Calling<Convention>;
         "#,
     );
 
@@ -1699,7 +1699,7 @@ fn concrete_trait_application_rejects_unmet_header_conformance_bound() {
         {}
 
         data Device {}
-        Device satisfies Calling<Convention>;
+        DeviceCalling: Device satisfies Calling<Convention>;
         "#,
     );
 

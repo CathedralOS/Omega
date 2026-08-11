@@ -19,14 +19,14 @@ data Command {
     case Move(dx: i32, dy: i32);
 }
 
-Command satisfies Equatable;
+CommandEquatable: Command satisfies Equatable;
 
 data Switch {
     case Off;
     case On;
 }
 
-Switch satisfies Equatable;
+SwitchEquatable: Switch satisfies Equatable;
 
 data Main {
     console: Console;

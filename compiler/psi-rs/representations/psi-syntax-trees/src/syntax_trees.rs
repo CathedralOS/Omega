@@ -193,8 +193,8 @@ impl SyntaxTrees {
             }
             Item::Conformance(conformance) => {
                 let body = match &conformance.body {
-                    crate::item::ConformanceBody::LegacyAttachedMachines => {
-                        crate::item::ConformanceBody::LegacyAttachedMachines
+                    crate::item::ConformanceBody::AttachedRequirementMachines => {
+                        crate::item::ConformanceBody::AttachedRequirementMachines
                     }
                     crate::item::ConformanceBody::Closed { members } => {
                         let copied = other

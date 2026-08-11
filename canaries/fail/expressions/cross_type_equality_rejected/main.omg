@@ -7,8 +7,8 @@ trait Equatable { machine equals(&self, other: &Self) -> bool; }
 use omega::language::std::console;
 data P { x: i32; y: i32; }
 data Q { a: i32; b: i32; }
-P satisfies Equatable;
-Q satisfies Equatable;
+PEquatable: P satisfies Equatable;
+QEquatable: Q satisfies Equatable;
 data Main { console: Console; p: P; q: Q; }
 machine Main::main(&mut self) {
     self.p = P { x: 1, y: 2 };

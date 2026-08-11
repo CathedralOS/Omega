@@ -24,12 +24,11 @@ pub struct DynamicConformanceSelectionFact {
     pub source_path: Vec<Identifier>,
     pub source_data: SymbolHandle,
     pub target_trait: SymbolHandle,
-    /// Stable child symbol for a named conformance. `None` denotes the unique
-    /// unnamed conformance identified by `source_data + target_trait`.
+    /// Stable child symbol for the explicitly named conformance.
     pub conformance: Option<SymbolHandle>,
-    /// Exact normalized rows retained by a closed implementation block. Empty
-    /// only for the legacy attached-machine compatibility form; descriptor
-    /// lowering must consume these rows whenever present.
+    /// Exact normalized rows retained by a closed implementation block.
+    /// Bodyless attached-requirement conformances have no descriptor surface;
+    /// descriptor lowering must consume these rows whenever present.
     pub rows: Vec<DynamicConformanceRowFact>,
 }
 

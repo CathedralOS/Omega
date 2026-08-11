@@ -4,7 +4,7 @@ use omega::language::core::task;
 // trait admits targets that may block, so an implementation that omits
 // `blocks;` from its own Target requirement cannot realize the slot.
 data NarrowTaskRuntime { }
-NarrowTaskRuntime satisfies TaskRuntime;
+NarrowTaskRuntimeTaskRuntime: NarrowTaskRuntime satisfies TaskRuntime;
 
 machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
     &self,

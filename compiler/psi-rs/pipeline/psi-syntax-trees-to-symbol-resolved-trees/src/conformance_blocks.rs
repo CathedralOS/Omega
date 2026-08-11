@@ -45,7 +45,7 @@ pub(crate) fn normalize_closed_conformance_blocks(
         .conformances
         .iter()
         .flat_map(|conformance| match &conformance.implementation {
-            ConformanceImplementation::LegacyAttachedMachines => Vec::new(),
+            ConformanceImplementation::AttachedRequirementMachines => Vec::new(),
             ConformanceImplementation::Closed { rows } => rows
                 .iter()
                 .filter(|row| row.source == ConformanceRowSource::TraitDefault)
@@ -63,8 +63,8 @@ pub(crate) fn normalize_closed_conformance_blocks(
         .conformances
         .iter()
         .map(|conformance| match &conformance.implementation {
-            ConformanceImplementation::LegacyAttachedMachines => {
-                Ok(ConformanceImplementation::LegacyAttachedMachines)
+            ConformanceImplementation::AttachedRequirementMachines => {
+                Ok(ConformanceImplementation::AttachedRequirementMachines)
             }
             ConformanceImplementation::Closed { rows } => normalize_one(
                 program,
@@ -98,7 +98,7 @@ pub(crate) fn normalize_closed_conformance_blocks(
         .conformances
         .iter()
         .flat_map(|conformance| match &conformance.implementation {
-            ConformanceImplementation::LegacyAttachedMachines => Vec::new(),
+            ConformanceImplementation::AttachedRequirementMachines => Vec::new(),
             ConformanceImplementation::Closed { rows } => rows
                 .iter()
                 .map(|row| row.realization_machine)

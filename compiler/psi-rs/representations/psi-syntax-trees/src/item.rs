@@ -562,8 +562,8 @@ pub enum ConformanceSubject {
     Carrier(Identifier),
 }
 
-/// A whole-trait conformance. The legacy `Point satisfies Equatable;` form
-/// checks separately attached machines. A name-first block owns a closed
+/// A whole-trait conformance. A name-first bodyless declaration checks
+/// separately attached exact-requirement machines; a block owns a closed
 /// member map: `Primary: Point satisfies Shape { ... }`. The concrete
 /// subjectless form is `EvidenceName: satisfies Evidence { ... }`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -577,11 +577,11 @@ pub struct ConformanceItem {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ConformanceBody {
-    /// Compatibility form whose rows are discovered from separately attached
-    /// machines. It remains distinct so a parsed empty closed block can never
-    /// silently fall back to ambient lookup.
+    /// Bodyless static declaration whose rows are discovered from separately
+    /// attached exact-requirement machines. It remains distinct so a parsed
+    /// empty closed block can never silently fall back to ambient lookup.
     #[default]
-    LegacyAttachedMachines,
+    AttachedRequirementMachines,
     /// The authored, closed implementation surface.
     Closed {
         members: HandleSpan<ConformanceMember>,

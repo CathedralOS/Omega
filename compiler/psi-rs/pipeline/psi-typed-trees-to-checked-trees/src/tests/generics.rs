@@ -746,7 +746,7 @@ fn concrete_specialization_must_satisfy_nominal_conformance_bound() {
         trait Marker {}
         data Good {}
         data Bad {}
-        Good satisfies Marker;
+        GoodMarker: Good satisfies Marker;
 
         machine accept<T>(value: &T)
         where T satisfies Marker
@@ -783,7 +783,7 @@ fn bounded_generic_call_specializes_to_concrete_attached_state() {
         machine Counter::increment(&mut self) satisfies Incrementable {
             self.value = self.value + 1;
         }
-        Counter satisfies Incrementable;
+        CounterIncrementable: Counter satisfies Incrementable;
 
         machine step<T>(subject: &mut T)
         where T satisfies Incrementable

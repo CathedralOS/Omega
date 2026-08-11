@@ -10,7 +10,7 @@ data Point {
     x: i32;
 }
 
-Point satisfies Shape;
+PointShape: Point satisfies Shape;
 
 data Main {
     value: i32;

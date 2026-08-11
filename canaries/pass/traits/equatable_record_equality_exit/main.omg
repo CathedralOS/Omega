@@ -19,13 +19,13 @@ data Point {
     z: i32;
 }
 
-Point satisfies Equatable;
+PointEquatable: Point satisfies Equatable;
 
 data OverridePoint {
     value: i32;
 }
 
-OverridePoint satisfies Equatable;
+OverridePointEquatable: OverridePoint satisfies Equatable;
 
 machine OverridePoint::equals(&self, rhs: &OverridePoint) -> bool {
     false

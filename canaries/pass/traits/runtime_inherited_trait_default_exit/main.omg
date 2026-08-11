@@ -43,7 +43,7 @@ data RequiredValue {
     value: i32;
 }
 
-RequiredValue satisfies RequiredCounter;
+RequiredValueRequiredCounter: RequiredValue satisfies RequiredCounter;
 
 machine RequiredValue::set(&mut self, value: i32) {
     self.value = value;
@@ -53,7 +53,7 @@ data ParentValue {
     value: i32;
 }
 
-ParentValue satisfies ParentCounter;
+ParentValueParentCounter: ParentValue satisfies ParentCounter;
 
 machine ParentValue::set(&mut self, value: i32) {
     self.value = value;
@@ -63,7 +63,7 @@ data ResolvedValue {
     value: i32;
 }
 
-ResolvedValue satisfies ResolvedCounter;
+ResolvedValueResolvedCounter: ResolvedValue satisfies ResolvedCounter;
 
 machine ResolvedValue::set(&mut self, value: i32) {
     self.value = value;

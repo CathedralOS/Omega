@@ -12,7 +12,7 @@ trait Equatable {
     machine equals(&self, other: &Self) -> bool;
 }
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
-Msg satisfies Equatable;
+MsgEquatable: Msg satisfies Equatable;
 data Main { console: Console; a: Msg; b: Msg; }
 machine Main::main(&mut self) {
     self.a = Msg::Pong { y: 7, z: 9 };

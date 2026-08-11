@@ -113,8 +113,8 @@ pub fn lower_symbol_resolved_trees(
             arguments,
             alias: conformance.alias.as_ref().map(crate::name::lower_name),
             implementation: match &conformance.implementation {
-                psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines => {
-                    psi_typed_trees::trait_definition::ConformanceImplementation::LegacyAttachedMachines
+                psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
+                    psi_typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
                 }
                 psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } => {
                     psi_typed_trees::trait_definition::ConformanceImplementation::Closed {

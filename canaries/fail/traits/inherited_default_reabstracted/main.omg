@@ -11,4 +11,4 @@ trait ExplicitReset {
 data Counter {
 }
 
-Counter satisfies ExplicitReset;
+CounterExplicitReset: Counter satisfies ExplicitReset;

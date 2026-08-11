@@ -584,16 +584,14 @@ fn retired_named_conformance_headers_direct_the_name_first_migration() {
     for (source, replacement) in [
         (
             "Item satisfies Shape as Primary {}",
-            "`Name: Subject satisfies Trait { ... }`",
+            "Name: Subject satisfies Trait",
         ),
         (
             "satisfies Evidence as ConcreteEvidence {}",
             "`Name: satisfies Trait { ... }`",
         ),
-        (
-            "Item satisfies Shape {}",
-            "`Name: Subject satisfies Trait { ... }`",
-        ),
+        ("Item satisfies Shape {}", "Name: Subject satisfies Trait"),
+        ("Item satisfies Shape;", "Name: Subject satisfies Trait"),
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -635,7 +633,7 @@ fn parses_closed_conformance_block_members() {
         })
         .expect("conformance root item");
     let psi_syntax_trees::item::ConformanceBody::Closed { members } = conformance.body else {
-        panic!("block must remain structurally distinct from legacy attached-machine lookup");
+        panic!("block must remain structurally distinct from bodyless attached-requirement lookup");
     };
     let [inline, reference] = parsed.items.conformance_members(members) else {
         panic!("two retained conformance members");
