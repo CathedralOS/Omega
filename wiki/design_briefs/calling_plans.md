@@ -522,6 +522,15 @@ and materializes the native code address only inside the binding lowering. The
 source program continues to name a machine and a requirement rather than
 constructing an address-shaped callback value.
 
+The concrete source form for that nominal machine-parameter-to-requirement
+binding is unresolved in owner Q5. Today's `where machine Selected(...)`
+contract proves only structural callable refinement; it does not mean
+`Selected satisfies WindowProcedure::call`. The compiler must not infer the
+relationship from a matching signature or a uniquely conformed boundary
+machine. No callback thunk is emitted until an approved form produces an exact
+checked call-use row, including the machine-argument position and callback
+requirement.
+
 A durable registration returns an ordinary linear package value. That value
 owns the protocol registration and, when code unloading is possible, the
 artifact or component lease. Its explicit terminal operation unregisters the
@@ -717,16 +726,6 @@ through abstract operations, target operations, layout, emission, and object
 relocations. Composite adapters retain each actual native subcall plan instead
 of substituting their outer semantic signature. A missing, mismatched, or
 incompatible plan fails closed.
-
-Contextual static callback selection is live in Omega orchestration. A boundary
-operation that selects one named `boundary machine` retains a callback binding
-only when that entry has one unique explicit conformance to a boundary
-requirement with an evaluated `BoundaryEntryPlan`. The retained fact contains
-the exact requirement, machine/entry symbols, normalized plan fingerprint, and
-complete `CallPlan + StatePlan`; it has no numeric entry address. Ambiguous
-callback conformances and multiple callback selections fail closed. Thunk
-emission, registration custody, external-root installation, and code/component
-lease retention remain to be connected.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current
