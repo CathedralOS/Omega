@@ -42872,6 +42872,13 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/order_antisymmetry_false_twin",
     "proofs/remainder_range_false_twin",
     "proofs/bag_view_false_twin",
+    "proofs/vacuity_satisfiable_premise_false_twin",
+    "proofs/ih_citation_false_twin",
+    "proofs/computed_subject_requires_undischarged",
+    "proofs/computed_edge_positivity_missing",
+    "proofs/inductive_gauss_sum_false_twin",
+    "proofs/inductive_gauss_sum_step_false_twin",
+    "proofs/inductive_climbing_sum_step_false_twin",
 ];
 
 #[test]
@@ -49061,16 +49068,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/undeclared_synchronous_invocation",
     "ffi/raw_ptr_read_unavailable",
     "constraints/scalar_requires_unproven_literal",
-    // Proof-engine false twins with transition and citation shapes remain in
-    // the backend umbrella pending their separate corpus audit.
-    "proofs/vacuity_satisfiable_premise_false_twin",
-    "proofs/ih_citation_false_twin",
-    "proofs/computed_subject_requires_undischarged",
-    "proofs/computed_edge_positivity_missing",
+    // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
-    "proofs/inductive_gauss_sum_false_twin",
-    "proofs/inductive_gauss_sum_step_false_twin",
-    "proofs/inductive_climbing_sum_step_false_twin",
     "drops/drop_nonblocking_effect_unknown",
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
