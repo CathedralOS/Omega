@@ -113,15 +113,16 @@ fn crash_round_trips_and_every_semantic_field_enters_identity() {
         unreachable!()
     };
     *cause = CrashCause::Trap;
-    site_guard.push(psi_terminal::CrashPredicateIdentity::from_canonical_bytes(
-        vec![1],
+    let predicate = psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
+        ScalarTerm::value(value_id(5), ScalarType::Boolean),
+        ScalarTerm::boolean(true),
     ));
+    site_guard.push(predicate.clone());
     module.machines[0].contract.crash_routes[0].cause = CrashCause::Trap;
     assert_ne!(
         semantic_fingerprint(&module).expect("changed site-guard identity"),
         baseline
     );
-    let predicate = psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![1]);
     module.machines[0].contract.crash_routes[0].alternatives =
         vec![psi_terminal::CrashRouteGuard::Predicate(predicate)];
     assert_ne!(

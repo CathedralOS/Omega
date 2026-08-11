@@ -212,19 +212,24 @@ pub struct CrashRouteBucket {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CrashRouteGuard {
     Truth,
-    Predicate(CrashPredicateIdentity),
+    Predicate(CrashPredicateTerm),
 }
 
-/// Canonical source-independent identity of one normalized crash predicate.
+/// Canonical source-independent term for one normalized crash predicate.
+///
+/// Unlike the checked-tree producer's temporary byte join keys, terminal Psi
+/// retains the proposition itself. The verifier can therefore type-check it,
+/// substitute callee values at a call, and reconstruct the exact surviving
+/// continuation without trusting producer-authored identity bytes.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CrashPredicateIdentity(Vec<u8>);
+pub struct CrashPredicateTerm(Proposition);
 
-impl CrashPredicateIdentity {
-    pub fn from_canonical_bytes(bytes: Vec<u8>) -> Self {
-        Self(bytes)
+impl CrashPredicateTerm {
+    pub const fn new(proposition: Proposition) -> Self {
+        Self(proposition)
     }
 
-    pub fn canonical_bytes(&self) -> &[u8] {
+    pub const fn proposition(&self) -> &Proposition {
         &self.0
     }
 }
@@ -298,8 +303,8 @@ pub enum OperationKind {
     /// callee `requires` clause has the obligation identity at the same index;
     /// successful return binds the operation result. `crash_continuations`
     /// records the invocation-specific no-successor routes that survive call
-    /// composition. The first crash-capable slice admits only unconditional
-    /// in-module routes; guarded substitution remains fail-closed.
+    /// composition. The verifier reconstructs guarded in-module routes by
+    /// substituting callee parameter values with these exact argument values.
     Call {
         callee: MachineId,
         arguments: Vec<ValueId>,
@@ -468,7 +473,7 @@ pub enum Terminator {
     Crash {
         edge: EdgeId,
         cause: CrashCause,
-        site_guard: Vec<CrashPredicateIdentity>,
+        site_guard: Vec<CrashPredicateTerm>,
         frontier_lower_bound: Vec<ClaimId>,
     },
 }

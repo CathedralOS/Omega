@@ -103,23 +103,39 @@ fn scalar_call_rejects_incomplete_or_crash_erasing_shapes() {
             cause: CrashCause::Trap,
         }
     );
-    may_crash.machines[0].contract.crash_routes = vec![unconditional_trap];
+    may_crash.machines[0].contract.crash_routes = vec![unconditional_trap.clone()];
     validate_module(&may_crash)
         .expect("an explicit covered in-module crash continuation validates");
 
-    let guarded = CrashRouteBucket {
+    let callee_guarded = CrashRouteBucket {
         cause: CrashCause::Trap,
         alternatives: vec![CrashRouteGuard::Predicate(
-            psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![1]),
+            psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
+                boolean_value(4),
+                ScalarTerm::boolean(true),
+            )),
+        )],
+    };
+    let caller_guarded = CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(
+            psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
+                boolean_value(1),
+                ScalarTerm::boolean(true),
+            )),
         )],
     };
     let mut guarded_call = call_module();
-    guarded_call.machines[0].contract.crash_routes = vec![guarded.clone()];
-    guarded_call.machines[1].contract.crash_routes = vec![guarded.clone()];
-    *call_crash_continuations_mut(&mut guarded_call) = vec![guarded];
+    guarded_call.machines[0].contract.crash_routes = vec![unconditional_trap];
+    guarded_call.machines[1].contract.crash_routes = vec![callee_guarded.clone()];
+    *call_crash_continuations_mut(&mut guarded_call) = vec![caller_guarded];
+    validate_module(&guarded_call)
+        .expect("guarded call substitutes the callee parameter with the caller-local value");
+
+    *call_crash_continuations_mut(&mut guarded_call) = vec![callee_guarded];
     assert_eq!(
         validate_module(&guarded_call).unwrap_err(),
-        ModuleError::GuardedCallCrashRouteNotYetSupported {
+        ModuleError::CallCrashContinuationsMismatch {
             operation: operation_id(2),
             callee: machine_id(2),
         }

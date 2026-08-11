@@ -911,7 +911,7 @@ pub enum TerminalExecutionStatus {
 pub struct TerminalCrash {
     pub edge: psi_core::EdgeId,
     pub cause: CrashCause,
-    pub site_guard: Vec<psi_terminal::CrashPredicateIdentity>,
+    pub site_guard: Vec<psi_terminal::CrashPredicateTerm>,
     pub frontier_lower_bound: Vec<ClaimId>,
 }
 

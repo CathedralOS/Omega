@@ -7,10 +7,12 @@ use psi_core::{
     ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    ContentPartitionComposition, CrashCause, CrashRouteGuard, OperationKind,
-    PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, TerminalMachine,
-    TerminalModule, Terminator,
+    ContentPartitionComposition, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+    OperationKind, PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence,
+    TerminalMachine, TerminalModule, Terminator,
 };
+
+use crate::verification::substitute_proposition_values;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {
@@ -335,9 +337,9 @@ fn validate_machine(
             match operation.kind.clone() {
                 OperationKind::Call {
                     callee,
+                    arguments,
                     requirement_obligations,
                     crash_continuations,
-                    ..
                 } => {
                     let callee =
                         machines
@@ -347,29 +349,28 @@ fn validate_machine(
                                 operation: operation.id,
                                 callee,
                             })?;
-                    if callee
-                        .contract
-                        .crash_routes
-                        .iter()
-                        .any(|bucket| bucket.alternatives != [CrashRouteGuard::Truth])
-                    {
-                        return Err(ModuleError::GuardedCallCrashRouteNotYetSupported {
-                            operation: operation.id,
-                            callee: callee.id,
-                        });
-                    }
                     if crash_continuations
                         .windows(2)
                         .any(|pair| pair[0] >= pair[1])
-                        || crash_continuations
-                            .iter()
-                            .any(|bucket| bucket.alternatives != [CrashRouteGuard::Truth])
                     {
                         return Err(ModuleError::NonCanonicalCallCrashContinuations(
                             operation.id,
                         ));
                     }
-                    if crash_continuations != callee.contract.crash_routes {
+                    let substitutions = callee
+                        .parameters
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(parameter, argument)| {
+                            (
+                                parameter.id,
+                                ScalarTerm::value(*argument, parameter.scalar_type),
+                            )
+                        })
+                        .collect::<BTreeMap<_, _>>();
+                    let expected_crash_continuations =
+                        substitute_crash_routes(&callee.contract.crash_routes, &substitutions);
+                    if crash_continuations != expected_crash_continuations {
                         return Err(ModuleError::CallCrashContinuationsMismatch {
                             operation: operation.id,
                             callee: callee.id,
@@ -378,7 +379,11 @@ fn validate_machine(
                     for continuation in &crash_continuations {
                         let covered = machine.contract.crash_routes.iter().any(|published| {
                             published.cause == continuation.cause
-                                && published.alternatives == [CrashRouteGuard::Truth]
+                                && (published.alternatives == [CrashRouteGuard::Truth]
+                                    || continuation
+                                        .alternatives
+                                        .iter()
+                                        .all(|route| published.alternatives.contains(route)))
                         });
                         if !covered {
                             return Err(ModuleError::CallCrashContinuationUncovered {
@@ -716,12 +721,12 @@ fn validate_machine(
     validate_content_entry_claims(machine, registry, &structural_place_kinds, &context)?;
     validate_content_identity_reshuffles(machine, registry, &structural_place_kinds, &context)?;
     validate_content_partition_compositions(machine, registry, &structural_place_kinds, &context)?;
-    validate_crash_frontiers(machine)?;
     let requires_values = machine
         .parameters
         .iter()
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
+    validate_crash_frontiers(machine, &context, &requires_values)?;
     let mut ensures_values = requires_values.clone();
     ensures_values.insert(machine.result.id);
     for proposition in &machine.contract.requires {
@@ -765,7 +770,48 @@ fn validate_machine(
     validate_control_flow(machine, machines, &blocks, &value_types)
 }
 
-fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError> {
+fn substitute_crash_routes(
+    routes: &[CrashRouteBucket],
+    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+) -> Vec<CrashRouteBucket> {
+    routes
+        .iter()
+        .filter_map(|bucket| {
+            let mut alternatives = bucket
+                .alternatives
+                .iter()
+                .filter_map(|guard| match guard {
+                    CrashRouteGuard::Truth => Some(CrashRouteGuard::Truth),
+                    CrashRouteGuard::Predicate(predicate) => {
+                        match substitute_proposition_values(predicate.proposition(), substitutions)
+                        {
+                            Proposition::Truth => Some(CrashRouteGuard::Truth),
+                            Proposition::Falsehood => None,
+                            proposition => Some(CrashRouteGuard::Predicate(
+                                CrashPredicateTerm::new(proposition),
+                            )),
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            alternatives.sort();
+            alternatives.dedup();
+            if alternatives.contains(&CrashRouteGuard::Truth) {
+                alternatives = vec![CrashRouteGuard::Truth];
+            }
+            (!alternatives.is_empty()).then_some(CrashRouteBucket {
+                cause: bucket.cause,
+                alternatives,
+            })
+        })
+        .collect()
+}
+
+fn validate_crash_frontiers(
+    machine: &TerminalMachine,
+    context: &PropositionContext,
+    contract_values: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
     if machine
         .contract
         .crash_routes
@@ -793,6 +839,29 @@ fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError
                 cause: bucket.cause,
             });
         }
+        for guard in &bucket.alternatives {
+            let CrashRouteGuard::Predicate(predicate) = guard else {
+                continue;
+            };
+            if matches!(
+                predicate.proposition(),
+                Proposition::Truth | Proposition::Falsehood
+            ) {
+                return Err(ModuleError::NonCanonicalCrashRouteAlternatives {
+                    machine: machine.id,
+                    cause: bucket.cause,
+                });
+            }
+            context
+                .validate(predicate.proposition())
+                .map_err(ModuleError::MalformedProposition)?;
+            validate_contract_scope(
+                predicate.proposition(),
+                contract_values,
+                machine.contract.id,
+                ContractClauseKind::Crash,
+            )?;
+        }
     }
     let expected = machine
         .content_entry_claims
@@ -811,6 +880,17 @@ fn validate_crash_frontiers(machine: &TerminalMachine) -> Result<(), ModuleError
         };
         if site_guard.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(ModuleError::NonCanonicalCrashSiteGuard(block.id));
+        }
+        for predicate in site_guard {
+            if matches!(
+                predicate.proposition(),
+                Proposition::Truth | Proposition::Falsehood
+            ) {
+                return Err(ModuleError::NonCanonicalCrashSiteGuard(block.id));
+            }
+            context
+                .validate(predicate.proposition())
+                .map_err(ModuleError::MalformedProposition)?;
         }
         let covered = machine
             .contract
@@ -1347,7 +1427,7 @@ fn validate_contract_clause_kind(
             validate_contract_clause_kind(premise, contract, clause)?;
             validate_contract_clause_kind(conclusion, contract, clause)
         }
-        Proposition::ContentConservation(_) if clause != ContractClauseKind::Ensures => {
+        Proposition::ContentConservation(_) if clause == ContractClauseKind::Requires => {
             Err(ModuleError::ContentConservationRequiresEnsures { contract })
         }
         _ => Ok(()),
@@ -1641,7 +1721,16 @@ fn validate_control_flow(
                     });
                 }
             }
-            Terminator::Crash { .. } => {}
+            Terminator::Crash { site_guard, .. } => {
+                for predicate in site_guard {
+                    validate_contract_scope(
+                        predicate.proposition(),
+                        &defined,
+                        machine.contract.id,
+                        ContractClauseKind::Crash,
+                    )?;
+                }
+            }
         }
     }
     Ok(())
@@ -2260,6 +2349,7 @@ fn insert_unique<T: Ord + Copy>(
 pub enum ContractClauseKind {
     Requires,
     Ensures,
+    Crash,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2375,10 +2465,6 @@ pub enum ModuleError {
     UnknownValue(ValueId),
     ValueUsedBeforeDefinition(ValueId),
     UnknownCallTarget {
-        operation: OperationId,
-        callee: MachineId,
-    },
-    GuardedCallCrashRouteNotYetSupported {
         operation: OperationId,
         callee: MachineId,
     },

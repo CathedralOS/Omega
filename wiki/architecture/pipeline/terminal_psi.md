@@ -153,12 +153,16 @@ coverage. Verification substitutes the positional arguments into the callee
 requirements and guarantees: requirements become caller proof obligations,
 while verified guarantees enter the caller's normal-return semantic axioms.
 
-The first crash-capable call slice accepts exact unconditional routes from an
-in-module callee. The continuation set must equal the callee's published crash
-set and every cause must be covered by the caller's published ceiling; an empty
-set therefore cannot erase a crash. Guarded route substitution and imported
-crash capsules remain fail-closed. Structural/content contracts also still
-reject because custody effects require their own vertical slice rather than an
+The call verifier accepts exact unconditional and guarded routes from an
+in-module callee. Terminal crash predicates retain canonical proposition terms,
+not producer-authored identity bytes. The verifier substitutes every callee
+parameter `ValueId` with the corresponding arbitrary caller-local argument,
+reconstructs the surviving continuation set, and requires coverage by the
+caller's published ceiling; an empty or untranslated set therefore cannot erase
+a crash. The checked-tree producer still fails closed when a guarded byte join
+key has not yet been lowered into that structured terminal term. Imported crash
+capsules remain fail-closed. Structural/content contracts also still reject
+because custody effects require their own vertical slice rather than an
 ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the

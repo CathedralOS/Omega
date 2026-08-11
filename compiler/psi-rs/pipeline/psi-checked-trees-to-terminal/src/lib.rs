@@ -231,7 +231,7 @@ enum LoweredScalarBranchTerminator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoweredCrashExit {
     cause: TerminalCrashCause,
-    site_guard: Vec<psi_terminal::CrashPredicateIdentity>,
+    site_guard: Vec<psi_terminal::CrashPredicateTerm>,
     frontier_lower_bound: Vec<ClaimId>,
 }
 
@@ -1465,7 +1465,7 @@ fn lower_checked_crash_frontier(
 fn lower_checked_crash_routes(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
-) -> Vec<psi_terminal::CrashRouteBucket> {
+) -> Result<Vec<psi_terminal::CrashRouteBucket>, LoweringError> {
     checked
         .facts
         .contract_plans
@@ -1475,31 +1475,30 @@ fn lower_checked_crash_routes(
                 .crash
                 .published()
                 .iter()
-                .map(|bucket| psi_terminal::CrashRouteBucket {
-                    cause: match bucket.cause() {
-                        psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                        psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
-                    },
-                    alternatives: bucket
+                .map(|bucket| {
+                    let alternatives = bucket
                         .alternative_guards()
                         .iter()
                         .map(|guard| match guard {
                             psi_checked_trees::CrashRouteGuard::Truth => {
-                                psi_terminal::CrashRouteGuard::Truth
+                                Ok(psi_terminal::CrashRouteGuard::Truth)
                             }
-                            psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                                psi_terminal::CrashRouteGuard::Predicate(
-                                    psi_terminal::CrashPredicateIdentity::from_canonical_bytes(
-                                        predicate.canonical_bytes().to_vec(),
-                                    ),
-                                )
-                            }
+                            psi_checked_trees::CrashRouteGuard::Predicate(_) => unsupported(
+                                "guarded crash routes require structured terminal predicate lowering",
+                            ),
                         })
-                        .collect(),
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok(psi_terminal::CrashRouteBucket {
+                        cause: match bucket.cause() {
+                            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+                        },
+                        alternatives,
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, _>>()
         })
-        .unwrap_or_default()
+        .unwrap_or_else(|| Ok(Vec::new()))
 }
 
 fn lower_checked_crash_exit(
@@ -1529,23 +1528,17 @@ fn lower_checked_crash_exit(
             "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket",
         );
     };
+    if !checked_site.path_guard_conjuncts().is_empty()
+        || !checked_site.path_guard_consequences().is_empty()
+    {
+        return unsupported("guarded crash sites require structured terminal predicate lowering");
+    }
     Ok(LoweredCrashExit {
         cause: match checked_site.cause() {
             psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
             psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
         },
-        site_guard: checked_site
-            .path_guard_conjuncts()
-            .iter()
-            .chain(checked_site.path_guard_consequences())
-            .map(|predicate| {
-                psi_terminal::CrashPredicateIdentity::from_canonical_bytes(
-                    predicate.canonical_bytes().to_vec(),
-                )
-            })
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect(),
+        site_guard: Vec::new(),
         frontier_lower_bound: lower_checked_crash_frontier(
             checked_site.frontier_lower_bound(),
             source_claims,
@@ -1866,7 +1859,7 @@ fn lower_scalar_graph_machine(
         &lowered_states,
         result_type,
         contract_value,
-        lower_checked_crash_routes(checked, machine),
+        lower_checked_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
     )
