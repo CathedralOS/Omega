@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use omega_compiler::compile_to_checked;
-use psi_checked_interpreter::interpret;
+use psi_checked_interpreter::interpret_entry;
 
 fn main() {
     let path = std::env::args()
@@ -23,7 +23,7 @@ fn main() {
         std::process::exit(102);
     });
 
-    let outcome = interpret(&checked, &stdin);
+    let outcome = interpret_entry(&checked, checked.program_entry_machine(), &stdin);
     std::io::stdout()
         .write_all(&outcome.stdout)
         .expect("stdout");

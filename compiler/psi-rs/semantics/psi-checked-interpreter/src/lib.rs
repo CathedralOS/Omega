@@ -259,8 +259,11 @@ impl InterpretOutcome {
     }
 }
 
-/// Interpret a checked program, returning its exit code and stdout. `stdin` provides the
-/// bytes a `read_line` host call would consume (unused in the first milestone).
+/// Test-corpus compatibility wrapper that interprets `Main::main`.
+///
+/// Production orchestration owns entry selection and must call
+/// [`interpret_entry`] with that exact identity. `stdin` provides the bytes a
+/// `read_line` host call would consume.
 pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(checked, "Main::main", stdin)
 }
@@ -319,10 +322,9 @@ pub struct InterpretOptions {
     pub filesystem: FilesystemAccess,
 }
 
-/// [`interpret`] with explicit [`InterpretOptions`] -- the build.omg entry:
-/// build programs run INTERPRETED with a real filesystem so they can stage
-/// assets themselves, while every differential/test path keeps the hermetic
-/// default.
+/// Test-corpus compatibility wrapper that interprets `Main::main` with
+/// explicit [`InterpretOptions`]. Production orchestration must call
+/// [`interpret_entry_with_options`] with its exact selected entry.
 pub fn interpret_with_options(
     checked: &CheckedTrees,
     stdin: &[u8],

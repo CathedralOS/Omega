@@ -42807,8 +42807,24 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         .expect("explicit entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
-    let outcome = psi_checked_interpreter::interpret_entry(&checked, "launch", &[]);
+    assert_eq!(checked.program_entry_machine(), "launch");
+    let outcome =
+        psi_checked_interpreter::interpret_entry(&checked, checked.program_entry_machine(), &[]);
     assert_eq!(outcome.error, None);
+}
+
+#[test]
+fn checked_compilation_owns_the_transitional_legacy_program_entry() {
+    let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("legacy Main entry canary should reach checked semantics");
+
+    assert_eq!(checked.selected_program_entry_machine(), None);
+    assert_eq!(checked.program_entry_machine(), "Main::main");
+    let outcome =
+        psi_checked_interpreter::interpret_entry(&checked, checked.program_entry_machine(), &[]);
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
 }
 
 #[test]
