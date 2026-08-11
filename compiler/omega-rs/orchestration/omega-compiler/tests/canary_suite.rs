@@ -5284,9 +5284,9 @@ fn checked_only_canaries_are_not_backend_umbrella_members() {
 #[test]
 fn float_meaning_core_surface_compiles_in_isolation() {
     let canary = pass_canary("core/float_meaning_core_surface");
-    if let Err(diagnostics) = compile_canary_without_output(&canary) {
+    if let Err(diagnostics) = check_canary(&canary) {
         panic!(
-            "expected FloatMeaning core canary {} to compile, but got diagnostics:\n{}",
+            "expected FloatMeaning core canary {} to reach checked semantics, but got diagnostics:\n{}",
             canary.display(),
             diagnostics
                 .iter()
@@ -42797,6 +42797,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "capabilities/uses_caller_folder",
     "capabilities/uses_caller_capability_requires",
+    "core/float_meaning_core_surface",
     "proofs/rat_metric_compile",
     "proofs/signed_rat_metric_compile",
     "proofs/cauchy_predicates_compile",
@@ -42806,8 +42807,11 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "capabilities/boundary_qualification_subject_rejected",
     "capabilities/direct_accepted_qualification_rejected",
     "proofs/cauchy_zero_precision_rejected",
+    "proofs/float_meaning_zero_finite_rejected",
     "proofs/nat_metric_false_gap_zero",
     "proofs/rat_metric_false_reflexivity",
+    "proofs/rat_zero_denominator_rejected",
+    "proofs/signed_rat_zero_denominator_rejected",
 ];
 
 #[test]
@@ -47968,7 +47972,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_comparison_guard_exit",
     "core/array_core_surface",
     "core/float_format_core_surface",
-    "core/float_meaning_core_surface",
     "core/zii_default_composite_exit",
     "core/fixed_vec_core_surface",
     "core/arena_core_surface",
@@ -48627,7 +48630,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/float_meaning_runtime_consumption_rejected",
-    "proofs/float_meaning_zero_finite_rejected",
     "proofs/cauchy_triangle_wrong_middle_den_rejected",
     "proofs/conditional_ih_requires_discharge",
     "proofs/core_nat_runtime_consumption_rejected",
@@ -48636,8 +48638,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/nested_structural_case_false_rejected",
     "proofs/rat_close_triangle_false_rejected",
     "proofs/rat_scaled_triangle_false_rejected",
-    "proofs/rat_zero_denominator_rejected",
-    "proofs/signed_rat_zero_denominator_rejected",
     "proofs/static_machine_selection_false_equality_rejected",
     "proofs/value_call_refuted_inequality_rejected",
     "proofs/nat_unmeasured_recursion_rejected",
