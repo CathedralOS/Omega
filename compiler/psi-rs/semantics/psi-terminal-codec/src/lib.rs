@@ -34,7 +34,7 @@ use psi_core::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    CrashPredicateIdentity, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
+    CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
     OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
@@ -148,26 +148,30 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         if !crash_routes_are_canonical(&machine.contract.crash_routes) {
             return Err(CodecError::NonCanonicalOrder("crash route buckets"));
         }
+        validate_crash_route_predicates(&machine.contract.crash_routes)?;
         if !strictly_increasing(machine.blocks.iter().map(|block| block.id)) {
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
         }
-        if machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|operation| {
-                matches!(
-                    &operation.kind,
-                    OperationKind::Call {
-                        crash_continuations,
-                        ..
-                    } if !crash_routes_are_canonical(crash_continuations)
-                )
-            })
-        {
-            return Err(CodecError::NonCanonicalOrder(
-                "call crash continuation buckets",
-            ));
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            if let OperationKind::Call {
+                crash_continuations,
+                ..
+            } = &operation.kind
+            {
+                if !crash_routes_are_canonical(crash_continuations) {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "call crash continuation buckets",
+                    ));
+                }
+                validate_crash_route_predicates(crash_continuations)?;
+            }
+        }
+        for block in &machine.blocks {
+            if let Terminator::Crash { site_guard, .. } = &block.terminator {
+                for predicate in site_guard {
+                    validate_canonical_proposition(predicate.proposition(), 0)?;
+                }
+            }
         }
         if !strictly_increasing(machine.structural_places.iter().map(|place| place.id)) {
             return Err(CodecError::NonCanonicalOrder(
@@ -276,6 +280,20 @@ fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
                 && (!bucket.alternatives.contains(&CrashRouteGuard::Truth)
                     || bucket.alternatives == [CrashRouteGuard::Truth])
         })
+}
+
+fn validate_crash_route_predicates(routes: &[CrashRouteBucket]) -> Result<(), CodecError> {
+    for predicate in routes
+        .iter()
+        .flat_map(|bucket| &bucket.alternatives)
+        .filter_map(|guard| match guard {
+            CrashRouteGuard::Truth => None,
+            CrashRouteGuard::Predicate(predicate) => Some(predicate),
+        })
+    {
+        validate_canonical_proposition(predicate.proposition(), 0)?;
+    }
+    Ok(())
 }
 
 fn validate_canonical_proposition(
@@ -986,14 +1004,9 @@ fn encode_crash_routes(
 
 fn encode_crash_predicate(
     writer: &mut Writer,
-    predicate: &CrashPredicateIdentity,
+    predicate: &CrashPredicateTerm,
 ) -> Result<(), CodecError> {
-    writer.len(
-        "crash predicate identity",
-        predicate.canonical_bytes().len(),
-    )?;
-    writer.bytes(predicate.canonical_bytes());
-    Ok(())
+    encode_proposition(writer, predicate.proposition(), 0)
 }
 
 fn encode_proposition(
@@ -2036,12 +2049,8 @@ fn decode_crash_routes(reader: &mut Reader<'_>) -> Result<Vec<CrashRouteBucket>,
     Ok(crash_routes)
 }
 
-fn decode_crash_predicate(reader: &mut Reader<'_>) -> Result<CrashPredicateIdentity, CodecError> {
-    let len = usize::try_from(reader.count()?)
-        .map_err(|_| CodecError::CollectionTooLong("crash predicate identity"))?;
-    Ok(CrashPredicateIdentity::from_canonical_bytes(
-        reader.take(len)?.to_vec(),
-    ))
+fn decode_crash_predicate(reader: &mut Reader<'_>) -> Result<CrashPredicateTerm, CodecError> {
+    Ok(CrashPredicateTerm::new(decode_proposition(reader, 0)?))
 }
 
 fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Proposition, CodecError> {

@@ -2134,7 +2134,7 @@ fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
     }
 }
 
-fn substitute_proposition_values(
+pub(crate) fn substitute_proposition_values(
     proposition: &Proposition,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> Proposition {

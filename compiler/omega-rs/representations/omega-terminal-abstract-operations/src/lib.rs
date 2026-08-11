@@ -281,7 +281,7 @@ pub enum TerminalAbstractOperation {
     Crash {
         psi_edge: EdgeId,
         cause: CrashCause,
-        site_guard: Vec<psi_terminal::CrashPredicateIdentity>,
+        site_guard: Vec<psi_terminal::CrashPredicateTerm>,
         frontier_lower_bound: Vec<ClaimId>,
     },
 }

@@ -2090,9 +2090,9 @@ fn crash_route_buckets_are_canonical_nonempty_disjunctions() {
 
     module.machines[0].contract.crash_routes[0].alternatives = vec![
         psi_terminal::CrashRouteGuard::Truth,
-        psi_terminal::CrashRouteGuard::Predicate(
-            psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![1]),
-        ),
+        psi_terminal::CrashRouteGuard::Predicate(psi_terminal::CrashPredicateTerm::new(
+            Proposition::Equal(ScalarTerm::boolean(true), ScalarTerm::boolean(true)),
+        )),
     ];
     assert!(matches!(
         validate_module(&module),
@@ -2105,7 +2105,9 @@ fn guarded_crash_requires_a_matching_canonical_route() {
     let mut module = Fixture::new().module;
     module.vocabulary_marker = VocabularyMarker::CURRENT;
     module.machines[0].contract.ensures.clear();
-    let predicate = psi_terminal::CrashPredicateIdentity::from_canonical_bytes(vec![7]);
+    let seven =
+        ScalarTerm::integer(Fixture::new().integer, IntegerValue::Signed(7)).expect("seven");
+    let predicate = psi_terminal::CrashPredicateTerm::new(Proposition::Equal(seven.clone(), seven));
     module.machines[0].contract.crash_routes = vec![psi_terminal::CrashRouteBucket {
         cause: CrashCause::Trap,
         alternatives: vec![psi_terminal::CrashRouteGuard::Predicate(predicate.clone())],
