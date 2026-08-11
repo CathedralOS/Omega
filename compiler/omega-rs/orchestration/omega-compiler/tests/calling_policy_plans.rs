@@ -3,15 +3,17 @@ use omega_calling_conventions::{
     Preemption, ValueShape,
 };
 use omega_compiler::{
-    ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageRootInput,
+    SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_program_storage_entry_plan, compile_to_checked, evaluate_calling_policy_plan,
-    install_program_storage_entry_roots, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    install_program_storage_entry_roots, program_storage_installation_record_json,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id, write_program_storage_installation_record,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
-    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRights,
-    ExtentRootGrant, MappingEraId,
+    AddressSpaceId, ExtentCompilerProvisioning, ExtentDiagnostic, ExtentLineageId,
+    ExtentProvenanceId, ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -683,6 +685,40 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         92
     );
 
+    let provider_json = program_storage_installation_record_json(&installation);
+    assert!(provider_json.contains("\"authority\": \"non_authoritative_audit_record\""));
+    assert!(provider_json.contains("\"installation_status\": \"completed\""));
+    assert!(provider_json.contains("\"role\": \"image\", \"parameter_index\": 0"));
+    assert!(provider_json.contains("\"base\": \"0x0000000000001000\""));
+    assert!(provider_json.contains("\"kind\": \"provider_issued\""));
+    assert!(provider_json.contains("\"provider_plan\": \"0x00000000000005b9\""));
+    assert!(provider_json.contains("\"qualification\": \"0x00000000000005bd\""));
+
+    let artifact_directory = main_path
+        .parent()
+        .expect("temporary policy directory")
+        .join("completed-installation");
+    write_program_storage_installation_record(&artifact_directory, &installation)
+        .expect("completed installation record should be emitted atomically");
+    let emitted =
+        fs::read_to_string(artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
+            .expect("read completed installation artifact");
+    assert_eq!(emitted, provider_json);
+
+    let local_installed = install_program_storage_entry_roots(
+        installation.binding().clone(),
+        compiler_root_input(201, 0x2000, 0x400),
+        compiler_root_input(202, 0x9000, 0x1000),
+    )
+    .expect("sealed local roots use the same generic two-grant installer");
+    let local_json =
+        program_storage_installation_record_json(&local_installed.installation_record());
+    assert!(local_json.contains("\"kind\": \"compiler_provisioned\""));
+    assert!(local_json.contains("\"provision\": \"0x0000000000000c91\""));
+    assert!(local_json.contains("\"owner\": \"0x0000000000000c92\""));
+    assert!(local_json.contains("\"sealed_declaration\": \"0x0000000000000c93\""));
+    assert!(local_json.contains("\"rights\": [\"0x00000000000000cc\", \"0x00000000000000cd\"]"));
+
     let static_view = installed
         .image_subextent(0x100, 0x80)
         .expect("static geometry stays a borrowed image view");
@@ -731,6 +767,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         ),
         (0x8000, 0x2000)
     );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
 
 fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
@@ -762,6 +799,40 @@ fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
             extent_id(lineage, ExtentLineageId::from_normalized_identity),
             extent_id(100, AddressSpaceId::from_normalized_identity),
             ExtentRights::none(),
+            extent_id(101, ExtentProvenanceId::from_normalized_identity),
+            extent_id(102, MappingEraId::from_normalized_identity),
+        ),
+        base,
+        length,
+    )
+}
+
+fn compiler_root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
+    fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    let provisioning_base = lineage * 16;
+    let provisioning = ExtentCompilerProvisioning::from_normalized_identities([
+        provisioning_base + 1,
+        provisioning_base + 2,
+        provisioning_base + 3,
+        provisioning_base + 4,
+        provisioning_base + 5,
+        provisioning_base + 6,
+    ])
+    .expect("normalized compiler provisioning");
+    let rights = ExtentRights::from_normalized_identities([
+        extent_id(205, ExtentRightId::from_normalized_identity),
+        extent_id(204, ExtentRightId::from_normalized_identity),
+    ]);
+
+    ProgramStorageRootInput::new(
+        ExtentRootGrant::from_compiler_provisioning(
+            provisioning,
+            extent_id(lineage, ExtentLineageId::from_normalized_identity),
+            extent_id(100, AddressSpaceId::from_normalized_identity),
+            rights,
             extent_id(101, ExtentProvenanceId::from_normalized_identity),
             extent_id(102, MappingEraId::from_normalized_identity),
         ),

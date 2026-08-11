@@ -68,8 +68,13 @@ Remaining:
   two-grant installer already validates both `no_wrap` obligations before
   consuming either grant and now produces a report-only record retaining exact
   geometry, address space, rights, provenance, mapping era, root lineage, and
-  the complete admitted provider-issuance tuple.
-  Bind it to the selected physical provider and emit that completed record.
+  the complete admitted provider-issuance tuple. That completed record now has
+  a canonical non-authoritative JSON form and atomic artifact writer for both
+  provider-issued and compiler-provisioned origins; normal compilation removes
+  stale completed-installation artifacts rather than claiming an installation
+  occurred.
+  Bind the installer to the selected physical provider and have that successful
+  bridge invoke the completed-record writer.
   The final UEFI bridge/source-visible composition of semantic roots with the
   firmware `ImageHandle`/`SystemTable` handoff is design-blocked on owner Q2;
   artifact reporting and generic grant-installation mechanics remain actionable.
