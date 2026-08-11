@@ -15,12 +15,16 @@
 //! visualization canaries, whose native exit code is undefined). The companion expected
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
-use omega_compiler::{CompileOptions, compile, compile_to_checked};
-use psi_checked_interpreter::interpret;
+use omega_compiler::{CheckedCompilation, CompileOptions, compile, compile_to_checked};
+use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
+    interpret_entry(checked, checked.program_entry_machine(), stdin)
+}
 
 /// The RUN canaries: `(relative path under canaries/pass, exit code the suite asserts)`.
 /// Extracted from `canary_suite.rs` (every test that runs `executable_name()` and asserts
