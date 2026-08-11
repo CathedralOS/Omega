@@ -91,6 +91,11 @@ normalized_extent_identity!(
     "extent-provider-correspondence"
 );
 normalized_extent_identity!(ExtentTrustProvenanceId, "extent-trust-provenance");
+normalized_extent_identity!(ExtentProviderPlanId, "extent-provider-plan");
+normalized_extent_identity!(ExtentProviderInvocationId, "extent-provider-invocation");
+normalized_extent_identity!(ExtentEstablishmentRouteId, "extent-establishment-route");
+normalized_extent_identity!(ExtentCapacityId, "extent-capacity");
+normalized_extent_identity!(ExtentQualificationId, "extent-qualification");
 
 use std::collections::BTreeSet;
 
@@ -155,12 +160,65 @@ pub struct ExtentProviderIssuance {
     alias_class: ExtentAliasClassId,
     correspondence: ExtentProviderCorrespondenceId,
     trust_provenance: ExtentTrustProvenanceId,
+    invocation: ExtentProviderInvocation,
+}
+
+/// Exact selected-provider occurrence authorized to introduce one root.
+///
+/// The plan and invocation identify the concrete occurrence. Route, capacity,
+/// and qualification independently identify why that occurrence may establish
+/// this content-bearing authority account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtentProviderInvocation {
+    provider_plan: ExtentProviderPlanId,
+    invocation: ExtentProviderInvocationId,
+    establishment_route: ExtentEstablishmentRouteId,
+    capacity: ExtentCapacityId,
+    qualification: ExtentQualificationId,
+}
+
+impl ExtentProviderInvocation {
+    pub const fn from_admitted_provider(
+        provider_plan: ExtentProviderPlanId,
+        invocation: ExtentProviderInvocationId,
+        establishment_route: ExtentEstablishmentRouteId,
+        capacity: ExtentCapacityId,
+        qualification: ExtentQualificationId,
+    ) -> Self {
+        Self {
+            provider_plan,
+            invocation,
+            establishment_route,
+            capacity,
+            qualification,
+        }
+    }
+
+    pub const fn provider_plan(self) -> ExtentProviderPlanId {
+        self.provider_plan
+    }
+
+    pub const fn invocation(self) -> ExtentProviderInvocationId {
+        self.invocation
+    }
+
+    pub const fn establishment_route(self) -> ExtentEstablishmentRouteId {
+        self.establishment_route
+    }
+
+    pub const fn capacity(self) -> ExtentCapacityId {
+        self.capacity
+    }
+
+    pub const fn qualification(self) -> ExtentQualificationId {
+        self.qualification
+    }
 }
 
 impl ExtentProviderIssuance {
-    /// Canonical-decoder convenience preserving the typed eight-column
+    /// Canonical-decoder convenience preserving the full typed
     /// evidence record while rejecting zero identities in every column.
-    pub fn from_normalized_identities(identities: [u64; 8]) -> Result<Self, ExtentDiagnostic> {
+    pub fn from_normalized_identities(identities: [u64; 13]) -> Result<Self, ExtentDiagnostic> {
         let [
             issuance,
             backing,
@@ -170,6 +228,11 @@ impl ExtentProviderIssuance {
             alias,
             correspondence,
             trust,
+            provider_plan,
+            provider_invocation,
+            establishment_route,
+            capacity,
+            qualification,
         ] = identities;
         Ok(Self::from_admitted_provider(
             ExtentIssuanceId::from_normalized_identity(issuance)?,
@@ -180,6 +243,13 @@ impl ExtentProviderIssuance {
             ExtentAliasClassId::from_normalized_identity(alias)?,
             ExtentProviderCorrespondenceId::from_normalized_identity(correspondence)?,
             ExtentTrustProvenanceId::from_normalized_identity(trust)?,
+            ExtentProviderInvocation::from_admitted_provider(
+                ExtentProviderPlanId::from_normalized_identity(provider_plan)?,
+                ExtentProviderInvocationId::from_normalized_identity(provider_invocation)?,
+                ExtentEstablishmentRouteId::from_normalized_identity(establishment_route)?,
+                ExtentCapacityId::from_normalized_identity(capacity)?,
+                ExtentQualificationId::from_normalized_identity(qualification)?,
+            ),
         ))
     }
 
@@ -193,6 +263,7 @@ impl ExtentProviderIssuance {
         alias_class: ExtentAliasClassId,
         correspondence: ExtentProviderCorrespondenceId,
         trust_provenance: ExtentTrustProvenanceId,
+        invocation: ExtentProviderInvocation,
     ) -> Self {
         Self {
             issuance,
@@ -203,6 +274,7 @@ impl ExtentProviderIssuance {
             alias_class,
             correspondence,
             trust_provenance,
+            invocation,
         }
     }
 
@@ -236,6 +308,10 @@ impl ExtentProviderIssuance {
 
     pub const fn trust_provenance(self) -> ExtentTrustProvenanceId {
         self.trust_provenance
+    }
+
+    pub const fn invocation(self) -> ExtentProviderInvocation {
+        self.invocation
     }
 }
 
@@ -1367,7 +1443,15 @@ mod tests {
     }
 
     fn provider_issuance(seed: u64) -> ExtentProviderIssuance {
-        let base = seed * 16;
+        provider_issuance_for_invocation(seed, seed)
+    }
+
+    fn provider_issuance_for_invocation(
+        issuance_seed: u64,
+        invocation_seed: u64,
+    ) -> ExtentProviderIssuance {
+        let base = issuance_seed * 16;
+        let invocation_base = invocation_seed * 16;
         ExtentProviderIssuance::from_normalized_identities([
             base + 1,
             base + 2,
@@ -1377,6 +1461,11 @@ mod tests {
             base + 6,
             base + 7,
             base + 8,
+            invocation_base + 9,
+            invocation_base + 10,
+            invocation_base + 11,
+            invocation_base + 12,
+            invocation_base + 13,
         ])
         .expect("normalized provider issuance")
     }
@@ -1560,6 +1649,26 @@ mod tests {
         let error = first
             .merge(second)
             .expect_err("matching numbers cannot erase provider issuance drift");
+        assert!(error.diagnostic().0.contains("provider issuance"));
+    }
+
+    #[test]
+    fn matching_supply_cannot_merge_different_provider_invocations() {
+        let first = root_grant(1).mint(0, 32).expect("first provider root");
+        let second = ExtentRootGrant::from_admitted_provider(
+            provider_issuance_for_invocation(1, 2),
+            id(1, ExtentLineageId::from_normalized_identity),
+            id(10, AddressSpaceId::from_normalized_identity),
+            rights(&[100, 101]),
+            id(20, ExtentProvenanceId::from_normalized_identity),
+            id(30, MappingEraId::from_normalized_identity),
+        )
+        .mint(32, 32)
+        .expect("second provider root");
+
+        let error = first
+            .merge(second)
+            .expect_err("matching supply cannot erase provider invocation drift");
         assert!(error.diagnostic().0.contains("provider issuance"));
     }
 

@@ -653,6 +653,21 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         image_issuance.trust_provenance().normalized_identity(),
         91 * 16 + 8
     );
+    let invocation = image_issuance.invocation();
+    assert_eq!(
+        invocation.provider_plan().normalized_identity(),
+        91 * 16 + 9
+    );
+    assert_eq!(invocation.invocation().normalized_identity(), 91 * 16 + 10);
+    assert_eq!(
+        invocation.establishment_route().normalized_identity(),
+        91 * 16 + 11
+    );
+    assert_eq!(invocation.capacity().normalized_identity(), 91 * 16 + 12);
+    assert_eq!(
+        invocation.qualification().normalized_identity(),
+        91 * 16 + 13
+    );
     assert_eq!(
         installation.image().lineage_root().normalized_identity(),
         91
@@ -730,6 +745,11 @@ fn root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
         issuance_base + 6,
         issuance_base + 7,
         issuance_base + 8,
+        issuance_base + 9,
+        issuance_base + 10,
+        issuance_base + 11,
+        issuance_base + 12,
+        issuance_base + 13,
     ])
     .expect("normalized provider issuance");
 

@@ -8898,6 +8898,11 @@ fn install_terminal_object(
             base + 6,
             base + 7,
             base + 8,
+            base + 9,
+            base + 10,
+            base + 11,
+            base + 12,
+            base + 13,
         ])
         .expect("normalized provider issuance")
     }
