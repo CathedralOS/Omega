@@ -102,8 +102,9 @@ The same normalized geometry may feed different compiler-owned consumers:
   as one `Repeated` field with one whole-extent `At` placement; scalar `Bits`,
   `IntegerAt`, and active access decisions remain rejected for that aggregate;
 - mutable byte-region record views for recursively fact-free fixed records
-  (implemented with nested plan-laid field write-through in both native and
-  interpreter execution, plus x86-64/AArch64 compile rails);
+  (implemented with nested plan-laid field write-through, including indexed
+  mutation of fixed primitive-array fields through their whole `At` extent, in
+  both native and interpreter execution, plus x86-64/AArch64 compile rails);
 - placed-view projection over an authorized external extent; or
 - ordinary scalar materialization into fixed dictated structures; or
 - a materializer that resolves symbolic data/entry identities into an artifact

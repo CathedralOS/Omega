@@ -129,8 +129,10 @@ Owners:
   as one `Repeated` aggregate field and project through one validated `At`
   extent in interpreter, native x64, Windows x64, and Linux AArch64 paths.
   Scalar `Bits`, `IntegerAt`, and active `AccessPlan` decisions remain fenced
-  for that aggregate. Continue with nested aggregates and owned/mutable
-  non-scalar materialization.
+  for that aggregate. Mutable byte-region views now write and reread individual
+  fixed-array elements through the same validated aggregate offset and stride
+  in interpreter, native x64, Windows x64, and Linux AArch64 paths. Continue
+  with nested aggregates and owned non-scalar materialization.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
