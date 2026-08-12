@@ -1,7 +1,7 @@
-// R5 fail-closed boundary: a reachable multi-state cycle that rebinds a state
-// parameter keeps the inferred frame opaque. This concrete path writes only
-// `self.touched` and exits, but the caller may not preserve `self.stable` from
-// one observed execution path.
+// R5 value-rebinding boundary: a reachable multi-state cycle may rebind a
+// by-value scalar parameter because that value cannot redirect caller-visible
+// writes. The exact inferred frame still contains only `self.touched`, so the
+// caller retains its disjoint fact for `self.stable`.
 data Main {
     stable: u32;
     touched: u32;
