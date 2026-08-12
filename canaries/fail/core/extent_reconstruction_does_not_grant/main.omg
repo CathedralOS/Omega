@@ -4,9 +4,7 @@ machine consume_granted(extent: Extent in Granted) -> Extent {
     extent as Extent
 }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine reconstructed_extent_is_unqualified() {
     let reconstructed: Extent = Extent {
         base: 0 as addr,
         length: 4096,
