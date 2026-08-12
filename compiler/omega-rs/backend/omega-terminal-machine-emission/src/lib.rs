@@ -391,7 +391,7 @@ fn emit_unit_body(
             } => boundary_settlements.push(TerminalBoundarySettlementRecord {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
-                provider_execution: *provider_execution,
+                provider_execution: (*provider_execution).into(),
                 realization: *realization,
                 argument_places: argument_places.clone(),
                 claim_settlements: claim_settlements.clone(),
@@ -4069,7 +4069,7 @@ mod tests {
         let boundary = BoundaryMachineId::new(1).expect("boundary");
         let provider_plan = TerminalProviderPlanIdentity::new(7).expect("provider");
         let provider_execution =
-            TerminalProviderExecutionBinding::from_admitted_execution(provider_plan, 8, 9, 10, 11)
+            TerminalProviderExecutionBinding::from_execution_record(provider_plan, 8, 9, 10, 11)
                 .expect("provider execution");
         let realization = TerminalMetadataOnlyPortRealization {
             effect_operation: port_operation,
@@ -4158,7 +4158,7 @@ mod tests {
         assert_eq!(leaf.boundary_settlements[0].boundary, boundary);
         assert_eq!(
             leaf.boundary_settlements[0].provider_execution,
-            provider_execution
+            provider_execution.into()
         );
         assert_eq!(leaf.boundary_settlements[0].realization, realization);
         assert_eq!(leaf.port_effects.len(), 1);
