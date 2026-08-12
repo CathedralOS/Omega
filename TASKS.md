@@ -208,9 +208,11 @@ Remaining:
   canonical installation payloads
   already retain the current fuel schedule, logical units, semantic site, and
   exact byte interval—including zero-byte settlements—so charging must consume
-  those rows rather than rediscovering attribution from instructions. Implement
-  the full AAPCS64 Unit-call ABI before enabling that target. Keep WCET and
-  wall-clock conversion separate.
+  those rows rather than rediscovering attribution from instructions. Inserted
+  native metering is design-blocked on the sponsor counter, exhaustion transfer,
+  and resumable continuation ABI in owner Q6. Implement the full AAPCS64
+  Unit-call ABI before enabling that target. Keep WCET and wall-clock conversion
+  separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. Explicit
   relevance supersedes “recursive means proof-only”; non-layoutable `Type`
@@ -492,6 +494,10 @@ These entries are pointers, not duplicate specifications.
 - **IMPORTED-CRASH-CAPSULES:** blocked on the separately compiled realization
   artifact, import/export identity, and certificate-binding model in
   `wiki/language_guide/appendix_open_questions.md`.
+- **NATIVE-LOGICAL-FUEL-METERING:** blocked on the sponsor-owned counter,
+  exhaustion transfer, and unpaid-site continuation ABI in owner Q6. Attribution
+  provenance and installation binding are implemented and do not settle that
+  runtime contract.
 
 ## Platform-gated verification
 
