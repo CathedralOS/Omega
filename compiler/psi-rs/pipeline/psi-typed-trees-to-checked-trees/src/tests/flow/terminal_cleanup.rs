@@ -205,3 +205,67 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     };
     assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
 }
+
+#[test]
+fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::measure(first: Token, second: Token) -> i32
+        {
+            7i32
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("closed scalar return should compose with structural cleanup");
+    assert_eq!(plan.structural_parameters.len(), 2);
+    assert_eq!(plan.result_type, psi_typed_trees::types::PrimitiveType::I32);
+    assert_eq!(plan.return_statement_ordinal, 0);
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [1, 0]);
+}
+
+#[test]
+fn structural_scalar_return_rejects_computed_or_mixed_parameter_shapes() {
+    for source in [
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token) -> i32 { 3i32 + 4i32 }
+        "#,
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token, scalar: i32) -> i32 { 7i32 }
+        "#,
+    ] {
+        let checked = checked(source);
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str().ends_with("measure"))
+            .expect("measure machine")
+            .symbol;
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .for_machine(machine)
+                .is_none(),
+            "unsupported scalar/structural shape must not publish a partial plan"
+        );
+    }
+}

@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckFacts, CheckedStructuralControlTransferPlan, CheckedStructuralUnitControlMachinePlan,
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralControlTransferPlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
     CheckedStructuralUnitControlTerminatorPlan, CheckedUnitBoundaryMachinePlan,
     CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
@@ -136,6 +138,122 @@ pub(crate) fn build_checked_structural_unit_control_plans(
         structural_types: shapes.types.into_values().collect(),
         machines,
     }
+}
+
+/// Bind one closed scalar return to an exact affine structural entry frontier.
+/// This is deliberately separate from the primitive scalar graph: structural
+/// parameters are custody, not fake scalar arguments.
+pub(crate) fn build_checked_structural_scalar_return_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> CheckedStructuralScalarReturnPlans {
+    let mut shapes = ShapeCollector::new(program);
+    let machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_structural_scalar_return_machine(program, facts, &mut shapes, machine)
+        })
+        .collect::<Vec<_>>();
+    let retained = machines
+        .iter()
+        .flat_map(|machine| {
+            std::iter::once(machine.attachment_type_identity.as_str()).chain(
+                machine
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.type_identity.as_str()),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    shapes.retain_transitive(&retained);
+    CheckedStructuralScalarReturnPlans {
+        structural_types: shapes.types.into_values().collect(),
+        machines,
+    }
+}
+
+fn build_structural_scalar_return_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedStructuralScalarReturnMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    if !program.state_contracts(state).is_empty()
+        || facts.flow.ownership.permissions.iter().any(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.source == PermissionEventSource::StateEntry
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+        })
+    {
+        return None;
+    }
+    let flow = state_flow(facts, machine.symbol, state.symbol)?;
+    if !facts
+        .service_reaches
+        .rows
+        .services(flow.service_reach.direct)
+        .is_empty()
+        || !facts
+            .service_reaches
+            .rows
+            .services(flow.service_reach.transitive)
+            .is_empty()
+    {
+        return None;
+    }
+    let [StatementNode::Expression(_)] = program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    let result_type = program.primitive_type_reference(state.return_type)?;
+    if !matches!(
+        facts.values.scalar_expressions.expression_at(
+            state.symbol,
+            0,
+            CheckedScalarExpressionRole::Return,
+        )?,
+        CheckedScalarExpression::IntegerLiteral { .. }
+    ) {
+        return None;
+    }
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters) =
+        structural_signature(program, shapes, machine, state, &binders)?;
+    if structural_parameters.is_empty()
+        || structural_parameters.len() != program.state_parameters(state).len()
+        || structural_parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.multiplicity != Multiplicity::Affine
+                || !parameter.qualifications.is_empty()
+        })
+    {
+        return None;
+    }
+    Some(CheckedStructuralScalarReturnMachinePlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        attachment_type_identity,
+        structural_parameters,
+        result_type,
+        return_statement_ordinal: 0,
+        trivial_affine_discard_parameter_positions:
+            super::terminal_cleanup::checked_whole_affine_discard_parameters(
+                program,
+                facts,
+                machine.symbol,
+                state,
+            )?
+            .into_iter()
+            .map(|(_, position)| position)
+            .collect(),
+    })
 }
 
 fn build_structural_unit_control_machine(

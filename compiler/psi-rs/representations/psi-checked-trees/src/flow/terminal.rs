@@ -236,6 +236,35 @@ pub struct CheckedStructuralControlTransferPlan {
     pub target_parameter_index: u32,
 }
 
+/// Complete checked input for the first scalar-returning structural cleanup
+/// producer. The runtime value plan remains in `CheckedScalarExpressionPlans`;
+/// this row binds it to the exact affine structural entry frontier.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralScalarReturnPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub machines: Vec<CheckedStructuralScalarReturnMachinePlan>,
+}
+
+impl CheckedStructuralScalarReturnPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedStructuralScalarReturnMachinePlan> {
+        self.machines.iter().find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralScalarReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub result_type: PrimitiveType,
+    pub return_statement_ordinal: u32,
+    pub trivial_affine_discard_parameter_positions: Vec<u32>,
+}
+
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.

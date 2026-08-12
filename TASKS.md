@@ -194,7 +194,13 @@ Remaining:
   parameters, performed only after return-edge fuel succeeds. Scalar return
   carries the same exact cleanup list through canonical encoding, verification,
   interpretation, metering, fixed-fuel derivation, and Omega consumption; its
-  primitive-only source producer currently emits the empty list. Unconditional
+  primitive-only source producer emits the empty list. The first nonempty
+  scalar-return source path now handles an attached one-state machine with only
+  claim-free affine structural parameters and one explicitly landed closed
+  integer literal: it materializes the scalar before exact reverse-declaration
+  cleanup. Computed/Boolean returns, locals, mixed scalar/structural parameter
+  namespaces, contracts, claims, effects, and multi-state control remain
+  fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
   arguments are materialized; each ordered conditional successor carries its
@@ -467,7 +473,9 @@ reach or trust, and private proof improvements do not change public identity.
   conservation/backend-ledger reporting. The first narrow checked-to-terminal
   path now composes exact ordinary-edge cleanup with source-handle-free state
   signatures and whole-parameter transfers for acyclic, single-predecessor Unit
-  machines. It is not yet the complete `EdgeCleanupPlan`, conditional-control
+  machines. A separate one-state scalar-return path materializes one checked
+  closed integer literal before exact cleanup of its complete affine structural
+  frontier. Neither is yet the complete `EdgeCleanupPlan`, conditional-control
   path, repeated-cycle composition, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and

@@ -15,12 +15,12 @@ use psi_checked_trees::{
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitBoundaryMachinePlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
@@ -1541,6 +1541,17 @@ fn lower_selected_machine(
     if let Some(plan) = checked
         .facts
         .flow
+        .terminal_structural_scalar_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural scalar return plan requires an attached signature");
+        }
+        return lower_structural_scalar_return_machine(checked, plan);
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
         .terminal_structural_unit_controls
         .for_machine(selection.machine)
     {
@@ -1575,6 +1586,137 @@ fn lower_selected_machine(
     } else {
         lower_scalar_call_closure(checked, &closure)
     }
+}
+
+fn lower_structural_scalar_return_machine(
+    checked: &CheckedTrees,
+    plan: &CheckedStructuralScalarReturnMachinePlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let (structural_types, type_ids) = lower_structural_type_plans(
+        &checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .structural_types,
+    )?;
+    if plan.structural_parameters.is_empty() {
+        return unsupported("structural scalar return has no structural parameters");
+    }
+    let mut positions = BTreeSet::new();
+    for parameter in &plan.structural_parameters {
+        if parameter.is_self
+            || parameter.multiplicity != Multiplicity::Affine
+            || !parameter.qualifications.is_empty()
+            || !positions.insert(parameter.position)
+        {
+            return unsupported(
+                "structural scalar return signature is not claim-free affine custody",
+            );
+        }
+        lookup_type_id(&type_ids, &parameter.type_identity)?;
+    }
+    let expected_cleanup = plan
+        .structural_parameters
+        .iter()
+        .rev()
+        .map(|parameter| parameter.position)
+        .collect::<Vec<_>>();
+    if plan.trivial_affine_discard_parameter_positions != expected_cleanup {
+        return unsupported("structural scalar return cleanup does not consume its exact frontier");
+    }
+    let result_type = terminal_scalar_type(plan.result_type)?;
+    let expression = lower_checked_scalar_expression_at(
+        checked,
+        plan.state,
+        plan.return_statement_ordinal,
+        CheckedScalarExpressionRole::Return,
+    )?;
+    if !matches!(expression, LoweredDirectExpression::IntegerLiteral { .. }) {
+        return unsupported("structural scalar return is not one closed integer literal");
+    }
+    if expression.scalar_type() != result_type {
+        return unsupported(
+            "structural scalar return value does not match its checked result type",
+        );
+    }
+    validate_direct_parameter_types(&expression, &[])?;
+
+    let mut next_place = 1_u64;
+    let structural_parameters =
+        lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
+    let cleanup = plan
+        .trivial_affine_discard_parameter_positions
+        .iter()
+        .map(|position| {
+            structural_parameters
+                .iter()
+                .find_map(|parameter| (parameter.position == *position).then_some(parameter.place))
+                .ok_or(LoweringError::Unsupported(
+                    "structural scalar return cleanup position is absent from its signature",
+                ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut operations = OperationBuffer::new(0);
+    let mut next_value = 1_u64;
+    let value = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
+    let result = ValueDeclaration {
+        id: value_id(next_value),
+        scalar_type: result_type,
+    };
+    let machine = TerminalMachine {
+        id: machine_id(1),
+        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        parameters: Vec::new(),
+        structural_parameters: structural_parameters.clone(),
+        result: TerminalMachineResult::Scalar(result),
+        structural_places: structural_parameters
+            .iter()
+            .map(|parameter| StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                },
+            })
+            .collect(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: operations.operations,
+            terminator: Terminator::Return {
+                edge: edge_id(1),
+                value,
+                trivial_affine_discards: cleanup,
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    Ok(LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine.id,
+            structural_types,
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![machine],
+        },
+        proof_bundle: ProofBundle::default(),
+        debug_map: None,
+    })
 }
 
 fn lower_structural_unit_control_machine(
@@ -8047,6 +8189,109 @@ mod tests {
                     ],
                 }],
             };
+    }
+
+    fn install_structural_scalar_return_fixture(checked: &mut CheckedTrees) {
+        let root = SymbolHandle::from_arena_index(1);
+        let entry = SymbolHandle::from_arena_index(11);
+        let affine_parameter = |position| psi_checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: "example::Acknowledgement".to_owned(),
+            multiplicity: Multiplicity::Affine,
+            qualifications: Vec::new(),
+        };
+        checked.facts.flow.terminal_structural_scalar_returns =
+            psi_checked_trees::CheckedStructuralScalarReturnPlans {
+                structural_types: checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .structural_types
+                    .clone(),
+                machines: vec![CheckedStructuralScalarReturnMachinePlan {
+                    machine: root,
+                    state: entry,
+                    attachment_type_identity: "example::Root".to_owned(),
+                    structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
+                    result_type: PrimitiveType::I32,
+                    return_statement_ordinal: 0,
+                    trivial_affine_discard_parameter_positions: vec![1, 0],
+                }],
+            };
+        checked.facts.values.scalar_expressions.expressions.push(
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: entry,
+                statement_ordinal: 0,
+                role: CheckedScalarExpressionRole::Return,
+                expression: CheckedScalarExpression::IntegerLiteral {
+                    literal: psi_numerics::literals::IntegerLiteral::from_value(7).with_landing(
+                        psi_numerics::literals::IntegerLanding {
+                            landed_type: psi_numerics::literals::LandedIntegerType::I32,
+                            domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+                        },
+                    ),
+                },
+            },
+        );
+    }
+
+    #[test]
+    fn structural_scalar_return_lowers_value_before_exact_affine_cleanup() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_scalar_return_fixture(&mut checked);
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("closed scalar return and exact affine cleanup should lower");
+        let [machine] = lowered.semantic_module.machines.as_slice() else {
+            panic!("structural scalar return lowers one attached machine")
+        };
+        assert_eq!(machine.structural_parameters.len(), 2);
+        assert!(machine.parameters.is_empty());
+        assert!(matches!(machine.result, TerminalMachineResult::Scalar(_)));
+        let [block] = machine.blocks.as_slice() else {
+            panic!("closed structural scalar return lowers one block")
+        };
+        assert!(matches!(
+            &block.terminator,
+            Terminator::Return {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+        ));
+        assert!(matches!(
+            block.operations.as_slice(),
+            [Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            }]
+        ));
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("structural scalar return should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("canonical structural scalar return bytes should decode"),
+            lowered.semantic_module
+        );
+    }
+
+    #[test]
+    fn structural_scalar_return_fails_closed_on_stale_cleanup() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_scalar_return_fixture(&mut checked);
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines[0]
+            .trivial_affine_discard_parameter_positions = vec![0, 1];
+
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural scalar return cleanup does not consume its exact frontier"
+            ))
+        ));
     }
 
     #[test]

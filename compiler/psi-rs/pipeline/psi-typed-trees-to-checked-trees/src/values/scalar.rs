@@ -35,12 +35,25 @@ pub(crate) fn build_checked_scalar_expression_plans(
         for state in states {
             let mut locals = Vec::new();
             let parameters = program.state_parameters(state);
-            let Some(parameter_types) = parameters
+            let parameter_types = parameters
                 .iter()
                 .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-                .collect::<Option<Vec<_>>>()
-            else {
-                continue;
+                .collect::<Option<Vec<_>>>();
+            // A closed scalar expression is still a valid checked value plan
+            // when the state's complete parameter namespace is structural.
+            // Mixed scalar/structural namespaces need an explicit position map
+            // and remain fenced rather than being renumbered here.
+            let (scalar_parameters, parameter_types) = match parameter_types {
+                Some(parameter_types) => (parameters, parameter_types),
+                None if parameters.iter().all(|parameter| {
+                    program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+                }) =>
+                {
+                    (&[][..], Vec::new())
+                }
+                None => continue,
             };
             let Some(result_type) = program.primitive_type_reference(state.return_type) else {
                 continue;
@@ -72,7 +85,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 statement_ordinal,
                                 binding_ordinal,
                                 local.initial_value,
-                                parameters,
+                                scalar_parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
@@ -82,7 +95,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 program,
                                 operators,
                                 local.initial_value,
-                                parameters,
+                                scalar_parameters,
                                 &parameter_types,
                                 &locals,
                                 primitive_type,
@@ -111,7 +124,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             program,
                             operators,
                             *expression,
-                            parameters,
+                            scalar_parameters,
                             &parameter_types,
                             &locals,
                             result_type,
@@ -131,7 +144,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 program,
                                 operators,
                                 guard,
-                                parameters,
+                                scalar_parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
