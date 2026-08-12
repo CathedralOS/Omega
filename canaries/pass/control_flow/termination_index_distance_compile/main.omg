@@ -1,7 +1,11 @@
 data Main {
 }
 
-machine Main::main(&mut self) -> u64 {
+machine Main::main(&mut self) {
+    _ = self.run();
+}
+
+machine Main::run(&mut self) -> u64 {
     transition {
         _ -> self.walk(4, 0)
     }

@@ -1370,7 +1370,7 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
             .expect("copy place-guard canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write place-guard target");
 
