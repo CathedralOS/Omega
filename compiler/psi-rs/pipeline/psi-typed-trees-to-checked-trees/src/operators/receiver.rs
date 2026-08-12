@@ -69,6 +69,10 @@ fn expression_type_reference_in_state(
         )
         .and_then(|collection| indexed_element_type_reference(program, collection)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Call(call) => {
+            psi_typed_trees::operator::resolve_named_expression_call(program, call)
+                .map(|operator| operator.return_type)
+        }
         ExpressionNode::Binary(binary) => {
             expression_type_reference_in_state(program, state_symbol, statement_index, binary.left)
                 .or_else(|| {
@@ -83,7 +87,6 @@ fn expression_type_reference_in_state(
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
