@@ -1695,11 +1695,13 @@ fn stable_alias_place_origin(
     })
 }
 
-/// Recover one deliberately structural value-call relation. The helper must be
-/// free, acyclic at the result surface, return `&mut`, and have one terminal
-/// result expression that is a direct place rooted in one mutable-reference
-/// parameter. This is body evidence, not lifetime elision: a computed result,
-/// nested call, named-state route, or alternate result fails closed.
+/// Recover one deliberately structural value-call relation. The helper may be
+/// free or attached, but must be acyclic at the result surface, return `&mut`,
+/// and have one terminal result expression that is a direct place rooted in one
+/// explicit mutable-reference parameter. An attached receiver is deliberately
+/// not a result origin in this rung. This is body evidence, not lifetime
+/// elision: a computed result, nested call, named-state route, or alternate
+/// result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1708,12 +1710,13 @@ fn transparent_call_result_origin(
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<FramePlaceOrigin> {
-    if call.receiver.is_valid() {
-        return None;
-    }
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
-        .or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))?;
-    if callee_machine.attached_data.is_some()
+        .or_else(|| {
+            (!call.receiver.is_valid())
+                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
+                .flatten()
+        })?;
+    if (call.receiver.is_valid() && callee_machine.attached_data.is_none())
         || !matches!(
             program
                 .type_reference_table

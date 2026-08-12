@@ -2745,6 +2745,18 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         &mut cell.value
     }
 
+    machine Main::return_attached_alias(&self, value: &mut u64) -> &mut u64 {
+        value
+    }
+
+    machine Main::project_attached_value(&self, cell: &mut Cell) -> &mut u64 {
+        &mut cell.value
+    }
+
+    machine Main::return_attached_receiver(&mut self) -> &mut u64 {
+        &mut self.value
+    }
+
     machine write_then_return(value: &mut u64) -> &mut u64 {
         value = 4;
         value
@@ -2796,6 +2808,21 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::exact_projected_call_result_alias(&mut self) {
         let alias: &mut u64 = project_value(&mut self.cell);
+        alias = 3;
+    }
+
+    machine Main::attached_call_produced_alias(&mut self) {
+        let alias: &mut u64 = self.return_attached_alias(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::attached_projected_call_result_alias(&mut self) {
+        let alias: &mut u64 = self.project_attached_value(&mut self.cell);
+        alias = 3;
+    }
+
+    machine Main::attached_receiver_result_alias(&mut self) {
+        let alias: &mut u64 = self.return_attached_receiver();
         alias = 3;
     }
 
@@ -2924,6 +2951,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ),
         ("Main::projected_call_result_alias", "self.cell_items"),
         ("Main::exact_projected_call_result_alias", "self.cell.value"),
+        ("Main::attached_call_produced_alias", "self.value"),
+        (
+            "Main::attached_projected_call_result_alias",
+            "self.cell.value",
+        ),
         ("Main::named_alias_cycle", "self.value"),
         ("Main::named_indexed_alias_cycle", "self.cells"),
         ("Main::named_alias_multistate_cycle", "self.value"),
@@ -2959,6 +2991,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::call_escaped_indexed_alias",
         "Main::nontrivial_call_result_alias",
         "Main::computed_local_collection_origin",
+        "Main::attached_receiver_result_alias",
         "duplicate_parameter_alias_cycle",
         "Main::named_alias_cross_state_local",
     ] {
