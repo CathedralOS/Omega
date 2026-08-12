@@ -2196,8 +2196,8 @@ fn statement_call_preserves_transparent_result(
         return false;
     }
     let arguments = program.statement_table.expression_handles(call.arguments);
-    // Sibling arguments are independent: each may contain one direct exact
-    // value call, while the helper below refuses any further call depth.
+    // Sibling arguments are independent. Each receives the same deliberately
+    // bounded call-depth budget; exhausting it fails closed.
     if arguments.iter().any(|argument| {
         !statement_call_argument_preserves_transparent_result(
             program,
@@ -2208,6 +2208,7 @@ fn statement_call_preserves_transparent_result(
             active_states,
             parameters,
             aliases,
+            2,
         )
     }) {
         return false;
@@ -2244,9 +2245,9 @@ fn statement_call_preserves_transparent_result(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Admit one effectful layer in one statement-call argument. Applying this
-/// independently to every sibling permits bounded width without permitting
-/// unbounded expression depth.
+/// Admit a bounded exact-call tree in one statement-call argument. Applying
+/// this independently to every sibling permits bounded width; the explicit
+/// budget prevents unbounded expression depth from becoming relational proof.
 fn statement_call_argument_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -2256,6 +2257,7 @@ fn statement_call_argument_preserves_transparent_result(
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_call_depth: usize,
 ) -> bool {
     if expression_reborrows_transparent_alias_binding(program, expression, parameters, aliases) {
         return false;
@@ -2263,16 +2265,14 @@ fn statement_call_argument_preserves_transparent_result(
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
     }
+    if remaining_call_depth == 0 {
+        return false;
+    }
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    if (call.receiver.is_valid()
-        && expression_is_effectful_for_transparent_result(program, call.receiver))
-        || program
-            .expression_table
-            .expression_handles(call.arguments)
-            .iter()
-            .any(|argument| expression_is_effectful_for_transparent_result(program, *argument))
+    if call.receiver.is_valid()
+        && expression_is_effectful_for_transparent_result(program, call.receiver)
     {
         return false;
     }
@@ -2286,6 +2286,21 @@ fn statement_call_argument_preserves_transparent_result(
         Vec::new()
     };
     let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.iter().any(|argument| {
+        !statement_call_argument_preserves_transparent_result(
+            program,
+            current_machine,
+            *argument,
+            machine_symbols,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+            remaining_call_depth - 1,
+        )
+    }) {
+        return false;
+    }
     known_call_written_paths_for_parts(
         program,
         call.target_symbol,

@@ -3908,6 +3908,11 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         value
     }
 
+    machine return_after_too_deep_call_argument(value: &mut u64) -> &mut u64 {
+        write_value(return_value(return_value(return_value(value))));
+        value
+    }
+
     machine return_after_sibling_call_arguments<'value, 'first, 'second>(
         value: &'value mut u64,
         first: &'first mut [u64; 2],
@@ -3985,6 +3990,11 @@ fn mutable_slice_views_preserve_array_storage_origins() {
 
     machine Main::deep_call_argument_statement_call(&mut self) {
         let alias: &mut u64 = return_after_deep_call_argument(&mut self.value);
+        alias = 1;
+    }
+
+    machine Main::too_deep_call_argument_statement_call(&mut self) {
+        let alias: &mut u64 = return_after_too_deep_call_argument(&mut self.value);
         alias = 1;
     }
 
@@ -4163,14 +4173,34 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         .machine_states(deep_call_argument_statement_call)
         .first()
         .expect("deep call-argument statement caller entry state");
-    assert!(
-        !resolver
+    assert_eq!(
+        resolver
             .inferred_state_write_frame(
                 deep_call_argument_statement_call,
                 deep_call_argument_statement_call_entry,
             )
+            .complete_paths(),
+        Some(["self.value".to_owned()].as_slice()),
+        "a two-level exact value-call argument tree must preserve the returned origin"
+    );
+
+    let too_deep_call_argument_statement_call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::too_deep_call_argument_statement_call")
+        .expect("too-deep call-argument statement caller");
+    let too_deep_call_argument_statement_call_entry = typed
+        .machine_states(too_deep_call_argument_statement_call)
+        .first()
+        .expect("too-deep call-argument statement caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(
+                too_deep_call_argument_statement_call,
+                too_deep_call_argument_statement_call_entry,
+            )
             .is_complete(),
-        "a deeper computed value-call argument remains outside this exact rung"
+        "a value-call argument tree deeper than two calls must remain opaque"
     );
 
     let sibling_call_arguments_statement_call = typed

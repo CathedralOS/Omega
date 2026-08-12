@@ -348,9 +348,10 @@ fences. One direct Unit statement call with a complete frame may likewise
 precede the terminal place when its arguments do not expose a mutable-reference
 binding for rebinding; writes through references passed by value change contents
 without redirecting their origins. Sibling direct value-call arguments are
-independently admitted when each one's receiver and arguments are effect-free
-and its frame is complete. Explicitly discarded call results, explicit binding
-reborrows, deeper computed arguments, and any opaque sibling remain fences.
+independently admitted when their expressions are non-rebinding and every call
+frame is complete, including nested direct calls to a maximum call-tree depth of
+two. Explicitly discarded call results, explicit binding reborrows, deeper
+computed arguments, and any opaque node remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
