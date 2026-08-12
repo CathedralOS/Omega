@@ -7,12 +7,12 @@ use psi_core::{
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
-    ContentEntryClaim, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-    EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, VocabularyMarker,
+    ContentEntryClaim, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
+    CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
@@ -303,6 +303,54 @@ fn unit_call_content_custody_must_name_a_structural_argument() {
         ModuleError::UnitCallClaimHasNoStructuralArgument {
             operation: operation_id(1),
             claim: claim_id(1),
+        }
+    );
+}
+
+#[test]
+fn unit_call_contract_content_must_name_a_structural_argument() {
+    let mut module = hard_root_module();
+    module.machines[1].structural_parameters.clear();
+    module.machines[1].entry_claims.clear();
+    let subject = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(1).expect("content domain"),
+            projection_fingerprint: 0xfeed,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: place_id(2),
+            segments: Vec::new(),
+        },
+    };
+    module.machines[1].contract.ensures = vec![ContractClause {
+        obligation: obligation_id(1),
+        proposition: Proposition::ContentConservation(psi_core::ContentConservation::new(
+            ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Acknowledgement".to_owned(),
+            },
+            subject.clone(),
+            subject,
+        )),
+    }];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.clear();
+    claim_transfers.clear();
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::UnitCallContractPlaceHasNoArgument {
+            operation: operation_id(1),
+            callee: machine_id(2),
+            place: place_id(2),
         }
     );
 }
