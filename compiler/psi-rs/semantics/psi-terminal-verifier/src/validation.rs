@@ -1560,6 +1560,26 @@ fn validate_unit_call_claim_transfers(
     transfers: &[ClaimTransfer],
     operation: OperationId,
 ) -> Result<(), ModuleError> {
+    for (argument_index, (argument, parameter)) in arguments
+        .iter()
+        .zip(&callee.structural_parameters)
+        .enumerate()
+    {
+        let caller_has_claim = caller
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == argument.place);
+        let callee_has_claim = callee
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == parameter.place);
+        if caller_has_claim != callee_has_claim {
+            return Err(ModuleError::UnitCallClaimPresenceMismatch {
+                operation,
+                argument_index: argument_index as u32,
+            });
+        }
+    }
     if transfers.len() != callee.entry_claims.len() {
         return Err(ModuleError::UnitCallClaimTransferCountMismatch {
             operation,
@@ -1726,7 +1746,13 @@ fn validate_boundary_settlements(
         .iter()
         .enumerate()
         .filter_map(|(index, parameter)| {
-            (parameter.multiplicity == StructuralMultiplicity::Linear).then_some(index as u32)
+            let argument = &arguments[index];
+            (parameter.multiplicity == StructuralMultiplicity::Linear
+                || caller
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place))
+            .then_some(index as u32)
         })
         .collect::<BTreeSet<_>>();
     let mut actual = BTreeSet::new();
@@ -3758,6 +3784,10 @@ pub enum ModuleError {
         operation: OperationId,
         expected: usize,
         actual: usize,
+    },
+    UnitCallClaimPresenceMismatch {
+        operation: OperationId,
+        argument_index: u32,
     },
     DuplicateUnitCallClaimTransfer(OperationId),
     MissingUnitCallClaimTransfer {

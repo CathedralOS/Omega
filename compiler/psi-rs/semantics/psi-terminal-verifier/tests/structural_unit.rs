@@ -93,6 +93,52 @@ fn unit_call_checks_structural_type_qualification_and_transfer_shape() {
 }
 
 #[test]
+fn structural_calls_preserve_optional_affine_claim_custody() {
+    let mut dropped_at_call = hard_root_module();
+    for machine in &mut dropped_at_call.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    }
+    dropped_at_call.machines[1].entry_claims.clear();
+    unit_call_mut(&mut dropped_at_call).clear();
+    assert_eq!(
+        validate_module(&dropped_at_call).unwrap_err(),
+        ModuleError::UnitCallClaimPresenceMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut minted_at_call = hard_root_module();
+    for machine in &mut minted_at_call.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    }
+    minted_at_call.machines[0].entry_claims.clear();
+    unit_call_mut(&mut minted_at_call).clear();
+    assert_eq!(
+        validate_module(&minted_at_call).unwrap_err(),
+        ModuleError::UnitCallClaimPresenceMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut settled_at_boundary = hard_root_module();
+    for machine in &mut settled_at_boundary.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    }
+    settled_at_boundary.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    validate_module(&settled_at_boundary)
+        .expect("a proof-visible affine claim is settled with its consumed owned place");
+
+    boundary_call_mut(&mut settled_at_boundary).0.clear();
+    assert_eq!(
+        validate_module(&settled_at_boundary).unwrap_err(),
+        ModuleError::BoundaryClaimSettlementMismatch(operation_id(3))
+    );
+}
+
+#[test]
 fn boundary_call_checks_qualification_settlement_and_obligation_absence() {
     let mut missing_qualification = hard_root_module();
     missing_qualification.machines[1].structural_parameters[0]
