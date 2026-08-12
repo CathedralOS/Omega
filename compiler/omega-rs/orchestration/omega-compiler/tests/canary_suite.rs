@@ -6180,7 +6180,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
             .expect("copy integer-result import source");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write integer-result import target manifest");
         compile(CompileOptions {
@@ -6223,7 +6223,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
             .expect("copy storage-result import source");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write storage-result import target manifest");
         compile(CompileOptions {
@@ -6328,7 +6328,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             .expect("copy dereferenced-result import source");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write dereferenced-result import target manifest");
         compile(CompileOptions {
@@ -6377,7 +6377,7 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
             .expect("copy authored scalar import source");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write authored scalar import target manifest");
         compile(CompileOptions {
@@ -30951,7 +30951,7 @@ fn runtime_exit_code_exit_canary_runs() {
             .expect("copy runtime exit-code canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write runtime exit-code cross-target manifest");
         compile(CompileOptions {
@@ -35272,7 +35272,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             .expect("copy fixed-array canary");
         fs::write(
             src_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write fixed-array target manifest");
         let compile_result = compile(CompileOptions {
@@ -45815,7 +45815,7 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
             .expect("copy nested wire-policy canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write wire-policy cross-target manifest");
         compile(CompileOptions {

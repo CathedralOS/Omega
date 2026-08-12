@@ -24,21 +24,27 @@ data CompactBinary {
     tag: u64;
 }
 machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
-    self.index = 0;
-    transition { _ -> fill(schema) }
+    self.evaluate(schema, 96)
+}
 
-    state fill(&mut self, schema: Schema) {
-        transition self.index < 32 && self.index < schema.field_count {
-            true -> put_wrong(schema)
+machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64 [1..=96]) -> Plan
+terminates by fuel;
+{
+    self.index = 0;
+    transition { _ -> fill(schema, fuel) }
+
+    state fill(&mut self, schema: Schema, fuel: u64 [1..=96]) {
+        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
+            true -> put_wrong(schema, fuel - 1)
             _ -> done(schema)
         }
     }
-    state put_wrong(&mut self, schema: Schema) {
+    state put_wrong(&mut self, schema: Schema, fuel: u64 [1..=96]) {
         self.tag = schema.fields[self.index].number as u64 in Wrapping;
         // WRONG on purpose: scalars must be Varint.
         self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
         self.index = self.index + 1;
-        transition { _ -> fill(schema) }
+        transition fuel > 1 { true -> fill(schema, fuel - 1) _ -> done(schema) }
     }
     state done(&mut self, schema: Schema) -> Plan {
         Plan {

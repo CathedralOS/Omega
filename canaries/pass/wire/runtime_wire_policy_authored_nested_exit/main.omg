@@ -123,33 +123,26 @@ data CompactBinary {
     tag: u64;
 }
 machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
-    self.index = 0;
-    transition { _ -> fill(schema) }
+    self.evaluate(schema, 128)
+}
 
-    state fill(&mut self, schema: Schema) {
-        transition self.index < 32 && self.index < schema.field_count {
-            true -> classify(schema)
+machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+terminates by fuel;
+{
+    self.index = 0;
+    transition { _ -> fill(schema, fuel) }
+
+    state fill(&mut self, schema: Schema, fuel: u64 [1..=128]) {
+        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
+            true -> place(schema, fuel - 1)
             _ -> done(schema)
         }
     }
-    state classify(&mut self, schema: Schema) {
+    state place(&mut self, schema: Schema, fuel: u64 [1..=128]) {
         self.tag = (schema.fields[self.index].number as u64 in Wrapping) as u64;
-        transition schema.fields[self.index].kind {
-            FieldKind::Scalar -> put_varint(schema)
-            FieldKind::Text -> put_blob(schema)
-            FieldKind::Nested -> put_blob(schema)
-            FieldKind::Repeated -> put_blob(schema)
-        }
-    }
-    state put_varint(&mut self, schema: Schema) {
-        self.plans[self.index] = FieldPlan::Varint { tag: self.tag };
+        self.plans[self.index] = field_plan(schema.fields[self.index].kind, self.tag);
         self.index = self.index + 1;
-        transition { _ -> fill(schema) }
-    }
-    state put_blob(&mut self, schema: Schema) {
-        self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
-        self.index = self.index + 1;
-        transition { _ -> fill(schema) }
+        transition fuel > 1 { true -> fill(schema, fuel - 1) _ -> done(schema) }
     }
     state done(&mut self, schema: Schema) -> Plan {
         Plan {
@@ -160,4 +153,15 @@ machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
             align: 1,
         }
     }
+}
+
+machine field_plan(kind: FieldKind, tag: u64) -> FieldPlan {
+    transition kind {
+        FieldKind::Scalar -> varint(tag)
+        FieldKind::Text -> blob(tag)
+        FieldKind::Nested -> blob(tag)
+        FieldKind::Repeated -> blob(tag)
+    }
+    state varint(tag: u64) -> FieldPlan { FieldPlan::Varint { tag: tag } }
+    state blob(tag: u64) -> FieldPlan { FieldPlan::LengthPrefixed { tag: tag } }
 }

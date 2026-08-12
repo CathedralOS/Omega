@@ -170,7 +170,7 @@ pub(crate) fn find_platform_call_lowering_by_target<'abi>(
         host_abi,
         platform_name,
         target,
-        overloaded_requirement_identity(program, target_symbol).as_deref(),
+        requirement_identity(program, target_symbol).as_deref(),
     )
 }
 
@@ -184,30 +184,21 @@ pub(crate) fn find_platform_call_lowering<'abi>(
         host_abi,
         platform_name,
         &call.target,
-        overloaded_requirement_identity(program, call.target_symbol).as_deref(),
+        requirement_identity(program, call.target_symbol).as_deref(),
     )
 }
 
-fn overloaded_requirement_identity(
-    program: &CheckedTrees,
-    target_symbol: SymbolHandle,
-) -> Option<String> {
+fn requirement_identity(program: &CheckedTrees, target_symbol: SymbolHandle) -> Option<String> {
     program.traits().iter().find_map(|definition| {
         let signature = program
             .trait_machine_signatures(definition)
             .iter()
             .find(|signature| signature.symbol == target_symbol)?;
-        (program
-            .trait_machine_signatures(definition)
-            .iter()
-            .filter(|candidate| candidate.name == signature.name)
-            .count()
-            > 1)
-        .then(|| {
+        Some(
             program
                 .normalized_trait_requirement_overload_identity(definition, signature)
-                .identity()
-        })
+                .identity(),
+        )
     })
 }
 
