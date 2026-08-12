@@ -313,17 +313,19 @@ otherwise ineligible evidence constructors still require an explicit term;
 omission never invokes a default or general inhabitance search. Native erasure
 admits non-generic transparent records, sums, mixed common-field/case shapes,
 those closed generic-record instances, and the exact closed generic-sum cohort.
-Closed, non-generic plain records may
-also have attached machines when every attachment is an ordinary checked body
-with no unresolved machine parameters. Their machine storage and runtime
-contained-machine topology use the erased-stripped fields, while semantic
-ownership and proof obligations retain every field. Erased payloads do not
+Closed plain records may also have attached machines when every attachment is
+an ordinary checked body with no unresolved machine parameters. This includes
+a closed synthesized instance of a generic record whose bodyful attached
+machine is cloned and fully substituted for that instance; the generic template
+itself has no runtime storage. Their machine storage and runtime contained-machine
+topology use the erased-stripped fields, while semantic ownership and proof
+obligations retain every field. Erased payloads do not
 change tags or case numbering; they remain visible to semantic exhaustiveness
 and obligation checking. The compiler fails closed for unresolved generic uses,
 ambiguous generic record/sum construction contexts, non-direct or dynamically
 selected receivers, placed views, wire/codec and ABI faces, and attached
-machines over generic or case-bearing data, non-checked supply modes, or
-unresolved machine parameters.
+machines over unresolved generic uses or case-bearing data, non-checked supply
+modes, or unresolved machine parameters.
 
 Runtime layout, ABI classification, codec shape, and placement offsets use the
 erased-stripped form. Nominal type identity and semantic fingerprints retain

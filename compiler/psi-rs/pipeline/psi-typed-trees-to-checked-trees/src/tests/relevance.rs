@@ -291,13 +291,25 @@ fn erased_linear_field_on_attached_record_retains_its_obligation() {
 }
 
 #[test]
-fn generic_erased_record_with_attached_machine_remains_fenced() {
-    rejected(
+fn unused_generic_erased_record_with_attached_machine_is_schema_only() {
+    lower_typed_trees(typed(
         r#"
         data Box<T> { value: T; proof [erased]: i32; }
         machine Box::read<T>(&self) -> i32 { 0 }
         "#,
-        "data with attached machines",
+    ))
+    .expect("an unused generic schema and method template have no runtime storage");
+}
+
+#[test]
+fn unresolved_generic_erased_record_with_attached_machine_remains_fenced_at_use() {
+    rejected(
+        r#"
+        data Box<T> { value: T; proof [erased]: i32; }
+        machine Box::read<T>(&self) -> i32 { 0 }
+        data Holder { box: Box<i32>; }
+        "#,
+        "uses unresolved erased generic data `Box`",
     );
 }
 

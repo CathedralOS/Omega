@@ -4909,6 +4909,24 @@ mod tests {
     }
 
     #[test]
+    fn closed_generic_erased_records_use_concrete_attached_machine_instances() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine Box::stored<T>(&self) -> T { self.value }
+
+            data Main { integer: Box<i32>; boolean: Box<bool>; }
+            machine Main::run(&self) -> i32 {
+                let flag: bool = self.boolean.stored();
+                self.integer.stored()
+            }
+            "#,
+        )
+        .expect("closed generic records should clone checked attached methods over erased layout");
+    }
+
+    #[test]
     fn parameter_distinct_direct_self_overloads_remain_fail_closed() {
         rejected(
             r#"

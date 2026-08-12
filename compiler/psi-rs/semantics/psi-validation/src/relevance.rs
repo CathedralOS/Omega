@@ -190,7 +190,15 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             .machines()
             .iter()
             .any(|machine| machine.attached_data.as_ref() == Some(&definition.name));
-        if has_attached_machines && !supports_erased_attached_machine_record(program, definition) {
+        // Generic declarations are semantic templates, not runtime storage.
+        // Their concrete synthesized uses are validated below as ordinary
+        // closed definitions; unresolved uses are rejected by the dedicated
+        // use-site pass. This keeps an unused schema legal without licensing a
+        // generic runtime layout or method body.
+        if has_attached_machines
+            && program.data_type_parameters(definition).is_empty()
+            && !supports_erased_attached_machine_record(program, definition)
+        {
             diagnostics.push(unsupported(
                 definition,
                 &field_names,
@@ -205,9 +213,10 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
 /// The first attached-machine relevance slice is deliberately narrower than
 /// ordinary erased data.  A plain, closed record can share the same
 /// erased-stripped field sequence between its value layout and each checked
-/// attached machine.  Case-bearing self storage, generic templates, and
-/// admitted/boundary providers need additional representation or evidence
-/// rules and therefore remain behind the existing fail-closed fence.
+/// attached machine. Generic templates have no runtime storage and are checked
+/// at each synthesized closed use. Case-bearing self storage and admitted or
+/// boundary providers need additional representation or evidence rules and
+/// therefore remain behind the existing fail-closed fence.
 fn supports_erased_attached_machine_record(
     program: &TypedTrees,
     definition: &DataDefinition,
