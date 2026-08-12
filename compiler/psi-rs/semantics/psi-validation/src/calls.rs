@@ -1564,13 +1564,12 @@ struct FramePlaceOrigin {
 /// an already-known alias composes an exact member suffix onto that alias's
 /// origin. An indexed reborrow is represented by its whole collection; once
 /// coarse, later member suffixes may never narrow that collection again.
-/// Primitive and recursively primitive fixed-array locals are also stable
-/// origins, but remain local-only and therefore disappear from the published
-/// caller frame. A value call is relational only when a free helper's sole
-/// terminal result directly forwards one mutable-reference parameter; its
-/// caller argument then supplies the origin. Direct parameter-relative member
-/// and indexed projections compose the same exact/coarse path algebra.
-/// Computed results and call-produced local collections stay opaque.
+/// Caller-isolated locals are also stable origins, but remain local-only and
+/// therefore disappear from the published caller frame. A structurally
+/// transparent value call preserves such an origin just as it preserves a
+/// caller-visible parameter origin. Direct parameter-relative member and
+/// indexed projections compose the same exact/coarse path algebra. Other
+/// computed results stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
@@ -1625,6 +1624,7 @@ fn stable_alias_expression_origin(
             isolated_local_roots,
             aliases,
             symbols,
+            allow_isolated_local,
         ),
         ExpressionNode::Indexed(indexed) => {
             let mut collection = stable_alias_expression_origin(
@@ -1728,6 +1728,7 @@ fn transparent_call_result_origin(
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
+    allow_isolated_local: bool,
 ) -> Option<FramePlaceOrigin> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
         .or_else(|| {
@@ -1757,7 +1758,7 @@ fn transparent_call_result_origin(
             isolated_local_roots,
             aliases,
             symbols,
-            false,
+            allow_isolated_local,
         )?
     } else {
         let (argument_index, _) = parameters
@@ -1776,7 +1777,7 @@ fn transparent_call_result_origin(
             isolated_local_roots,
             aliases,
             symbols,
-            false,
+            allow_isolated_local,
         )?
     };
     Some(match argument_origin.precision {

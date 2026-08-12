@@ -2767,6 +2767,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         cells
     }
 
+    machine write_then_return_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
+        cells[0] = 4;
+        cells
+    }
+
     machine return_cell_items(cells: &mut [Cell; 2]) -> &mut [Cell; 2] {
         cells
     }
@@ -2938,6 +2943,13 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         alias = 3;
     }
 
+    machine Main::effectful_computed_local_collection_origin(&mut self) {
+        let local: [u64; 2] = [0, 1];
+        let values: &mut [u64; 2] = write_then_return_cells(&mut local);
+        let alias: &mut u64 = &mut values[0];
+        alias = 3;
+    }
+
     machine Main::named_alias_cycle(&mut self) {
         transition { _ -> cycle() }
         state cycle(&mut self) {
@@ -3033,6 +3045,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::constrained_local_origin",
         "Main::indexed_constrained_local_origin",
         "Main::indexed_local_member_after_index",
+        "Main::computed_local_collection_origin",
     ] {
         let machine = typed
             .machines()
@@ -3121,7 +3134,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::recursive_alias_helper_result",
         "Main::nontrivial_call_result_alias",
         "Main::nontrivial_call_rebound_alias",
-        "Main::computed_local_collection_origin",
+        "Main::effectful_computed_local_collection_origin",
         "Main::nontrivial_attached_receiver_result_alias",
         "duplicate_parameter_alias_cycle",
         "Main::named_alias_cross_state_local",

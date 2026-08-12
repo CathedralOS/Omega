@@ -147,7 +147,8 @@ Current ownership is:
   absorbing, including across a direct member-after-index origin. An
   alias into a primitive scalar, concrete primitive-only record/sum, or nested
   fixed-array local is caller-isolated and contributes no published write;
-  recursive, generic, computed, or reference-bearing local roots remain opaque.
+  structurally transparent helpers preserve that local origin. Recursive,
+  generic, reference-bearing, or other computed local roots remain opaque.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call

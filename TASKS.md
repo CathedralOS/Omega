@@ -309,7 +309,9 @@ customer-shaped compiler concept is introduced.
   Effectful/computed or recursive helper initializers and other nontrivial
   results remain opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
-  recursive, generic, reference-bearing, or computed local roots remain fences.
+  that isolation survives structurally transparent helper forwarding.
+  Recursive, generic, reference-bearing, or other computed local roots remain
+  fences.
   Escaped aliases, unrepresentable rebinding, and non-bijective cyclic transport
   also remain opaque. Signature lifetime elision alone establishes no relation.
   Continue with other representable candidates; do not restore authored
