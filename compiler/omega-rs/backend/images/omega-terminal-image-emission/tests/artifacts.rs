@@ -11,9 +11,10 @@ use omega_terminal_image_emission::{
     validate_terminal_installation_record,
 };
 use omega_terminal_machine_code::{
-    TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
-    TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
+    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+    TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -112,33 +113,27 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
 #[test]
 fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     let mut plan = internal_call_plan(NativeTarget::linux_x64());
-    plan.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 16,
-        stack_alignment: 16,
-    });
-    plan.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
-        active_frame_bytes: 0,
-        transient_bytes: 16,
-    });
+    account_x86_unit_call(&mut plan);
     let full_width_operation = operation_id(u64::from(u32::MAX) + 1);
     plan.functions[1].provenance.operations[0] = full_width_operation;
     plan.functions[1].internal_calls[0].psi_operation = full_width_operation;
     let artifact = build_terminal_object_artifact(&plan).expect("terminal object artifact");
+    assert_eq!(artifact.functions()[1].unit_stack.unwrap().frame_bytes, 0);
     assert_eq!(
-        artifact.functions()[1].unit_stack,
-        plan.functions[1].unit_stack
+        artifact.functions()[1].unit_stack.unwrap().local_peak_bytes,
+        16
     );
     assert_eq!(artifact.functions()[1].unit_call_stacks.len(), 1);
     assert_eq!(
-        artifact.functions()[1].unit_call_stacks[0].stack,
-        plan.functions[1].internal_calls[0].unit_stack.unwrap()
+        artifact.functions()[1].unit_call_stacks[0].caller_live_bytes,
+        16
     );
 
     assert_eq!(artifact.relocations().record_count(), 1);
     let (_, relocation) = artifact.relocations().records().next().expect("relocation");
     assert_eq!(relocation.kind, RelocationKind::X86_64Relative32);
     assert_eq!(relocation.section, SectionKind::Text);
-    assert_eq!(relocation.offset, 7);
+    assert_eq!(relocation.offset, 11);
     assert_eq!(relocation.byte_width, 4);
     assert_eq!(relocation.symbol_handle, artifact.functions()[0].symbol);
     assert_eq!(
@@ -157,7 +152,7 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     assert_eq!(container.output.relocations, 1);
     let image = emit_terminal_executable_image(&artifact, 3).expect("Linux x86-64 image");
     let output = image.output();
-    assert_eq!(&output.final_text_bytes[7..11], &[0xf5, 0xff, 0xff, 0xff]);
+    assert_eq!(&output.final_text_bytes[11..15], &[0xf1, 0xff, 0xff, 0xff]);
     assert_eq!(output.final_image_relocations, 1);
     let evidence = output
         .compiler_text_validation
@@ -265,7 +260,8 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
 fn object_boundary_rejects_drifted_unit_stack_evidence() {
     let mut missing_call = internal_call_plan(NativeTarget::linux_x64());
     missing_call.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 16,
+        frame: None,
+        aarch64_return_link: None,
         stack_alignment: 16,
     });
     assert_eq!(
@@ -276,58 +272,112 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         })
     );
 
-    let mut understated = internal_call_plan(NativeTarget::linux_x64());
-    understated.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 8,
-        stack_alignment: 16,
-    });
-    understated.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
-        active_frame_bytes: 0,
-        transient_bytes: 16,
-    });
+    let mut removed_allocation = internal_call_plan(NativeTarget::linux_x64());
+    account_x86_unit_call(&mut removed_allocation);
+    removed_allocation.functions[1].bytes.drain(0..4);
+    removed_allocation.functions[1].internal_calls[0].offset -= 4;
     assert_eq!(
-        build_terminal_object_artifact(&understated),
-        Err(TerminalObjectError::UnitCallStackExceedsLocalPeak {
-            caller: machine_id(2),
-            operation: operation_id(2),
-            caller_live_bytes: 16,
-            local_peak_bytes: 8,
+        build_terminal_object_artifact(&removed_allocation),
+        Err(TerminalObjectError::InvalidUnitStackEncoding {
+            machine: machine_id(2),
+            operation: Some(operation_id(2)),
+            offset: 0,
         })
     );
 
-    let mut missing_link = internal_call_plan(NativeTarget::linux_x64());
-    missing_link.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 0,
+    let mut missing_adjustment = internal_call_plan(NativeTarget::linux_x64());
+    missing_adjustment.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        frame: None,
+        aarch64_return_link: None,
         stack_alignment: 16,
     });
-    missing_link.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
-        active_frame_bytes: 0,
-        transient_bytes: 0,
-    });
+    missing_adjustment.functions[1].internal_calls[0].unit_stack =
+        Some(TerminalUnitCallStackEvidence { outbound: None });
     assert_eq!(
-        build_terminal_object_artifact(&missing_link),
-        Err(TerminalObjectError::MissingX86UnitCallLink {
+        build_terminal_object_artifact(&missing_adjustment),
+        Err(TerminalObjectError::MissingX86UnitCallStackAdjustment {
             caller: machine_id(2),
             operation: operation_id(2),
         })
     );
+
+    let mut unclaimed_adjustment = internal_call_plan(NativeTarget::linux_x64());
+    account_x86_unit_call(&mut unclaimed_adjustment);
+    unclaimed_adjustment.functions[1].bytes.splice(
+        13..13,
+        [
+            0x48, 0x83, 0xec, 0x08, // unclaimed sub rsp, 8
+            0x48, 0x83, 0xc4, 0x08, // unclaimed add rsp, 8
+        ],
+    );
+    assert_eq!(
+        build_terminal_object_artifact(&unclaimed_adjustment),
+        Err(TerminalObjectError::UnclaimedUnitStackAdjustment {
+            machine: machine_id(2),
+            offset: 13,
+        })
+    );
+
+    let mut unclaimed_aarch64_adjustment = internal_call_plan(NativeTarget::linux_arm64());
+    account_aarch64_unit_call(&mut unclaimed_aarch64_adjustment);
+    insert_aarch64_word(
+        &mut unclaimed_aarch64_adjustment.functions[1].bytes,
+        8,
+        0xd100_43ff,
+    );
+    insert_aarch64_word(
+        &mut unclaimed_aarch64_adjustment.functions[1].bytes,
+        12,
+        0x9100_43ff,
+    );
+    let caller = &mut unclaimed_aarch64_adjustment.functions[1];
+    caller.internal_calls[0].offset = 16;
+    let stack = caller.unit_stack.as_mut().expect("AArch64 Unit stack");
+    stack
+        .frame
+        .as_mut()
+        .expect("AArch64 Unit frame")
+        .release_offset = 24;
+    stack
+        .aarch64_return_link
+        .as_mut()
+        .expect("AArch64 return link")
+        .load_offset = 20;
+    assert_eq!(
+        build_terminal_object_artifact(&unclaimed_aarch64_adjustment),
+        Err(TerminalObjectError::UnclaimedUnitStackAdjustment {
+            machine: machine_id(2),
+            offset: 8,
+        })
+    );
+}
+
+#[test]
+fn x86_unit_stack_scan_uses_instruction_boundaries_not_immediate_substrings() {
+    let mut plan = two_function_plan();
+    plan.functions[0].bytes = vec![
+        0x48, 0xb8, // mov rax, imm64
+        0x48, 0x83, 0xec, 0x08, 0x48, 0x83, 0xc4, 0x08, // immediate payload
+        0xc3,
+    ];
+    plan.functions[0].unit_stack = Some(TerminalUnitStackEvidence {
+        frame: None,
+        aarch64_return_link: None,
+        stack_alignment: 16,
+    });
+    build_terminal_object_artifact(&plan)
+        .expect("stack-like immediate bytes are not stack instructions");
 }
 
 #[test]
 fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
     let mut plan = internal_call_plan(NativeTarget::linux_x64());
     plan.functions[0].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 0,
+        frame: None,
+        aarch64_return_link: None,
         stack_alignment: 16,
     });
-    plan.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 16,
-        stack_alignment: 16,
-    });
-    plan.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
-        active_frame_bytes: 0,
-        transient_bytes: 16,
-    });
+    account_x86_unit_call(&mut plan);
     let artifact = build_terminal_object_artifact(&plan).expect("accounted Unit artifact");
     let demand = derive_terminal_unit_stack_demand(&artifact, machine_id(2))
         .expect("acyclic Unit closure stack demand");
@@ -346,14 +396,7 @@ fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
     );
 
     let mut unaccounted = internal_call_plan(NativeTarget::linux_x64());
-    unaccounted.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
-        local_peak_bytes: 16,
-        stack_alignment: 16,
-    });
-    unaccounted.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
-        active_frame_bytes: 0,
-        transient_bytes: 16,
-    });
+    account_x86_unit_call(&mut unaccounted);
     let artifact = build_terminal_object_artifact(&unaccounted).expect("partly accounted artifact");
     assert_eq!(
         derive_terminal_unit_stack_demand(&artifact, machine_id(2)),
@@ -735,6 +778,89 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
             },
         ],
     }
+}
+
+fn account_x86_unit_call(plan: &mut TerminalMachineCodePlan) {
+    let caller = &mut plan.functions[1];
+    caller.bytes = vec![
+        0x48, 0x83, 0xec, 0x08, // sub rsp, 8
+        0xe8, 0, 0, 0, 0, // call rel32
+        0x48, 0x83, 0xc4, 0x08, // add rsp, 8
+        0xc3, // ret
+    ];
+    caller.unit_stack = Some(TerminalUnitStackEvidence {
+        frame: None,
+        aarch64_return_link: None,
+        stack_alignment: 16,
+    });
+    caller.internal_calls[0].offset = 5;
+    caller.internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
+        outbound: Some(TerminalStackAdjustmentPair {
+            byte_size: 8,
+            allocation_offset: 0,
+            allocation_byte_count: 4,
+            release_offset: 9,
+            release_byte_count: 4,
+        }),
+    });
+}
+
+fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
+    let frame = TerminalStackAdjustmentPair {
+        byte_size: 16,
+        allocation_offset: 0,
+        allocation_byte_count: 4,
+        release_offset: 12,
+        release_byte_count: 4,
+    };
+    let link = TerminalAarch64ReturnLinkEvidence {
+        frame_byte_offset: 0,
+        store_offset: 4,
+        load_offset: 8,
+    };
+    plan.functions[0].bytes = aarch64_words(&[
+        0xd100_43ff, // sub sp, sp, #16
+        0xf900_03fe, // str x30, [sp]
+        0xf940_03fe, // ldr x30, [sp]
+        0x9100_43ff, // add sp, sp, #16
+        0xd65f_03c0, // ret
+    ]);
+    plan.functions[0].unit_stack = Some(TerminalUnitStackEvidence {
+        frame: Some(frame),
+        aarch64_return_link: Some(link),
+        stack_alignment: 16,
+    });
+
+    let caller = &mut plan.functions[1];
+    caller.bytes = aarch64_words(&[
+        0xd100_43ff, // sub sp, sp, #16
+        0xf900_03fe, // str x30, [sp]
+        0x9400_0000, // bl immediate
+        0xf940_03fe, // ldr x30, [sp]
+        0x9100_43ff, // add sp, sp, #16
+        0xd65f_03c0, // ret
+    ]);
+    caller.unit_stack = Some(TerminalUnitStackEvidence {
+        frame: Some(TerminalStackAdjustmentPair {
+            release_offset: 16,
+            ..frame
+        }),
+        aarch64_return_link: Some(TerminalAarch64ReturnLinkEvidence {
+            load_offset: 12,
+            ..link
+        }),
+        stack_alignment: 16,
+    });
+    caller.internal_calls[0].offset = 8;
+    caller.internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence { outbound: None });
+}
+
+fn aarch64_words(words: &[u32]) -> Vec<u8> {
+    words.iter().flat_map(|word| word.to_le_bytes()).collect()
+}
+
+fn insert_aarch64_word(bytes: &mut Vec<u8>, offset: usize, word: u32) {
+    bytes.splice(offset..offset, word.to_le_bytes());
 }
 
 fn integer_return(value: u8) -> Vec<u8> {

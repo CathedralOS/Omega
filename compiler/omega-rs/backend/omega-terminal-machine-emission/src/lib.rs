@@ -18,9 +18,10 @@ use omega_terminal_assigned_target_operations::{
     TerminalExpressionFrame,
 };
 use omega_terminal_machine_code::{
-    TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
-    TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
+    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+    TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -345,11 +346,17 @@ fn emit_unit_body(
     let mut aarch64_homes = Vec::new();
     let mut aarch64_frame_bytes = 0;
     let mut aarch64_lr_offset = 0;
+    let mut frame_allocation = None;
+    let mut frame_release = None;
+    let mut aarch64_link_store = None;
+    let mut aarch64_link_load = None;
     match target.architecture {
         Architecture::X86_64 => {
             (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body)?;
             if x86_frame_bytes != 0 {
+                let offset = bytes.len();
                 emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, false);
+                frame_allocation = Some((offset, bytes.len() - offset));
                 emit_x86_64_stage_unit_parameters(&mut bytes, &x86_homes, x86_frame_bytes)?;
             }
         }
@@ -360,16 +367,13 @@ fn emit_unit_body(
             aarch64_lr_offset = lr_offset;
             let mut instructions = Vec::new();
             emit_aarch64_adjust_sp(&mut instructions, frame_bytes, false)?;
+            frame_allocation = Some((0, 4));
+            aarch64_link_store = Some(4);
             instructions.push(aarch64_unit_stack_access(0xf900_0000, 30, lr_offset, 8)?);
             emit_aarch64_stage_unit_parameters(&mut instructions, &aarch64_homes, frame_bytes)?;
             append_aarch64_instructions(&mut bytes, instructions);
         }
     };
-    let active_frame_bytes = match target.architecture {
-        Architecture::X86_64 => x86_frame_bytes,
-        Architecture::Aarch64 => aarch64_frame_bytes,
-    };
-    let mut local_peak_bytes = active_frame_bytes;
     let mut returned = false;
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if returned {
@@ -394,8 +398,6 @@ fn emit_unit_body(
                         copies,
                         target,
                         &x86_homes,
-                        active_frame_bytes,
-                        &mut local_peak_bytes,
                         &mut internal_calls,
                     )?,
                     Architecture::Aarch64 => emit_aarch64_unit_call(
@@ -404,8 +406,6 @@ fn emit_unit_body(
                         *callee,
                         copies,
                         &aarch64_homes,
-                        active_frame_bytes,
-                        &mut local_peak_bytes,
                         &mut internal_calls,
                     )?,
                 }
@@ -461,19 +461,24 @@ fn emit_unit_body(
                 match target.architecture {
                     Architecture::X86_64 => {
                         if x86_frame_bytes != 0 {
+                            let offset = bytes.len();
                             emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, true);
+                            frame_release = Some((offset, bytes.len() - offset));
                         }
                         bytes.push(0xc3)
                     }
                     Architecture::Aarch64 => {
                         let mut instructions = Vec::new();
+                        aarch64_link_load = Some(bytes.len());
                         instructions.push(aarch64_unit_stack_access(
                             0xf940_0000,
                             30,
                             aarch64_lr_offset,
                             8,
                         )?);
+                        let release_offset = bytes.len() + 4;
                         emit_aarch64_adjust_sp(&mut instructions, aarch64_frame_bytes, true)?;
+                        frame_release = Some((release_offset, 4));
                         append_aarch64_instructions(&mut bytes, instructions);
                         bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes())
                     }
@@ -505,7 +510,34 @@ fn emit_unit_body(
         port_effects,
         boundary_settlements,
         stack: TerminalUnitStackEvidence {
-            local_peak_bytes,
+            frame: match (frame_allocation, frame_release) {
+                (
+                    Some((allocation_offset, allocation_byte_count)),
+                    Some((release_offset, release_byte_count)),
+                ) => Some(TerminalStackAdjustmentPair {
+                    byte_size: match target.architecture {
+                        Architecture::X86_64 => x86_frame_bytes,
+                        Architecture::Aarch64 => aarch64_frame_bytes,
+                    },
+                    allocation_offset,
+                    allocation_byte_count,
+                    release_offset,
+                    release_byte_count,
+                }),
+                (None, None) => None,
+                _ => unreachable!("Unit frame allocation and release are paired"),
+            },
+            aarch64_return_link: match (aarch64_link_store, aarch64_link_load) {
+                (Some(store_offset), Some(load_offset)) => {
+                    Some(TerminalAarch64ReturnLinkEvidence {
+                        frame_byte_offset: aarch64_lr_offset,
+                        store_offset,
+                        load_offset,
+                    })
+                }
+                (None, None) => None,
+                _ => unreachable!("AArch64 Unit link save and restore are paired"),
+            },
             stack_alignment: 16,
         },
     })
@@ -518,8 +550,6 @@ fn emit_x86_64_unit_call(
     copies: &[TerminalAssignedAggregateCopy],
     target: NativeTarget,
     homes: &[X86UnitParameterHome],
-    active_frame_bytes: u32,
-    local_peak_bytes: &mut u32,
     internal_calls: &mut Vec<TerminalInternalCallRelocation>,
 ) -> Result<(), EmissionError> {
     let outgoing_bytes = copies
@@ -538,15 +568,11 @@ fn emit_x86_64_unit_call(
     let call_stack_bytes = outgoing_bytes
         .checked_add(padding)
         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-    let transient_bytes = call_stack_bytes
-        .checked_add(8)
-        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-    let caller_live_bytes = active_frame_bytes
-        .checked_add(transient_bytes)
-        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-    *local_peak_bytes = (*local_peak_bytes).max(caller_live_bytes);
+    let mut allocation = None;
     if call_stack_bytes != 0 {
+        let allocation_offset = bytes.len();
         emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+        allocation = Some((allocation_offset, bytes.len() - allocation_offset));
     }
     for copy in copies {
         let home = homes
@@ -561,18 +587,20 @@ fn emit_x86_64_unit_call(
     bytes.push(0xe8);
     let offset = bytes.len();
     bytes.extend_from_slice(&0_i32.to_le_bytes());
+    let mut release = None;
+    if call_stack_bytes != 0 {
+        let release_offset = bytes.len();
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
+        release = Some((release_offset, bytes.len() - release_offset));
+    }
     internal_calls.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
         unit_stack: Some(TerminalUnitCallStackEvidence {
-            active_frame_bytes,
-            transient_bytes,
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
         }),
         offset,
     });
-    if call_stack_bytes != 0 {
-        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
-    }
     Ok(())
 }
 
@@ -582,8 +610,6 @@ fn emit_aarch64_unit_call(
     callee: MachineId,
     copies: &[TerminalAssignedAggregateCopy],
     homes: &[Aarch64UnitParameterHome],
-    active_frame_bytes: u32,
-    local_peak_bytes: &mut u32,
     internal_calls: &mut Vec<TerminalInternalCallRelocation>,
 ) -> Result<(), EmissionError> {
     let outgoing_bytes = copies
@@ -593,12 +619,10 @@ fn emit_aarch64_unit_call(
             candidate.map(|value| extent.max(value))
         })?;
     let call_stack_bytes = align_u32(outgoing_bytes, 16)?;
-    let caller_live_bytes = active_frame_bytes
-        .checked_add(call_stack_bytes)
-        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-    *local_peak_bytes = (*local_peak_bytes).max(caller_live_bytes);
     let mut instructions = Vec::new();
+    let mut allocation = None;
     if call_stack_bytes != 0 {
+        allocation = Some((bytes.len(), 4));
         emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, false)?;
     }
     for copy in copies {
@@ -614,21 +638,44 @@ fn emit_aarch64_unit_call(
     append_aarch64_instructions(bytes, instructions);
     let offset = bytes.len();
     bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes()); // bl #0
+    let mut release = None;
+    if call_stack_bytes != 0 {
+        let mut instructions = Vec::new();
+        release = Some((bytes.len(), 4));
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, true)?;
+        append_aarch64_instructions(bytes, instructions);
+    }
     internal_calls.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
         unit_stack: Some(TerminalUnitCallStackEvidence {
-            active_frame_bytes,
-            transient_bytes: call_stack_bytes,
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
         }),
         offset,
     });
-    if call_stack_bytes != 0 {
-        let mut instructions = Vec::new();
-        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, true)?;
-        append_aarch64_instructions(bytes, instructions);
-    }
     Ok(())
+}
+
+fn stack_adjustment_pair(
+    byte_size: u32,
+    allocation: Option<(usize, usize)>,
+    release: Option<(usize, usize)>,
+) -> Option<TerminalStackAdjustmentPair> {
+    match (byte_size, allocation, release) {
+        (0, None, None) => None,
+        (
+            byte_size,
+            Some((allocation_offset, allocation_byte_count)),
+            Some((release_offset, release_byte_count)),
+        ) => Some(TerminalStackAdjustmentPair {
+            byte_size,
+            allocation_offset,
+            allocation_byte_count,
+            release_offset,
+            release_byte_count,
+        }),
+        _ => unreachable!("nonzero stack adjustment must retain both encoded operations"),
+    }
 }
 
 fn x86_unit_parameter_homes(
@@ -4656,15 +4703,21 @@ mod tests {
         assert_eq!(
             root.unit_stack,
             Some(TerminalUnitStackEvidence {
-                local_peak_bytes: 16,
+                frame: None,
+                aarch64_return_link: None,
                 stack_alignment: 16,
             })
         );
         assert_eq!(
             root.internal_calls[0].unit_stack,
             Some(TerminalUnitCallStackEvidence {
-                active_frame_bytes: 0,
-                transient_bytes: 16,
+                outbound: Some(TerminalStackAdjustmentPair {
+                    byte_size: 8,
+                    allocation_offset: 0,
+                    allocation_byte_count: 4,
+                    release_offset: 9,
+                    release_byte_count: 4,
+                }),
             })
         );
 
@@ -4675,7 +4728,8 @@ mod tests {
         assert_eq!(
             leaf.unit_stack,
             Some(TerminalUnitStackEvidence {
-                local_peak_bytes: 0,
+                frame: None,
+                aarch64_return_link: None,
                 stack_alignment: 16,
             })
         );
@@ -4990,16 +5044,24 @@ mod tests {
         assert_eq!(
             caller.unit_stack,
             Some(TerminalUnitStackEvidence {
-                local_peak_bytes: 32,
+                frame: Some(TerminalStackAdjustmentPair {
+                    byte_size: 32,
+                    allocation_offset: 0,
+                    allocation_byte_count: 4,
+                    release_offset: 32,
+                    release_byte_count: 4,
+                }),
+                aarch64_return_link: Some(TerminalAarch64ReturnLinkEvidence {
+                    frame_byte_offset: 16,
+                    store_offset: 4,
+                    load_offset: 28,
+                }),
                 stack_alignment: 16,
             })
         );
         assert_eq!(
             caller.internal_calls[0].unit_stack,
-            Some(TerminalUnitCallStackEvidence {
-                active_frame_bytes: 32,
-                transient_bytes: 0,
-            })
+            Some(TerminalUnitCallStackEvidence { outbound: None })
         );
         assert_eq!(instructions[0], 0xd100_83ff); // sub sp, sp, #32
         assert_eq!(instructions[1], 0xf900_0bfe); // str x30, [sp, #16]

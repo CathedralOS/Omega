@@ -155,23 +155,38 @@ pub struct TerminalInternalCallRelocation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalUnitStackEvidence {
-    /// Maximum caller-owned bytes below this function's entry stack pointer;
-    /// excludes any incoming adapter/interrupt frame and all callee-owned
-    /// frames.
-    pub local_peak_bytes: u32,
+    /// Exact function-lifetime stack allocation and matching release. The
+    /// object boundary validates both target encodings before deriving any
+    /// numeric stack demand. `None` is valid only for an x86-64 Unit leaf with
+    /// no parameter-home frame.
+    pub frame: Option<TerminalStackAdjustmentPair>,
+    /// AArch64 Unit functions retain the incoming link register in their
+    /// function-lifetime frame. Both accesses are validated against the exact
+    /// encoded instructions; x86-64 uses the implicit CALL/RET stack link.
+    pub aarch64_return_link: Option<TerminalAarch64ReturnLinkEvidence>,
     pub stack_alignment: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalUnitCallStackEvidence {
-    /// Function-lifetime parameter/save area still live across the call.
-    pub active_frame_bytes: u32,
-    /// Outgoing argument/shadow/link bytes live only while the callee runs.
-    pub transient_bytes: u32,
+    /// Exact outgoing argument/shadow allocation and matching release around
+    /// this call. The object boundary derives the transient contribution from
+    /// these validated target instructions plus architecture-owned linkage.
+    pub outbound: Option<TerminalStackAdjustmentPair>,
 }
 
-impl TerminalUnitCallStackEvidence {
-    pub const fn caller_live_bytes(self) -> Option<u32> {
-        self.active_frame_bytes.checked_add(self.transient_bytes)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalStackAdjustmentPair {
+    pub byte_size: u32,
+    pub allocation_offset: usize,
+    pub allocation_byte_count: usize,
+    pub release_offset: usize,
+    pub release_byte_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalAarch64ReturnLinkEvidence {
+    pub frame_byte_offset: u32,
+    pub store_offset: usize,
+    pub load_offset: usize,
 }
