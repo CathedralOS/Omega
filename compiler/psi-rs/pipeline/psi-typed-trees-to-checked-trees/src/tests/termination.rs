@@ -4704,6 +4704,14 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         recursive_index()
     }
 
+    machine return_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
+        cells
+    }
+
+    machine recursive_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
+        recursive_cells(cells)
+    }
+
     machine return_after_indexed_statement<'cells, 'result>(
         cells: &'cells mut [u64; 2],
         result: &'result mut u64
@@ -4730,6 +4738,25 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         write_argument(
             &mut alias[identity_index(write_index(index_write))]
         );
+        result
+    }
+
+    machine return_after_helper_result_indexed_statement<'cells, 'result, 'write>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64,
+        index_write: &'write mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut return_cells(cells)[identity_index(write_index(index_write))]
+        );
+        result
+    }
+
+    machine return_after_recursive_helper_indexed_statement<'cells, 'result>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(&mut recursive_cells(cells)[make_index()]);
         result
     }
 
@@ -4799,6 +4826,23 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         alias = 3;
     }
 
+    machine Main::helper_result_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_helper_result_indexed_statement(
+            &mut self.cells,
+            &mut self.result,
+            &mut self.index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::recursive_helper_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_helper_indexed_statement(
+            &mut self.cells,
+            &mut self.result
+        );
+        alias = 3;
+    }
+
     machine Main::deep_alias_indexed_statement_result(&mut self) {
         let alias: &mut u64 = return_after_deep_alias_indexed_statement(
             &mut self.cells,
@@ -4854,6 +4898,10 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             "Main::alias_indexed_statement_result",
             vec!["self.cells", "self.index_write", "self.result"],
         ),
+        (
+            "Main::helper_result_indexed_statement_result",
+            vec!["self.cells", "self.index_write", "self.result"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -4884,6 +4932,7 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         "Main::deep_alias_indexed_statement_result",
         "Main::reborrow_indexed_statement_result",
         "Main::recursive_indexed_statement_result",
+        "Main::recursive_helper_indexed_statement_result",
     ] {
         let machine = typed
             .machines()

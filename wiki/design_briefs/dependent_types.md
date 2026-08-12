@@ -357,8 +357,10 @@ the same complete non-rebinding direct-call tree through depth two. Caller-
 alias-aware frame instantiation coarsens the callee's argument write to the
 collection, while ordinary evaluation publishes every index-call write.
 The argument may index through a stable helper-local mutable alias; its
-established origin supplies the collection. Boundary calls and deeper,
-binding-reborrow, recursive, or opaque indexed arguments remain fences.
+established origin supplies the collection. It may instead index a structurally
+transparent helper result directly, with the helper's returned-place relation
+supplying the collection. Recursive or opaque collection producers, boundary
+calls, and deeper or binding-reborrow index trees remain fences.
 A value-shaped assignment also preserves a separately returned parameter origin
 when its right-hand side is a typed non-reference direct-call tree of maximum
 depth two and every frame is complete. Sibling branches are admitted
