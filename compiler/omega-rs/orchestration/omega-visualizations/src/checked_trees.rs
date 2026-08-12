@@ -329,7 +329,7 @@ pub fn qualification_evidence_manifest_json(
         json.push_str(",\n      \"machine_overload_identity\": ");
         push_json_string(
             &mut json,
-            &qualification_machine_overload_identity(program, use_fact.machine)
+            &machine_overload_identity(program, use_fact.machine)
                 .expect("vacuous qualification use must name an exact owning machine"),
         );
         json.push_str(",\n      \"state\": ");
@@ -1171,7 +1171,7 @@ fn qualification_requirement_identity(
     })
 }
 
-fn qualification_machine_overload_identity(
+fn machine_overload_identity(
     program: &CheckedTrees,
     machine_symbol: SymbolHandle,
 ) -> Option<String> {
@@ -1638,6 +1638,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, machine.name.as_str());
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, machine.symbol)
+                .expect("checked machine contract must have an exact overload identity"),
+        );
 
         json.push_str(",\n      \"contract\": {");
         if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
@@ -3500,6 +3506,7 @@ mod tests {
         let contract = &json[contract_start..implementation_start];
 
         assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
+        assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Worker::run)"));
         assert!(contract.contains(
             "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": [\"Readable\"]}"
         ));
@@ -3565,13 +3572,23 @@ mod tests {
     #[test]
     fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
         let symbol = SymbolHandle::from_arena_index(3);
+        let state_symbol = SymbolHandle::from_arena_index(4);
         let mut program = CheckedTrees::default();
-        program.typed.push_machine(Machine {
+        let mut machine = Machine {
             symbol,
             name: Identifier::generated("accepted_map"),
             supply_mode: MachineSupplyMode::Accepted,
             ..Default::default()
-        });
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
         program
             .typed
             .machine_specializations
