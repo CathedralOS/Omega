@@ -3150,12 +3150,18 @@ fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
             copy: Message;
         }
 
+        machine identity_message<'source>(
+            value: &'source mut Message
+        ) -> &'source mut Message {
+            value
+        }
+
         machine choose_second<'first, 'second>(
             first: &'first mut Message,
             second: &'second mut Message
         ) -> &'second mut Message {
             let selected: &mut Message = &mut first;
-            selected = &mut second;
+            selected = identity_message(second);
             selected
         }
 
@@ -3172,8 +3178,9 @@ fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
         }
     "#;
 
-    check_program(source)
-        .expect("a direct helper-local rebind selects only the replacement argument's write frame");
+    check_program(source).expect(
+        "a transparent call-produced rebind selects only the replacement argument's write frame",
+    );
 }
 
 #[test]

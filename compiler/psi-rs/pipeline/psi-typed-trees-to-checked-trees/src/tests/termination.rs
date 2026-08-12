@@ -2877,6 +2877,15 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_escaping_call_rebound_alias<'first, 'second>(
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'second mut u64 {
+        let alias: &mut u64 = &mut first;
+        alias = call_then_return(second);
+        alias
+    }
+
     machine Main::call_rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
         overwrite_alias_binding(&mut alias);
@@ -2963,6 +2972,12 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::call_rebound_helper_result(&mut self) {
         let alias: &mut u64 = return_call_rebound_alias(&mut self.value, &mut self.other);
+        alias = 3;
+    }
+
+    machine Main::escaping_call_rebound_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_escaping_call_rebound_alias(&mut self.value, &mut self.other);
         alias = 3;
     }
 
@@ -3171,9 +3186,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "self.value",
         ),
         ("Main::nontrivial_call_result_alias", "self.value"),
+        ("Main::nontrivial_call_rebound_alias", "self.other"),
         ("Main::isolated_scratch_helper_result", "self.value"),
         ("Main::rebound_helper_result", "self.other"),
         ("Main::pre_rebind_helper_result", "self.value"),
+        ("Main::call_rebound_helper_result", "self.other"),
         ("Main::local_alias_helper_result", "self.value"),
         (
             "Main::call_initialized_local_alias_helper_result",
@@ -3251,9 +3268,8 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",
         "Main::call_scratch_helper_result",
-        "Main::call_rebound_helper_result",
+        "Main::escaping_call_rebound_helper_result",
         "Main::escaping_call_then_result_alias",
-        "Main::nontrivial_call_rebound_alias",
         "duplicate_parameter_alias_cycle",
         "Main::named_alias_cross_state_local",
     ] {
