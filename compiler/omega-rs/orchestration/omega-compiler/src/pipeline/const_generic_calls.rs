@@ -41,7 +41,7 @@ pub(super) fn evaluate_const_generic_calls(
             TypeReferenceNode::Named(Identifier::generated("0")),
         );
     }
-    super::generic_instances::desugar_generic_data_instances(&mut probe)?;
+    psi_generic_instances::desugar_generic_data_instances(&mut probe)?;
     let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
         .map_err(|diagnostic| vec![diagnostic])?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

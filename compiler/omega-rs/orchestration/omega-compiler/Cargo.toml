@@ -13,6 +13,7 @@ omega-core = { path = "../../foundation/omega-core" }
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
+psi-generic-instances = { path = "../../../psi-rs/pipeline/psi-generic-instances" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 psi-access-plans = { path = "../../../psi-rs/foundation/psi-access-plans" }

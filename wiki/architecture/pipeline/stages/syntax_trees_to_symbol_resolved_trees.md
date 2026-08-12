@@ -2,7 +2,9 @@
 
 [Pipeline](../pipeline.md) | Previous: [Tokens To Syntax Trees](tokens_to_syntax_trees.md) | Next: [Symbol Resolved Trees To Typed Trees](symbol_resolved_trees_to_typed_trees.md)
 
-This stage attaches symbol identity to definitions and references while preserving the source-shaped program structure.
+Psi's pre-resolution frontend normalization first closes target-neutral generic
+data instances. This stage then attaches symbol identity to definitions and
+references while preserving the resulting source-shaped program structure.
 
 ## Stage Contract
 
@@ -10,7 +12,8 @@ Input: `SyntaxTrees`.
 
 Output: `SymbolResolvedTrees`.
 
-Primary responsibility: attach symbol identity to definitions and references.
+Primary responsibility: attach symbol identity to definitions and references
+after Psi-owned closed-instance normalization.
 
 ## Semantic Ownership
 
@@ -35,6 +38,8 @@ borrow-correct, callable, reachable, or safe.
 
 Must own:
 
+- Closing nameable generic data applications and applying exact contextual
+  construction identities before name resolution.
 - Constructing symbol identity for definitions.
 - Stamping references with symbol handles when lookup is source/scope based.
 - Keeping source names available for diagnostics without letting strings become
@@ -52,6 +57,12 @@ The implementation should stay split by identity task:
 
 - `compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees` owns the
   stage implementation. All workspace consumers invoke it directly.
+
+- `compiler/psi-rs/pipeline/psi-generic-instances` owns the pre-resolution
+  closed-instance and contextual-construction normalization used by that stage
+  and by Psi-owned probe frontends. Omega orchestration invokes this Psi pass
+  only while the remaining probe conveyor is migrated; it does not own or
+  extend the language elaboration.
 
 - `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
   output.

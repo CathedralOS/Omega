@@ -84,7 +84,7 @@ pub(crate) fn desugar_placed_views(
 
     let mut probe = syntax.clone();
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
-    super::generic_instances::desugar_generic_data_instances(&mut probe)?;
+    psi_generic_instances::desugar_generic_data_instances(&mut probe)?;
     let probe_plan_laid = super::plan_laid::desugar_plan_laid_value_types(&mut probe)?;
     let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
         .map_err(|diagnostic| vec![diagnostic])?;
