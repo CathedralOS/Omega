@@ -4,21 +4,19 @@
 //! carry its own end-to-end oracle without making that shared file responsible
 //! for another subsystem.
 
-use omega_compiler::{
-    CheckedCompilation, CompileOptions, compile_to_checked, compile_with_test_entry,
-};
+use omega_compiler::{CheckedCompilation, CompileOptions, compile, compile_to_checked};
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin)
-}
-
-fn compile(
-    options: CompileOptions,
-) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    compile_with_test_entry(options, "Main::main")
+    interpret_entry(
+        checked,
+        checked
+            .selected_program_entry_machine()
+            .expect("recast fixture selects an exact ProgramEntry"),
+        stdin,
+    )
 }
 
 fn repo_root() -> PathBuf {
@@ -29,7 +27,14 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn compile_pass_to_checked(main: &Path) -> CheckedCompilation {
+    let profile = omega_target::TargetProfile::host();
+    compile_to_checked(main, Some(profile.target_name()))
+        .expect("recast pass fixture should reach checked trees")
+}
+
 fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
+    let profile = omega_target::TargetProfile::host();
     let canary = repo_root().join("canaries/pass").join(canary_rel);
     let build_dir = std::env::temp_dir().join(format!("omega-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -37,12 +42,17 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some(profile.target_name().to_owned()),
         write_output: true,
     })
     .unwrap_or_else(|diagnostics| panic!("{canary_rel} should compile:\n{diagnostics:#?}"));
 
-    let output = Command::new(build_dir.join("omega-program"))
+    let executable = if cfg!(windows) {
+        "omega-program.exe"
+    } else {
+        "omega-program"
+    };
+    let output = Command::new(build_dir.join(executable))
         .output()
         .expect("canary should run");
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -71,11 +81,8 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
         std::fs::create_dir_all(&source_dir).expect("create cross-target source directory");
         std::fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
             .expect("copy recast canary");
-        std::fs::write(
-            source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
-        )
-        .expect("write cross-target manifest");
+        std::fs::copy(canary.join("build.omg"), source_dir.join("build.omg"))
+            .expect("copy exact recast root matrix");
 
         compile(CompileOptions {
             root_path: source_dir.join("main.omg"),
@@ -196,8 +203,7 @@ fn record_recast_execution_canaries_run() {
 
     let array_canary =
         repo_root().join("canaries/pass/recast/runtime_record_array_view_mutable_write_exit");
-    let checked = compile_to_checked(&array_canary.join("main.omg"), None)
-        .expect("mutable record-array view should compile to checked trees");
+    let checked = compile_pass_to_checked(&array_canary.join("main.omg"));
     assert_eq!(
         interpret(&checked, &[]).exit_code,
         70,
@@ -218,8 +224,7 @@ fn fixed_array_recast_execution_and_fact_fence() {
         .join("canaries/pass")
         .join(canary)
         .join("main.omg");
-    let checked =
-        compile_to_checked(&main, None).expect("top-level fixed-array view should compile");
+    let checked = compile_pass_to_checked(&main);
     assert_eq!(
         interpret(&checked, &[]).exit_code,
         70,
@@ -244,7 +249,7 @@ fn slice_recast_execution_tiling_and_fact_fences() {
         .join("canaries/pass")
         .join(canary)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).expect("unsized slice recast should compile");
+    let checked = compile_pass_to_checked(&main);
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
@@ -274,7 +279,7 @@ fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
         .join("canaries/pass")
         .join(canary)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).expect("interior slice recast should compile");
+    let checked = compile_pass_to_checked(&main);
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
@@ -304,7 +309,7 @@ fn aggregate_slice_recasts_compose_leaf_representation_sets() {
         .join("canaries/pass")
         .join(canary)
         .join("main.omg");
-    let checked = compile_to_checked(&main, None).expect("aggregate slice recast should compile");
+    let checked = compile_pass_to_checked(&main);
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
         interpreted.exit_code, 70,
