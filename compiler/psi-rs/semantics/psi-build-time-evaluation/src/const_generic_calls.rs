@@ -1,4 +1,4 @@
-//! Pre-resolution bridge for zero-argument machine calls in const-generic
+//! Psi pre-resolution bridge for zero-argument machine calls in const-generic
 //! arguments (`Buffer<table_size()>`). Generic record instances must be
 //! synthesized before the ordinary frontend runs, while the established
 //! build-time evaluator needs typed trees. Build a sanitized probe program,
@@ -14,20 +14,20 @@ use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::types::TypeReferenceNode;
 use std::collections::BTreeMap;
 
-pub(super) fn evaluate_const_generic_calls(
-    syntax: &mut SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
+pub fn evaluate_const_generic_calls(
+    mut syntax: SyntaxTrees,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut pending_type_references = Vec::new();
     for (type_reference, expression) in syntax.type_references.const_expression_nodes() {
         let before = pending.len();
-        collect_call_leaves(syntax, expression, &mut pending)?;
+        collect_call_leaves(&syntax, expression, &mut pending)?;
         if pending.len() > before {
             pending_type_references.push(type_reference);
         }
     }
     if pending.is_empty() {
-        return Ok(());
+        return Ok(syntax);
     }
 
     // The probe needs the same generic-template normalization as the real
@@ -46,14 +46,14 @@ pub(super) fn evaluate_const_generic_calls(
         .map_err(|diagnostic| vec![diagnostic])?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = crate::BuildTimeAdmissionPlan::infer(&typed);
 
     let mut values: BTreeMap<String, u64> = BTreeMap::new();
     for (_, machine_name) in &pending {
         if values.contains_key(machine_name) {
             continue;
         }
-        let value = psi_build_time_evaluation::evaluate_zero_argument_machine(
+        let value = crate::evaluate_zero_argument_machine(
             &typed,
             &admission,
             machine_name,
@@ -81,7 +81,7 @@ pub(super) fn evaluate_const_generic_calls(
             .expressions
             .replace_expression(expression, ExpressionNode::Integer(literal));
     }
-    Ok(())
+    Ok(syntax)
 }
 
 fn collect_call_leaves(

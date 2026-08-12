@@ -10,7 +10,6 @@ mod compile_policy;
 pub mod compile_report;
 pub mod compiler;
 mod const_domain_facts;
-mod const_generic_calls;
 mod float_intrinsic_dispatch;
 pub mod frontend;
 mod layout_plans;
