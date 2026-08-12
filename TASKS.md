@@ -308,14 +308,15 @@ customer-shaped compiler concept is introduced.
   direct stable rebinding: the rebound name takes the replacement origin while
   earlier reborrows keep their established origin. Member suffixes remain exact;
   indexing coarsens to the nearest collection and that coarsening is absorbing.
+  A validated mutable recast local retains its source storage origin when that
+  source expression is effect-free; effectful recast sources remain opaque.
   A free or attached helper may relate a returned `&mut` place to one
   mutable-reference parameter, including an attached helper's actual receiver;
   its terminal result may follow a prefix of effect-free caller-isolated scratch
   locals and direct local `&mut` aliases, including mutable bindings and results
-  of other structurally transparent helpers. A validated mutable recast local
-  retains its source storage origin when that source expression is effect-free.
-  The same exact returned-place relation composes when such a result is supplied
-  directly as a statement-call argument.
+  of other structurally transparent helpers. The same exact returned-place
+  relation composes when such a result is supplied directly as a statement-call
+  argument.
   Value-shaped assignments with effect-free right-hand sides may write through
   those origins, including exact transparent call-produced targets, without
   changing the relation, while their ordinary frames remain published;
@@ -323,8 +324,8 @@ customer-shaped compiler concept is introduced.
   rebind updates that name's origin without redirecting prior reborrows; a
   structurally transparent helper result may supply the replacement through the
   same origin algebra. Other computed rebinding, discarded/statement calls,
-  opaque or recursive result producers, effectful index or recast-source
-  computations, computed helper initializers, and nontrivial results remain
+  opaque or recursive result producers, effectful index computations, computed
+  helper initializers, and nontrivial results remain
   opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.

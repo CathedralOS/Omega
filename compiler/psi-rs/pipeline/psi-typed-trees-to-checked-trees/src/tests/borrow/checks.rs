@@ -3069,6 +3069,35 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_recast_local_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: u64;
+        }
+
+        machine Main::touch_code(&mut self) {
+            let view: &mut f64 = &mut self.code as &mut f64;
+            view = 3.0;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a mutable recast local preserves the exact origin of its source storage");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_value_write_helper_result_frame() {
     let source = r#"
         data Message {

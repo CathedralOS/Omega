@@ -1580,9 +1580,10 @@ struct FramePlaceOrigin {
 /// Caller-isolated locals are also stable origins, but remain local-only and
 /// therefore disappear from the published caller frame. A structurally
 /// transparent value call preserves such an origin just as it preserves a
-/// caller-visible parameter origin. Direct parameter-relative member and
-/// indexed projections compose the same exact/coarse path algebra. Other
-/// computed results stay opaque.
+/// caller-visible parameter origin. A validated mutable recast is address
+/// identity, so an effect-free recast source preserves the same origin. Direct
+/// parameter-relative member and indexed projections compose the same
+/// exact/coarse path algebra. Other computed results stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
@@ -1639,6 +1640,20 @@ fn stable_alias_expression_origin(
             symbols,
             allow_isolated_local,
         ),
+        ExpressionNode::Cast(cast)
+            if cast.form.is_recast()
+                && !expression_is_effectful_for_transparent_result(program, cast.value) =>
+        {
+            stable_alias_expression_origin(
+                program,
+                cast.value,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+            )
+        }
         ExpressionNode::Indexed(indexed) => {
             let mut collection = stable_alias_expression_origin(
                 program,
