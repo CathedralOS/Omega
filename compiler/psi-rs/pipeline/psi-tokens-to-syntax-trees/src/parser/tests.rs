@@ -293,6 +293,20 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
             .iter_expressions()
             .any(|(_, expression)| { matches!(expression, ExpressionNode::ZeroValue(_)) })
     );
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) if machine.name == "zero_is_none" => {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("zero_is_none machine");
+    assert_eq!(
+        parsed.items.state_handles(machine.states).len(),
+        1,
+        "an empty checked body still has a zero-argument Unit entry"
+    );
 }
 
 #[test]

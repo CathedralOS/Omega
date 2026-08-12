@@ -136,7 +136,11 @@ pub(super) fn parse_machine<'tokens, 'source>(
 
     let parse_implicit_entry = machine_parameters.count() > 0
         || machine_return_type.is_valid()
-        || starts_implicit_entry_body(input);
+        || starts_implicit_entry_body(input)
+        // An otherwise empty body is still the checked implementation of a
+        // zero-argument, Unit-returning callable. Preserve its implicit entry
+        // so overload identity and contract ownership survive downstream.
+        || input.at_punctuation(PunctuationKind::RightBrace);
 
     if parse_implicit_entry {
         let (state, rest) = parse_implicit_entry_state(
