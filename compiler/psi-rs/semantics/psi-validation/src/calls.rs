@@ -1877,7 +1877,8 @@ fn transparent_call_result_origin(
 /// Recover a transparent returned-place origin without imposing a caller
 /// namespace. This is used while instantiating a callee frame through a nested
 /// statement-call argument: direct places keep their existing spelling, while
-/// a structurally transparent helper selects and composes one of its actual
+/// the compiler-owned `as_mut_slice` view preserves its receiver and a
+/// structurally transparent helper selects and composes one of its actual
 /// mutable-reference origins. Opaque or recursive helpers fail closed.
 fn transparent_place_expression_origin(
     program: &TypedTrees,
@@ -1918,6 +1919,14 @@ fn transparent_place_expression_origin(
             })
         }
         ExpressionNode::Call(call) => {
+            if call_is_transparent_mutable_slice_view(program, call) {
+                return transparent_place_expression_origin(
+                    program,
+                    call.receiver,
+                    symbols,
+                    active_states,
+                );
+            }
             let (callee_machine, callee_state) =
                 machine_state_by_symbol(program, call.target_symbol).or_else(|| {
                     (!call.receiver.is_valid())
