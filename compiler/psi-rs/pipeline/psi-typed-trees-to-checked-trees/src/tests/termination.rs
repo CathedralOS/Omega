@@ -3649,6 +3649,71 @@ fn transparent_returned_index_frame_requires_an_effect_free_index() {
 }
 
 #[test]
+fn stable_alias_index_frame_requires_an_effect_free_index() {
+    let source = r#"
+    data Main {
+        cells: [u64; 2];
+    }
+
+    machine make_index() -> u64 [0..=1] {
+        0
+    }
+
+    machine Main::local_index_alias(&mut self) {
+        let index: u64 = 0;
+        let alias: &mut u64 = &mut self.cells[index];
+        alias = 1;
+    }
+
+    machine Main::call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut self.cells[make_index()];
+        alias = 1;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    let local = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::local_index_alias")
+        .expect("local-index alias machine");
+    let local_entry = typed
+        .machine_states(local)
+        .first()
+        .expect("local-index alias entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(local, local_entry)
+            .complete_paths(),
+        Some(["self.cells".to_owned()].as_slice()),
+        "an effect-free local index preserves the alias's collection origin"
+    );
+
+    let call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::call_index_alias")
+        .expect("call-index alias machine");
+    let call_entry = typed
+        .machine_states(call)
+        .first()
+        .expect("call-index alias entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(call, call_entry)
+            .is_complete(),
+        "a call-computed alias index must keep the state frame opaque"
+    );
+}
+
+#[test]
 fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let source = r#"
     machine baseline() {}

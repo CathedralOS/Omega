@@ -170,8 +170,8 @@ Current ownership is:
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
   rebinding, discarded/statement calls, opaque or recursive result producers,
-  effectful index computations (including terminal returned-place indexes), and
-  computed initializers remain opaque. For an
+  effectful index computations (including stable-alias and terminal
+  returned-place indexes), and computed initializers remain opaque. For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other
   nontrivial results remain opaque; signature lifetime elision alone is not

@@ -1582,8 +1582,8 @@ struct FramePlaceOrigin {
 /// transparent value call preserves such an origin just as it preserves a
 /// caller-visible parameter origin. A validated mutable recast is address
 /// identity, so an effect-free recast source preserves the same origin. Direct
-/// parameter-relative member and indexed projections compose the same
-/// exact/coarse path algebra. Other computed results stay opaque.
+/// parameter-relative member and effect-free indexed projections compose the
+/// same exact/coarse path algebra. Other computed results stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
@@ -1655,6 +1655,9 @@ fn stable_alias_expression_origin(
             )
         }
         ExpressionNode::Indexed(indexed) => {
+            if expression_is_effectful_for_transparent_result(program, indexed.index) {
+                return None;
+            }
             let mut collection = stable_alias_expression_origin(
                 program,
                 indexed.collection,
