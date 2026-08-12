@@ -308,8 +308,8 @@ customer-shaped compiler concept is introduced.
   A free or attached helper may relate a returned `&mut` place to one
   mutable-reference parameter, including an attached helper's actual receiver;
   its terminal result may follow a prefix of effect-free caller-isolated scratch
-  locals and direct immutable local `&mut` aliases, including results of other
-  structurally transparent helpers.
+  locals and direct local `&mut` aliases, including mutable bindings and results
+  of other structurally transparent helpers.
   Effect-free value-shaped assignments may write through those origins without
   changing the relation, while their ordinary frames remain published;
   effect-free discarded expressions are neutral. A direct helper-local alias
