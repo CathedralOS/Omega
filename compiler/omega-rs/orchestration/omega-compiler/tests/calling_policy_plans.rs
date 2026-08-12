@@ -1149,6 +1149,50 @@ fn rejected_calling_relationship_is_a_compile_diagnostic() {
 }
 
 #[test]
+fn erased_boundary_requirement_data_is_rejected_before_policy_evaluation() {
+    let source = POLICY.replace(
+        "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
+        "data Certified { value: i32; proof [erased]: i32; }\n\nboundary trait Tick: Calling<NoResultPolicy> {\n    machine tick(value: Certified);\n}",
+    );
+    let main_path = write_program("erased-boundary-requirement", &source);
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("an erased boundary value must fail before calling-policy evaluation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("boundary value data `Certified` has `[erased]` field(s) `proof`")
+            && rendered.contains("erased-stripped ABI classification is not implemented yet"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn erased_boundary_data_is_rejected_for_a_checked_body_provider() {
+    let source = POLICY.replace(
+        "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
+        "data Certified { value: i32; proof [erased]: i32; }\n\nboundary trait Tick: Calling<NoResultPolicy> {\n    machine tick(&mut self, value: Certified);\n}\n\ndata TickProvider { count: i32; }\nTickProviderTick: TickProvider satisfies Tick;\nmachine TickProvider::tick(&mut self, value: Certified) satisfies Tick::tick {\n    self.count = value.value;\n}",
+    );
+    let main_path = write_program("erased-checked-provider", &source);
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("a checked provider must not materialize erased boundary data");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("boundary value data `Certified` has `[erased]` field(s) `proof`")
+            && rendered.contains("erased-stripped ABI classification is not implemented yet"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
 fn policy_source_identity_is_absent_from_the_published_fingerprint() {
     let fingerprint = |name: &str| {
         let source = POLICY.replace("NoResultPolicy", name);
