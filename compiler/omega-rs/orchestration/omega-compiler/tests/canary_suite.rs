@@ -43712,6 +43712,10 @@ fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() 
             "linux_x64",
         ),
         (
+            "build/static_machine_parameter_config_compile",
+            "windows_x64",
+        ),
+        (
             "text/runtime_x86_general_double_indexed_string_concat_compile",
             "linux_x64",
         ),

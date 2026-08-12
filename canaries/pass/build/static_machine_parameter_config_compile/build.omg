@@ -17,4 +17,5 @@ where machine F(value: T) -> T;
 machine build(b: &mut Build) {
     let selected: u16 = apply<chosen_subsystem>(70);
     b.subsystem = Subsystem::Unspecified { value: selected };
+    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
