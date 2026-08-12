@@ -43482,6 +43482,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "calls/runtime_helper_ordering_return",
     "calls/mutual_cycle_decrease_unproven",
     "calls/mutual_cycle_disqualified_shape",
+    "drops/drop_nonblocking_effect_unknown",
+    "relax/retired_relax_statement",
+    "relax/retired_relaxed_reference",
     "recast/recast_mut_fact_fenced",
     "recast/recast_mut_cross_carrier_domain_not_equivalent",
     "recast/recast_mut_range_bit_sets_differ",
@@ -49004,8 +49007,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/build_effects_undeclared",
     "build/build_boundary_rowless",
     "calls/ambiguous_spliced_second_receiver_rejected",
-    "relax/retired_relax_statement",
-    "relax/retired_relaxed_reference",
     "capabilities/provider_widens_requirement_ceiling",
     "capabilities/provider_hidden_extra_effect",
     "providers/via_unknown_binding_rejected",
@@ -49087,7 +49088,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "ffi/raw_ptr_read_unavailable",
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
-    "drops/drop_nonblocking_effect_unknown",
 ];
 
 #[derive(Clone, Copy)]
