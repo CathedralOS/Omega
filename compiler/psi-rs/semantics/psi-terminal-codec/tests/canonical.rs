@@ -112,6 +112,25 @@ fn erased_structural_field_round_trips_and_changes_semantic_identity() {
 }
 
 #[test]
+fn numbered_entry_claim_path_round_trips_and_enters_semantic_identity() {
+    let baseline = structural_effect_fixture();
+    let mut module = baseline.clone();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields[1].identity = "#7".to_owned();
+    for machine in &mut module.machines {
+        machine.entry_claims[0].field_path = vec!["#7".to_owned()];
+    }
+
+    let bytes = encode_module(&module).expect("numbered aggregate claim path should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_ne!(
+        semantic_fingerprint(&module).unwrap(),
+        semantic_fingerprint(&baseline).unwrap(),
+        "the exact numbered claim path is terminal semantic identity"
+    );
+}
+
+#[test]
 fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
     let mut opaque_relevant = structural_effect_fixture();
     let StructuralTypeShape::Record { fields } = &mut opaque_relevant.structural_types[0].shape;

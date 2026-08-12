@@ -647,7 +647,12 @@ fn terminal_field_identity(program: &TypedTrees, symbol: SymbolHandle) -> Option
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
-            (field.symbol == symbol).then(|| field.name.as_str().to_owned())
+            (field.symbol == symbol).then(|| {
+                field
+                    .identity
+                    .map(|identity| format!("#{identity}"))
+                    .unwrap_or_else(|| field.name.as_str().to_owned())
+            })
         })
     })
 }
