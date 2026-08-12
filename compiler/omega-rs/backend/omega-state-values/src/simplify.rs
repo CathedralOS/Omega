@@ -8,7 +8,8 @@ use self::bindings::{
 };
 use self::call_targets::{resolve_call_target_machine, resolve_call_target_state};
 use self::folding::{
-    IntegerLanding, boolean_and, boolean_or, expressions_equivalent, fold_binary_expression,
+    FloatLanding, IntegerLanding, ValueLanding, boolean_and, boolean_or, expressions_equivalent,
+    fold_binary_expression,
 };
 use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
@@ -21,6 +22,7 @@ use psi_checked_trees::expression::{
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;
 use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use psi_checked_trees::types::PrimitiveType;
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
@@ -95,7 +97,7 @@ fn statement_destination_landing(
     state: &State,
     statement_index: usize,
     role: StateValueRole,
-) -> Option<IntegerLanding> {
+) -> Option<ValueLanding> {
     if role != StateValueRole::AssignmentValue {
         return None;
     }
@@ -105,11 +107,11 @@ fn statement_destination_landing(
         .get(statement_index)?;
     match statement {
         StatementNode::LocalData(local) => {
-            landing_from_type_reference(program, local.type_reference)
+            value_landing_from_type_reference(program, local.type_reference)
         }
         StatementNode::Assignment(assignment) => {
             let target = program.expression_table.to_tree(assignment.target);
-            derive_integer_landing(program, machine, &target, 0)
+            derive_value_landing(program, machine, &target, 0)
         }
         _ => None,
     }
@@ -167,7 +169,7 @@ fn simplify_expression_with_bindings(
     // value lands into. Propagated only along same-typed spines (binary
     // operands, `Mutable` wrappers); every differently-typed subtree (call
     // arguments, indices, struct fields, ...) gets `None`.
-    landing: Option<IntegerLanding>,
+    landing: Option<ValueLanding>,
 ) -> Expression {
     if depth >= REENTRANT_SIMPLIFY_DEPTH_LIMIT {
         return expression.clone();
@@ -452,7 +454,7 @@ fn simplify_binary_expression(
     bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
     depth: usize,
-    landing: Option<IntegerLanding>,
+    landing: Option<ValueLanding>,
 ) -> Expression {
     let left = simplify_expression_with_bindings(
         program,
@@ -523,7 +525,9 @@ fn simplify_binary_expression(
         return folded;
     }
 
-    let landing = landing.or_else(|| integer_fold_landing(program, machine, binary, &left, &right));
+    let landing = landing.or_else(|| {
+        integer_fold_landing(program, machine, binary, &left, &right).map(ValueLanding::Integer)
+    });
     fold_binary_expression(binary.operator, left, right, landing)
 }
 
@@ -681,6 +685,64 @@ fn integer_fold_landing(
 /// Bounded recursion cap for landing derivation: original operand trees are
 /// shallow; anything deeper is not worth walking for a fold hint.
 const LANDING_DERIVATION_DEPTH_LIMIT: usize = 8;
+
+fn derive_value_landing(
+    program: &CheckedTrees,
+    machine: &Machine,
+    expression: &Expression,
+    depth: usize,
+) -> Option<ValueLanding> {
+    if depth >= LANDING_DERIVATION_DEPTH_LIMIT {
+        return None;
+    }
+    match expression {
+        Expression::Name(path) => {
+            let type_reference = declared_type_reference(program, machine, path.symbol())?;
+            value_landing_from_type_reference(program, type_reference)
+        }
+        Expression::Member(member) => {
+            let type_reference = field_declared_type_reference(program, member.member_symbol)?;
+            value_landing_from_type_reference(program, type_reference)
+        }
+        Expression::Cast(cast) => value_landing_from_primitive(
+            program.primitive_type_reference(cast.target_type)?,
+            cast.domain,
+        ),
+        Expression::Binary(inner) => derive_value_landing(program, machine, &inner.left, depth + 1)
+            .or_else(|| derive_value_landing(program, machine, &inner.right, depth + 1)),
+        _ => None,
+    }
+}
+
+fn value_landing_from_type_reference(
+    program: &CheckedTrees,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
+) -> Option<ValueLanding> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    value_landing_from_primitive(
+        program.primitive_type_reference(type_reference)?,
+        program
+            .type_reference_table
+            .arithmetic_domain(type_reference),
+    )
+}
+
+fn value_landing_from_primitive(
+    primitive: PrimitiveType,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
+) -> Option<ValueLanding> {
+    if primitive.accepts_integer_literal() {
+        return Some(ValueLanding::Integer(IntegerLanding { primitive, domain }));
+    }
+    let format = match primitive {
+        PrimitiveType::F32 => psi_numerics::literals::FloatFormat::F32,
+        PrimitiveType::F64 => psi_numerics::literals::FloatFormat::F64,
+        _ => return None,
+    };
+    Some(ValueLanding::Float(FloatLanding { format, domain }))
+}
 
 fn derive_integer_landing(
     program: &CheckedTrees,

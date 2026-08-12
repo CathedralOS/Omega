@@ -1,7 +1,8 @@
 use psi_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
 use psi_checked_trees::types::PrimitiveType;
 use psi_numerics::arithmetic::ArithmeticDomain;
-use psi_numerics::literals::IntegerLiteral;
+use psi_numerics::float_semantics::{FloatFormat as SemanticFloatFormat, FloatSemantics};
+use psi_numerics::literals::{FloatFormat, FloatLiteral, IntegerLiteral};
 use psi_symbols::SymbolHandle;
 
 /// The folder reads literals through the i64 VALUE WINDOW (D14): an anonymous
@@ -21,6 +22,18 @@ fn literal_pair(a: &IntegerLiteral, b: &IntegerLiteral) -> Option<(i64, i64)> {
 pub(super) struct IntegerLanding {
     pub primitive: PrimitiveType,
     pub domain: ArithmeticDomain,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct FloatLanding {
+    pub format: FloatFormat,
+    pub domain: ArithmeticDomain,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ValueLanding {
+    Integer(IntegerLanding),
+    Float(FloatLanding),
 }
 
 impl IntegerLanding {
@@ -279,9 +292,20 @@ pub(super) fn fold_binary_expression(
     operator: BinaryOperator,
     left: Expression,
     right: Expression,
-    landing: Option<IntegerLanding>,
+    landing: Option<ValueLanding>,
 ) -> Expression {
     use BinaryOperator as Op;
+
+    let float_landing = match landing {
+        Some(ValueLanding::Float(landing)) => Some(landing),
+        _ => float_landing_from_literals(&left, &right),
+    };
+    if let Some(landing) = float_landing
+        && let (Expression::Float(left_literal), Expression::Float(right_literal)) = (&left, &right)
+        && let Some(folded) = fold_float_binary(operator, left_literal, right_literal, landing)
+    {
+        return folded;
+    }
 
     // A landing also DERIVES from a LANDED operand (CR3, ch5 two-phase law:
     // the type rides ON the constant): at an anonymous destination (argument
@@ -289,7 +313,11 @@ pub(super) fn fold_binary_expression(
     // folds at ITS OWN landed type -- one witness, left first, the signedness
     // probe's exact discipline. Two anonymous literals keep the transitional
     // window below.
-    let landing = landing.or_else(|| match (&left, &right) {
+    let landing = match landing {
+        Some(ValueLanding::Integer(landing)) => Some(landing),
+        _ => None,
+    }
+    .or_else(|| match (&left, &right) {
         (Expression::Integer(a), _) if a.landing().is_some() => {
             a.landing().and_then(IntegerLanding::from_carrier_landing)
         }
@@ -393,6 +421,68 @@ pub(super) fn fold_binary_expression(
         Op::BitwiseOr => fold_integer_math(left, right, |a, b| a | b, operator),
         Op::BitwiseXor => fold_integer_math(left, right, |a, b| a ^ b, operator),
     }
+}
+
+fn float_landing_from_literals(left: &Expression, right: &Expression) -> Option<FloatLanding> {
+    let format = match (left, right) {
+        (Expression::Float(literal), _) if literal.landing().is_some() => literal.landing(),
+        (_, Expression::Float(literal)) => literal.landing(),
+        _ => None,
+    }?;
+    Some(FloatLanding {
+        format,
+        domain: ArithmeticDomain::Exact,
+    })
+}
+
+fn fold_float_binary(
+    operator: BinaryOperator,
+    left: &FloatLiteral,
+    right: &FloatLiteral,
+    landing: FloatLanding,
+) -> Option<Expression> {
+    use BinaryOperator as Op;
+
+    let format = match landing.format {
+        FloatFormat::F32 => SemanticFloatFormat::BINARY32,
+        FloatFormat::F64 => SemanticFloatFormat::BINARY64,
+    };
+    let left = FloatSemantics::from_decimal(format, left.text())?;
+    let right = FloatSemantics::from_decimal(format, right.text())?;
+    let arithmetic = match operator {
+        Op::Add => Some((FloatSemantics::add(format, &left, &right), false)),
+        Op::Subtract => Some((FloatSemantics::subtract(format, &left, &right), false)),
+        Op::Multiply => Some((FloatSemantics::multiply(format, &left, &right), false)),
+        Op::Divide => Some((FloatSemantics::divide(format, &left, &right), true)),
+        _ => None,
+    };
+    if let Some((meaning, division)) = arithmetic {
+        let meaning = match landing.domain {
+            ArithmeticDomain::Exact => meaning,
+            ArithmeticDomain::Saturating if division => {
+                FloatSemantics::apply_saturating_divide_policy(format, &left, &right, meaning)
+            }
+            ArithmeticDomain::Saturating => {
+                FloatSemantics::apply_saturating_policy(format, &[&left, &right], meaning)
+            }
+            ArithmeticDomain::Trapping => FloatSemantics::apply_trapping_policy(meaning).ok()?,
+            ArithmeticDomain::Wrapping => return None,
+        };
+        let value = meaning.to_interpreter_value(format);
+        return Some(Expression::Float(
+            FloatLiteral::from_f64(value).with_landing(landing.format),
+        ));
+    }
+
+    Some(Expression::Boolean(match operator {
+        Op::Equal => FloatSemantics::equal(&left, &right),
+        Op::NotEqual => FloatSemantics::not_equal(&left, &right),
+        Op::Less => FloatSemantics::less(&left, &right),
+        Op::LessOrEqual => FloatSemantics::less_or_equal(&left, &right),
+        Op::Greater => FloatSemantics::greater(&left, &right),
+        Op::GreaterOrEqual => FloatSemantics::greater_or_equal(&left, &right),
+        _ => return None,
+    }))
 }
 
 /// Fold a constant SHIFT (`1 << 100`) only when the shift amount is a valid,
@@ -1174,5 +1264,70 @@ fn expression_path_segment_symbol(expression: &Expression, index: usize) -> Symb
             }
         }
         _ => SymbolHandle::invalid(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FloatLanding, ValueLanding, fold_binary_expression};
+    use psi_checked_trees::expression::{BinaryOperator, Expression};
+    use psi_numerics::arithmetic::ArithmeticDomain;
+    use psi_numerics::literals::{FloatFormat, FloatLiteral};
+
+    fn float(text: &str, format: FloatFormat) -> Expression {
+        Expression::Float(
+            FloatLiteral::parse(text)
+                .expect("test float literal")
+                .with_landing(format),
+        )
+    }
+
+    fn fold_f32(operator: BinaryOperator, left: Expression, right: Expression) -> FloatLiteral {
+        let Expression::Float(result) = fold_binary_expression(
+            operator,
+            left,
+            right,
+            Some(ValueLanding::Float(FloatLanding {
+                format: FloatFormat::F32,
+                domain: ArithmeticDomain::Exact,
+            })),
+        ) else {
+            panic!("constant float arithmetic must fold to a float literal");
+        };
+        result
+    }
+
+    #[test]
+    fn binary32_constant_fold_rounds_at_binary32_precision() {
+        let result = fold_f32(
+            BinaryOperator::Add,
+            float("16777216.0", FloatFormat::F32),
+            float("1.0", FloatFormat::F32),
+        );
+
+        assert_eq!(result.value_f32().to_bits(), 16_777_216.0f32.to_bits());
+        assert_eq!(result.landing(), Some(FloatFormat::F32));
+    }
+
+    #[test]
+    fn binary32_constant_fold_preserves_nan_and_negative_zero() {
+        let nan = fold_f32(
+            BinaryOperator::Divide,
+            float("0.0", FloatFormat::F32),
+            float("0.0", FloatFormat::F32),
+        );
+        assert!(nan.value_f32().is_nan());
+
+        let negative_one = fold_f32(
+            BinaryOperator::Subtract,
+            float("0.0", FloatFormat::F32),
+            float("1.0", FloatFormat::F32),
+        );
+        let negative_zero = fold_f32(
+            BinaryOperator::Divide,
+            float("0.0", FloatFormat::F32),
+            Expression::Float(negative_one),
+        );
+        assert_eq!(negative_zero.value_f32().to_bits(), (-0.0f32).to_bits());
     }
 }

@@ -3974,17 +3974,27 @@ fn select_runtime_dispatch_local_initializer_write(
         expressions,
     );
     let resolved_initializer_source_key = resolved_initializer.source_key;
-    let preserve_authored_float_initializer = matches!(slot.type_name.as_ref(), "f32" | "f64")
-        || expression_contains_runtime_float_builtin(
+    let preserve_authored_float_initializer = !matches!(
+        super::lookups::carried_float_provider_plan(
             input,
+            resolved_initializer_source_key,
+            statement_index,
             expressions,
             resolved_initializer.expression,
-        );
+        ),
+        super::lookups::CarriedFloatProviderPlan::Missing
+    ) || expression_contains_runtime_float_builtin(
+        input,
+        expressions,
+        resolved_initializer.expression,
+    );
     let resolved_initializer = if preserve_authored_float_initializer {
-        // Retained float carriers and compiler-owned unary float builtins must
-        // consume their authored checked expression. Simplifying a prior local
-        // Name into its initializer moves nested float work across statement
-        // identity, where exact provider/policy evidence cannot follow.
+        // Provider-selected float expressions and compiler-owned unary float
+        // builtins must consume their authored checked expression. Simplifying
+        // a prior local Name into its initializer moves nested float work
+        // across statement identity, where exact provider/policy evidence
+        // cannot follow. Provider-free constant primitive arithmetic remains
+        // eligible for the shared float-semantics simplifier.
         resolved_initializer.expression
     } else {
         simplify_runtime_local_initializer_handle(

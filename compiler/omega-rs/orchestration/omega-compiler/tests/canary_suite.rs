@@ -40269,12 +40269,11 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         "binary32 exact square root",
         "binary64 exact square root",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8b3c_f5ec_2629_8fed;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8832_03eb_f03f_0646;
 
     let canary = pass_canary("float/named_provider_min_max_sqrt_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float provider calls should compile to checked trees");
-
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
@@ -40388,7 +40387,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
             .expect("copy named-float canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write cross-target build manifest");
         compile(CompileOptions {
