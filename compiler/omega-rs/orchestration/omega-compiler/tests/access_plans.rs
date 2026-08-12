@@ -836,6 +836,51 @@ data Main {}
 }
 
 #[test]
+fn aggregate_fields_admit_only_inaccessible_access_decisions() {
+    let main = write_program(
+        "aggregate-access",
+        r#"
+use omega::language::core::layout;
+
+data Samples { values: [u16; 3]; }
+data ArrayLayout { entries: [FieldEntry; 64]; }
+machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 6, size_is_dynamic: false, align: 2 }
+}
+
+data ArrayAccess {}
+machine ArrayAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
+satisfies Access::plan
+{
+    let plan: AccessPlan = AccessPlan::inaccessible(schema);
+    plan.with(
+        schema.fields[0].key,
+        FieldAccess::Stable {
+            read: true,
+            write: false,
+            exposure: Exposure::BindingPrivate,
+        },
+    )
+}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(&main, None).expect("access policy source should type");
+    let layout = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+        .expect("the aggregate At layout should validate");
+    let error = compute_access_plan(&checked.typed, "ArrayAccess::plan", "Samples", &layout)
+        .expect_err("aggregate Stable access must remain outside this layout slice");
+    assert!(error.contains("admits only Inaccessible for aggregate fields"));
+}
+
+#[test]
 fn inaccessible_seed_rejects_foreign_replacement_keys() {
     let source = POLICY_SOURCE.replace(
         "data Main {}",

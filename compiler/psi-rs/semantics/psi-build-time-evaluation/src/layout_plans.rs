@@ -24,7 +24,11 @@ pub(crate) struct SchemaFieldInfo {
     pub(crate) size: u64,
     pub(crate) align: u64,
     pub(crate) source_bits: u64,
-    pub(crate) primitive: PrimitiveType,
+    /// Present only for scalar fields. Fixed arrays of primitive elements are
+    /// reflected as one aggregate `At` placement and deliberately do not gain
+    /// scalar integer/bit/access semantics.
+    pub(crate) primitive: Option<PrimitiveType>,
+    pub(crate) kind: &'static str,
     pub(crate) declared_range: Option<(i64, i64)>,
 }
 
@@ -74,23 +78,13 @@ pub(crate) fn schema_fields(
         if field.relevance.is_erased() {
             continue;
         }
-        let Some(primitive) = typed.primitive_type_reference(field.type_reference) else {
-            return Err(format!(
-                "schema data `{schema_data}` field `{}` is not a primitive; the current layout slice supports primitive fields only",
-                field.name
-            ));
-        };
-        let size = primitive_byte_size(primitive).ok_or_else(|| {
-            format!(
-                "schema data `{schema_data}` field `{}` has type `{}`, which the current layout slice cannot size",
-                field.name,
-                primitive.name()
-            )
-        })?;
-        let source_bits = declared_source_bits(typed, field.type_reference, primitive, size);
-        let declared_range =
-            psi_typed_trees::wire::scalar_representation_range(typed, field.type_reference)
-                .map(|range| (range.minimum, range.maximum));
+        let (size, align, source_bits, primitive, kind, declared_range) =
+            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
+                format!(
+                    "schema data `{schema_data}` field `{}` is neither a supported primitive nor a fixed array of supported primitives",
+                    field.name
+                )
+            })?;
         let key = field_key(schema_data, field.name.as_str());
         if fields
             .iter()
@@ -106,9 +100,10 @@ pub(crate) fn schema_fields(
             identity: field.identity,
             key,
             size,
-            align: size,
+            align,
             source_bits,
             primitive,
+            kind,
             declared_range,
         });
     }
@@ -284,6 +279,52 @@ fn primitive_byte_size(primitive: PrimitiveType) -> Option<u64> {
     })
 }
 
+type ReflectedFieldLayout = (
+    u64,
+    u64,
+    u64,
+    Option<PrimitiveType>,
+    &'static str,
+    Option<(i64, i64)>,
+);
+
+fn reflected_field_layout(
+    typed: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<ReflectedFieldLayout> {
+    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+        let size = primitive_byte_size(primitive)?;
+        return Some((
+            size,
+            size,
+            declared_source_bits(typed, type_reference, primitive, size),
+            Some(primitive),
+            "Scalar",
+            psi_typed_trees::wire::scalar_representation_range(typed, type_reference)
+                .map(|range| (range.minimum, range.maximum)),
+        ));
+    }
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
+        element_type,
+        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+    } = typed.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let primitive = typed.primitive_type_reference(*element_type)?;
+    let element_size = primitive_byte_size(primitive)?;
+    let length = u64::try_from(*length).ok()?;
+    let size = element_size.checked_mul(length)?;
+    Some((
+        size,
+        element_size,
+        size.checked_mul(8)?,
+        None,
+        "Repeated",
+        None,
+    ))
+}
+
 fn field_key(schema: &str, field: &str) -> u64 {
     // Stable FNV-1a. Zero remains the unused-tail sentinel.
     let mut hash = 0xcbf29ce484222325_u64;
@@ -314,9 +355,17 @@ fn padded_identities(identities: &[u64]) -> Vec<BuildTimeValue> {
 }
 
 fn build_schema_field_value(field: Option<&SchemaFieldInfo>) -> BuildTimeValue {
-    let (key, size, align, identity) = field
-        .map(|field| (field.key, field.size, field.align, field.identity))
-        .unwrap_or((0, 0, 1, None));
+    let (key, size, align, identity, kind) = field
+        .map(|field| {
+            (
+                field.key,
+                field.size,
+                field.align,
+                field.identity,
+                field.kind,
+            )
+        })
+        .unwrap_or((0, 0, 1, None, "Scalar"));
     BuildTimeValue::Struct {
         type_name: "SchemaField".to_owned(),
         fields: vec![
@@ -331,7 +380,7 @@ fn build_schema_field_value(field: Option<&SchemaFieldInfo>) -> BuildTimeValue {
             (
                 "kind".to_owned(),
                 BuildTimeValue::Case {
-                    variant: "Scalar".to_owned(),
+                    variant: kind.to_owned(),
                     payload: Vec::new(),
                 },
             ),
@@ -411,8 +460,9 @@ pub(crate) fn build_schema_value(
         let payload_fields = (0..SCHEMA_FIELD_CAPACITY)
             .map(|payload_index| {
                 let info = payload.get(payload_index).map(|field| {
-                    let primitive = typed.primitive_type_reference(field.type_reference);
-                    let size = primitive.and_then(primitive_byte_size).unwrap_or(0);
+                    let reflected = reflected_field_layout(typed, field.type_reference);
+                    let (size, align, source_bits, primitive, kind, declared_range) =
+                        reflected.unwrap_or((0, 1, 0, None, "Nested", None));
                     SchemaFieldInfo {
                         name: field.name.to_string(),
                         identity: field.identity,
@@ -421,18 +471,11 @@ pub(crate) fn build_schema_value(
                             format!("{}::{}", variant.name, field.name).as_str(),
                         ),
                         size,
-                        align: size.max(1),
-                        source_bits: primitive
-                            .map(|primitive| {
-                                declared_source_bits(typed, field.type_reference, primitive, size)
-                            })
-                            .unwrap_or(0),
-                        primitive: primitive.unwrap_or(PrimitiveType::Bool),
-                        declared_range: psi_typed_trees::wire::scalar_representation_range(
-                            typed,
-                            field.type_reference,
-                        )
-                        .map(|range| (range.minimum, range.maximum)),
+                        align,
+                        source_bits,
+                        primitive,
+                        kind,
+                        declared_range,
                     }
                 });
                 build_schema_field_value(info.as_ref())
@@ -659,13 +702,17 @@ pub(crate) fn validate_plan(
                         schema_field.name
                     )));
                 }
-                if !schema_field.primitive.accepts_integer_literal()
-                    || schema_field.primitive == PrimitiveType::Addr
-                {
+                let Some(primitive) = schema_field.primitive else {
+                    return Err(fail(format!(
+                        "field `{}` uses `IntegerAt`, but aggregate fields support only `At` placement",
+                        schema_field.name
+                    )));
+                };
+                if !primitive.accepts_integer_literal() || primitive == PrimitiveType::Addr {
                     return Err(fail(format!(
                         "field `{}` uses `IntegerAt`, but its semantic type `{}` is not a fixed-width integer carrier",
                         schema_field.name,
-                        schema_field.primitive.name()
+                        primitive.name()
                     )));
                 }
                 let interpretation = match payload
@@ -713,6 +760,12 @@ pub(crate) fn validate_plan(
                 });
             }
             "Bits" => {
+                if schema_field.primitive.is_none() {
+                    return Err(fail(format!(
+                        "field `{}` uses `Bits`, but aggregate fields support only `At` placement",
+                        schema_field.name
+                    )));
+                }
                 if matches!(kinds_by_field[field_index], Some("At" | "IntegerAt")) {
                     return Err(fail(format!(
                         "field `{}` mixes a whole-field and `Bits` placement",
@@ -875,13 +928,16 @@ fn validate_integer_decode_range(
     stored_width: u64,
     interpretation: psi_layout_plans::IntegerInterpretation,
 ) -> Result<(), String> {
+    let primitive = field
+        .primitive
+        .ok_or_else(|| format!("field `{}` is not a scalar integer", field.name))?;
     let semantic_width = field.size * 8;
     let carrier_fits = match interpretation {
         psi_layout_plans::IntegerInterpretation::Signed => {
-            field.primitive.is_signed_integer() && stored_width <= semantic_width
+            primitive.is_signed_integer() && stored_width <= semantic_width
         }
         psi_layout_plans::IntegerInterpretation::Unsigned => {
-            if field.primitive.is_signed_integer() {
+            if primitive.is_signed_integer() {
                 stored_width < semantic_width
             } else {
                 stored_width <= semantic_width
@@ -896,7 +952,7 @@ fn validate_integer_decode_range(
                 psi_layout_plans::IntegerInterpretation::Signed => "signed",
                 psi_layout_plans::IntegerInterpretation::Unsigned => "unsigned",
             },
-            field.primitive.name()
+            primitive.name()
         ));
     }
 
