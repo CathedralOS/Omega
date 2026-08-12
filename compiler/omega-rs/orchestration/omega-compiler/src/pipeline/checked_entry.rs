@@ -21,20 +21,11 @@ pub struct CheckedCompilation {
 }
 
 impl CheckedCompilation {
+    /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
+    /// checked-only compilation had one. Pure semantic checking is entry-
+    /// agnostic; an execution caller must not infer a machine from its name.
     pub fn selected_program_entry_machine(&self) -> Option<&str> {
         self.selected_program_entry_machine.as_deref()
-    }
-
-    /// Exact machine name that Omega selected for program execution.
-    ///
-    /// A target-owned `ProgramEntry` binding wins. `Main::main` is the
-    /// Omega-owned transitional choice only for the legacy corpus that has no
-    /// root binding yet. Execution engines receive this exact name; Psi does
-    /// not rediscover an entry from source spelling.
-    pub fn program_entry_machine(&self) -> &str {
-        self.selected_program_entry_machine
-            .as_deref()
-            .unwrap_or("Main::main")
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
