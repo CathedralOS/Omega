@@ -134,6 +134,12 @@ machine-backed concrete const-domain fact discharge are Psi services
 but it does not own or reinterpret their language semantics. Target-specific
 compilation consumes the resulting syntax/checked values and terminal Psi.
 
+The public build-time service exposes ownership-taking pre-resolution and
+pre-check conveyors for these target-neutral phases. Omega may interpose target
+machine selection between them and performs calling-policy ABI, provider,
+artifact, and native realization afterward; those target decisions are not
+folded back into Psi language elaboration.
+
 Optimization may reduce physical work without reducing logical fuel. A
 compiler release may not silently change budget behavior merely because its
 native lowering improved.

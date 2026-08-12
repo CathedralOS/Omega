@@ -345,19 +345,10 @@ impl Compiler {
             self.options.target_name.as_deref(),
             &mut timings,
         )?;
-        syntax.syntax_trees =
-            psi_build_time_evaluation::evaluate_const_generic_calls(syntax.syntax_trees)?;
-        psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(
-            &mut syntax.syntax_trees,
-        )?;
-        let placed_view_records =
-            psi_build_time_evaluation::desugar_placed_views(&mut syntax.syntax_trees)?;
-        // PLAN-LAID VALUE TYPES (layouts L4), desugar half: synthesize the
-        // `Policy<Schema>` instance definitions before resolution so every
-        // later stage sees ordinary records.
-        syntax.syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax.syntax_trees)?;
-        let plan_laid_records =
-            psi_build_time_evaluation::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
+        let evaluated = psi_build_time_evaluation::evaluate_pre_resolution(syntax.syntax_trees)?;
+        syntax.syntax_trees = evaluated.syntax_trees;
+        let placed_view_records = evaluated.placed_view_records;
+        let plan_laid_records = evaluated.plan_laid_records;
         // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
         // the SELECTED target's `<target> machine` implementations become
         // ordinary machines; every other target's stay inert. Loud edges:
@@ -400,19 +391,11 @@ impl Compiler {
         write_resolved_snapshot(&self.options, &resolved)?;
 
         let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
-        // COMPTIME STAGE 1: evaluate build-time-admissible machine calls in fixed-array
-        // length position and substitute concrete literals BEFORE checking,
-        // proof facts, and layout consume the lengths.
-        psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
-        psi_build_time_evaluation::evaluate_const_domain_facts(&mut typed)?;
-        // PLAN-LAID VALUE TYPES, plan half: evaluate + validate each policy
-        // application and record the placements for the layout builder.
-        psi_build_time_evaluation::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
-        psi_build_time_evaluation::validate_placed_view_plans(&mut typed, &placed_view_records)?;
-        // WIRE PLANS (mint arc rung 2a): derive each numbered schema's
-        // placement plan; the wire codec selection consumes it (tag + framing
-        // from the plan, asserted against its own walk).
-        psi_build_time_evaluation::compute_wire_plans(&mut typed)?;
+        psi_build_time_evaluation::evaluate_pre_check(
+            &mut typed,
+            &plan_laid_records,
+            &placed_view_records,
+        )?;
         let boundary_calling_plan_realizations =
             crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
         // PDI3 selected operation/algebra authority is public type identity,
