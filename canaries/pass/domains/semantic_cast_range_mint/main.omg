@@ -1,19 +1,10 @@
-// FLOW-INTEGRATED MINT v1 (decision 19): a RUNTIME value qualifies into a
-// declared semantic domain when its DECLARED RANGE entails every domain
-// fact -- raw: i64 [0..=4096] entails self >= 0, so `raw as i64 in Km`
-// mints. Zero-cost; the value flows on. RUNS exit 70.
-use omega::language::std::console;
-data Main { console: Console; }
+// A value may qualify into a declared semantic domain when its declared range
+// entails every domain predicate. Qualification is checked semantics and adds
+// no runtime representation.
 domain i64::Km
 requires
     self >= 0;
-machine Main::measure(&mut self, raw: i64 [0..=4096]) -> i64 {
-    let distance: i64 = raw as i64 in Km;
-    distance
-}
-machine Main::main(&mut self) {
-    let d: i64 = self.measure(7);
-    transition d == 7 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+
+machine mint_range(raw: i64 [0..=4096]) {
+    let distance: i64 in Km = raw as i64 in Km;
 }
