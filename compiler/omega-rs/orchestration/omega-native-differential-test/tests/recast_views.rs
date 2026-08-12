@@ -5,7 +5,7 @@ use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, checked.program_entry_machine(), stdin)
+    interpret_entry(checked, "Main::main", stdin)
 }
 
 fn repo_root() -> PathBuf {

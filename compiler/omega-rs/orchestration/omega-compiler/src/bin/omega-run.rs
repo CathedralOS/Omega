@@ -78,11 +78,16 @@ fn main() {
     if both {
         match compile_to_checked(&main_path, None) {
             Ok(checked) => {
-                let outcome = psi_checked_interpreter::interpret_entry(
-                    &checked,
-                    checked.program_entry_machine(),
-                    &[],
-                );
+                let Some(entry) = checked.selected_program_entry_machine() else {
+                    eprintln!(
+                        "interp: DECLINED (build has no exact target-owned ProgramEntry binding)"
+                    );
+                    if !keep {
+                        let _ = std::fs::remove_dir_all(&build_dir);
+                    }
+                    std::process::exit(201);
+                };
+                let outcome = psi_checked_interpreter::interpret_entry(&checked, entry, &[]);
                 if let Some(reason) = &outcome.error {
                     eprintln!("interp: DECLINED ({reason})");
                 } else {

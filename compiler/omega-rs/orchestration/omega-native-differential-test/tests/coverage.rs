@@ -26,7 +26,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, checked.program_entry_machine(), stdin)
+    interpret_entry(checked, "Main::main", stdin)
 }
 
 /// Write `source` to a fresh temp dir as `main.omg` and return the path. The dir is keyed

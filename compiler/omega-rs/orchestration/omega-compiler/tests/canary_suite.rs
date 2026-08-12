@@ -25,7 +25,10 @@ use std::process::Stdio;
 use std::process::Stdio;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, checked.program_entry_machine(), stdin)
+    // These checked-only semantic fixtures predate target-owned build roots.
+    // Their temporary execution choice is explicit in the harness rather than
+    // inferred by CheckedCompilation.
+    interpret_entry(checked, "Main::main", stdin)
 }
 
 #[path = "canary_suite/inline_asm.rs"]
@@ -43778,22 +43781,24 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         .expect("explicit entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
-    assert_eq!(checked.program_entry_machine(), "launch");
-    let outcome =
-        psi_checked_interpreter::interpret_entry(&checked, checked.program_entry_machine(), &[]);
+    let outcome = psi_checked_interpreter::interpret_entry(
+        &checked,
+        checked
+            .selected_program_entry_machine()
+            .expect("target build selected an exact entry"),
+        &[],
+    );
     assert_eq!(outcome.error, None);
 }
 
 #[test]
-fn checked_compilation_owns_the_transitional_legacy_program_entry() {
+fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("legacy Main entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), None);
-    assert_eq!(checked.program_entry_machine(), "Main::main");
-    let outcome =
-        psi_checked_interpreter::interpret_entry(&checked, checked.program_entry_machine(), &[]);
+    let outcome = psi_checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);
 }

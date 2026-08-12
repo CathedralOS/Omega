@@ -23,7 +23,11 @@ fn main() {
         std::process::exit(102);
     });
 
-    let outcome = interpret_entry(&checked, checked.program_entry_machine(), &stdin);
+    let entry = checked.selected_program_entry_machine().unwrap_or_else(|| {
+        eprintln!("build has no exact target-owned ProgramEntry binding");
+        std::process::exit(103);
+    });
+    let outcome = interpret_entry(&checked, entry, &stdin);
     std::io::stdout()
         .write_all(&outcome.stdout)
         .expect("stdout");

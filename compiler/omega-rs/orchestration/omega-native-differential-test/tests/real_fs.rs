@@ -24,7 +24,7 @@ use psi_checked_interpreter::{
 use std::path::Path;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, checked.program_entry_machine(), stdin)
+    interpret_entry(checked, "Main::main", stdin)
 }
 
 fn interpret_with_options(
@@ -32,7 +32,7 @@ fn interpret_with_options(
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
-    interpret_entry_with_options(checked, checked.program_entry_machine(), stdin, options)
+    interpret_entry_with_options(checked, "Main::main", stdin, options)
 }
 
 /// Render a host path for embedding in generated omega source: forward

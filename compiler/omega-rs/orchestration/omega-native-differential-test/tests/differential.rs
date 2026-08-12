@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, checked.program_entry_machine(), stdin)
+    interpret_entry(checked, "Main::main", stdin)
 }
 
 /// The RUN canaries: `(relative path under canaries/pass, exit code the suite asserts)`.
