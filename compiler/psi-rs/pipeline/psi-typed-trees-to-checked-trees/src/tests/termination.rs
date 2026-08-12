@@ -3808,6 +3808,10 @@ fn mutable_slice_views_preserve_array_storage_origins() {
 
     machine noop() {}
 
+    machine write_value(value: &mut u64) {
+        value = 1;
+    }
+
     machine return_after_discarded_slice_view<'value, 'cells>(
         value: &'value mut u64,
         cells: &'cells mut [u64; 2]
@@ -3824,8 +3828,13 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         value
     }
 
-    machine return_after_discarded_user_call(value: &mut u64) -> &mut u64 {
+    machine return_after_empty_statement_call(value: &mut u64) -> &mut u64 {
         noop();
+        value
+    }
+
+    machine return_after_write_statement_call(value: &mut u64) -> &mut u64 {
+        write_value(value);
         value
     }
 
@@ -3858,8 +3867,13 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         alias = 1;
     }
 
-    machine Main::discarded_user_call(&mut self) {
-        let alias: &mut u64 = return_after_discarded_user_call(&mut self.value);
+    machine Main::empty_statement_call(&mut self) {
+        let alias: &mut u64 = return_after_empty_statement_call(&mut self.value);
+        alias = 1;
+    }
+
+    machine Main::write_statement_call(&mut self) {
+        let alias: &mut u64 = return_after_write_statement_call(&mut self.value);
         alias = 1;
     }
 
@@ -3884,6 +3898,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         "Main::statement_view",
         "Main::discarded_slice_view",
         "Main::discarded_shared_slice_view",
+        "Main::empty_statement_call",
     ] {
         let machine = typed
             .machines()
@@ -3901,7 +3916,9 @@ fn mutable_slice_views_preserve_array_storage_origins() {
             Some(
                 [if matches!(
                     name,
-                    "Main::discarded_slice_view" | "Main::discarded_shared_slice_view"
+                    "Main::discarded_slice_view"
+                        | "Main::discarded_shared_slice_view"
+                        | "Main::empty_statement_call"
                 ) {
                     "self.value"
                 } else {
@@ -3948,20 +3965,20 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         "an opaque recursive statement argument must retain a whole-receiver fence"
     );
 
-    let discarded_user_call = typed
+    let write_statement_call = typed
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == "Main::discarded_user_call")
-        .expect("discarded user-call caller");
-    let discarded_user_call_entry = typed
-        .machine_states(discarded_user_call)
+        .find(|machine| machine.name.as_str() == "Main::write_statement_call")
+        .expect("write statement-call caller");
+    let write_statement_call_entry = typed
+        .machine_states(write_statement_call)
         .first()
-        .expect("discarded user-call caller entry state");
+        .expect("write statement-call caller entry state");
     assert!(
         !resolver
-            .inferred_state_write_frame(discarded_user_call, discarded_user_call_entry)
+            .inferred_state_write_frame(write_statement_call, write_statement_call_entry)
             .is_complete(),
-        "an arbitrary discarded user call must keep the helper relation opaque"
+        "a write-capable statement call must keep the helper relation opaque"
     );
 }
 
