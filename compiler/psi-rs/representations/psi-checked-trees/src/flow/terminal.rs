@@ -184,6 +184,58 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
+/// Complete checked input for the first terminal structural-control producer.
+/// This deliberately supports only claim-free affine, Unit-returning attached
+/// graphs whose states either return naturally or unconditionally transfer
+/// whole parameters to one local successor.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralUnitControlPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub machines: Vec<CheckedStructuralUnitControlMachinePlan>,
+}
+
+impl CheckedStructuralUnitControlPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedStructuralUnitControlMachinePlan> {
+        self.machines.iter().find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralUnitControlMachinePlan {
+    pub machine: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub states: Vec<CheckedStructuralUnitControlStatePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralUnitControlStatePlan {
+    pub state: SymbolHandle,
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub terminator: CheckedStructuralUnitControlTerminatorPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStructuralUnitControlTerminatorPlan {
+    ReturnUnit {
+        trivial_affine_discard_parameter_positions: Vec<u32>,
+    },
+    Jump {
+        statement_ordinal: u32,
+        target_state: SymbolHandle,
+        transfers: Vec<CheckedStructuralControlTransferPlan>,
+        trivial_affine_discard_parameter_positions: Vec<u32>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedStructuralControlTransferPlan {
+    pub source_parameter_index: u32,
+    pub target_parameter_index: u32,
+}
+
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.

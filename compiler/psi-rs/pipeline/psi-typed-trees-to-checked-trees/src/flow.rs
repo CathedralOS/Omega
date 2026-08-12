@@ -81,5 +81,7 @@ pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
 pub(crate) use terminal_scalar::{
     build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
 };
-pub(crate) use terminal_unit::build_checked_unit_effect_plans;
+pub(crate) use terminal_unit::{
+    build_checked_structural_unit_control_plans, build_checked_unit_effect_plans,
+};
 use transfers::propagate_statement_transfers;

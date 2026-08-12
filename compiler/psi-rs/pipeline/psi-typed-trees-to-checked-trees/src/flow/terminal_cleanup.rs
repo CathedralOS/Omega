@@ -43,81 +43,8 @@ fn build_state_plan(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
-    let parameters = program.state_parameters(state);
-    let entry_claim_roots = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter_map(|(_, event)| {
-            (event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.source == PermissionEventSource::StateEntry
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned)
-                .then_some(event.root)
-        })
-        .collect::<Vec<_>>();
-    let expected_discard_parameters = parameters
-        .iter()
-        .enumerate()
-        .rev()
-        .filter_map(|(position, parameter)| {
-            if parameter.is_self
-                || crate::checks::type_multiplicity(program, parameter.type_reference)
-                    != Multiplicity::Affine
-                || entry_claim_roots.contains(&psi_facts::PlaceRoot::Symbol(parameter.symbol))
-            {
-                return None;
-            }
-            Some((parameter.symbol, u32::try_from(position).ok()?))
-        })
-        .collect::<Vec<_>>();
-    let mut discard_parameters = Vec::new();
-    for (_, event) in facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
-        })
-    {
-        if event.access != PermissionAccess::Owned
-            || event.multiplicity != Multiplicity::Affine
-            || event.obligation_live
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != PermissionProvenance::Unknown
-            || !facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .is_empty()
-        {
-            return None;
-        }
-        let psi_facts::PlaceRoot::Symbol(root) = event.root else {
-            return None;
-        };
-        let position = parameters.iter().position(|parameter| {
-            !parameter.is_self
-                && parameter.symbol == root
-                && crate::checks::type_multiplicity(program, parameter.type_reference)
-                    == Multiplicity::Affine
-        })?;
-        let position = u32::try_from(position).ok()?;
-        if discard_parameters.contains(&(root, position)) {
-            return None;
-        }
-        discard_parameters.push((root, position));
-    }
-    if discard_parameters != expected_discard_parameters {
-        return None;
-    }
+    let discard_parameters =
+        checked_whole_affine_discard_parameters(program, facts, machine.symbol, state)?;
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let has_structural_control = statements.iter().any(|statement| {
@@ -206,4 +133,88 @@ fn build_state_plan(
         state: state.symbol,
         edges,
     })
+}
+
+pub(super) fn checked_whole_affine_discard_parameters(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: psi_symbols::SymbolHandle,
+    state: &psi_typed_trees::state::State,
+) -> Option<Vec<(psi_symbols::SymbolHandle, u32)>> {
+    let parameters = program.state_parameters(state);
+    let entry_claim_roots = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state.symbol
+                && event.source == PermissionEventSource::StateEntry
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned)
+                .then_some(event.root)
+        })
+        .collect::<Vec<_>>();
+    let expected_discard_parameters = parameters
+        .iter()
+        .enumerate()
+        .rev()
+        .filter_map(|(position, parameter)| {
+            if parameter.is_self
+                || crate::checks::type_multiplicity(program, parameter.type_reference)
+                    != Multiplicity::Affine
+                || entry_claim_roots.contains(&psi_facts::PlaceRoot::Symbol(parameter.symbol))
+            {
+                return None;
+            }
+            Some((parameter.symbol, u32::try_from(position).ok()?))
+        })
+        .collect::<Vec<_>>();
+    let mut discard_parameters = Vec::new();
+    for (_, event) in facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state.symbol
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+    {
+        if event.access != PermissionAccess::Owned
+            || event.multiplicity != Multiplicity::Affine
+            || event.obligation_live
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+            || event.provenance != PermissionProvenance::Unknown
+            || !facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments)
+                .is_empty()
+        {
+            return None;
+        }
+        let psi_facts::PlaceRoot::Symbol(root) = event.root else {
+            return None;
+        };
+        let position = parameters.iter().position(|parameter| {
+            !parameter.is_self
+                && parameter.symbol == root
+                && crate::checks::type_multiplicity(program, parameter.type_reference)
+                    == Multiplicity::Affine
+        })?;
+        let position = u32::try_from(position).ok()?;
+        if discard_parameters.contains(&(root, position)) {
+            return None;
+        }
+        discard_parameters.push((root, position));
+    }
+    if discard_parameters != expected_discard_parameters {
+        return None;
+    }
+    Some(discard_parameters)
 }

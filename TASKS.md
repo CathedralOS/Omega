@@ -197,11 +197,15 @@ Remaining:
   arguments are materialized; each ordered conditional successor carries its
   own independently selected subset under the same rule. Omega consumes both
   forms without emitting an operation. Structural control-edge production now
-  has its first checked prerequisite: exact source-state/statement/target rows
+  has its first complete narrow path: exact source-state/statement/target rows
   retain reverse-order whole-parameter affine discards after subtracting
-  checked transfers, while affine locals, projections, claims, and incomplete
-  evidence publish no partial row. Terminal production still must resolve
-  those positions against its exact structural signature and transfer map.
+  checked transfers, then a composed checked plan binds those rows to exact
+  source-handle-free state signatures and whole-parameter transfer maps.
+  Terminal production resolves the positions to places and emits verified
+  jumps or Unit returns for attached, acyclic, single-predecessor machines with
+  claim-free affine structural parameters. Joins, cycles, reordered custody,
+  conditional control, scalar work, locals, projections, claims, and incomplete
+  evidence still fail closed.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned
@@ -453,14 +457,15 @@ reach or trust, and private proof improvements do not change public identity.
 
 ### Multiplicity, tasks, and execution
 
-- **CML4:** construct `EdgeCleanupPlan` after outgoing-value materialization and
+- **CML4:** construct the complete `EdgeCleanupPlan` after outgoing-value materialization and
   transfer-map commitment. Add reverse-declaration cleanup, contextual cleanup
   contract checking, structural partial-value cleanup, nominal-drop
   partial-move rejection, repeated-cycle resource composition, and
-  conservation/backend-ledger reporting. Checked structural control facts now
-  retain the narrow whole-parameter, claim-free affine prerequisite per exact
-  ordinary edge; it is not yet the complete `EdgeCleanupPlan` or conservation
-  witness.
+  conservation/backend-ledger reporting. The first narrow checked-to-terminal
+  path now composes exact ordinary-edge cleanup with source-handle-free state
+  signatures and whole-parameter transfers for acyclic, single-predecessor Unit
+  machines. It is not yet the complete `EdgeCleanupPlan`, conditional-control
+  path, repeated-cycle composition, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
