@@ -1852,6 +1852,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push_str(&location.call_ordinal().to_string());
                 json.push_str(", \"target_machine\": ");
                 push_json_string(&mut json, target_machine_name);
+                json.push_str(", \"target_machine_overload_identity\": ");
+                push_json_string(
+                    &mut json,
+                    &machine_overload_identity(program, call.target_machine())
+                        .expect("checked crash call must name an exact target machine"),
+                );
                 json.push_str(", \"target_state\": ");
                 push_json_string(&mut json, target_state_name);
                 json.push_str(", \"target_contract_fingerprint\": \"0x");
@@ -3574,7 +3580,10 @@ mod tests {
             "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"path_guard_consequences\": [\"0x010401\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"alternative_guards\": [\"true\"]}]"
+            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_machine_overload_identity\": \"named-callable(path(Worker::run)"
+        ));
+        assert!(json[implementation_start..].contains(
+            "\"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"alternative_guards\": [\"true\"]}]"
         ));
         assert!(
             json[implementation_start..]
