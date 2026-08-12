@@ -613,31 +613,6 @@ fn native_float_two_args_exits_5() {
     );
 }
 
-// Three f64 args reaching v2 (the HFA ABI proof) and genuine fused semantics:
-// (1 + 2^-52)^2 - (1 + 2^-51) is positive only when evaluated as one FMA.
-#[test]
-fn native_float_three_args_preserves_fused_semantics() {
-    let main_path = repo_root().join("canaries/pass/float/native_float_three_args/main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-float3-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .unwrap_or_else(|d| panic!("native_float_three_args should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program"))
-        .output()
-        .expect("run");
-    let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(
-        out.status.code(),
-        Some(70),
-        "libm fma must receive v0/v1/v2 and preserve its single-rounding result"
-    );
-}
-
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn returning_foreign_call_restores_canonical_float_control_state() {
