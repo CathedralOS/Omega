@@ -152,6 +152,8 @@ Current ownership is:
   fixed-array local is caller-isolated and contributes no published write;
   structurally transparent helpers preserve that local origin. Recursive,
   generic, reference-bearing, or other computed local roots remain opaque.
+  The compiler-owned `as_mut_slice()` view preserves its backing array origin,
+  including through a structurally transparent helper result.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call

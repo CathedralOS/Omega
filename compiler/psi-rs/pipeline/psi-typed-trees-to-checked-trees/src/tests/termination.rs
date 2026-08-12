@@ -3714,6 +3714,82 @@ fn stable_alias_index_frame_requires_an_effect_free_index() {
 }
 
 #[test]
+fn mutable_slice_views_preserve_array_storage_origins() {
+    let source = r#"
+    data Main {
+        cells: [u64; 2];
+    }
+
+    machine return_slice(cells: &mut [u64; 2]) -> &mut [u64] {
+        let view: &mut [u64] = cells.as_mut_slice();
+        view
+    }
+
+    machine return_recursive_slice(cells: &mut [u64; 2]) -> &mut [u64] {
+        return_recursive_slice(cells)
+    }
+
+    machine Main::direct_view(&mut self) {
+        let view: &mut [u64] = self.cells.as_mut_slice();
+        view[0] = 1;
+    }
+
+    machine Main::helper_view(&mut self) {
+        let view: &mut [u64] = return_slice(&mut self.cells);
+        view[0] = 1;
+    }
+
+    machine Main::recursive_view(&mut self) {
+        let view: &mut [u64] = return_recursive_slice(&mut self.cells);
+        view[0] = 1;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for name in ["Main::direct_view", "Main::helper_view"] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(["self.cells".to_owned()].as_slice()),
+            "{name} must retain the mutable view's array storage origin"
+        );
+    }
+
+    let recursive = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::recursive_view")
+        .expect("recursive view caller");
+    let recursive_entry = typed
+        .machine_states(recursive)
+        .first()
+        .expect("recursive view caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(recursive, recursive_entry)
+            .is_complete(),
+        "an opaque recursive slice producer must remain a frame fence"
+    );
+}
+
+#[test]
 fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let source = r#"
     machine baseline() {}
