@@ -301,7 +301,7 @@ pub(crate) fn compute_boundary_calling_plans(
     if pending.is_empty() {
         return Ok(Vec::new());
     }
-    let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(typed);
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(typed);
     let mut evaluated = Vec::with_capacity(pending.len());
     for (
         boundary_trait,
@@ -909,13 +909,13 @@ pub fn evaluate_calling_policy_plan(
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     let materialized = materialized_boundary_signature_from_abi(signature)?;
-    let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(typed);
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(typed);
     evaluate_materialized_calling_policy_plan(typed, &admission, policy_machine, &materialized)
 }
 
 fn evaluate_materialized_calling_policy_plan(
     typed: &TypedTrees,
-    admission: &super::build_time_admission::BuildTimeAdmissionPlan,
+    admission: &psi_build_time_evaluation::BuildTimeAdmissionPlan,
     policy_machine: &str,
     signature: &MaterializedBoundarySignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {

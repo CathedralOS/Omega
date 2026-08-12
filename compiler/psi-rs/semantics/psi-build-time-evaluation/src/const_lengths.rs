@@ -3,8 +3,7 @@
 //! `[T; table_size()]` puts a build-time-admissible, zero-argument machine call
 //! in a constant position: the position makes it comptime, the contract system
 //! makes it legal (no keyword, no macro -- chapter 13's frozen direction).
-//! This pass runs in the ORCHESTRATION layer between typed-tree lowering and
-//! checking:
+//! Psi runs this pass between typed-tree lowering and checking:
 //!
 //! - EARLY enough that range checking (`typed-trees-to-checked-trees`), proof
 //!   facts, layout, and codegen all see an ordinary `FixedArrayLength::Literal`
@@ -36,12 +35,12 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use std::collections::BTreeMap;
 
-use super::build_time_admission::BuildTimeAdmissionPlan;
+use crate::BuildTimeAdmissionPlan;
 
 /// Evaluate every `FixedArrayLength::ConstCall` in the program and substitute
 /// the concrete `Literal` length in place. Errors name the array-length
 /// position (the spelled type) and the failing machine.
-pub(super) fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let pending: Vec<(TypeReferenceHandle, String)> = typed
         .type_reference_table
         .fixed_array_lengths()
@@ -107,7 +106,7 @@ fn evaluate_one(
         .map_err(|_| format!("the call returned {value}, which does not fit an array length"))
 }
 
-pub(super) fn evaluate_zero_argument_machine(
+pub fn evaluate_zero_argument_machine(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     machine_name: &str,

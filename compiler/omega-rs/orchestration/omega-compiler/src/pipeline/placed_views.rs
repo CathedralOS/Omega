@@ -91,7 +91,7 @@ pub(crate) fn desugar_placed_views(
     let mut typed =
         psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|diagnostic| vec![diagnostic])?;
-    super::const_lengths::evaluate_const_array_lengths(&mut typed)?;
+    psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
     super::const_domain_facts::evaluate_const_domain_facts(&mut typed)?;
     super::plan_laid::compute_plan_laid_layouts(&mut typed, &probe_plan_laid)?;
 

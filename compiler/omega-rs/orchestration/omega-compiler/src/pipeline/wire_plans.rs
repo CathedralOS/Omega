@@ -113,7 +113,7 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
     let admission =
-        policy_exists.then(|| super::build_time_admission::BuildTimeAdmissionPlan::infer(typed));
+        policy_exists.then(|| psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(typed));
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {
@@ -184,7 +184,7 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
 /// schema's facts and extract the authored placements, TAG-SORTED.
 fn evaluate_wire_policy(
     typed: &TypedTrees,
-    admission: &super::build_time_admission::BuildTimeAdmissionPlan,
+    admission: &psi_build_time_evaluation::BuildTimeAdmissionPlan,
     schema_name: &str,
     fields: &[(u64, FieldShape)],
 ) -> Result<Vec<WirePlacement>, String> {

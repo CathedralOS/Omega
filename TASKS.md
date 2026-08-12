@@ -228,10 +228,12 @@ Remaining:
   ineligible omitted evidence remains explicit-term-required. Direct and nested
   SysV AMD64/AAPCS64 canaries pin the fixed-record boundary classification.
 
-  Target-neutral generic-instance discovery, syntax relabeling, and contextual
-  literal elaboration now live behind an ownership-taking Psi pre-resolution
-  entry; the in-place syntax elaborator is private. Finish moving the remaining
-  target-neutral probe/conveyor sequencing out of `omega-compiler` before
+  Target-neutral generic-instance discovery, syntax relabeling, contextual
+  literal elaboration, build-time admission, fixed-array evaluation, and the
+  checked zero-argument evaluator now live in Psi; the pre-resolution entry
+  takes ownership and the in-place syntax elaborator is private. Finish moving
+  the remaining target-neutral probe/conveyor sequencing out of
+  `omega-compiler` before
   expanding computed, chained, dynamic-receiver, unresolved generic,
   non-checked-supply, or unresolved-machine-parameter contexts. This is an
   engineering migration, not a language-design blocker: Omega must consume

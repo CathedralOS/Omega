@@ -397,6 +397,7 @@ dependencies = [
  "omega-visualizations",
  "psi-access-plans",
  "psi-arena",
+ "psi-build-time-evaluation",
  "psi-checked-interpreter",
  "psi-checked-trees",
  "psi-diagnostics",
@@ -1301,6 +1302,19 @@ name = "psi-arena"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
+]
+
+[[package]]
+name = "psi-build-time-evaluation"
+version = "0.1.0"
+dependencies = [
+ "psi-checked-interpreter",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-language-semantics",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

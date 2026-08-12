@@ -122,7 +122,7 @@ fn compile_to_checked_inner(
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
     // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
     // checking, exactly as the full `compile` pipeline does.
-    crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
+    psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
     crate::pipeline::const_domain_facts::evaluate_const_domain_facts(&mut typed)?;
     // PLAN-LAID VALUE TYPES, plan half: evaluate + validate + record.
     crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;

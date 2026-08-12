@@ -46,14 +46,14 @@ pub(super) fn evaluate_const_generic_calls(
         .map_err(|diagnostic| vec![diagnostic])?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
 
     let mut values: BTreeMap<String, u64> = BTreeMap::new();
     for (_, machine_name) in &pending {
         if values.contains_key(machine_name) {
             continue;
         }
-        let value = super::const_lengths::evaluate_zero_argument_machine(
+        let value = psi_build_time_evaluation::evaluate_zero_argument_machine(
             &typed,
             &admission,
             machine_name,
