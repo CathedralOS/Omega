@@ -674,10 +674,10 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {}",
+                "- provider plan: {} [{:016x}] -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
-                row.requirement,
+                row.requirement_identity,
                 row.method,
                 row.subject,
                 row.authority_flow,
@@ -1967,7 +1967,7 @@ pub struct TrustReportRow {
 pub struct TrustQualificationRow {
     pub provider_plan: String,
     pub provider_plan_fingerprint: u64,
-    pub requirement: String,
+    pub requirement_identity: String,
     pub method: String,
     /// `parameter:N` for an accepted entry claim or `result` for a returned
     /// qualification.
