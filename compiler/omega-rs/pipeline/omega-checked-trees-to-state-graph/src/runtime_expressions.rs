@@ -82,7 +82,55 @@ mod tests {
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
-    fn runtime_copy_omits_erased_field_and_its_initializer_subtree() {
+    fn runtime_copy_omits_synthesized_nullary_erased_initializer() {
+        let source = r#"
+            data Evidence { case Only; case WithPayload(value: i32); }
+            data Certified { value: i32; proof [erased]: Evidence; }
+            data Main {}
+            machine Main::run() -> i32 {
+                let certified: Certified = Certified {
+                    value: 7,
+                };
+                certified.value
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let literal = typed
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, expression)| {
+                matches!(expression, psi_checked_trees::expression::ExpressionNode::StructLiteral(literal)
+                    if literal.type_name.as_str() == "Certified")
+                .then_some(handle)
+            })
+            .expect("Certified literal");
+        let checked = CheckedTrees::with_roots(typed, CheckFacts::default());
+        let mut graph = StateGraph::default();
+
+        let copied = copy_runtime_expression(&mut graph, &checked, literal);
+
+        let psi_checked_trees::expression::ExpressionNode::StructLiteral(literal) =
+            graph.expressions.expression(copied)
+        else {
+            panic!("runtime root should remain a struct literal");
+        };
+        let fields = graph.expressions.struct_fields(literal.fields);
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name.as_str(), "value");
+        assert_eq!(graph.expressions.expression_count(), 2);
+        assert!(graph.expressions.iter_expressions().all(|(_, expression)| {
+            !matches!(
+                expression,
+                psi_checked_trees::expression::ExpressionNode::Name(_)
+            )
+        }));
+    }
+
+    #[test]
+    fn runtime_copy_omits_explicit_erased_initializer_subtree() {
         let source = r#"
             data Certified { value: i32; proof [erased]: i32; }
             data Main {}

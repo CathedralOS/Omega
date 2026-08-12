@@ -11,6 +11,15 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
 use psi_typed_trees as typed;
 
+#[derive(Clone)]
+struct NullaryErasedInitializer {
+    field_name: resolved::name::DiagnosticName,
+    type_name: resolved::name::DiagnosticName,
+    type_symbol: psi_symbols::SymbolHandle,
+    variant_name: resolved::name::DiagnosticName,
+    variant_symbol: psi_symbols::SymbolHandle,
+}
+
 pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) program: Option<&'program resolved::SymbolResolvedTrees>,
     pub(super) source: &'program resolved::expression::ExpressionTable,
@@ -282,7 +291,18 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
-                let fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
+                let omitted = self.nullary_erased_initializers(struct_literal);
+                let mut fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
+                for initializer in omitted {
+                    let value = self.synthesize_nullary_initializer(&initializer);
+                    self.target().push_struct_field(
+                        &mut fields,
+                        typed::expression::TableStructLiteralField {
+                            name: lower_name(&initializer.field_name),
+                            value,
+                        },
+                    );
+                }
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::StructLiteral(
@@ -375,6 +395,108 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         Ok(self.target().insert_struct_fields(lowered))
     }
 
+    /// Elaborate the one settled omission rule for erased bindings. The
+    /// semantic typed tree receives the same `Evidence::Only` term that an
+    /// author could have supplied explicitly; runtime erasure happens later.
+    /// No default-value or general inhabitance search is performed.
+    fn nullary_erased_initializers(
+        &self,
+        literal: &resolved::expression::TableStructLiteral,
+    ) -> Vec<NullaryErasedInitializer> {
+        let Some(program) = self.program else {
+            return Vec::new();
+        };
+        let Some(holder) = program.data_definitions.iter().find(|definition| {
+            definition.name == literal.type_name
+                && definition.symbol.is_valid()
+                && definition.type_parameters.is_empty()
+                && definition.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+        }) else {
+            return Vec::new();
+        };
+        let authored = self.source.struct_fields(literal.fields);
+        let mut selected_fields = Vec::new();
+        for member in program.data_members(holder.members) {
+            match member {
+                resolved::data::DataMember::Field(field) => selected_fields.push(field),
+                resolved::data::DataMember::Variant(variant)
+                    if literal
+                        .case_name
+                        .as_ref()
+                        .is_some_and(|case_name| *case_name == variant.name) =>
+                {
+                    selected_fields.extend(program.data_payload_fields(variant.payload));
+                }
+                resolved::data::DataMember::Variant(_) => {}
+            }
+        }
+
+        selected_fields
+            .into_iter()
+            .filter(|field| field.relevance.is_erased())
+            .filter(|field| !authored.iter().any(|authored| authored.name == field.name))
+            .filter_map(|field| {
+                let evidence = resolved_data_definition_for_type(program, &field.type_reference)?;
+                if evidence.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+                    || !evidence.symbol.is_valid()
+                    || !evidence.type_parameters.is_empty()
+                    || program
+                        .data_members(evidence.members)
+                        .iter()
+                        .any(|member| matches!(member, resolved::data::DataMember::Field(_)))
+                {
+                    return None;
+                }
+                let mut nullary = program.data_members(evidence.members).iter().filter_map(
+                    |member| match member {
+                        resolved::data::DataMember::Variant(variant)
+                            if variant.payload.is_empty() && variant.symbol.is_valid() =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    },
+                );
+                let variant = nullary.next()?;
+                if nullary.next().is_some() {
+                    return None;
+                }
+                Some(NullaryErasedInitializer {
+                    field_name: field.name.clone(),
+                    type_name: evidence.name.clone(),
+                    type_symbol: evidence.symbol,
+                    variant_name: variant.name.clone(),
+                    variant_symbol: variant.symbol,
+                })
+            })
+            .collect()
+    }
+
+    fn synthesize_nullary_initializer(
+        &mut self,
+        initializer: &NullaryErasedInitializer,
+    ) -> typed::expression::ExpressionHandle {
+        let mut members = psi_arena::HandleSpan::empty();
+        let mut member_symbols = psi_arena::HandleSpan::empty();
+        self.target()
+            .push_name_path_member(&mut members, lower_name(&initializer.type_name));
+        self.target()
+            .push_name_path_member_symbol(&mut member_symbols, initializer.type_symbol);
+        self.target()
+            .push_name_path_member(&mut members, lower_name(&initializer.variant_name));
+        self.target()
+            .push_name_path_member_symbol(&mut member_symbols, initializer.variant_symbol);
+        self.target()
+            .insert(typed::expression::ExpressionNode::Name(
+                typed::expression::TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: initializer.type_symbol,
+                    symbol: initializer.variant_symbol,
+                },
+            ))
+    }
+
     fn lower_membership_expression(
         &mut self,
         membership: &resolved::expression::TableMembershipExpression,
@@ -419,6 +541,32 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             "unknown domain `{domain_name}` in executable membership expression"
         )))
     }
+}
+
+fn resolved_data_definition_for_type<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    type_reference: &'program resolved::types::TypeReference,
+) -> Option<&'program resolved::data::DataDefinition> {
+    let (symbol, name) = match type_reference {
+        resolved::types::TypeReference::Named { symbol, name } => (*symbol, name),
+        resolved::types::TypeReference::Generic(reference) => {
+            (reference.base_symbol, &reference.base_name)
+        }
+        resolved::types::TypeReference::Constrained(reference) => {
+            return resolved_data_definition_for_type(
+                program,
+                program.child_type_reference(reference.base_type),
+            );
+        }
+        _ => return None,
+    };
+    program.data_definitions.iter().find(|definition| {
+        if symbol.is_valid() {
+            definition.symbol == symbol
+        } else {
+            definition.name == *name
+        }
+    })
 }
 
 fn lower_unary_operator(
