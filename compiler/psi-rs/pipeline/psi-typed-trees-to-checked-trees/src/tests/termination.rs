@@ -2821,6 +2821,29 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         alias
     }
 
+    machine return_with_isolated_scratch(value: &mut u64) -> &mut u64 {
+        let mut scratch: u64 = 0;
+        scratch = 1;
+        value
+    }
+
+    machine return_with_reference_scratch<'source>(
+        value: &'source mut u64,
+        other: &'source mut u64
+    ) -> &'source mut u64 {
+        let scratch: BorrowCell<'source> = BorrowCell { value: other };
+        value
+    }
+
+    machine make_scratch() -> u64 {
+        0
+    }
+
+    machine return_with_call_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = make_scratch();
+        value
+    }
+
     machine call_then_return(value: &mut u64) -> &mut u64 {
         overwrite_alias_binding(&mut value);
         value
@@ -2881,6 +2904,22 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::recursive_alias_helper_result(&mut self) {
         let alias: &mut u64 = return_recursive_alias(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::isolated_scratch_helper_result(&mut self) {
+        let alias: &mut u64 = return_with_isolated_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::reference_scratch_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_with_reference_scratch(&mut self.value, &mut self.other);
+        alias = 3;
+    }
+
+    machine Main::call_scratch_helper_result(&mut self) {
+        let alias: &mut u64 = return_with_call_scratch(&mut self.value);
         alias = 3;
     }
 
@@ -3089,6 +3128,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "self.value",
         ),
         ("Main::nontrivial_call_result_alias", "self.value"),
+        ("Main::isolated_scratch_helper_result", "self.value"),
         ("Main::local_alias_helper_result", "self.value"),
         (
             "Main::call_initialized_local_alias_helper_result",
@@ -3164,6 +3204,8 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
         "Main::recursive_alias_helper_result",
+        "Main::reference_scratch_helper_result",
+        "Main::call_scratch_helper_result",
         "Main::escaping_call_then_result_alias",
         "Main::nontrivial_call_rebound_alias",
         "duplicate_parameter_alias_cycle",
