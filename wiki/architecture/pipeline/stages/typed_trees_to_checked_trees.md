@@ -138,8 +138,10 @@ Current ownership is:
   empty or disjoint and invalidate only overlapping paths. Internal wrappers
   compose nested boundary receiver/out-argument frames. State cycles keep exact
   frames through reordered primitive or shared-reference parameters and direct
-  stable mutable-alias substitutions, while computed/rebound aliases or a
-  non-bijective write-capable backedge remain conservative. Stable mutable-alias
+  stable mutable-alias substitutions, while computed/unrepresentable alias
+  replacement or a non-bijective write-capable backedge remains conservative.
+  A direct stable alias replacement updates that binding's origin without
+  redirecting aliases established from its prior value. Stable mutable-alias
   chains retain exact member projections; an indexed reborrow through an exact
   alias retains its nearest collection, while an already-coarse alias stays
   absorbing, including across a direct member-after-index origin. An

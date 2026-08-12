@@ -2685,6 +2685,13 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         second = 2;
     }
 
+    machine Main::alias_chain_rebind_from_alias(&mut self) {
+        let first: &mut u64 = &mut self.value;
+        let second: &mut u64 = &mut self.other;
+        second = &mut first;
+        second = 2;
+    }
+
     machine Main::local_origin(&mut self) {
         let local: u64 = 0;
         let alias: &mut u64 = &mut local;
@@ -2831,6 +2838,12 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         alias = 3;
     }
 
+    machine Main::nontrivial_call_rebound_alias(&mut self) {
+        let alias: &mut u64 = &mut self.value;
+        alias = write_then_return(&mut self.other);
+        alias = 3;
+    }
+
     machine Main::computed_local_collection_origin(&mut self) {
         let local: [u64; 2] = [0, 1];
         let values: &mut [u64; 2] = return_cells(&mut local);
@@ -2879,6 +2892,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         state cycle(&mut self, value: &mut u64) {
             value = 6;
             transition { _ -> cycle(value) }
+        }
+    }
+
+    machine Main::named_stable_rebound_alias_cycle(&mut self) {
+        transition { _ -> cycle() }
+        state cycle(&mut self) {
+            let alias: &mut u64 = &mut self.value;
+            alias = &mut self.other;
+            alias = 7;
+            transition { _ -> cycle() }
         }
     }
 
@@ -2942,6 +2965,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     }
 
     for (name, expected_path) in [
+        ("Main::rebound_alias", "self.other"),
+        ("Main::alias_chain_upstream_rebind", "self.value"),
+        ("Main::alias_chain_leaf_rebind", "self.other"),
+        ("Main::alias_chain_rebind_from_alias", "self.value"),
+        ("Main::indexed_alias_rebind", "self.other"),
         ("Main::call_produced_alias_chain", "self.value"),
         ("Main::nested_call_produced_alias_chain", "self.value"),
         ("Main::call_produced_indexed_alias", "self.cells"),
@@ -2960,6 +2988,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::named_indexed_alias_cycle", "self.cells"),
         ("Main::named_alias_multistate_cycle", "self.value"),
         ("Main::named_alias_downstream_cycle", "self.value"),
+        ("Main::named_stable_rebound_alias_cycle", "self.other"),
         ("parameter_alias_cycle", "$P0"),
     ] {
         let machine = typed
@@ -2981,15 +3010,12 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     }
 
     for name in [
-        "Main::rebound_alias",
-        "Main::alias_chain_upstream_rebind",
-        "Main::alias_chain_leaf_rebind",
         "Main::indexed_local_member_after_index",
-        "Main::indexed_alias_rebind",
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
         "Main::nontrivial_call_result_alias",
+        "Main::nontrivial_call_rebound_alias",
         "Main::computed_local_collection_origin",
         "Main::attached_receiver_result_alias",
         "duplicate_parameter_alias_cycle",

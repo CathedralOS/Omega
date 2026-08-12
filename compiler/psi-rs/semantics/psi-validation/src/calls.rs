@@ -1385,9 +1385,26 @@ fn summarize_state_written_paths(
             }
             _ => None,
         };
+        let representable_alias_rebinding = match statement {
+            StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)
+                .is_some_and(|target| {
+                    stable_local_mutable_alias_rebinding_is_representable(
+                        program,
+                        machine,
+                        state,
+                        &target,
+                        assignment.value,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                    )
+                }),
+            _ => false,
+        };
         for expression in statement_value_expression_roots(program, statement) {
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
+                && !representable_alias_rebinding
             {
                 return None;
             }
@@ -1414,17 +1431,17 @@ fn summarize_state_written_paths(
             StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 let relative = coarse_place_path(program, assignment.target)?;
-                if local_alias_origins
-                    .iter()
-                    .any(|(alias, _)| relative == *alias)
-                    && expression_may_rebind_mutable_alias(
-                        program,
-                        machine,
-                        state,
-                        assignment.value,
-                    )
-                {
-                    return None;
+                if rebind_stable_local_mutable_alias_origin(
+                    program,
+                    machine,
+                    state,
+                    &relative,
+                    assignment.value,
+                    parameters,
+                    &isolated_local_roots,
+                    &mut local_alias_origins,
+                )? {
+                    continue;
                 }
                 let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
@@ -1879,6 +1896,64 @@ fn expression_reborrows_local_alias_binding(
     }
 }
 
+/// Update one local mutable-reference binding when its replacement is another
+/// directly representable place. Existing aliases retain their already-
+/// canonicalized origins, so rebinding an upstream local never redirects a
+/// previously established reborrow. Computed/call-produced replacements remain
+/// opaque at this rung.
+#[allow(clippy::too_many_arguments)]
+fn rebind_stable_local_mutable_alias_origin(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: &str,
+    value: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &mut [(String, FramePlaceOrigin)],
+) -> Option<bool> {
+    let Some(position) = aliases.iter().position(|(alias, _)| alias == target) else {
+        return Some(false);
+    };
+    if !expression_may_rebind_mutable_alias(program, machine, state, value) {
+        return Some(false);
+    }
+    let origin = stable_alias_place_origin(
+        program,
+        value,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        true,
+    )?;
+    aliases[position].1 = origin;
+    Some(true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stable_local_mutable_alias_rebinding_is_representable(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: &str,
+    value: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> bool {
+    aliases.iter().any(|(alias, _)| alias == target)
+        && expression_may_rebind_mutable_alias(program, machine, state, value)
+        && stable_alias_place_origin(
+            program,
+            value,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            true,
+        )
+        .is_some()
+}
+
 /// A bare write through `alias` (`alias = 1`) targets the borrowed place, but
 /// Psi also permits a mutable-reference local declared with plain `let` to be
 /// rebound (`alias = &mut other`). Accept an exact origin only while the RHS is
@@ -2185,9 +2260,26 @@ fn build_permuted_cycle_frame_equation<'program>(
             }
             _ => None,
         };
+        let representable_alias_rebinding = match statement {
+            StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)
+                .is_some_and(|target| {
+                    stable_local_mutable_alias_rebinding_is_representable(
+                        program,
+                        machine,
+                        state,
+                        &target,
+                        assignment.value,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                    )
+                }),
+            _ => false,
+        };
         for expression in statement_value_expression_roots(program, statement) {
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
+                && !representable_alias_rebinding
             {
                 return None;
             }
@@ -2210,17 +2302,17 @@ fn build_permuted_cycle_frame_equation<'program>(
             StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
                 let relative = coarse_place_path(program, assignment.target)?;
-                if local_alias_origins
-                    .iter()
-                    .any(|(alias, _)| relative == *alias)
-                    && expression_may_rebind_mutable_alias(
-                        program,
-                        machine,
-                        state,
-                        assignment.value,
-                    )
-                {
-                    return None;
+                if rebind_stable_local_mutable_alias_origin(
+                    program,
+                    machine,
+                    state,
+                    &relative,
+                    assignment.value,
+                    parameters,
+                    &isolated_local_roots,
+                    &mut local_alias_origins,
+                )? {
+                    continue;
                 }
                 let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                 push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
