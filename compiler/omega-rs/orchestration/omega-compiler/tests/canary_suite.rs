@@ -482,18 +482,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
     let scratch = std::env::temp_dir().join(format!("omega-x64-shlclamp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    let src_dir = scratch.join("src");
-    fs::create_dir_all(&src_dir).expect("scratch src dir");
-    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target linux_x64 {\n}\n").expect("write build manifest");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(scratch.join("out")),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("at-width shift canary should cross-compile for linux_x64");
-    let elf = fs::read(scratch.join("out").join("omega-program")).expect("linux_x64 ELF emitted");
+    let count_domain = scratch.join("count-domain");
+    compile_single_file_hosted_main(&canary, &count_domain, "linux_x64")
+        .expect("at-width shift canary should cross-compile for linux_x64");
+    let elf = fs::read(count_domain.join("out/omega-program")).expect("linux_x64 ELF emitted");
     // The plain width-correct shl (mov ecx, r11d + shl r10d, cl) runs the
     // hardware mask; the retired zero clamp must not follow anywhere.
     let shl32 = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xe2];
@@ -515,16 +507,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // add): the plain node-width shl followed DIRECTLY by the node-width
     // extension (mov r10d, r10d for unsigned width 4) -- no clamp between.
     let atwidth = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
-    fs::copy(atwidth.join("main.omg"), src_dir.join("main.omg")).expect("copy atwidth canary");
-    let out2 = scratch.join("out2");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out2.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("at-width modular canary should cross-compile for linux_x64");
-    let elf2 = fs::read(out2.join("omega-program")).expect("linux_x64 ELF emitted");
+    let atwidth_case = scratch.join("atwidth");
+    compile_single_file_hosted_main(&atwidth, &atwidth_case, "linux_x64")
+        .expect("at-width modular canary should cross-compile for linux_x64");
+    let elf2 = fs::read(atwidth_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let operand_shl_then_extend = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xe2, 0x45, 0x89, 0xd2];
     assert!(
         elf2.windows(operand_shl_then_extend.len())
@@ -535,16 +521,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // SUB-WORD masked counts: the explicit AND (and r11d, 7 / 15) before the
     // width-correct shift (the new subword canary exercises u8 + i16).
     let subword = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
-    fs::copy(subword.join("main.omg"), src_dir.join("main.omg")).expect("copy subword canary");
-    let out3 = scratch.join("out3");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out3.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("sub-word masked-count canary should cross-compile for linux_x64");
-    let elf3 = fs::read(out3.join("omega-program")).expect("linux_x64 ELF emitted");
+    let subword_case = scratch.join("subword");
+    compile_single_file_hosted_main(&subword, &subword_case, "linux_x64")
+        .expect("sub-word masked-count canary should cross-compile for linux_x64");
+    let elf3 = fs::read(subword_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     for mask in [7u8, 15] {
         let and_mask = [0x41, 0x83, 0xe3, mask];
         assert!(
@@ -558,16 +538,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // (mov eax,#w + cmp r11,#w + cmovae r11,rax -- the COUNT register)
     // followed by the 64-bit shl and the u8 cmova clamp tail.
     let shl_sat = pass_canary("arithmetic/runtime_shl_saturating_exit");
-    fs::copy(shl_sat.join("main.omg"), src_dir.join("main.omg")).expect("copy shl-sat canary");
-    let out_sat = scratch.join("out-sat");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out_sat.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("saturating shl canary should cross-compile for linux_x64");
-    let elf_sat = fs::read(out_sat.join("omega-program")).expect("linux_x64 ELF emitted");
+    let shl_sat_case = scratch.join("shl-saturating");
+    compile_single_file_hosted_main(&shl_sat, &shl_sat_case, "linux_x64")
+        .expect("saturating shl canary should cross-compile for linux_x64");
+    let elf_sat = fs::read(shl_sat_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let sat_cap_shl_clamp = [
         0xb8, 8, 0, 0, 0, // mov eax, 8 (u8 width)
         0x49, 0x83, 0xfb, 8, // cmp r11, 8
@@ -590,16 +564,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // widths, and the RETIRED count SATURATION (mov eax,width-1 + cmp +
     // cmovae into the count register) must be gone.
     let shr = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
-    fs::copy(shr.join("main.omg"), src_dir.join("main.omg")).expect("copy shr canary");
-    let out_shr = scratch.join("out-shr");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out_shr.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("at-width shr canary should cross-compile for linux_x64");
-    let elf_shr = fs::read(out_shr.join("omega-program")).expect("linux_x64 ELF emitted");
+    let shr_case = scratch.join("shift-right-atwidth");
+    compile_single_file_hosted_main(&shr, &shr_case, "linux_x64")
+        .expect("at-width shr canary should cross-compile for linux_x64");
+    let elf_shr = fs::read(shr_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let sar_32 = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xfa]; // mov ecx, r11d + sar r10d, cl
     let sar_64 = [0x4c, 0x89, 0xd9, 0x49, 0xd3, 0xfa]; // mov rcx, r11 + sar r10, cl
     for (name, sequence) in [("32-bit", &sar_32[..]), ("64-bit", &sar_64[..])] {
@@ -635,17 +603,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     }
 
     let trapping = pass_canary("arithmetic/runtime_trapping_shift_count_exit");
-    fs::copy(trapping.join("main.omg"), src_dir.join("main.omg"))
-        .expect("copy trapping shift canary");
-    let out4 = scratch.join("out4");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out4.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("trapping shift canary should cross-compile for linux_x64");
-    let elf4 = fs::read(out4.join("omega-program")).expect("linux_x64 ELF emitted");
+    let trapping_case = scratch.join("trapping");
+    compile_single_file_hosted_main(&trapping, &trapping_case, "linux_x64")
+        .expect("trapping shift canary should cross-compile for linux_x64");
+    let elf4 = fs::read(trapping_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let guard = [0x49, 0x83, 0xfb, 32, 0x72, 0x02, 0x0f, 0x0b];
     assert!(
         elf4.windows(guard.len()).any(|window| window == guard),
@@ -656,16 +617,11 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // 0) extends, the wide immediate right does NOT, one exact 64-bit sub,
     // then the signed upper bound of the shared tail.
     let min_idiom = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
-    fs::copy(min_idiom.join("main.omg"), src_dir.join("main.omg")).expect("copy min-idiom canary");
-    let out_min = scratch.join("out-min");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out_min.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("MIN idiom canary should cross-compile for linux_x64");
-    let elf_min = fs::read(out_min.join("omega-program")).expect("linux_x64 ELF emitted");
+    let min_idiom_case = scratch.join("sat-min-idiom");
+    compile_single_file_hosted_main(&min_idiom, &min_idiom_case, "linux_x64")
+        .expect("MIN idiom canary should cross-compile for linux_x64");
+    let elf_min =
+        fs::read(min_idiom_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let min_idiom_sub = [
         0x4d, 0x63, 0xd2, // movsxd r10, r10d (left extends; right immediate skipped)
         0x4d, 0x29, 0xda, // sub r10, r11 (exact 64-bit)
@@ -684,16 +640,10 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // the walk's pointer/end setup (mov rcx,r15 / mov r11,r15 / add r11,rax)
     // followed by the loop-head compare and the lead load.
     let utf8_canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
-    fs::copy(utf8_canary.join("main.omg"), src_dir.join("main.omg")).expect("copy utf8 canary");
-    let out_utf8 = scratch.join("out-utf8");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out_utf8.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("utf8 refusal canary should cross-compile for linux_x64");
-    let elf_utf8 = fs::read(out_utf8.join("omega-program")).expect("linux_x64 ELF emitted");
+    let utf8_case = scratch.join("wire-utf8-refusal");
+    compile_single_file_hosted_main(&utf8_canary, &utf8_case, "linux_x64")
+        .expect("utf8 refusal canary should cross-compile for linux_x64");
+    let elf_utf8 = fs::read(utf8_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let validator_head = [
         0x4c, 0x89, 0xf9, // mov rcx, r15
         0x4d, 0x89, 0xfb, // mov r11, r15
