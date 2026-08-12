@@ -2960,6 +2960,40 @@ fn accepts_static_persistent_copy_across_disjoint_call_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: i32;
+        }
+
+        machine Main::touch_code_cycle(&mut self) {
+            transition { _ -> cycle() }
+
+            state cycle(&mut self) {
+                let alias: &mut i32 = &mut self.code;
+                alias = 7;
+                transition { _ -> cycle() }
+            }
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code_cycle();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("an equation-level cyclic alias frame preserves disjoint persistent provenance");
+}
+
+#[test]
 fn accepts_same_place_reassignment_from_static_persistent_storage() {
     let source = r#"
         data Main {

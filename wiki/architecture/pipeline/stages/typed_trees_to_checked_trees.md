@@ -136,12 +136,12 @@ Current ownership is:
   clear the affected shortcut. Complete R5 statement-
   and value-call frames preserve stable paths when their may-write sets are
   empty or disjoint and invalidate only overlapping paths. Internal wrappers
-  compose
-  nested boundary receiver/out-argument frames. State cycles keep exact frames
-  through reordered primitive or shared-reference parameters, while rebinding
-  a write-capable parameter remains conservative. Stable mutable-alias chains
-  retain exact member projections; an indexed reborrow through an exact alias
-  retains its nearest collection, while an already-coarse alias stays
+  compose nested boundary receiver/out-argument frames. State cycles keep exact
+  frames through reordered primitive or shared-reference parameters and direct
+  stable mutable-alias substitutions, while computed/rebound aliases or a
+  non-bijective write-capable backedge remain conservative. Stable mutable-alias
+  chains retain exact member projections; an indexed reborrow through an exact
+  alias retains its nearest collection, while an already-coarse alias stays
   absorbing, including across a direct member-after-index origin. An
   alias into a primitive scalar or recursively primitive fixed-array local is
   caller-isolated and contributes no published write; computed or
