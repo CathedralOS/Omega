@@ -43088,6 +43088,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "targets/target_machine_duplicate_rejected",
     "collections/triple_runtime_indexed_read_rejected",
     "collections/nested_three_level_index_rejected",
+    "tasks/task_runtime_machine_selection_effect_mismatch",
+    "build/static_machine_parameter_contract_mismatch",
+    "build/build_machine_wrong_arity",
     "core/content_projection_foreign_owner",
     "core/content_projection_duplicate",
     "core/content_projection_legacy_interval",
@@ -49061,12 +49064,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
-    "tasks/task_runtime_machine_selection_effect_mismatch",
     "tasks/task_runtime_provider_contract_narrowing",
     "tasks/task_runtime_selected_provider_missing",
     "data/fixed_array_too_large",
     "collections/deep_nested_runtime_indexed_write_rejected",
-    "build/build_machine_wrong_arity",
     "build/duplicate_program_entry_binding",
     "build/hosted_program_entry_visible_parameter",
     "build/program_entry_returns_value",
@@ -49075,7 +49076,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/uefi_program_entry_missing_storage_roots",
     "build/uefi_program_entry_unqualified_image",
     "build/uefi_program_entry_wrong_calling_policy",
-    "build/static_machine_parameter_contract_mismatch",
     "providers/slot_plan_ambiguous",
     "providers/provider_type_slot_ambiguous",
     "providers/provider_type_slot_unknown",
