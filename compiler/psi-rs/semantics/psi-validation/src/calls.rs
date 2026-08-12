@@ -2359,11 +2359,12 @@ fn transparent_callee_result_origin(
 
 /// A caller-isolated scratch local cannot itself redirect a returned place.
 /// Its initializer may therefore precede a transparent returned-place result
-/// when it is syntactically effect-free, or when it is one direct value call
-/// whose inferred frame is complete and writes only previously established
-/// caller-isolated scratch locals. Keep computed/nested calls and every
-/// caller-visible or opaque call fenced: this predicate proves only that the
-/// initializer cannot perturb the returned-place relation.
+/// when it is syntactically effect-free, or when it is a direct-call tree of
+/// maximum depth two whose inferred frames are complete and write only
+/// previously established caller-isolated scratch locals. Keep deeper or
+/// computed call shapes and every caller-visible or opaque call fenced: this
+/// predicate proves only that the initializer cannot perturb the returned-
+/// place relation.
 fn isolated_local_initializer_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -2375,17 +2376,7 @@ fn isolated_local_initializer_preserves_transparent_result(
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    if (call.receiver.is_valid()
-        && expression_is_effectful_for_transparent_result(program, call.receiver))
-        || program
-            .expression_table
-            .expression_handles(call.arguments)
-            .iter()
-            .any(|argument| expression_is_effectful_for_transparent_result(program, *argument))
-    {
+    if !isolated_local_initializer_call_tree_is_bounded(program, expression, 2) {
         return false;
     }
 
@@ -2409,6 +2400,42 @@ fn isolated_local_initializer_preserves_transparent_result(
             let (root, _) = split_place_root(path);
             isolated_local_roots.iter().any(|local| local == root)
         })
+}
+
+/// Count only direct calls along initializer receiver/argument edges. Pure
+/// leaves are neutral; calls hidden under operators, aggregates, or other
+/// computed expressions remain outside this deliberately small relation.
+fn isolated_local_initializer_call_tree_is_bounded(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    remaining_call_depth: usize,
+) -> bool {
+    if !expression_is_effectful_for_transparent_result(program, expression) {
+        return true;
+    }
+    if remaining_call_depth == 0 {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    (!call.receiver.is_valid()
+        || isolated_local_initializer_call_tree_is_bounded(
+            program,
+            call.receiver,
+            remaining_call_depth - 1,
+        ))
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .all(|argument| {
+                isolated_local_initializer_call_tree_is_bounded(
+                    program,
+                    *argument,
+                    remaining_call_depth - 1,
+                )
+            })
 }
 
 /// One direct Unit statement call is neutral to a returned-place relation when

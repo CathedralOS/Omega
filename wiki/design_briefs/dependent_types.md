@@ -338,15 +338,15 @@ computed or nontrivial call results, and transport through a named state SCC
 remain opaque, except that primitive scalar and recursively primitive
 fixed-array locals are caller-isolated: writes through their exact or
 collection-coarse aliases disappear from the caller-visible frame. Named,
-reference-bearing, and generic local roots do not receive that exception. One
-direct call may initialize a caller-isolated scratch local without obscuring a
-separately returned parameter origin only when the call's inferred frame is
-complete and every write resolves into a previously established caller-isolated
-scratch local; an empty frame is the degenerate case. Opaque, recursive,
-nested-computed, and calls with any write outside those isolated roots remain
-fences. One direct Unit statement call with a complete frame may likewise
-precede the terminal place when its arguments do not expose a mutable-reference
-binding for rebinding; writes through references passed by value change contents
+reference-bearing, and generic local roots do not receive that exception. A
+direct-call tree through depth two may initialize a caller-isolated scratch
+local without obscuring a separately returned parameter origin only when every
+inferred frame is complete and every write resolves into a previously
+established caller-isolated scratch local; an empty frame is the degenerate
+case. Deeper, recursive, computed, opaque, or externally writing initializer
+calls remain fences. One direct Unit statement call with a complete frame may
+likewise precede the terminal place when its arguments do not expose a mutable-
+reference binding for rebinding; writes through references passed by value change contents
 without redirecting their origins. Sibling direct value-call arguments are
 independently admitted when their expressions are non-rebinding and every call
 frame is complete, including nested direct calls to a maximum call-tree depth of
