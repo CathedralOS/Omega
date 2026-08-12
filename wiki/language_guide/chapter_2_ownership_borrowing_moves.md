@@ -304,11 +304,12 @@ active.
 Program-static views stored in persistent aggregate fields carry their stable
 field, case, and fixed-index identity across named graph states. A runtime index
 also crosses when it is an immutable state parameter or immutable local
-forwarded unchanged into an immutable target-state parameter; the edge rebases
-that exact symbol identity to the target symbol. Rewriting or omitting the
-argument, an inconsistent
-predecessor, a possibly overlapping mutation, or an opaque call discards the
-provenance rather than guessing that two runtime indexes agree.
+forwarded unchanged, or through direct immutable local copies, into an
+immutable target-state parameter; the edge rebases that shared identity to the
+target symbol. A mutable or computed alias, rewriting or omitting the argument,
+an inconsistent predecessor, a possibly overlapping mutation, or an opaque
+call discards the provenance rather than guessing that two runtime indexes
+agree.
 General outlives constraints, persistent-storage assignment across state
 transitions, and the remaining aggregate expression forms remain
 implementation work; they are not new language-design questions.

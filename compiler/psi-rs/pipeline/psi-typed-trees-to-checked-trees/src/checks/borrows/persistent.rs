@@ -4,10 +4,10 @@
 //! program-static storage needs no source loan, so literals and machine results
 //! whose every value exit is likewise static may be stored persistently. Stable
 //! fixed-index paths and runtime indexes named by immutable state parameters or
-//! locals preserve that provenance across named edges when the exact symbol is
-//! forwarded into an immutable target parameter. Non-static sources remain
-//! fenced until the flow plan propagates a persistent owner's loan through
-//! every outgoing transition.
+//! locals preserve that provenance across named edges when the same symbol, or
+//! a direct immutable local-copy alias, is forwarded into an immutable target
+//! parameter. Non-static sources remain fenced until the flow plan propagates
+//! a persistent owner's loan through every outgoing transition.
 
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -233,22 +233,51 @@ fn expression_is_exact_stable_index(
     expression: psi_typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
-    let is_immutable_parameter = program
+    let Some(candidate) = exact_name_symbol(program, state, expression) else {
+        return false;
+    };
+    stable_index_origin_symbol(program, state, symbol, &mut Vec::new())
+        .zip(stable_index_origin_symbol(
+            program,
+            state,
+            candidate,
+            &mut Vec::new(),
+        ))
+        .is_some_and(|(source, candidate)| source == candidate)
+}
+
+fn stable_index_origin_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    symbol: SymbolHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> Option<SymbolHandle> {
+    if program
         .state_parameters(state)
         .iter()
-        .any(|parameter| !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol);
-    let is_immutable_local = program
+        .any(|parameter| !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol)
+    {
+        return Some(symbol);
+    }
+    let local = program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-        .any(|statement| {
-            matches!(
-                statement,
-                StatementNode::LocalData(local) if !local.is_mutable && local.symbol == symbol
-            )
-        });
-    (is_immutable_parameter || is_immutable_local)
-        && exact_name_symbol(program, state, expression) == Some(symbol)
+        .find_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (!local.is_mutable && local.symbol == symbol).then_some(local)
+        })?;
+    if visiting.contains(&symbol) {
+        return None;
+    }
+    visiting.push(symbol);
+    let origin = exact_name_symbol(program, state, local.initial_value)
+        .and_then(|source| stable_index_origin_symbol(program, state, source, visiting))
+        .unwrap_or(symbol);
+    visiting.pop();
+    Some(origin)
 }
 
 fn analyze_persistent_state(
