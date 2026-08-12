@@ -3192,7 +3192,7 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire scalar-append canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire scalar-append target");
 
@@ -3262,7 +3262,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire text-append canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire text-append target");
 
@@ -3334,7 +3334,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire scalar-slice canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire scalar-slice target");
 
@@ -3408,7 +3408,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
             .expect("copy compiler-body wire repeated-scalar canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire repeated-scalar target");
 
@@ -3485,7 +3485,7 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire byte-slice canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire byte-slice target");
 
@@ -3561,7 +3561,7 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire nested-bounds canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire nested-bounds target");
 
@@ -3640,7 +3640,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire repeated-scalar-read canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire repeated-scalar-read target");
 
@@ -3713,7 +3713,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire expected-byte canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire expected-byte target");
 
@@ -3783,7 +3783,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire ranged-scalar canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body wire ranged-scalar target");
 
