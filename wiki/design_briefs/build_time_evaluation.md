@@ -289,63 +289,22 @@ individual sites have landed.
 
 ## Trait-body and reflection rules
 
-- **No `default` keyword.** A trait machine either has a body or it does not: body
-  present = the default, conformance may override. Zero keywords. Trait-machine
-  bodies use the ordinary `machine` spelling.
-- **Same visibility, earlier clock.** The splice (`self.[field]`) grants nothing the code couldn't
-  already touch — the expanded body runs as one of Self's own machines, and
-  there is no iterate-all-types anywhere: splice only quantifies over Self,
-  inside a trait Self CHOSE to conform to. Conformance is the consent.
-  Build-time evaluation runs admitted machines on VALUES (no type tables, no
-  compiler internals, no boundary I/O). Contrast
-  recorded: proc macros (arbitrary build-time I/O over token streams), Zig
-  comptime (type objects), UHT (external parser) are amplified contexts;
-  ours is not one. Reflection = iteration + splice, NEVER descriptors —
-  a FieldInfo carrying a type would be a type-as-value on the runtime side
-  of the universe fence.
-- **Equality tiers:** conformance-generated comparison follows field changes
-  by construction because the splice quantifies over the current members. A
-  hand-written `equals` wins and remains responsible for its own field
-  coverage. The prover never treats custom equality as substitutable equality;
-  quotient laws are the separate mechanism for that claim.
-- **Record destructuring direction:** `let`-position record destructuring is
-  new
-  surface, wanted (it proved itself on the canonical-equals sample):
-  `let Player { health, gold as g, cached_stats as _ } = self;` —
-  bare name binds, `as` renames (colon REJECTED: `field: x` already means
-  a type annotation — a pun; `->` REJECTED: saturated, and patterns live
-  inside arms), `as _` waives (bind to nothing, visibly ignored).
-  **Exhaustive by law**: every field bound or waived — the record twin of
-  the landed no-silent-fall-through rule on sums; adding a field breaks
-  every pattern that must now decide. Arm-position record binding shares
-  the grammar. Initial binding semantics may restrict to [copy]-eligible
-  fields (exactly Equatable's existing prerequisite list). Canonical
-  hand-written equals opens with the exhaustive destructure — chapter
-  convention, NOT enforced.
-- **Parked**: a trait-level shape gate ("conformances must open with an
-  exhaustive destructure") — held until real drift proves convention
-  insufficient. The exhaustive<T>-as-requirable-fact idea was examined
-  and rejected on the stratum boundary: our facts are about VALUES;
-  "this body read every member" is a fact about CODE, and requiring it
-  would need per-field read-effect tracking — the same boundary that
-  killed rewrite-registration-as-magic and macros.
-- **Binding semantics:** a destructure
-  is pure SUGAR for field lets — `let Player { health, gold as g } = self;`
-  is exactly `let health = self.health; let g = self.gold;` — and therefore
-  inherits the landed let semantics wholesale: **snapshot** (the
-  let-capture fix exists because folding across an intervening write was a
-  miscompile; copy-vs-view is OBSERVABLE under mutation, not an
-  optimization question). For scalars the "copy" is the load the body was
-  about to do anyway; the backend folds it when nothing intervenes and
-  materializes it exactly when the snapshot is load-bearing. Consequences:
-  NO reference-patterns or binding modes, ever (Rust's match-ergonomics
-  axis — their multi-year confusion generator — never opens; also
-  `&self as Player` cannot mean pattern matching, `as` in expression
-  position is the recast). Big fields cannot be silently copied: the current
-  surface binds [copy]-eligible fields only (exactly Equatable's prerequisite
-  list);
-  anything larger is waived (`as _`) or borrowed explicitly by hand
-  (`let items: &[Color; 3] = &self.items;` — landed spelling).
-- **Still open (the one undecided item):** the unroll spelling for
-  generator bodies — the combiner form (`all(self.[field] ==
-  other.[field])`) is recommended, unruled.
+- A trait machine body is its overridable default; there is no `default`
+  keyword.
+- Reflection iterates only over the conforming `Self` inside its own machine
+  body. It grants no visibility, boundary access, compiler access, type
+  descriptor, or type-as-value capability. Build-time evaluation still runs on
+  admitted values in the sealed semantic world.
+- Generated equality follows the current field set. Hand-written equality owns
+  its own coverage and does not become substitutable equality; quotient laws
+  remain the explicit route for that claim.
+- Record destructuring is exhaustive: each field is bound, renamed with `as`,
+  or visibly waived with `as _`. It is snapshot sugar for ordinary field `let`
+  bindings, supports only copy-eligible implicit bindings, and introduces no
+  reference patterns or binding modes. Larger fields are waived or borrowed by
+  an explicit ordinary expression.
+- Body-shape coverage is not a value proposition and is not exposed as a
+  requirable fact. A separate trait-level coverage gate remains deferred unless
+  real drift demonstrates a need for code-effect tracking.
+- The generator-body unroll syntax remains unsettled. Combiner examples such as
+  `all(self.[field] == other.[field])` are illustrative, not approved syntax.
