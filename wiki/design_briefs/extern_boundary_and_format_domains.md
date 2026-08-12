@@ -486,10 +486,12 @@ correspondence. A content-bearing exact qualification supplies its projection
 through its owner-unique core `Content<A>` conformance; the binding does not
 invent a separate foreign-extent algebra or projection annotation.
 
-The executable checker currently admits the unique compatible consumed input
-and rejects borrow-only or multiple-compatible-input retention. Exact authored
-postcondition selection remains to be connected; until then, ambiguity fails
-closed rather than choosing by parameter order.
+The executable checker admits the unique compatible consumed input. When
+several compatible owned inputs exist, one exact authored equality may select
+the source by relating the whole entry projection of that parameter directly to
+the whole current result projection in the same content algebra. Partition
+equations and structural subplaces do not select custody. Borrow-only retention
+still rejects even if a content equality names the borrow.
 
 The reverse direction uses the same types. A provider-owned view whose
 invalidators require exclusive access to one receiver is an ordinary borrow

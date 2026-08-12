@@ -1373,6 +1373,7 @@ pub(crate) fn check_retained_content_custody(
                 program,
                 facts,
                 &format!("{}::{}", trait_definition.name, signature.name),
+                signature.symbol,
                 program.state_signature_parameters(signature),
                 signature.return_type,
                 &contracts,
@@ -1396,6 +1397,7 @@ pub(crate) fn check_retained_content_custody(
                 program,
                 facts,
                 &label,
+                state.symbol,
                 program.state_parameters(state),
                 state.return_type,
                 &contracts,
@@ -1416,6 +1418,7 @@ fn check_callable(
     program: &TypedTrees,
     facts: &CheckFacts,
     label: &str,
+    callable: SymbolHandle,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     contracts: &[&SignatureContract],
@@ -1483,6 +1486,13 @@ fn check_callable(
             continue;
         }
 
+        if let Some(selected) =
+            authored_retention_source(facts, callable, result_domain, result_plan, parameters)
+            && owned_sources.iter().any(|name| *name == selected)
+        {
+            continue;
+        }
+
         let result_name = domain_name(program, result_domain);
         if owned_sources.len() > 1 {
             let owned = owned_sources
@@ -1505,6 +1515,63 @@ fn check_callable(
             if borrowed_sources.len() == 1 { "" } else { "s" },
         )));
     }
+}
+
+/// Return the one parameter selected by an exact authored custody equality.
+/// The equation must relate the whole current result projection directly to
+/// the whole entry projection of one parameter in the same algebra. Partition
+/// terms and structural subplaces describe transformations rather than the
+/// one-to-one correspondence needed to resolve retained ownership.
+fn authored_retention_source<'a>(
+    facts: &CheckFacts,
+    callable: SymbolHandle,
+    result_domain: SymbolHandle,
+    result_plan: &ContentProjectionPlan,
+    parameters: &'a [StateParameter],
+) -> Option<&'a str> {
+    facts
+        .qualifications
+        .content
+        .conservation_plans
+        .iter()
+        .filter(|plan| plan.callable == callable && plan.algebra == result_plan.algebra)
+        .find_map(|plan| {
+            let left = exact_projection_subject(plan.equation.left())?;
+            let right = exact_projection_subject(plan.equation.right())?;
+            let parameter = match (&left.root, left.version, &right.root, right.version) {
+                (
+                    ContentPlaceRoot::Result,
+                    ContentPlaceVersion::Current,
+                    ContentPlaceRoot::Parameter { symbol, .. },
+                    ContentPlaceVersion::Entry,
+                ) if projection_domain(plan.equation.left()) == Some(result_domain) => *symbol,
+                (
+                    ContentPlaceRoot::Parameter { symbol, .. },
+                    ContentPlaceVersion::Entry,
+                    ContentPlaceRoot::Result,
+                    ContentPlaceVersion::Current,
+                ) if projection_domain(plan.equation.right()) == Some(result_domain) => *symbol,
+                _ => return None,
+            };
+            parameters
+                .iter()
+                .find(|candidate| candidate.symbol == parameter)
+                .map(|candidate| candidate.name.as_str())
+        })
+}
+
+fn exact_projection_subject(term: &ContentConservationTerm) -> Option<&ContentStructuralPlace> {
+    let ContentConservationTerm::Projection { subject, .. } = term else {
+        return None;
+    };
+    subject.segments.is_empty().then_some(subject)
+}
+
+fn projection_domain(term: &ContentConservationTerm) -> Option<SymbolHandle> {
+    let ContentConservationTerm::Projection { domain, .. } = term else {
+        return None;
+    };
+    Some(*domain)
 }
 
 fn compatible_content(left: &ContentProjectionPlan, right: &ContentProjectionPlan) -> bool {
