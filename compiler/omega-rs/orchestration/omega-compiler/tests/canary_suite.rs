@@ -43016,6 +43016,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/task_parked_continuation_recast_rejected",
     "core/task_parked_continuation_address_rejected",
     "core/task_parked_continuation_mutation_rejected",
+    "core/extent_unqualified_construction_scope_loss",
+    "core/extent_scope_loss",
     "constants/const_non_literal_initializer",
     "constants/const_free_floating_rejected",
     "constants/const_shadows_case",
@@ -43682,6 +43684,26 @@ fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() 
         (
             "capabilities/win64_scalar_float_import_compile",
             "windows_x64",
+        ),
+        (
+            "capabilities/win64_large_aggregate_import_compile",
+            "windows_x64",
+        ),
+        (
+            "capabilities/win64_direct_aggregate_import_compile",
+            "windows_x64",
+        ),
+        (
+            "capabilities/win64_direct_aggregate_result_import_compile",
+            "windows_x64",
+        ),
+        (
+            "capabilities/win64_large_aggregate_result_import_compile",
+            "windows_x64",
+        ),
+        (
+            "capabilities/sysv_small_aggregate_import_compile",
+            "linux_x64",
         ),
         (
             "text/runtime_x86_general_double_indexed_string_concat_compile",
@@ -48874,8 +48896,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/native_slice_external_leaf_rejected",
     "capabilities/native_bounded_text_external_leaf_rejected",
     "capabilities/native_vector_external_leaf_rejected",
-    "core/extent_unqualified_construction_scope_loss",
-    "core/extent_scope_loss",
     "core/interrupt_mask_guard_scope_loss",
     "core/interrupt_acknowledgement_scope_loss",
     "core/interrupt_obligation_construction_rejected",
