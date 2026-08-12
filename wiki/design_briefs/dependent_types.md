@@ -352,6 +352,10 @@ independently admitted when their expressions are non-rebinding and every call
 frame is complete, including nested direct calls to a maximum call-tree depth of
 two. Explicitly discarded call results, explicit binding reborrows, deeper
 computed arguments, and any opaque node remain fences.
+A terminal returned-place index may be one direct non-rebinding value call when
+its inferred frame is complete. The returned origin remains collection-coarse,
+and the ordinary frame still publishes the index call's writes. Nested-computed,
+recursive, or opaque index calls remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.

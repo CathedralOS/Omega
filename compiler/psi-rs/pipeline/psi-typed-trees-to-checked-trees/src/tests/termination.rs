@@ -3675,7 +3675,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 }
 
 #[test]
-fn transparent_returned_index_frame_requires_an_effect_free_index() {
+fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
     let source = r#"
     data Main {
         value: u64;
@@ -3684,6 +3684,19 @@ fn transparent_returned_index_frame_requires_an_effect_free_index() {
 
     machine make_index() -> u64 [0..=1] {
         0
+    }
+
+    machine write_index(value: &mut u64) -> u64 [0..=1] {
+        value = 1;
+        0
+    }
+
+    machine identity_index(index: u64 [0..=1]) -> u64 [0..=1] {
+        index
+    }
+
+    machine recursive_index() -> u64 [0..=1] {
+        recursive_index()
     }
 
     machine return_local_index(cells: &mut [u64; 2]) -> &mut u64 {
@@ -3695,6 +3708,21 @@ fn transparent_returned_index_frame_requires_an_effect_free_index() {
         &mut cells[make_index()]
     }
 
+    machine return_write_call_index<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut u64 {
+        &mut cells[write_index(value)]
+    }
+
+    machine return_nested_call_index(cells: &mut [u64; 2]) -> &mut u64 {
+        &mut cells[identity_index(make_index())]
+    }
+
+    machine return_recursive_call_index(cells: &mut [u64; 2]) -> &mut u64 {
+        &mut cells[recursive_index()]
+    }
+
     machine Main::local_index_result(&mut self) {
         let alias: &mut u64 = return_local_index(&mut self.cells);
         alias = 1;
@@ -3702,6 +3730,22 @@ fn transparent_returned_index_frame_requires_an_effect_free_index() {
 
     machine Main::call_index_result(&mut self) {
         let alias: &mut u64 = return_call_index(&mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::write_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_write_call_index(&mut self.cells, &mut self.value);
+        alias = 1;
+    }
+
+    machine Main::nested_call_index_result(&mut self) {
+        let alias: &mut u64 = return_nested_call_index(&mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::recursive_call_index_result(&mut self) {
+        let alias: &mut u64 = return_recursive_call_index(&mut self.cells);
         alias = 1;
     }
     "#;
@@ -3731,21 +3775,57 @@ fn transparent_returned_index_frame_requires_an_effect_free_index() {
         "an effect-free local index preserves the returned collection origin"
     );
 
-    let call = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::call_index_result")
-        .expect("call-index helper caller");
-    let call_entry = typed
-        .machine_states(call)
-        .first()
-        .expect("call-index helper caller entry state");
-    assert!(
-        !resolver
-            .inferred_state_write_frame(call, call_entry)
-            .is_complete(),
-        "a call-computed terminal index must keep the helper result opaque"
-    );
+    for (name, expected_paths) in [
+        ("Main::call_index_result", vec!["self.cells"]),
+        (
+            "Main::write_call_index_result",
+            vec!["self.cells", "self.value"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} helper caller"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} helper caller entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must publish the index call's writes and preserve the coarse collection origin"
+        );
+    }
+
+    for name in [
+        "Main::nested_call_index_result",
+        "Main::recursive_call_index_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} helper caller"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} helper caller entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the one-direct-call index rung"
+        );
+    }
 }
 
 #[test]

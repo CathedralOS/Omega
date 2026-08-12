@@ -2037,6 +2037,7 @@ fn transparent_callee_result_origin(
                     };
                     let origin = parameter_relative_place_origin(
                         program,
+                        callee_machine,
                         local.initial_value,
                         parameters,
                         &local_aliases,
@@ -2052,6 +2053,7 @@ fn transparent_callee_result_origin(
                             assignment.target,
                         ) || parameter_relative_place_origin(
                             program,
+                            callee_machine,
                             assignment.target,
                             parameters,
                             &local_aliases,
@@ -2075,6 +2077,7 @@ fn transparent_callee_result_origin(
                         )?;
                         let replacement = parameter_relative_place_origin(
                             program,
+                            callee_machine,
                             assignment.value,
                             parameters,
                             &local_aliases,
@@ -2106,6 +2109,7 @@ fn transparent_callee_result_origin(
         }
         parameter_relative_place_origin(
             program,
+            callee_machine,
             *result,
             parameters,
             &local_aliases,
@@ -2447,6 +2451,7 @@ fn transparent_assignment_target_effect_is_structural(
 
 fn parameter_relative_place_origin(
     program: &TypedTrees,
+    current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
@@ -2456,6 +2461,7 @@ fn parameter_relative_place_origin(
     match program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => parameter_relative_place_origin(
             program,
+            current_machine,
             *inner,
             parameters,
             aliases,
@@ -2464,10 +2470,28 @@ fn parameter_relative_place_origin(
         ),
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
-                return None;
+                let mut diagnostics = Vec::new();
+                let machine_symbols =
+                    MachineSymbols::build(program, current_machine, &mut diagnostics);
+                if !diagnostics.is_empty()
+                    || !statement_call_argument_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        indexed.index,
+                        &machine_symbols,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                        1,
+                    )
+                {
+                    return None;
+                }
             }
             let mut origin = parameter_relative_place_origin(
                 program,
+                current_machine,
                 indexed.collection,
                 parameters,
                 aliases,
@@ -2480,6 +2504,7 @@ fn parameter_relative_place_origin(
         ExpressionNode::Member(member) => {
             let mut origin = parameter_relative_place_origin(
                 program,
+                current_machine,
                 member.receiver,
                 parameters,
                 aliases,
@@ -2534,6 +2559,7 @@ fn parameter_relative_place_origin(
             if call_is_transparent_mutable_slice_view(program, call) {
                 return parameter_relative_place_origin(
                     program,
+                    current_machine,
                     call.receiver,
                     parameters,
                     aliases,
@@ -2543,6 +2569,7 @@ fn parameter_relative_place_origin(
             }
             parameter_relative_call_result_origin(
                 program,
+                current_machine,
                 call,
                 parameters,
                 aliases,
@@ -2556,6 +2583,7 @@ fn parameter_relative_place_origin(
         {
             parameter_relative_place_origin(
                 program,
+                current_machine,
                 cast.value,
                 parameters,
                 aliases,
@@ -2569,6 +2597,7 @@ fn parameter_relative_place_origin(
 
 fn parameter_relative_call_result_origin(
     program: &TypedTrees,
+    current_machine: &Machine,
     call: &TableCallExpression,
     caller_parameters: &[StateParameter],
     caller_aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
@@ -2613,6 +2642,7 @@ fn parameter_relative_call_result_origin(
     };
     let actual_origin = parameter_relative_place_origin(
         program,
+        current_machine,
         actual,
         caller_parameters,
         caller_aliases,
