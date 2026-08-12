@@ -41561,7 +41561,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xeb87_c478_c8a1_e513;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7556_d746_645c_893e;
 
     let canary = pass_canary("float/named_provider_directed_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -41661,7 +41661,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
             .expect("copy directed-add canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write directed-add target manifest");
         compile(CompileOptions {
@@ -41703,7 +41703,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc014_cab3_48eb_363c;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xff3d_1161_c5d3_2f7f;
 
     let canary = pass_canary("float/named_provider_directed_subtract_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -41804,7 +41804,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
             .expect("copy directed-subtract canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write directed-subtract target manifest");
         compile(CompileOptions {
@@ -41846,7 +41846,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xec7e_7bae_35b0_56cb;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x6568_173c_31ae_e95a;
 
     let canary = pass_canary("float/named_provider_directed_multiply_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -41947,7 +41947,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
             .expect("copy directed-multiply canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write directed-multiply target manifest");
         compile(CompileOptions {
@@ -41989,7 +41989,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xb6dc_1821_5e0c_4019;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc5c9_4e70_dd0c_1f61;
 
     let canary = pass_canary("float/named_provider_directed_divide_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -42090,7 +42090,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
             .expect("copy directed-divide canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write directed-divide target manifest");
         compile(CompileOptions {
@@ -42132,7 +42132,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8b87_625f_d5e9_f1b7;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc0e1_bc05_438a_3916;
 
     let canary = pass_canary("float/named_provider_directed_square_root_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -42234,7 +42234,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
             .expect("copy directed-square-root canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write directed-square-root target manifest");
         compile(CompileOptions {
