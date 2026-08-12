@@ -95,3 +95,22 @@ and how overload identity is named. It must produce a per-use checked fact
 containing the call site, machine-argument ordinal, selected machine, and exact
 callback trait requirement so native lowering can place one private relocation
 without creating a runtime machine value or exposing a code address.
+
+## Q6 — Native logical-fuel meter ABI and continuation
+
+Terminal Psi settles sponsor-owned logical fuel: trusted native lowering charges
+before each semantic operation or taken edge, exhaustion is not program-visible,
+and replenishment resumes at the unpaid site without replaying completed work.
+Native artifacts and installation records now retain the exact schedule, site,
+units, and byte interval, but no approved target/runtime contract says where the
+mutable budget lives or how exhaustion transfers control and later resumes.
+
+Choose the native meter ABI and continuation contract. The decision must settle
+whether the budget is passed explicitly, held in a reserved register, or reached
+through sponsor-owned execution context; which layer owns and preserves that
+state across ordinary and provider calls; how the slow path reports the exact
+unpaid `OperationId` or `EdgeId`; and what non-forgeable continuation authorizes
+resume without exposing fuel to the program. It must apply coherently across
+x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
+contracts, and keep fixed-fuel meter elision a separately admitted installation
+decision.
