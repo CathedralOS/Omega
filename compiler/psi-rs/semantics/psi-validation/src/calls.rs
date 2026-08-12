@@ -2687,9 +2687,11 @@ struct PermutedCycleFrameEquation<'program> {
 /// is nevertheless finite: repeated traversal can only move an already-known
 /// path among the SCC's positional roots. This fallback solves the reachable
 /// state equations to a fixed point after proving that every cyclic edge is an
-/// exact bijection over those write-capable roots. Projections, duplication,
-/// omission, and computed rebinding stay opaque; otherwise suffix growth could
-/// make the path set unbounded or alias two semantic roots.
+/// exact bijection over those write-capable roots. Structurally transparent
+/// returned places preserve the root they forward. Projections, opaque helper
+/// results, duplication, omission, and computed rebinding stay opaque;
+/// otherwise suffix growth could make the path set unbounded or alias two
+/// semantic roots.
 fn summarize_state_written_paths_with_permuted_cycles<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
@@ -2737,12 +2739,15 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                     .iter()
                     .find(|candidate| candidate.state.symbol == edge.target)?
                     .state;
+                let mut active_states = outer_active_states.to_vec();
                 if !transition_is_exact_write_parameter_permutation(
                     program,
                     equation.state,
                     target,
                     &edge.arguments,
                     &equation.local_alias_origins,
+                    symbols,
+                    &mut active_states,
                 ) {
                     return None;
                 }
@@ -3060,6 +3065,8 @@ fn transition_is_exact_write_parameter_permutation(
     target: &State,
     arguments: &[ExpressionHandle],
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
 ) -> bool {
     let source_write_parameters = program
         .state_parameters(source)
@@ -3090,6 +3097,8 @@ fn transition_is_exact_write_parameter_permutation(
                 arguments[position],
                 parameter,
                 aliases,
+                symbols,
+                active_states,
             )
         }) else {
             return false;
@@ -3107,8 +3116,17 @@ fn expression_forwards_exact_write_parameter(
     expression: ExpressionHandle,
     parameter: &StateParameter,
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
 ) -> bool {
     if expression_forwards_exact_symbol(program, expression, parameter.symbol) {
+        return true;
+    }
+    if transparent_place_expression_origin(program, expression, symbols, active_states).is_some_and(
+        |origin| {
+            origin.precision == FramePathPrecision::Exact && origin.path == parameter.name.as_str()
+        },
+    ) {
         return true;
     }
     let Some(argument) = frame_place_path(program, expression) else {

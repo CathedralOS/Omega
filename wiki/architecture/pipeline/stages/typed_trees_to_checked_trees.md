@@ -137,9 +137,10 @@ Current ownership is:
   and value-call frames preserve stable paths when their may-write sets are
   empty or disjoint and invalidate only overlapping paths. Internal wrappers
   compose nested boundary receiver/out-argument frames. State cycles keep exact
-  frames through reordered primitive or shared-reference parameters and direct
-  stable mutable-alias substitutions, while computed/unrepresentable alias
-  replacement or a non-bijective write-capable backedge remains conservative.
+  frames through reordered primitive or shared-reference parameters, direct
+  stable mutable-alias substitutions, and structurally transparent
+  returned-place substitutions, while opaque replacement or a non-bijective
+  write-capable backedge remains conservative.
   A direct stable alias replacement updates that binding's origin without
   redirecting aliases established from its prior value. Stable mutable-alias
   chains retain exact member projections; an indexed reborrow through an exact

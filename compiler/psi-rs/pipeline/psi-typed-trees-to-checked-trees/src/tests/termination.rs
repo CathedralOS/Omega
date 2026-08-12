@@ -2335,6 +2335,80 @@ fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
 }
 
 #[test]
+fn write_frame_composes_transparent_helpers_in_exclusive_cycles() {
+    let source = r#"
+    machine identity(value: &mut u64) -> &mut u64 {
+        value
+    }
+
+    machine write(value: &mut u64) {
+        value = 2;
+    }
+
+    machine opaque_identity(value: &mut u64) -> &mut u64 {
+        write(value);
+        value
+    }
+
+    machine transparent_cycle(value: &mut u64) {
+        transition { _ -> cycle(value) }
+        state cycle(item: &mut u64) {
+            item = 1;
+            transition { _ -> cycle(identity(item)) }
+        }
+    }
+
+    machine opaque_helper_cycle(value: &mut u64) {
+        transition { _ -> cycle(value) }
+        state cycle(item: &mut u64) {
+            item = 1;
+            transition { _ -> cycle(opaque_identity(item)) }
+        }
+    }
+
+    machine duplicate_transparent_cycle(first: &mut u64, second: &mut u64) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: &mut u64, right: &mut u64) {
+            left = 1;
+            transition { _ -> cycle(identity(left), identity(left)) }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    let frame = |name: &str| {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        resolver.inferred_state_write_frame(machine, entry)
+    };
+
+    assert_eq!(
+        frame("transparent_cycle").complete_paths(),
+        Some(["$P0".to_owned()].as_slice()),
+        "a transparent identity helper preserves the cycle's exact root permutation"
+    );
+    for name in ["opaque_helper_cycle", "duplicate_transparent_cycle"] {
+        assert!(
+            !frame(name).is_complete(),
+            "{name} must remain opaque without an exact bijection"
+        );
+    }
+}
+
+#[test]
 fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
     let source = r#"
     data Cell { value: u64; }
