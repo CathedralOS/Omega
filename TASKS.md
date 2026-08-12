@@ -111,6 +111,8 @@ Remaining:
   The elapsed-since, checked-arithmetic, system-time, and instant-elapsed
   differential canaries likewise retain their interpreter oracles and native
   exit assertions under the running host's exact entry root.
+  The Duration totals and core-arithmetic differential pair now uses that exact
+  native-host root as well, with its interpreter and exit-code coverage intact.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
