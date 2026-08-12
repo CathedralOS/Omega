@@ -289,12 +289,12 @@ For currently resolved and nameable checked-shape holders and non-generic
 evidence types, the executable slice elaborates an omitted erased initializer
 only when exactly one payloadless constructor with no common fields determines
 the term. Holders may also be closed synthesized generic records when the
-instance is selected by an explicitly typed local initializer or direct exact
-assignment; this contextual record elaboration does not infer type arguments
-from fields or extend to call or return literals. Pure and mixed common-field/
+instance is selected by an explicitly typed local initializer, direct exact
+assignment, unique exact call parameter, or exact return; this contextual
+record elaboration does not infer type arguments from fields. Pure and mixed common-field/
 case generic sums admit multiple exact closed instances per generic base in the executable slice. A
-closed annotated local or direct assignment destination selects construction
-identity; an exact local, parameter, or attached-self-field subject selects
+closed annotated local, direct assignment, unique free-call parameter, or
+return destination selects construction identity; an exact local, parameter, or attached-self-field subject selects
 destructure identity. Other bare constructor contexts retain the unique-
 instance fallback and fail closed when more than one identity is possible.
 Nested concrete generic payload records reach the same synthesis fixpoint. The

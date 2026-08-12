@@ -1162,18 +1162,24 @@ fn resolve_leaf_caller_local_initializer_names(
                 bindings,
                 statement_bound,
             );
-            if receiver == member.receiver {
-                return expression;
-            }
             // Project a STRUCT-LITERAL receiver onto the named field's value:
             // `job.id` with slot-less `job` substituted by its initializer
             // `Job { id: self.v }` folds to `self.v`. A literal has no storage
             // place, so an unprojected `<literal>.id` member can never resolve
             // and the containing write would silently drop (the by-value
             // struct-arg-to-free-machine miscompile).
-            if let ExpressionNode::StructLiteral(struct_literal) =
-                expressions.expression(receiver).clone()
-            {
+            let literal = match expressions.expression(receiver).clone() {
+                ExpressionNode::StructLiteral(literal) => Some(literal),
+                // By-value parameter bindings retain a `Mutable` wrapper while
+                // being substituted into a leaf. A field read is still a value
+                // projection from that literal, not an addressable write.
+                ExpressionNode::Mutable(inner) => match expressions.expression(inner).clone() {
+                    ExpressionNode::StructLiteral(literal) => Some(literal),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(struct_literal) = literal {
                 for offset in 0..struct_literal.fields.count() {
                     let field = expressions
                         .struct_field_at_offset(struct_literal.fields, offset)
@@ -1182,6 +1188,9 @@ fn resolve_leaf_caller_local_initializer_names(
                         return field.value;
                     }
                 }
+            }
+            if receiver == member.receiver {
+                return expression;
             }
             expressions.insert(ExpressionNode::Member(
                 psi_checked_trees::expression::TableMemberExpression {

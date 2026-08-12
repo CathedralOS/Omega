@@ -1,0 +1,19 @@
+use omega::language::std::console;
+
+data Evidence { case Only; }
+data Box<T> { value: T; proof [erased]: Evidence; }
+
+machine make() -> Box<i32 in Wrapping> {
+    Box { value: 63 }
+}
+
+machine consume(boxed: Box<i32 in Wrapping>) -> i32 in Wrapping {
+    boxed.value
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let returned: Box<i32 in Wrapping> = make();
+    let direct: i32 in Wrapping = consume(Box { value: 7 });
+    self.console.exit_process((returned.value + direct) as i32);
+}
