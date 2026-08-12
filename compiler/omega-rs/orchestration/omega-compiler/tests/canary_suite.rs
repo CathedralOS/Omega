@@ -6810,16 +6810,10 @@ fn runtime_duration_totals_exit_canary_runs() {
         "interpreter oracle should exit 70 for the totals chain, got {}",
         outcome.exit_code
     );
-    let build_dir = std::env::temp_dir().join(format!("omega-totals-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("duration totals canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-totals-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("duration totals canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("duration totals canary should run");
     assert_eq!(
@@ -6828,7 +6822,7 @@ fn runtime_duration_totals_exit_canary_runs() {
         "expected the totals chain to run natively (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6866,16 +6860,10 @@ fn runtime_duration_core_exit_canary_runs() {
         "interpreter oracle should exit 70 for the Duration chain, got {}",
         outcome.exit_code
     );
-    let build_dir = std::env::temp_dir().join(format!("omega-duration-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("duration core canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-duration-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("duration core canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("duration core canary should run");
     assert_eq!(
@@ -6884,7 +6872,7 @@ fn runtime_duration_core_exit_canary_runs() {
         "expected the Duration arithmetic chain to run natively (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
