@@ -79,6 +79,20 @@ pub fn compile_to_checked(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    // Checked-only callers traverse the same recursive parser as deployment
+    // compilation and must reach its explicit depth guard before the host
+    // thread's smaller default stack can overflow.
+    let root_path = root_path.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner(&root_path, target_name.as_deref())
+    })
+}
+
+fn compile_to_checked_inner(
+    root_path: &Path,
+    target_name: Option<&str>,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
 
     // The interpreter keeps the abstract `boundary trait Gui` for its headless
