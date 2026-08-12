@@ -245,7 +245,9 @@ Remaining:
   Programmable layout, access, and placement evaluation/normalization now also
   live there over Psi typed trees and normalized plan carriers. Wire placement
   derivation, authored codec-policy evaluation/agreement, and encode-obligation
-  recording now live in the same Psi service; the in-place
+  recording now live in the same Psi service. Plan-laid type desugaring and
+  `Placed<P, T>` probe/evaluate/exact-accessor synthesis now form paired Psi
+  pre-resolution/post-typing services; the in-place
   generic syntax elaborator is private. Finish moving the remaining target-neutral
   probe/conveyor sequencing out of
   `omega-compiler` before

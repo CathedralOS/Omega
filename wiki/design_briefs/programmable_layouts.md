@@ -163,7 +163,9 @@ layout, derives transfer widths from that geometry, and evaluates
 `Placement::plan` into one normalized layout/access/reach identity. The
 target-neutral service lives in `psi-build-time-evaluation`; Omega schedules it
 and consumes its sealed Psi plan carriers for target realization but does not
-own those language semantics. The
+own those language semantics. Plan-laid type desugaring and `Placed<P, T>`
+probe/evaluation/exact-accessor synthesis live in that service as paired
+pre-resolution and post-typing passes as well. The
 `psi-access-plans` bootstrap validates geometry, exact widths,
 observation/operation compatibility, borrow polarity, atomic orderings, exact
 internal loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns

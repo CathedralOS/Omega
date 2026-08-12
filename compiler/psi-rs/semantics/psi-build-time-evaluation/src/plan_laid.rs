@@ -41,13 +41,13 @@ use std::collections::{HashMap, HashSet};
 /// data definition plus the (policy, schema) pair whose validated plan will
 /// dictate its layout.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlanLaidRecord {
+pub struct PlanLaidRecord {
     /// Name of the synthesized data definition (`CLayout<GdtEntryish>`).
-    pub(crate) synthetic_name: String,
+    pub synthetic_name: String,
     /// Qualified policy machine (`CLayout::plan`).
-    pub(crate) policy_machine: String,
+    pub policy_machine: String,
     /// The schema data definition the plan places.
-    pub(crate) schema_data: String,
+    pub schema_data: String,
 }
 
 struct IndexedData {
@@ -67,7 +67,7 @@ struct PendingRewrite {
 /// data definition with an attached `plan` machine, synthesize the instance
 /// definitions, and rewrite every occurrence. Returns the records the
 /// post-typing plan pass needs.
-pub(crate) fn desugar_plan_laid_value_types(
+pub fn desugar_plan_laid_value_types(
     syntax: &mut SyntaxTrees,
 ) -> Result<Vec<PlanLaidRecord>, Vec<Diagnostic>> {
     // Index the merged program: data definitions by name, and the set of data
@@ -256,7 +256,7 @@ pub(crate) fn desugar_plan_laid_value_types(
 /// Evaluate + validate each discovered policy application (the L2/L3
 /// pipeline), require a fully static plan, and record the placements for the
 /// native layout builder.
-pub(crate) fn compute_plan_laid_layouts(
+pub fn compute_plan_laid_layouts(
     typed: &mut TypedTrees,
     records: &[PlanLaidRecord],
 ) -> Result<(), Vec<Diagnostic>> {
@@ -266,17 +266,13 @@ pub(crate) fn compute_plan_laid_layouts(
 
     let mut layouts = Vec::with_capacity(records.len());
     for record in records {
-        let report = psi_build_time_evaluation::compute_layout_plan(
-            typed,
-            &record.policy_machine,
-            &record.schema_data,
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "plan-laid value type `{}`: {reason}",
-                record.synthetic_name
-            ))]
-        })?;
+        let report = crate::compute_layout_plan(typed, &record.policy_machine, &record.schema_data)
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "plan-laid value type `{}`: {reason}",
+                    record.synthetic_name
+                ))]
+            })?;
         let Some(size) = report.size else {
             return Err(vec![Diagnostic::error(format!(
                 "plan-laid value type `{}`: policy `{}` produced a dynamic plan; a dynamic \

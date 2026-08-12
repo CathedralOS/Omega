@@ -12,8 +12,6 @@ mod float_intrinsic_dispatch;
 pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
-mod placed_views;
-mod plan_laid;
 mod program_storage_entry;
 mod project;
 mod provider_approval;
