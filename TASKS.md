@@ -96,6 +96,9 @@ Remaining:
   The report-only capability authority-verb and exact-flow-site cohort likewise
   stops at checked artifacts under production compilation and asserts that no
   runtime entry or native image was selected.
+  The boundary-trait capability visualization now separates its checked-only
+  capability/carry/task evidence from its state-graph/control-flow leg; only the
+  latter stages an exact `macos_arm64::ProgramEntry` binding.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
@@ -409,8 +412,10 @@ customer-shaped compiler concept is introduced.
   those origins, including exact transparent call-produced targets, without
   changing the relation, while their ordinary frames remain published;
   effect-free discarded expressions and direct Unit statement calls with
-  complete empty frames are neutral. Explicitly discarded call results and
-  statement calls with nonempty or opaque frames remain fences. A direct
+  complete frames whose writes all resolve into earlier caller-isolated scratch
+  locals are neutral; an empty frame is the degenerate case. Explicitly
+  discarded call results and statement calls with any write outside those
+  isolated roots or opaque frames remain fences. A direct
   helper-local alias rebind updates that name's origin without redirecting prior
   reborrows; a structurally transparent helper result may supply the replacement
   through the same origin algebra. Other computed rebinding, opaque or recursive
