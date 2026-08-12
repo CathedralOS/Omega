@@ -89,7 +89,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
 }
 
 #[test]
-fn decoder_rejects_the_retired_vocabulary_marker() {
+fn decoder_rejects_a_noncurrent_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
     bytes[10..12].copy_from_slice(&1_u16.to_le_bytes());
 
@@ -241,7 +241,7 @@ fn structural_foundation_rejects_cyclic_or_incomplete_service_closure() {
 }
 
 #[test]
-fn structural_declarations_do_not_bypass_legacy_graph_validation() {
+fn structural_declarations_do_not_bypass_semantic_graph_validation() {
     let mut module = fixture();
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type_id(1),
@@ -262,7 +262,7 @@ fn structural_declarations_do_not_bypass_legacy_graph_validation() {
         ))
     );
 
-    let mut bytes = encode_module(&module).expect("mixed foundation/legacy module should encode");
+    let mut bytes = encode_module(&module).expect("complete semantic module should encode");
     let mut return_encoding = vec![2_u8];
     return_encoding.extend_from_slice(&2_u64.to_le_bytes());
     return_encoding.extend_from_slice(&3_u64.to_le_bytes());
