@@ -2,7 +2,7 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
+    ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
@@ -12,7 +12,7 @@ use psi_terminal::{
     ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
@@ -421,6 +421,45 @@ fn claims_are_linear_across_unit_operations_and_return() {
             claim: claim_id(1),
         }
     );
+}
+
+#[test]
+fn scalar_return_cannot_abandon_linear_structural_custody() {
+    let mut module = hard_root_module();
+    let scalar = module.machines.remove(1);
+    module.machines = vec![scalar];
+    module.entry = machine_id(2);
+    let value = ValueId::new(1).expect("scalar value");
+    let result = ValueDeclaration {
+        id: ValueId::new(2).expect("result value"),
+        scalar_type: ScalarType::Boolean,
+    };
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Scalar(result);
+    machine.blocks[0].operations = vec![Operation {
+        id: operation_id(2),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: value,
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanConstant { value: true },
+    }];
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value,
+    };
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::LiveLinearClaimAtScalarReturn {
+            machine: machine_id(2),
+            block: block_id(2),
+            claim: claim_id(1),
+        }
+    );
+
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    validate_module(&module).expect("affine custody may be abandoned at scalar return");
 }
 
 #[test]

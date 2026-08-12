@@ -2909,6 +2909,19 @@ fn validate_structural_frontier(
                     });
                 }
             }
+            Terminator::Return { .. } => {
+                if let Some((claim, _)) = frontier
+                    .claims
+                    .iter()
+                    .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
+                {
+                    return Err(ModuleError::LiveLinearClaimAtScalarReturn {
+                        machine: machine.id,
+                        block: block.id,
+                        claim: *claim,
+                    });
+                }
+            }
             Terminator::Crash {
                 frontier_lower_bound,
                 ..
@@ -2918,7 +2931,6 @@ fn validate_structural_frontier(
                     return Err(ModuleError::CrashFrontierMismatch { block: block.id });
                 }
             }
-            Terminator::Return { .. } => {}
         }
     }
     Ok(())
@@ -4040,6 +4052,11 @@ pub enum ModuleError {
     ClaimFrontierJoinMismatch(BlockId),
     OwnedStructuralFrontierJoinMismatch(BlockId),
     LiveLinearClaimAtUnitReturn {
+        machine: MachineId,
+        block: BlockId,
+        claim: ClaimId,
+    },
+    LiveLinearClaimAtScalarReturn {
         machine: MachineId,
         block: BlockId,
         claim: ClaimId,
