@@ -87,7 +87,9 @@ Remaining:
   `ProgramEntry`, selects that target explicitly, and uses production
   compilation. That migration also closed the AArch64 console-adapter gap:
   retained `_read`/`_write` plans validate their real native result while the
-  adapter deliberately carries no Omega result place.
+  adapter deliberately carries no Omega result place. Documented-exit sample
+  execution now uses the same exact production-root staging; its current red
+  members are ordinary lowering/runtime defects, not implicit-entry fallback.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
