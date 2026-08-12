@@ -1314,7 +1314,7 @@ fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
             .expect("copy runtime-text guard canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write runtime-text guard target");
 
@@ -1423,7 +1423,7 @@ fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body place-copy canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body place-copy target");
 
@@ -1476,7 +1476,7 @@ fn compiler_body_from_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() 
             .expect("copy compiler-body from-pointee canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body from-pointee target");
 
@@ -1560,7 +1560,7 @@ fn compiler_body_pointee_pair_copy_footprints_reach_x86_and_aarch64_artifacts() 
             .expect("copy compiler-body pointee-pair canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body pointee-pair target");
 
