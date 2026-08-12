@@ -268,6 +268,65 @@ fn c_layout_policy_plans_a_uefi_ish_schema() {
 }
 
 #[test]
+fn fixed_primitive_arrays_are_reflected_as_one_repeated_at_field() {
+    let main_path = write_program(
+        "fixed-array-at",
+        r#"
+use omega::language::core::layout;
+
+data ArrayLayout { entries: [FieldEntry; 64]; }
+machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 16, size_is_dynamic: false, align: 2 }
+}
+data Samples { values: [u16; 3]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("fixed array should reflect");
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+        .expect("one At placement should admit the complete fixed-array extent");
+    assert_eq!(report.offsets, Some(vec![8]));
+    assert_eq!(report.size, Some(16));
+    assert_eq!(report.align, 2);
+}
+
+#[test]
+fn fixed_primitive_arrays_reject_scalar_bit_placement() {
+    let main_path = write_program(
+        "fixed-array-bits",
+        r#"
+use omega::language::core::layout;
+
+data ArrayBits { entries: [FieldEntry; 64]; }
+machine ArrayBits::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 0, container_width: 64,
+            destination_lsb: 0, source_lsb: 0, width: 48,
+        },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 8, size_is_dynamic: false, align: 8 }
+}
+data Samples { values: [u16; 3]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("program should type");
+    let error = compute_layout_plan(&checked.typed, "ArrayBits::plan", "Samples")
+        .expect_err("aggregate bit placement must stay outside the fixed-array At slice");
+    assert!(error.contains("aggregate fields support only `At` placement"));
+}
+
+#[test]
 fn effectful_policies_are_rejected_at_the_gate() {
     let main_path = write_program(
         "effectful-policy",

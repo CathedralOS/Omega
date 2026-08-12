@@ -20,11 +20,12 @@
 use omega::language::core::option;
 
 // One field of a schema, target-resolved by the compiler: byte size,
-// alignment, and the declared identity number (-1 when unnumbered). Ranges
-// keep policy arithmetic Exact: a field is at most 4 KiB wide and its
-// alignment is a nonzero power of two at most 16. (Schema is compiler-built
-// and passed BY VALUE into plan() -- it is never zero-initialized machine
-// state, so the 0-excluding alignment range is sound.)
+// alignment, shape, and declared identity (-1 in the numeric mirror when
+// unnumbered). Fixed arrays of supported primitive elements are one Repeated
+// field. Ranges keep policy arithmetic Exact: a field is at most 4 KiB wide
+// and its alignment is a nonzero power of two at most 16. (Schema is
+// compiler-built and passed BY VALUE into plan() -- it is never
+// zero-initialized machine state, so the 0-excluding alignment range is sound.)
 data SchemaField {
     key: u64;
     size: u64 [0..=4096];
@@ -76,7 +77,8 @@ data Schema {
 // this sum; a new placement KIND is a compiler release, never user-invented.
 // The validator walks `At`, `Bits`, and `IntegerAt`. `stored_width` is a bit
 // width; `offset` remains byte-denominated. `At` or a complete repeated `Bits`
-// tiling has live direct plan-laid projection. `IntegerAt` is normalized for
+// tiling has live direct plan-laid projection. A fixed primitive array admits
+// one whole-extent `At`, not scalar `Bits` or `IntegerAt`. `IntegerAt` is normalized for
 // consumers and is the only fixed-layout spelling for a foreign integer whose
 // stored width differs from its semantic carrier. Direct owned/reference-backed
 // and runtime-indexed projection widen according to `interpretation`. Direct

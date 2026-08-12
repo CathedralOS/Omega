@@ -1,0 +1,61 @@
+// A non-scalar fixed array is one plan-laid `At` field. The policy places the
+// array at byte 8 and a trailing scalar at byte 24, deliberately disagreeing
+// with native packing. Interpreter and native record views must tile the three
+// u16 elements from the array field's validated extent.
+use omega::language::std::console;
+use omega::language::core::layout;
+
+data SpreadArray {
+    entries: [FieldEntry; 64];
+}
+
+machine SpreadArray::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 24 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 32,
+        size_is_dynamic: false,
+        align: 8,
+    }
+}
+
+data ArrayRecord {
+    values: [u16; 3];
+    marker: u8;
+}
+
+data ArrayView {
+    value: SpreadArray<ArrayRecord>;
+}
+
+data Main {
+    console: Console;
+    bytes: [u8; 32];
+}
+
+machine Main::main(&mut self) {
+    self.bytes[8] = 10;
+    self.bytes[10] = 20;
+    self.bytes[12] = 30;
+    self.bytes[24] = 10;
+    let view: &ArrayView = &self.bytes[0] as &ArrayView;
+    let total: u64 = view.value.values[0] as u64
+        + view.value.values[1] as u64
+        + view.value.values[2] as u64
+        + view.value.marker as u64;
+    transition total == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

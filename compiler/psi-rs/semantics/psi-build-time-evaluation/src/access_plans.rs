@@ -248,6 +248,7 @@ fn parse_field_access(
             Ok(FieldAccess::Inaccessible)
         }
         "Stable" => {
+            require_scalar_access_field(schema_field)?;
             let width = transfer_width_bits(schema_field, layout)?;
             Ok(FieldAccess::Stable {
                 transfer_width_bits: width,
@@ -257,6 +258,7 @@ fn parse_field_access(
             })
         }
         "External" => {
+            require_scalar_access_field(schema_field)?;
             let width = transfer_width_bits(schema_field, layout)?;
             Ok(FieldAccess::External {
                 transfer_width_bits: width,
@@ -266,6 +268,7 @@ fn parse_field_access(
             })
         }
         "Atomic" => {
+            require_scalar_access_field(schema_field)?;
             let width = transfer_width_bits(schema_field, layout)?;
             let operations = payload_field(payload, "operations")?;
             Ok(FieldAccess::Atomic {
@@ -279,6 +282,15 @@ fn parse_field_access(
             schema_field.name
         )),
     }
+}
+
+fn require_scalar_access_field(schema_field: &SchemaFieldInfo) -> Result<(), String> {
+    schema_field.primitive.map(|_| ()).ok_or_else(|| {
+        format!(
+            "field `{}` is aggregate; the current access vocabulary admits only Inaccessible for aggregate fields",
+            schema_field.name
+        )
+    })
 }
 
 fn transfer_width_bits(

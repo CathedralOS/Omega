@@ -122,7 +122,12 @@ Owners:
 - Finish source-visible materialization over owned storage, including
   non-scalar tiling and mutable views beyond current record/array/slice checks.
   Raw bytes establish no typed fact without a selected validated plan and exact
-  field identities.
+  field identities. Fixed arrays of supported primitive elements now reflect
+  as one `Repeated` aggregate field and project through one validated `At`
+  extent in interpreter, native x64, Windows x64, and Linux AArch64 paths.
+  Scalar `Bits`, `IntegerAt`, and active `AccessPlan` decisions remain fenced
+  for that aggregate. Continue with nested aggregates and owned/mutable
+  non-scalar materialization.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
