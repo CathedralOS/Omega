@@ -2542,6 +2542,11 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         alias.value = 20;
     }
 
+    machine Main::direct_member_after_index_alias(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0].value;
+        alias = 20;
+    }
+
     machine Main::indexed_alias_self_loop(&mut self) {
         let alias: &mut Cell = &mut self.cells[0];
         alias.value = 21;
@@ -2620,6 +2625,7 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
             "Main::member_indexed_alias_projected_reborrow",
             "self.group.cells",
         ),
+        ("Main::direct_member_after_index_alias", "self.cells"),
         ("Main::indexed_alias_self_loop", "self.cells"),
         ("Main::indexed_alias_named", "self.cells"),
         ("Main::direct_indexed_call", "self.cells"),
@@ -2691,8 +2697,9 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         alias = 3;
     }
 
-    machine Main::indexed_member_after_index(&mut self) {
-        let alias: &mut u64 = &mut self.cell_items[0].value;
+    machine Main::indexed_local_member_after_index(&mut self) {
+        let local: [Cell; 2] = [Cell { value: 0 }, Cell { value: 1 }];
+        let alias: &mut u64 = &mut local[0].value;
         alias = 3;
     }
 
@@ -2711,6 +2718,10 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
     }
 
     machine return_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
+        cells
+    }
+
+    machine return_cell_items(cells: &mut [Cell; 2]) -> &mut [Cell; 2] {
         cells
     }
 
@@ -2739,6 +2750,11 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
     machine Main::call_produced_indexed_alias(&mut self) {
         let cells: &mut [u64; 2] = return_cells(&mut self.cells);
         let alias: &mut u64 = &mut cells[0];
+        alias = 3;
+    }
+
+    machine Main::call_produced_member_after_index_alias(&mut self) {
+        let alias: &mut u64 = &mut return_cell_items(&mut self.cell_items)[0].value;
         alias = 3;
     }
 
@@ -2809,13 +2825,14 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         "Main::alias_chain_leaf_rebind",
         "Main::local_origin",
         "Main::indexed_local_origin",
-        "Main::indexed_member_after_index",
+        "Main::indexed_local_member_after_index",
         "Main::indexed_alias_rebind",
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
         "Main::call_produced_alias_chain",
         "Main::call_produced_indexed_alias",
+        "Main::call_produced_member_after_index_alias",
         "Main::named_alias_cycle",
         "Main::named_indexed_alias_cycle",
         "Main::named_alias_multistate_cycle",

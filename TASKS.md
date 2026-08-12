@@ -305,9 +305,10 @@ customer-shaped compiler concept is introduced.
   projections, flatten to the same origin. Indexed reborrows through an exact
   alias retain the nearest intermediate collection; once an origin is coarse,
   collection coarsening absorbs all later suffixes through aliases, calls, and
-  transitions. Rebinding, local/computed collection origins, call-produced
-  chains, direct member-after-index origins, and named-SCC alias transport
-  remain opaque. Continue with other representable relational candidates;
+  transitions, including direct member-after-index origins. Rebinding,
+  local/computed collection origins, call-produced chains, and named-SCC alias
+  transport remain opaque. Continue with other representable relational
+  candidates;
   non-bijective or computed cyclic rebinding remains opaque. Do not restore an
   authored `stores` clause.
 - **STR/EFX:** finish independent normalization/publication of machine supply,

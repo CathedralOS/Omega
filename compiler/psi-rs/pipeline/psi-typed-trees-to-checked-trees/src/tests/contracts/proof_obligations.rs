@@ -2167,6 +2167,83 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
 }
 
 #[test]
+fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Cell {
+            value: u32;
+        }
+
+        data Main {
+            fw: Firmware;
+            cells: [Cell; 2];
+            other: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.other);
+            self.touch_direct_member_after_index();
+            self.small = self.other;
+        }
+
+        machine Main::touch_direct_member_after_index(&mut self) {
+            let value: &mut u32 = &mut self.cells[0].value;
+            value = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a direct member-after-index frame should preserve a witness outside its collection",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_under_direct_member_after_index_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Cell {
+            value: u32;
+        }
+
+        data Main {
+            fw: Firmware;
+            cells: [Cell; 2];
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.cells[0].value);
+            self.touch_direct_member_after_index();
+            self.small = self.cells[0].value;
+        }
+
+        machine Main::touch_direct_member_after_index(&mut self) {
+            let value: &mut u32 = &mut self.cells[1].value;
+            value = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "the direct member-after-index frame must invalidate an overlapping collection witness",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
     let source = r#"
         boundary trait Firmware {

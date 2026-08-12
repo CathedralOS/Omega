@@ -1533,8 +1533,8 @@ struct FramePlaceOrigin {
 /// an already-known alias composes an exact member suffix onto that alias's
 /// origin. An indexed reborrow is represented by its whole collection; once
 /// coarse, later member suffixes may never narrow that collection again.
-/// Everything less direct stays opaque: call-produced references, direct
-/// member-after-index origins, and computed collections need richer evidence.
+/// Everything less direct stays opaque: call-produced references and computed
+/// collections need richer evidence.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
@@ -2374,6 +2374,16 @@ fn frame_place_path(
             let mut collection = frame_place_path(program, indexed.collection)?;
             collection.precision = FramePathPrecision::CollectionCoarse;
             Some(collection)
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = frame_place_path(program, member.receiver)?;
+            Some(match receiver.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: format!("{}.{}", receiver.path, member.member.as_str()),
+                    precision: FramePathPrecision::Exact,
+                },
+                FramePathPrecision::CollectionCoarse => receiver,
+            })
         }
         _ => Some(FramePlaceOrigin {
             path: arithmetic_domains::place_path(program, expression)?,
