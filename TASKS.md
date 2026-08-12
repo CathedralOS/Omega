@@ -401,9 +401,10 @@ customer-shaped compiler concept is introduced.
   locals and direct local `&mut` aliases, including mutable bindings and results
   of other structurally transparent helpers. A caller-isolated scratch local
   may also be initialized by one direct value call when its inferred frame is
-  complete and empty. The same exact returned-place
-  relation composes when such a result is supplied directly as a statement-call
-  argument.
+  complete and every write resolves into a previously established
+  caller-isolated scratch local; an empty frame is the degenerate case. The same
+  exact returned-place relation composes when such a result is supplied directly
+  as a statement-call argument.
   Value-shaped assignments with effect-free right-hand sides may write through
   those origins, including exact transparent call-produced targets, without
   changing the relation, while their ordinary frames remain published;
@@ -413,7 +414,8 @@ customer-shaped compiler concept is introduced.
   same origin algebra. Other computed rebinding, discarded/statement calls,
   opaque or recursive result producers, effectful index computations, other
   computed helper initializers, and nontrivial results remain opaque. Opaque,
-  recursive, or write-capable scratch initializer calls remain fences.
+  recursive, or scratch initializer calls with any write outside those isolated
+  roots remain fences.
   Primitive-only concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.
   Recursive, generic, reference-bearing, or other computed local roots remain

@@ -164,8 +164,10 @@ Current ownership is:
   of effect-free caller-isolated scratch locals and direct local `&mut` aliases,
   including mutable bindings and results of other structurally transparent
   helpers. A caller-isolated scratch local may be initialized by one direct
-  value call whose inferred frame is complete and empty; opaque, recursive,
-  nested-computed, or write-capable initializer calls remain fences. A
+  value call whose inferred frame is complete and whose writes, if any, all
+  resolve into previously established caller-isolated scratch locals; opaque,
+  recursive, nested-computed, or initializer calls with any write outside those
+  isolated roots remain fences. A
   validated mutable recast local with an effect-free source may write through
   that source without obscuring a separately returned parameter origin.
   The same exact returned-place relation composes when such a result is supplied
