@@ -458,6 +458,16 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         qualification.contains("\"requirement\": \"InterruptEntry::enter\""),
         "qualification artifact must retain the inherited semantic requirement:\n{qualification}"
     );
+    let json_identity = |identity: &str| identity.replace('\\', "\\\\").replace('"', "\\\"");
+    assert!(qualification.contains(&format!(
+        "\"requirement_identity\": \"{}\"",
+        json_identity(&entry.requirement_identity)
+    )));
+    assert!(qualification.contains(&format!(
+        "\"requirement_identity\": \"{}\"",
+        json_identity(&mask_save.requirement_identity)
+    )));
+    assert!(qualification.contains("\"predicate_body\": \"bodyless\""));
     assert!(qualification.contains("\"parameter_index\": 0"));
     assert!(qualification.contains("\"domain\": \"InterruptAcknowledgement::Pending\""));
     assert!(qualification.contains("\"domain\": \"InterruptMaskGuard::Active\""));
