@@ -1589,7 +1589,7 @@ pub fn derive_terminal_stack_demand(
     let mut active = std::collections::BTreeSet::new();
     let mut memoized = std::collections::BTreeMap::new();
     let mut contributing_machines = std::collections::BTreeSet::new();
-    let ceiling_bytes = derive_terminal_unit_stack_peak(
+    let ceiling_bytes = derive_terminal_stack_peak(
         entry,
         &functions,
         &mut active,
@@ -1606,7 +1606,7 @@ pub fn derive_terminal_stack_demand(
     })
 }
 
-fn derive_terminal_unit_stack_peak(
+fn derive_terminal_stack_peak(
     machine: MachineId,
     functions: &std::collections::BTreeMap<MachineId, &TerminalObjectFunction>,
     active: &mut std::collections::BTreeSet<MachineId>,
@@ -1618,7 +1618,7 @@ fn derive_terminal_unit_stack_peak(
         return Ok(*peak);
     }
     if !active.insert(machine) {
-        return Err(TerminalObjectError::TerminalUnitStackCycle(machine));
+        return Err(TerminalObjectError::TerminalStackCycle(machine));
     }
     contributing_machines.insert(machine);
     let function =
@@ -1634,10 +1634,10 @@ fn derive_terminal_unit_stack_peak(
     } else if let Some(stack) = function.scalar_stack {
         u64::from(stack.local_peak_bytes)
     } else {
-        return Err(TerminalObjectError::UnaccountedTerminalUnitStack(machine));
+        return Err(TerminalObjectError::UnaccountedTerminalStack(machine));
     };
     for call in &function.unit_call_stacks {
-        let callee_peak = derive_terminal_unit_stack_peak(
+        let callee_peak = derive_terminal_stack_peak(
             call.target,
             functions,
             active,
@@ -1646,7 +1646,7 @@ fn derive_terminal_unit_stack_peak(
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
         let composed = caller_live.checked_add(callee_peak).ok_or(
-            TerminalObjectError::TerminalUnitStackCompositionOverflow {
+            TerminalObjectError::TerminalStackCompositionOverflow {
                 caller: machine,
                 operation: call.psi_operation,
             },
@@ -1654,7 +1654,7 @@ fn derive_terminal_unit_stack_peak(
         peak = peak.max(composed);
     }
     for call in &function.scalar_call_stacks {
-        let callee_peak = derive_terminal_unit_stack_peak(
+        let callee_peak = derive_terminal_stack_peak(
             call.target,
             functions,
             active,
@@ -1663,7 +1663,7 @@ fn derive_terminal_unit_stack_peak(
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
         let composed = caller_live.checked_add(callee_peak).ok_or(
-            TerminalObjectError::TerminalUnitStackCompositionOverflow {
+            TerminalObjectError::TerminalStackCompositionOverflow {
                 caller: machine,
                 operation: call.psi_operation,
             },
@@ -2035,9 +2035,9 @@ pub enum TerminalObjectError {
         caller: MachineId,
         operation: Option<psi_core::OperationId>,
     },
-    UnaccountedTerminalUnitStack(MachineId),
-    TerminalUnitStackCycle(MachineId),
-    TerminalUnitStackCompositionOverflow {
+    UnaccountedTerminalStack(MachineId),
+    TerminalStackCycle(MachineId),
+    TerminalStackCompositionOverflow {
         caller: MachineId,
         operation: psi_core::OperationId,
     },

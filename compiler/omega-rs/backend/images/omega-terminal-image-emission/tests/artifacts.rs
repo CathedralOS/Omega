@@ -617,9 +617,7 @@ fn scalar_direct_calls_compose_pending_temporaries_and_fail_closed() {
             .expect("object construction does not invent callee evidence");
         assert_eq!(
             derive_terminal_stack_demand(&artifact, machine_id(2)),
-            Err(TerminalObjectError::UnaccountedTerminalUnitStack(
-                machine_id(1)
-            ))
+            Err(TerminalObjectError::UnaccountedTerminalStack(machine_id(1)))
         );
 
         let mut cycle = plan;
@@ -631,7 +629,7 @@ fn scalar_direct_calls_compose_pending_temporaries_and_fail_closed() {
         let artifact = build_terminal_object_artifact(&cycle).expect("typed scalar call cycle");
         assert_eq!(
             derive_terminal_stack_demand(&artifact, machine_id(2)),
-            Err(TerminalObjectError::TerminalUnitStackCycle(machine_id(2)))
+            Err(TerminalObjectError::TerminalStackCycle(machine_id(2)))
         );
     }
 
@@ -703,9 +701,7 @@ fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
     let artifact = build_terminal_object_artifact(&unaccounted).expect("partly accounted artifact");
     assert_eq!(
         derive_terminal_unit_stack_demand(&artifact, machine_id(2)),
-        Err(TerminalObjectError::UnaccountedTerminalUnitStack(
-            machine_id(1)
-        ))
+        Err(TerminalObjectError::UnaccountedTerminalStack(machine_id(1)))
     );
 }
 
