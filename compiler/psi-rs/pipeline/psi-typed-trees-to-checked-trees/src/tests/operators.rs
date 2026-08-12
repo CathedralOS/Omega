@@ -573,6 +573,62 @@ fn records_checked_named_float_policy_adapters() {
 }
 
 #[test]
+fn resolves_spelled_operator_from_named_call_result_type() {
+    let source = r#"
+        data F32 {}
+
+        boundary operator Float::add(left: f32, right: f32) -> f32 spelling +;
+        boundary operator F32::multiply_then_add(
+            left: f32,
+            right: f32,
+            addend: f32
+        ) -> f32;
+
+        data Main {}
+
+        machine Main::combine(&self, left: f32, right: f32, addend: f32) {
+            let result: f32 =
+                F32::multiply_then_add(left, right, addend) + 0.0f32;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked_program_from_source(source);
+    let outer_add = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .find(|operator_use| {
+            operator_use.spelling == OperatorSpelling::Add
+                && matches!(
+                    checked
+                        .typed
+                        .expression_table
+                        .expression(operator_use.expression),
+                    ExpressionNode::Binary(binary)
+                        if matches!(
+                            checked.typed.expression_table.expression(binary.left),
+                            ExpressionNode::Call(_)
+                        )
+                )
+        })
+        .expect("named call result must type the surrounding spelled operator");
+
+    let selected = checked
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == outer_add.selected_operator_symbol)
+        .expect("outer add must retain its selected operator");
+    let path = checked.typed.operator_path_members(selected.name);
+    assert_eq!(
+        path.iter().map(|name| name.as_str()).collect::<Vec<_>>(),
+        ["Float", "add"]
+    );
+}
+
+#[test]
 fn records_indexed_expression_operator_spelling_resolution() {
     let index_operator_symbol = SymbolHandle::from_arena_index(80);
     let range_operator_symbol = SymbolHandle::from_arena_index(81);

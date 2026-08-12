@@ -40968,12 +40968,52 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         "two distinct roundings",
         "binary32 finite-overflow saturation",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8b5f_a3af_bbf0_0653;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x19ab_9820_b098_4016;
 
     let canary = pass_canary("float/named_provider_multiply_then_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named multiply-then-add provider calls should compile to checked trees");
 
+    let main_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("Main::main machine");
+    let main_state = checked
+        .typed
+        .machine_states(main_machine)
+        .first()
+        .expect("Main::main entry state");
+    let psi_typed_trees::statement::StatementNode::Assignment(result32_assignment) = &checked
+        .typed
+        .statement_table
+        .statements(main_state.statement_nodes)[2]
+    else {
+        panic!("Main::main statement 2 must assign result32");
+    };
+    let result32_origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol: main_machine.symbol,
+        state_symbol: main_state.symbol,
+        statement_index: 2,
+        role: psi_checked_trees::CheckedValueStatementRole::AssignmentValue,
+    };
+    let outer_add = checked
+        .facts
+        .operators
+        .expression_use_in_origin(result32_assignment.value, result32_origin)
+        .expect("the primitive add surrounding multiply-then-add must retain checked evidence");
+    assert_eq!(
+        outer_add.spelling,
+        psi_language_core::operator_spelling::OperatorSpelling::Add
+    );
+    assert_ne!(outer_add.provider_plan_identity, 0);
+    assert!(
+        checked
+            .selected_provider_plans()
+            .plan_by_identity(outer_add.provider_plan_identity)
+            .is_some()
+    );
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
@@ -41076,7 +41116,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
             .expect("copy named-float canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write cross-target build manifest");
         compile(CompileOptions {
