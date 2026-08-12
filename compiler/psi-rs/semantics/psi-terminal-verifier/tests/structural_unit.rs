@@ -6,13 +6,13 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, CrashCause,
-    CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract, Operation,
-    OperationKind, OperationResult, ServiceDeclaration, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    VocabularyMarker,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
+    ContentEntryClaim, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+    EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, reconstruct_operation_obligations, validate_module, verify_module,
@@ -135,6 +135,59 @@ fn structural_calls_preserve_optional_affine_claim_custody() {
     assert_eq!(
         validate_module(&settled_at_boundary).unwrap_err(),
         ModuleError::BoundaryClaimSettlementMismatch(operation_id(3))
+    );
+}
+
+#[test]
+fn unit_calls_preserve_exact_content_claim_shape() {
+    let mut matching = hard_root_module();
+    matching.machines[0].content_entry_claims = vec![content_entry_claim(place_id(1))];
+    matching.machines[1].content_entry_claims = vec![content_entry_claim(place_id(2))];
+    validate_module(&matching).expect("an ordinary structural transfer preserves exact content");
+
+    let mut dropped = matching.clone();
+    dropped.machines[1].content_entry_claims.clear();
+    assert_eq!(
+        validate_module(&dropped).unwrap_err(),
+        ModuleError::UnitCallContentClaimMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut minted = matching.clone();
+    minted.machines[0].content_entry_claims.clear();
+    assert_eq!(
+        validate_module(&minted).unwrap_err(),
+        ModuleError::UnitCallContentClaimMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut redirected = matching.clone();
+    redirected.machines[1].content_entry_claims[0]
+        .input
+        .segments
+        .push(ContentPlaceSegment::Field("payload".to_owned()));
+    assert_eq!(
+        validate_module(&redirected).unwrap_err(),
+        ModuleError::UnitCallContentClaimMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut reinterpreted = matching;
+    reinterpreted.machines[1].content_entry_claims[0].projections[0]
+        .projection
+        .projection_fingerprint ^= 1;
+    assert_eq!(
+        validate_module(&reinterpreted).unwrap_err(),
+        ModuleError::UnitCallContentClaimMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
     );
 }
 
@@ -551,6 +604,27 @@ fn structural_parameter(place: PlaceId) -> StructuralParameterDeclaration {
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: vec![domain_id(1)],
+    }
+}
+
+fn content_entry_claim(root: PlaceId) -> ContentEntryClaim {
+    ContentEntryClaim {
+        claim: claim_id(1),
+        input: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root,
+            segments: Vec::new(),
+        },
+        projections: vec![ClaimContentProjection {
+            projection: ContentProjectionIdentity {
+                domain: ContentDomainId::new(1).expect("content domain"),
+                projection_fingerprint: 0xfeed,
+            },
+            algebra: ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Acknowledgement".to_owned(),
+            },
+        }],
     }
 }
 
