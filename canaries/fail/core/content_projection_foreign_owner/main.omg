@@ -11,7 +11,3 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: Nat::Zero }
 }
-
-data Main {}
-
-machine Main::main(&mut self) {}

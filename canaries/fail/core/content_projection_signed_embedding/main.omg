@@ -13,7 +13,3 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: embed(region.delta) }
 }
-
-data Main {}
-
-machine Main::main(&mut self) {}

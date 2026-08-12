@@ -15,7 +15,3 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: hidden_quantity() }
 }
-
-data Main {}
-
-machine Main::main(&mut self) {}
