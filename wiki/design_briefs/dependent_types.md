@@ -352,6 +352,12 @@ independently admitted when their expressions are non-rebinding and every call
 frame is complete, including nested direct calls to a maximum call-tree depth of
 two. Explicitly discarded call results, explicit binding reborrows, deeper
 computed arguments, and any opaque node remain fences.
+An internal statement call may take a mutable indexed argument whose index is
+the same complete non-rebinding direct-call tree through depth two. Caller-
+alias-aware frame instantiation coarsens the callee's argument write to the
+collection, while ordinary evaluation publishes every index-call write.
+Boundary calls and deeper, binding-reborrow, recursive, or opaque indexed
+arguments remain fences.
 A value-shaped assignment also preserves a separately returned parameter origin
 when its right-hand side is a typed non-reference direct-call tree of maximum
 depth two and every frame is complete. Sibling branches are admitted
