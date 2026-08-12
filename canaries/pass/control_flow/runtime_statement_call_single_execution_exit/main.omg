@@ -65,7 +65,7 @@ machine Main::carve(
     self.roll_event(tally);
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     self.tally.calls = 40;
     self.tally.pad = 0;
     self.carve(&mut self.tally);
