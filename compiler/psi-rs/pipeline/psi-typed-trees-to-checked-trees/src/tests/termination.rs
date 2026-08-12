@@ -2758,6 +2758,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         alias
     }
 
+    machine return_call_initialized_projection(cell: &mut Cell) -> &mut u64 {
+        let alias: &mut u64 = project_value(cell);
+        alias
+    }
+
     machine return_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         cells
     }
@@ -2801,6 +2806,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_effectful_call_initialized_alias(value: &mut u64) -> &mut u64 {
+        let alias: &mut u64 = write_then_return(value);
+        alias
+    }
+
+    machine return_recursive_alias(value: &mut u64) -> &mut u64 {
+        let alias: &mut u64 = return_recursive_alias(value);
+        alias
+    }
+
     machine Main::call_rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
         overwrite_alias_binding(&mut alias);
@@ -2841,6 +2856,21 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::call_initialized_local_alias_helper_result(&mut self) {
         let alias: &mut u64 = return_call_initialized_alias(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::call_initialized_projected_alias_helper_result(&mut self) {
+        let alias: &mut u64 = return_call_initialized_projection(&mut self.cell);
+        alias = 3;
+    }
+
+    machine Main::effectful_call_initialized_alias_helper_result(&mut self) {
+        let alias: &mut u64 = return_effectful_call_initialized_alias(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::recursive_alias_helper_result(&mut self) {
+        let alias: &mut u64 = return_recursive_alias(&mut self.value);
         alias = 3;
     }
 
@@ -3032,6 +3062,14 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::nested_call_produced_alias_chain", "self.value"),
         ("Main::local_alias_helper_result", "self.value"),
         (
+            "Main::call_initialized_local_alias_helper_result",
+            "self.value",
+        ),
+        (
+            "Main::call_initialized_projected_alias_helper_result",
+            "self.cell.value",
+        ),
+        (
             "Main::projected_local_alias_helper_result",
             "self.cell.value",
         ),
@@ -3079,7 +3117,8 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
-        "Main::call_initialized_local_alias_helper_result",
+        "Main::effectful_call_initialized_alias_helper_result",
+        "Main::recursive_alias_helper_result",
         "Main::nontrivial_call_result_alias",
         "Main::nontrivial_call_rebound_alias",
         "Main::computed_local_collection_origin",

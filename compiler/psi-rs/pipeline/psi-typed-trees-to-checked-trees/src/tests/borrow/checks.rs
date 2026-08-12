@@ -3039,8 +3039,12 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
             code: i32;
         }
 
+        machine identity(value: &mut i32) -> &mut i32 {
+            value
+        }
+
         machine forward_alias(value: &mut i32) -> &mut i32 {
-            let first: &mut i32 = &mut value;
+            let first: &mut i32 = identity(value);
             let second: &mut i32 = &mut first;
             second
         }
@@ -3057,8 +3061,9 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
         }
     "#;
 
-    check_program(source)
-        .expect("a direct immutable local-alias helper result preserves its disjoint caller frame");
+    check_program(source).expect(
+        "a transitively transparent local-alias helper preserves its disjoint caller frame",
+    );
 }
 
 #[test]
