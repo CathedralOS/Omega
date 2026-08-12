@@ -1305,6 +1305,12 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, carry_machine_name(program, fact.machine));
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, fact.machine)
+                .expect("safe-point carry crossing must name an exact owning machine"),
+        );
         json.push_str(",\n      \"state\": ");
         push_json_string(&mut json, carry_state_name(program, fact.state));
         json.push_str(",\n      \"statement_index\": ");
@@ -2940,7 +2946,8 @@ mod tests {
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
-        MachineContractPlan, MachineTerminationFact, VacuousQualificationUse,
+        MachineContractPlan, MachineTerminationFact, SuspensionCrossingCarryFact,
+        VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
@@ -3346,6 +3353,19 @@ mod tests {
         program
             .facts
             .carry
+            .suspension_crossings
+            .push(SuspensionCrossingCarryFact {
+                machine,
+                state: state_symbol,
+                statement_index: 3,
+                call_ordinal: 1,
+                target: machine,
+                effective: CarryPolicy::STRICT,
+                live_values: Vec::new(),
+            });
+        program
+            .facts
+            .carry
             .activation_wide_carry
             .push(MachineActivationCarryFact {
                 machine,
@@ -3375,6 +3395,9 @@ mod tests {
         ));
         assert!(json.contains("\"machine\": \"Worker::run\""));
         assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Worker::run)"));
+        assert!(json.contains(
+            "\"safe_point_crossings\": [\n    {\n      \"machine\": \"Worker::run\",\n      \"machine_overload_identity\": \"named-callable(path(Worker::run)"
+        ));
         assert!(json.contains("\"analysis_complete\": true"));
         assert!(json.contains("\"subtree_machine_count\": 1"));
         assert!(json.contains("\"unnamed_strict_values\": 1"));
