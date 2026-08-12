@@ -1238,7 +1238,8 @@ fn compiler_instruction_validation_kind(
                     emission_context.target.architecture,
                     *operation_key,
                 );
-                let result_operand_count = if win64_composite_io {
+                let discards_native_result = operation_key.discards_native_result();
+                let result_operand_count = if win64_composite_io || discards_native_result {
                     0
                 } else {
                     usize::from(binding.call_plan().result.is_some())
@@ -1281,7 +1282,7 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
-                        Some(_) if win64_composite_io => {
+                        Some(_) if win64_composite_io || discards_native_result => {
                             CompilerInstructionValidationKind::CompilerBodyOutboundDataImport {
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),

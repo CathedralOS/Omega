@@ -119,6 +119,21 @@ impl HostOperationKey {
             && matches!(self.operation, HostOperation::ReadErrno)
     }
 
+    /// Whether the concrete host boundary returns a native status/count that
+    /// the compiler-owned adapter intentionally discards. The retained plan
+    /// still describes and validates that native result, but lowering carries
+    /// no leading Omega result place for it.
+    pub fn discards_native_result(self) -> bool {
+        matches!(
+            (self.capability, self.operation),
+            (HostCapability::Stdin, HostOperation::Read)
+                | (
+                    HostCapability::Stdout | HostCapability::Stderr,
+                    HostOperation::Write
+                )
+        )
+    }
+
     /// Whether this op passes its LAST argument (a `mode`) on the STACK rather than
     /// a register: darwin `open(path, flags, ...)` reads the create `mode` via
     /// `va_arg`, and Apple arm64 places variadic args on the stack (`[sp,#0]`).

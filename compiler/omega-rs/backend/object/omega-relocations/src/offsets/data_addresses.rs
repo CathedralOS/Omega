@@ -218,14 +218,19 @@ fn data_address_relocation_offset_for_plan(
     plan_source: CallPlanSource<'_>,
 ) -> usize {
     let authoritative_plan = plan_source.authoritative();
-    let plan_returns_value = authoritative_plan.map(|plan| plan.result.is_some());
+    let discards_native_result = operation_key
+        .is_some_and(omega_calling_conventions::HostOperationKey::discards_native_result);
+    let plan_returns_value =
+        authoritative_plan.map(|plan| !discards_native_result && plan.result.is_some());
     let plan_returns_float = authoritative_plan
         .and_then(|plan| plan.result.as_ref())
         .is_some_and(|result| {
-            matches!(
-                result.shape.class,
-                omega_calling_conventions::ValueClass::Float
-            )
+            !discards_native_result && {
+                matches!(
+                    result.shape.class,
+                    omega_calling_conventions::ValueClass::Float
+                )
+            }
         });
     if is_syscall
         && operand_index == 0
