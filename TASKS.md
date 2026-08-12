@@ -116,6 +116,9 @@ Remaining:
   The sleep-for differential canary now uses the same exact native-host root;
   its Darwin `poll` adapter retains the real C ABI, discarded status, call
   footprint, and final-image replay while preserving its timing assertion.
+  The platform-gated Windows and Darwin native TimeHost calibration canaries
+  now select their exact target-owned roots before preserving their real-clock
+  and native exit assertions.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
