@@ -1358,6 +1358,7 @@ fn summarize_state_written_paths(
     }
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
+    let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
     let mut written = Vec::new();
 
@@ -1370,9 +1371,16 @@ fn summarize_state_written_paths(
     for statement in program.statement_table.statements(state.statement_nodes) {
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
-                if type_may_carry_write(program, local.type_reference) =>
+                if type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference) =>
             {
-                stable_local_mutable_alias_origin(program, local, parameters, &local_alias_origins)
+                stable_local_mutable_alias_origin(
+                    program,
+                    local,
+                    parameters,
+                    &isolated_local_roots,
+                    &local_alias_origins,
+                )
             }
             _ => None,
         };
@@ -1503,9 +1511,14 @@ fn summarize_state_written_paths(
             }
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
-                if type_may_carry_write(program, local.type_reference) {
+                if type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference)
+                {
                     let origin = declared_local_alias_origin?;
                     local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                }
+                if type_is_caller_isolated_local(program, local.type_reference) {
+                    isolated_local_roots.push(local.name.as_str().to_owned());
                 }
                 locals.push(local.name.as_str().to_owned());
             }
@@ -1533,12 +1546,15 @@ struct FramePlaceOrigin {
 /// an already-known alias composes an exact member suffix onto that alias's
 /// origin. An indexed reborrow is represented by its whole collection; once
 /// coarse, later member suffixes may never narrow that collection again.
-/// Everything less direct stays opaque: call-produced references and computed
-/// collections need richer evidence.
+/// Primitive and recursively primitive fixed-array locals are also stable
+/// origins, but remain local-only and therefore disappear from the published
+/// caller frame. Everything less direct stays opaque: named local aggregates,
+/// call-produced references, and computed collections need richer evidence.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
+    isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> Option<FramePlaceOrigin> {
     let TypeReferenceNode::Reference {
@@ -1559,6 +1575,7 @@ fn stable_local_mutable_alias_origin(
         || parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == root)
+        || isolated_local_roots.iter().any(|local| local == root)
     {
         return Some(origin);
     }
@@ -1575,6 +1592,27 @@ fn stable_local_mutable_alias_origin(
             precision: FramePathPrecision::CollectionCoarse,
         },
     })
+}
+
+fn type_is_caller_isolated_local(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    if program.primitive_type_reference(handle).is_some() {
+        return true;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_is_caller_isolated_local(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_is_caller_isolated_local(program, *element_type)
+        }
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => false,
+    }
 }
 
 fn rebase_local_alias_path(relative: &str, aliases: &[(String, FramePlaceOrigin)]) -> String {

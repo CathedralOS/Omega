@@ -2654,7 +2654,7 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
 }
 
 #[test]
-fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
+fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     let source = r#"
     data Cell { value: u64; }
     data Main {
@@ -2695,6 +2695,18 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         let local: [u64; 2] = [0, 1];
         let alias: &mut u64 = &mut local[0];
         alias = 3;
+    }
+
+    machine Main::constrained_local_origin(&mut self) {
+        let local: u64 [0..=3] = 0;
+        let alias: &mut u64 = &mut local;
+        alias = 2;
+    }
+
+    machine Main::indexed_constrained_local_origin(&mut self) {
+        let local: [u64 [0..=3]; 2] = [0, 1];
+        let alias: &mut u64 = &mut local[0];
+        alias = 2;
     }
 
     machine Main::indexed_local_member_after_index(&mut self) {
@@ -2755,6 +2767,13 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
 
     machine Main::call_produced_member_after_index_alias(&mut self) {
         let alias: &mut u64 = &mut return_cell_items(&mut self.cell_items)[0].value;
+        alias = 3;
+    }
+
+    machine Main::computed_local_collection_origin(&mut self) {
+        let local: [u64; 2] = [0, 1];
+        let values: &mut [u64; 2] = return_cells(&mut local);
+        let alias: &mut u64 = &mut values[0];
         alias = 3;
     }
 
@@ -2820,11 +2839,33 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
     let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
+        "Main::local_origin",
+        "Main::indexed_local_origin",
+        "Main::constrained_local_origin",
+        "Main::indexed_constrained_local_origin",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some([].as_slice()),
+            "{name} writes only through a caller-isolated local origin"
+        );
+    }
+
+    for name in [
         "Main::rebound_alias",
         "Main::alias_chain_upstream_rebind",
         "Main::alias_chain_leaf_rebind",
-        "Main::local_origin",
-        "Main::indexed_local_origin",
         "Main::indexed_local_member_after_index",
         "Main::indexed_alias_rebind",
         "Main::call_rebound_alias",
@@ -2833,6 +2874,7 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         "Main::call_produced_alias_chain",
         "Main::call_produced_indexed_alias",
         "Main::call_produced_member_after_index_alias",
+        "Main::computed_local_collection_origin",
         "Main::named_alias_cycle",
         "Main::named_indexed_alias_cycle",
         "Main::named_alias_multistate_cycle",

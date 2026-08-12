@@ -2244,6 +2244,80 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
 }
 
 #[test]
+fn boundary_witness_survives_caller_isolated_local_collection_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_local_collection();
+            self.small = self.n;
+        }
+
+        machine Main::touch_local_collection(&mut self) {
+            let values: [u32; 2] = [0, 1];
+            let alias: &mut u32 = &mut values[0];
+            alias = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "writes through a reference-free local collection must not invalidate caller facts",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_across_computed_local_collection_fence() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            small: u32 [0..=8];
+        }
+
+        machine return_values(values: &mut [u32; 2]) -> &mut [u32; 2] {
+            values
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_computed_local_collection();
+            self.small = self.n;
+        }
+
+        machine Main::touch_computed_local_collection(&mut self) {
+            let local: [u32; 2] = [0, 1];
+            let values: &mut [u32; 2] = return_values(&mut local);
+            let alias: &mut u32 = &mut values[0];
+            alias = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a call-produced local collection must remain a conservative frame fence");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
     let source = r#"
         boundary trait Firmware {

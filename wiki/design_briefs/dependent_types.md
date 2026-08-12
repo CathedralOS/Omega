@@ -330,7 +330,11 @@ publishes `self.cells`; the member after the index cannot narrow the collection.
 That coarsening remains absorbing through later alias projections, member
 writes, calls, and transitions. Potential rebinding, local or computed
 collection origins, call-produced chains, and transport through a named state
-SCC remain opaque. Non-bijective, computed, or otherwise unrepresentable
+SCC remain opaque, except that primitive scalar and recursively primitive
+fixed-array locals are caller-isolated: writes through their exact or
+collection-coarse aliases disappear from the caller-visible frame. Named,
+reference-bearing, generic, and call-produced local roots do not receive that
+exception. Non-bijective, computed, or otherwise unrepresentable
 cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns
 further relational candidates.
 

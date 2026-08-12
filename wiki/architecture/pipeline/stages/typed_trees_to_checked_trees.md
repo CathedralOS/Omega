@@ -139,10 +139,12 @@ Current ownership is:
   retain exact member projections; an indexed reborrow through an exact alias
   retains its nearest collection, while an already-coarse alias stays
   absorbing, including across a direct member-after-index origin. An
-  unsummarized body falls back to its receiver plus every potentially exclusive
-  place argument. Frames whose places cannot be represented remain all-facts
-  fences. Other writes into attached or machine-owned persistent storage remain
-  fail-closed until
+  alias into a primitive scalar or recursively primitive fixed-array local is
+  caller-isolated and contributes no published write; computed or
+  reference-bearing local roots remain opaque. An unsummarized body falls back
+  to its receiver plus every potentially exclusive place argument. Frames whose
+  places cannot be represented remain all-facts fences. Other writes into
+  attached or machine-owned persistent storage remain fail-closed until
   parameter-backed loan propagation, runtime-indexed transport, broader exact
   R5 summaries, and general state-parameter loan-root rebasing are implemented.
 - `checks/carry.rs` joins canonical place liveness with direct/transitive
