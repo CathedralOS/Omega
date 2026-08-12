@@ -22,11 +22,7 @@ machine consume_claim(token: Token in Token::SuspensionSafe) -> Token {
     token
 }
 
-data Main {}
-
-machine Main::forward(raw: Token) -> Token {
+machine direct_adapter_call_does_not_grant(raw: Token) -> Token {
     let unqualified: Token = ClaimProviderImpl::grant_claim(raw);
     transition { _ -> (consume_claim(unqualified)) }
 }
-
-machine Main::main(&mut self) {}

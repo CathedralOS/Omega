@@ -12,11 +12,7 @@ machine consume_granted(root: Extent in Granted) -> Extent {
     root as Extent
 }
 
-data Main {}
-
-machine Main::forward(root: Extent) -> Extent {
+machine direct_adapter_call_does_not_grant(root: Extent) -> Extent {
     let unqualified: Extent = ExtentRootProviderImpl::grant_root(root);
     transition { _ -> (consume_granted(unqualified)) }
 }
-
-machine Main::main(&mut self) {}
