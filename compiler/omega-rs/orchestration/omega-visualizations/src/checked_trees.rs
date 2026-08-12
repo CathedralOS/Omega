@@ -1729,8 +1729,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         json.push_str(",\n      \"machine_overload_identity\": ");
         push_json_string(
             &mut json,
-            &machine_overload_identity(program, machine.symbol)
-                .expect("checked machine contract must have an exact overload identity"),
+            &machine_overload_identity(program, machine.symbol).unwrap_or_else(|| {
+                panic!(
+                    "checked machine contract `{}` must have an exact overload identity",
+                    machine.name
+                )
+            }),
         );
 
         json.push_str(",\n      \"contract\": {");

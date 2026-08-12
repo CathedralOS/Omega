@@ -47581,7 +47581,7 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
             .expect("copy compact-bit canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compact-bit cross-target manifest");
         compile(CompileOptions {
@@ -47643,7 +47643,7 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
             .expect("copy IntegerAt canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write IntegerAt cross-target manifest");
         compile(CompileOptions {
@@ -47692,7 +47692,7 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
             .expect("copy IntegerAt write canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write target manifest");
         compile(CompileOptions {
@@ -47748,7 +47748,7 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
             .expect("copy proved-fit IntegerAt canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write target manifest");
         compile(CompileOptions {
@@ -47904,7 +47904,7 @@ fn plan_laid_record_view_exit_canary_runs() {
             .expect("copy plan-laid view canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write cross-target manifest");
         compile(CompileOptions {
@@ -47968,7 +47968,7 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
             .expect("copy mutable plan-laid view canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write mutable-view cross-target manifest");
         compile(CompileOptions {
