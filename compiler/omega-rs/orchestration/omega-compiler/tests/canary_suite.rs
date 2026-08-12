@@ -42855,6 +42855,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "traits/trait_invariant_clause",
     "traits/trait_method_ensures_clause",
     "traits/trait_satisfies_machine_signature",
+    "versioning/migration_generic_trait",
+    "versioning/version_scoped_machine",
+    "versioning/data_version_block",
+    "versioning/migration_machine_from_v1",
+    "versioning/versioned_match_all_eras_exhaustive",
+    "versioning/versioned_match_default_arm",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -42945,6 +42951,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_parameter_mismatch",
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
+    "versioning/data_version_block_retired",
 ];
 
 #[test]
@@ -48353,15 +48360,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/runtime_integer_division_value",
     "traits/trait_generic_bound_static_dispatch",
     "traits/trait_oneoff_machine_requirement",
-    "versioning/migration_generic_trait",
-    "versioning/version_scoped_machine",
-    "versioning/data_version_block",
-    "versioning/migration_machine_from_v1",
     "versioning/runtime_version_migration_exit",
     "versioning/runtime_versioned_match_zii_exit",
     "versioning/runtime_versioned_three_era_match_zii_exit",
-    "versioning/versioned_match_all_eras_exhaustive",
-    "versioning/versioned_match_default_arm",
     "wire/wire_generic_trait",
     "wire/decode_requirement_surface",
     "wire/wire_compatibility_demand_report",
@@ -49073,7 +49074,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
     "drops/drop_nonblocking_effect_unknown",
-    "versioning/data_version_block_retired",
     "data/property_send_case_payload",
     "data/builtin_type_name_shadow",
     "data/record_pattern_missing_field",
