@@ -3266,7 +3266,10 @@ fn expression_reborrows_local_alias_binding(
     let visit = |child| expression_reborrows_local_alias_binding(program, child, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => {
-            let borrows_binding = arithmetic_domains::place_path(program, *inner)
+            let borrows_binding = matches!(
+                program.expression_table.expression(*inner),
+                ExpressionNode::Name(_)
+            ) && arithmetic_domains::place_path(program, *inner)
                 .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
             borrows_binding || visit(*inner)
         }

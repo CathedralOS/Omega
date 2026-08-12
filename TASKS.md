@@ -413,8 +413,9 @@ customer-shaped compiler concept is introduced.
   Internal statement helpers now also accept a mutable indexed argument whose
   index is that bounded complete tree: caller-aware instantiation publishes the
   callee write at collection precision and retains independent index-call
-  writes. Boundary, deeper, rebinding, recursive, and opaque indexed arguments
-  remain fenced.
+  writes. The indexed argument may project through a stable helper-local
+  mutable alias, whose established origin supplies the collection. Boundary,
+  deeper, rebinding, recursive, and opaque indexed arguments remain fenced.
   Deeper or recursive calls, binding reborrows, reference-valued or opaque
   nodes, other effectful sources, escaped aliases, non-bijective transport, and
   writes outside isolated roots remain fences or use existing alias handling.
