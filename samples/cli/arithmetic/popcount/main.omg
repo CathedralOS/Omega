@@ -52,7 +52,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
-        self.result = narrow_u32_to_i32_trapping(self.count);
+        self.result = narrow_u32_to_i32_trapping(self.count as u32);
         self.console.write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);

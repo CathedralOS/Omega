@@ -45,7 +45,7 @@ machine Main::main(&mut self) {
     }
     state tally(&mut self, total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) {
         let code: i32 in Wrapping = (total as i32 in Wrapping) + times_score + 1 + times_flag;
-        self.console.exit_process(code);
+        self.console.exit_process(code as i32);
     }
     state wrong(&mut self) { self.console.exit_process(3); }
 }

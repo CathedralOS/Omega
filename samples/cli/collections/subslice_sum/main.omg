@@ -36,7 +36,7 @@ terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
         true -> walk(s[1..], acc + s[0])
-        false -> acc
+        false -> (acc as i32)
     }
 }
 

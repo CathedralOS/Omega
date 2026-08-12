@@ -82,6 +82,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.max);
+        self.console.exit_process(self.max as i32);
     }
 }

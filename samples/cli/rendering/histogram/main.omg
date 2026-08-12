@@ -93,6 +93,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the count for category 2, 4 for this dataset (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result);
+        self.console.exit_process(self.result as i32);
     }
 }

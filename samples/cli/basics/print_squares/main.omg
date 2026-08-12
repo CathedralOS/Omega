@@ -54,8 +54,8 @@ machine Main::main(&mut self) {
     }
     state digit_write(&mut self) {
         self.ch = self.d + 48;
-        self.byte = narrow_u32_to_u8_wrapping(self.ch) as u8 in Wrapping;
-        self.out[self.p] = self.byte;
+        self.byte = narrow_u32_to_u8_wrapping(self.ch as u32) as u8 in Wrapping;
+        self.out[self.p] = self.byte as u8;
         self.place = self.place / 10;
         self.p = self.p + 1;
         transition { _ -> itoa_loop() }

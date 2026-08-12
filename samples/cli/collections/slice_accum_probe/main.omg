@@ -39,7 +39,7 @@ terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
         true -> sum_ints(s[1..], acc + s[0])
-        false -> acc
+        false -> (acc as i32)
     }
 }
 
@@ -49,7 +49,7 @@ terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
         true -> sum_entries(s[1..], acc + s[0].value)
-        false -> acc
+        false -> (acc as i32)
     }
 }
 

@@ -50,7 +50,7 @@ machine Main::main(&mut self) {
 
     state shift(&mut self) {
         self.ch = self.text[self.i] as u8 in Wrapping + 3;
-        self.out[self.i] = self.ch;
+        self.out[self.i] = self.ch as u8;
         self.i = self.i + 1;
         transition {
             _ -> step()

@@ -92,7 +92,7 @@ machine Main::main(&mut self) {
         self.banded = clamp(self.hi, 0.0, 25.0);
         // Sum both so the exit reflects the min/max fold AND the float clamp.
         self.total = self.range + self.banded;
-        self.result = self.total as i32 in Saturating; // F4: proof-or-policy (in-range value; Saturating = same result)
+        self.result = (self.total as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
 
         self.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
         self.console.write_line("[press Enter to close]");

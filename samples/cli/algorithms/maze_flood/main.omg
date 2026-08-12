@@ -123,8 +123,8 @@ machine Main::main(&mut self) {
     state do_visit(&mut self) {
         self.cd = self.dist[self.c];
         self.nd = self.cd + 1;
-        self.dist[self.ncell] = self.nd;
-        self.queue[self.tail] = self.ncell;
+        self.dist[self.ncell] = self.nd as i32;
+        self.queue[self.tail] = self.ncell as i32;
         self.tail = self.tail + 1;
         self.count = self.count + 1;
         transition { _ -> next_d() }

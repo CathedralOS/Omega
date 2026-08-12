@@ -32,7 +32,7 @@ machine Main::main(&mut self) {
     // Every non-ASCII byte has its high bit set: as an i8 it is negative. A CAST
     // in a guard subject confirms the branch we are on before classifying further.
     state high_bit_set(&mut self) {
-        transition narrow_u8_to_i8_wrapping(self.byte) < 0 {
+        transition narrow_u8_to_i8_wrapping(self.byte as u8) < 0 {
             true -> multibyte()
             _ -> unreachable()
         }

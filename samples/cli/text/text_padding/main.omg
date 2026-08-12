@@ -39,6 +39,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the padding count, 6 for this 10-char message (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.padding);
+        self.console.exit_process(self.padding as i32);
     }
 }

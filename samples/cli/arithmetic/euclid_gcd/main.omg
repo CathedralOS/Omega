@@ -57,6 +57,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the GCD, 12 for (48, 36) (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.state.a);
+        self.console.exit_process(self.state.a as i32);
     }
 }

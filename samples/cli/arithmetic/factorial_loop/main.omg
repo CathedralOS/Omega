@@ -19,7 +19,7 @@ terminates by n;
 {
     transition n > 0 {
         true -> fact(n - 1, acc * (n as u64 in Wrapping))
-        false -> acc
+        false -> (acc as u64)
     }
 }
 machine Main::main(&mut self) {

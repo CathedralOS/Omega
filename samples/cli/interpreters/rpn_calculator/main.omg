@@ -81,7 +81,7 @@ machine Main::main(&mut self) {
         }
     }
     state push_token(&mut self) {
-        self.stack[self.sp] = self.tok;
+        self.stack[self.sp] = self.tok as i32;
         self.sp = self.sp + 1;
         transition {
             _ -> advance()
@@ -153,7 +153,7 @@ machine Main::main(&mut self) {
 
     // Push the result back (sp points at the freed slot after the two pops).
     state op_push(&mut self) {
-        self.stack[self.sp] = self.acc;
+        self.stack[self.sp] = self.acc as i32;
         self.sp = self.sp + 1;
         transition {
             _ -> advance()

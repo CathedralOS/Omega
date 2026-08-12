@@ -66,6 +66,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: x*10+y, 32 for this walk (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.px);
+        self.console.exit_process(self.px as i32);
     }
 }

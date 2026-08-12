@@ -59,6 +59,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the dot product, 32 for these vectors (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.sum);
+        self.console.exit_process(self.sum as i32);
     }
 }

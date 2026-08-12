@@ -82,7 +82,7 @@ machine Main::main(&mut self) {
         transition { _ -> inner() }
     }
     state matched(&mut self) {
-        self.found = narrow_u32_to_i32_trapping(self.i) as i32 in Wrapping;
+        self.found = narrow_u32_to_i32_trapping(self.i as u32) as i32 in Wrapping;
         transition { _ -> done() }
     }
     state mismatch(&mut self) {
@@ -93,6 +93,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.found);
+        self.console.exit_process(self.found as i32);
     }
 }
