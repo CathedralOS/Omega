@@ -2684,6 +2684,78 @@ fn accepts_cross_state_static_runtime_index_forwarded_through_state_parameter() 
 }
 
 #[test]
+fn accepts_cross_state_static_runtime_index_forwarded_from_immutable_local() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+            code: i32;
+        }
+
+        machine Main::touch_code(&mut self) {
+            self.code = 7;
+        }
+
+        machine Main::store(&mut self) {
+            let index: u64 [0..2] = 1;
+            self.messages[index].body = "program static";
+            self.touch_code();
+            transition { _ -> copy_element(index) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    check_program(source).expect(
+        "an immutable local runtime index forwarded directly to a state parameter retains identity",
+    );
+}
+
+#[test]
+fn rejects_cross_state_static_runtime_index_from_mutable_local() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            let mut index: u64 [0..2] = 1;
+            self.messages[index].body = "program static";
+            transition { _ -> copy_element(index) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a mutable local index cannot identify one persistent source across states");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
+        "expected the mutable-index persistent fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
 fn rejects_cross_state_static_runtime_index_rewritten_on_transition() {
     let source = r#"
         data Message {

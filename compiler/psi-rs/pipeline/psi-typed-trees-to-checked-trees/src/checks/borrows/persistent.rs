@@ -3,10 +3,11 @@
 //! Local loan attribution is statement/state scoped today. A borrow backed by
 //! program-static storage needs no source loan, so literals and machine results
 //! whose every value exit is likewise static may be stored persistently. Stable
-//! fixed-index paths and runtime indexes carried unchanged through immutable
-//! state parameters preserve that provenance across named edges. Non-static
-//! sources remain fenced until the flow plan propagates a persistent owner's
-//! loan through every outgoing transition.
+//! fixed-index paths and runtime indexes named by immutable state parameters or
+//! locals preserve that provenance across named edges when the exact symbol is
+//! forwarded into an immutable target parameter. Non-static sources remain
+//! fenced until the flow plan propagates a persistent owner's loan through
+//! every outgoing transition.
 
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -24,7 +25,7 @@ enum StaticPersistentSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),
     FixedIndex(usize),
-    StateParameterIndex(SymbolHandle),
+    StableIndex(SymbolHandle),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -182,9 +183,10 @@ fn rebase_static_paths_for_transition(
         return paths
             .iter()
             .filter(|path| {
-                !path.segments.iter().any(|segment| {
-                    matches!(segment, StaticPersistentSegment::StateParameterIndex(_))
-                })
+                !path
+                    .segments
+                    .iter()
+                    .any(|segment| matches!(segment, StaticPersistentSegment::StableIndex(_)))
             })
             .cloned()
             .collect();
@@ -195,7 +197,7 @@ fn rebase_static_paths_for_transition(
         let mut path = path.clone();
         let mut complete = true;
         for segment in &mut path.segments {
-            let StaticPersistentSegment::StateParameterIndex(source_symbol) = *segment else {
+            let StaticPersistentSegment::StableIndex(source_symbol) = *segment else {
                 continue;
             };
             let replacement =
@@ -203,19 +205,20 @@ fn rebase_static_paths_for_transition(
                     .iter()
                     .zip(&target_parameters)
                     .find_map(|(argument, parameter)| {
-                        expression_is_exact_state_parameter(
-                            program,
-                            source,
-                            *argument,
-                            source_symbol,
-                        )
+                        (!parameter.is_mutable
+                            && expression_is_exact_stable_index(
+                                program,
+                                source,
+                                *argument,
+                                source_symbol,
+                            ))
                         .then_some(parameter.symbol)
                     });
             let Some(replacement) = replacement else {
                 complete = false;
                 break;
             };
-            *segment = StaticPersistentSegment::StateParameterIndex(replacement);
+            *segment = StaticPersistentSegment::StableIndex(replacement);
         }
         if complete && !rebased.contains(&path) {
             rebased.push(path);
@@ -224,19 +227,28 @@ fn rebase_static_paths_for_transition(
     rebased
 }
 
-fn expression_is_exact_state_parameter(
+fn expression_is_exact_stable_index(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
     expression: psi_typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
-    program
+    let is_immutable_parameter = program
         .state_parameters(state)
         .iter()
-        .any(|parameter| !parameter.is_self && parameter.symbol == symbol)
-        && crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
-            place.root == psi_facts::PlaceRoot::Symbol(symbol) && place.segments.is_empty()
-        })
+        .any(|parameter| !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol);
+    let is_immutable_local = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(local) if !local.is_mutable && local.symbol == symbol
+            )
+        });
+    (is_immutable_parameter || is_immutable_local)
+        && exact_name_symbol(program, state, expression) == Some(symbol)
 }
 
 fn analyze_persistent_state(
@@ -486,29 +498,64 @@ fn static_persistent_segment(
             Some(StaticPersistentSegment::FixedIndex(index))
         }
         psi_facts::PlaceSegment::Index { expression } => {
-            immutable_state_parameter_index_symbol(program, state, expression)
-                .map(StaticPersistentSegment::StateParameterIndex)
+            immutable_state_index_symbol(program, state, expression)
+                .map(StaticPersistentSegment::StableIndex)
         }
     }
 }
 
-fn immutable_state_parameter_index_symbol(
+fn immutable_state_index_symbol(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
-    if !place.segments.is_empty() {
-        return None;
-    }
-    let psi_facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    let mut matching = program.state_parameters(state).iter().filter(|parameter| {
+    let symbol = exact_name_symbol(program, state, expression)?;
+    let parameter_matches = program.state_parameters(state).iter().filter(|parameter| {
         !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol
     });
-    let parameter = matching.next()?;
-    matching.next().is_none().then_some(parameter.symbol)
+    let local_matches = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (!local.is_mutable && local.symbol == symbol).then_some(local.symbol)
+        });
+    let mut matching = parameter_matches
+        .map(|parameter| parameter.symbol)
+        .chain(local_matches);
+    let matched = matching.next()?;
+    matching.next().is_none().then_some(matched)
+}
+
+fn exact_name_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if path.symbol.is_valid() {
+        return Some(path.symbol);
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.name == *name).then_some(local.symbol)
+        })
 }
 
 fn invalidate_static_persistent_paths(
@@ -549,24 +596,16 @@ fn static_persistent_segments_may_overlap(
                 StaticPersistentSegment::FixedIndex(right),
             ) if left != right => return false,
             (
-                StaticPersistentSegment::StateParameterIndex(left),
-                StaticPersistentSegment::StateParameterIndex(right),
+                StaticPersistentSegment::StableIndex(left),
+                StaticPersistentSegment::StableIndex(right),
             ) if left == right => {}
             (StaticPersistentSegment::Field(_), StaticPersistentSegment::Field(_))
             | (StaticPersistentSegment::Case(_), StaticPersistentSegment::Case(_))
             | (StaticPersistentSegment::FixedIndex(_), StaticPersistentSegment::FixedIndex(_))
-            | (
-                StaticPersistentSegment::FixedIndex(_),
-                StaticPersistentSegment::StateParameterIndex(_),
-            )
-            | (
-                StaticPersistentSegment::StateParameterIndex(_),
-                StaticPersistentSegment::FixedIndex(_),
-            )
-            | (
-                StaticPersistentSegment::StateParameterIndex(_),
-                StaticPersistentSegment::StateParameterIndex(_),
-            ) => {}
+            | (StaticPersistentSegment::FixedIndex(_), StaticPersistentSegment::StableIndex(_))
+            | (StaticPersistentSegment::StableIndex(_), StaticPersistentSegment::FixedIndex(_))
+            | (StaticPersistentSegment::StableIndex(_), StaticPersistentSegment::StableIndex(_)) => {
+            }
             // Different segment classes at one structural depth are not a
             // stable proof of disjointness.
             _ => return true,
@@ -662,14 +701,24 @@ fn static_path_frame_aliases(
                 suffix.push_str(&index.to_string());
                 suffix.push(']');
             }
-            StaticPersistentSegment::StateParameterIndex(symbol) => {
-                let Some(name) = program
+            StaticPersistentSegment::StableIndex(symbol) => {
+                let parameter_name = program
                     .state_parameters(state)
                     .iter()
                     .find_map(|parameter| {
                         (parameter.symbol == symbol).then_some(parameter.name.as_str())
-                    })
-                else {
+                    });
+                let local_name = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| {
+                        let StatementNode::LocalData(local) = statement else {
+                            return None;
+                        };
+                        (local.symbol == symbol).then_some(local.name.as_str())
+                    });
+                let Some(name) = parameter_name.or(local_name) else {
                     return Vec::new();
                 };
                 suffix.push('[');
