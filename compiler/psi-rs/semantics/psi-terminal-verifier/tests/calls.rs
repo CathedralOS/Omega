@@ -1,14 +1,14 @@
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, OperationId,
-    Proposition, ScalarTerm, ScalarType, ValueId,
+    Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    Operation, OperationKind, ServiceDeclaration, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
@@ -165,6 +165,38 @@ fn scalar_call_rejects_incomplete_or_crash_erasing_shapes() {
         validate_module(&recursive).unwrap_err(),
         ModuleError::RecursiveCallSliceNotYetSupported(machine_id(1))
     );
+}
+
+#[test]
+fn scalar_calls_publish_every_reachable_service() {
+    let mut module = call_module();
+    let service = service_id(1);
+    module.services.push(ServiceDeclaration {
+        id: service,
+        identity: "DebugIo".to_owned(),
+        parents: Vec::new(),
+    });
+    module.machines[1].published_service_ceiling.push(service);
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: psi_terminal::OperationResult::Unit,
+        kind: OperationKind::PortWrite {
+            service,
+            port: 0x3f8,
+            value: b'X',
+        },
+    });
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::OperationServiceOutsidePublishedCeiling {
+            operation: operation_id(2),
+            service,
+        }
+    );
+
+    module.machines[0].published_service_ceiling.push(service);
+    validate_module(&module).expect("the caller publishes its scalar callee's service reach");
 }
 
 fn call_module() -> TerminalModule {
@@ -353,4 +385,8 @@ fn obligation_id(raw: u64) -> ObligationId {
 
 fn value_id(raw: u64) -> ValueId {
     ValueId::new(raw).unwrap()
+}
+
+fn service_id(raw: u64) -> ServiceId {
+    ServiceId::new(raw).unwrap()
 }
