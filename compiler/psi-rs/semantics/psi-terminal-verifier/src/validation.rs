@@ -1579,6 +1579,26 @@ fn validate_unit_call_claim_transfers(
                 argument_index: argument_index as u32,
             });
         }
+        let mut caller_content = caller
+            .content_entry_claims
+            .iter()
+            .filter(|binding| binding.input.root == argument.place)
+            .map(|binding| (&binding.input.segments, &binding.projections))
+            .collect::<Vec<_>>();
+        let mut callee_content = callee
+            .content_entry_claims
+            .iter()
+            .filter(|binding| binding.input.root == parameter.place)
+            .map(|binding| (&binding.input.segments, &binding.projections))
+            .collect::<Vec<_>>();
+        caller_content.sort();
+        callee_content.sort();
+        if caller_content != callee_content {
+            return Err(ModuleError::UnitCallContentClaimMismatch {
+                operation,
+                argument_index: argument_index as u32,
+            });
+        }
     }
     if transfers.len() != callee.entry_claims.len() {
         return Err(ModuleError::UnitCallClaimTransferCountMismatch {
@@ -3786,6 +3806,10 @@ pub enum ModuleError {
         actual: usize,
     },
     UnitCallClaimPresenceMismatch {
+        operation: OperationId,
+        argument_index: u32,
+    },
+    UnitCallContentClaimMismatch {
         operation: OperationId,
         argument_index: u32,
     },
