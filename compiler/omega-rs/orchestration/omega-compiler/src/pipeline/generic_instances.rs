@@ -271,6 +271,7 @@ pub(crate) fn desugar_generic_data_instances(
     // >=1 Generic node to Named (permanent) or stops, and the distinct concrete
     // spellings are finite.
     let mut synthesized: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut synthesized_origins: HashMap<String, String> = HashMap::new();
     loop {
         let positions = collect_type_reference_positions(syntax);
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
@@ -293,6 +294,7 @@ pub(crate) fn desugar_generic_data_instances(
         // Synthesize each not-yet-built instance: the base's members cloned with
         // the type parameters substituted for the arguments.
         for instance in &instantiations {
+            synthesized_origins.insert(instance.synthetic_name.clone(), instance.base_name.clone());
             if !synthesized.insert(instance.synthetic_name.clone()) {
                 continue;
             }
@@ -528,9 +530,157 @@ pub(crate) fn desugar_generic_data_instances(
         }
     }
 
+    relabel_closed_record_literals_in_annotated_locals(syntax, &synthesized_origins);
+
     normalize_generic_template_const_expressions(syntax, &const_values)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
+}
+
+/// Give a bare generic record literal the exact closed instance selected by an
+/// explicitly typed local. This is contextual elaboration, not inference: only
+/// `let value: Box<i32> = Box { ... }` (and record literals nested beneath that
+/// known destination shape) are rewritten. Calls, returns, assignments, generic
+/// sums, and literals without an annotated local destination remain untouched.
+fn relabel_closed_record_literals_in_annotated_locals(
+    syntax: &mut SyntaxTrees,
+    synthesized_origins: &HashMap<String, String>,
+) {
+    let locals = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
+            _ => None,
+        })
+        .flat_map(|machine| syntax.tables.items.state_handles(machine.states))
+        .flat_map(|state| {
+            let state = syntax.tables.items.state(*state);
+            syntax.tables.items.statements(state.statements)
+        })
+        .filter_map(
+            |statement| match syntax.tables.statements.statement(*statement) {
+                StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                    Some((local.type_reference, local.initial_value))
+                }
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+
+    for (expected_type, expression) in locals {
+        relabel_record_literal_for_expected_type(
+            syntax,
+            expression,
+            expected_type,
+            synthesized_origins,
+        );
+    }
+}
+
+fn relabel_record_literal_for_expected_type(
+    syntax: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    synthesized_origins: &HashMap<String, String>,
+) {
+    let expected_type = match syntax
+        .tables
+        .type_references
+        .type_reference(expected_type)
+        .clone()
+    {
+        TypeReferenceNode::Constrained { base_type, .. } => base_type,
+        TypeReferenceNode::Named(_) => expected_type,
+        _ => return,
+    };
+    let TypeReferenceNode::Named(expected_name) = syntax
+        .tables
+        .type_references
+        .type_reference(expected_type)
+        .clone()
+    else {
+        return;
+    };
+    let Some(definition) = syntax.root_items().find_map(|item| match item {
+        Item::Data(definition) if definition.name.as_str() == expected_name.as_str() => {
+            Some(definition.clone())
+        }
+        _ => None,
+    }) else {
+        return;
+    };
+    let ExpressionNode::StructLiteral(mut literal) =
+        syntax.expressions.expression(expression).clone()
+    else {
+        return;
+    };
+
+    let literal_names_expected = literal.type_name.as_str() == expected_name.as_str();
+    let literal_names_generic_origin =
+        synthesized_origins
+            .get(expected_name.as_str())
+            .is_some_and(|base| {
+                literal.case_name.is_none() && literal.type_name.as_str() == base.as_str()
+            });
+    if !literal_names_expected && !literal_names_generic_origin {
+        return;
+    }
+    if literal_names_generic_origin {
+        literal.type_name = Identifier::generated(expected_name.as_str());
+        syntax
+            .expressions
+            .replace_expression(expression, ExpressionNode::StructLiteral(literal.clone()));
+    }
+
+    let mut declared_fields = syntax
+        .tables
+        .items
+        .data_members(definition.members)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => {
+                Some((field.name.as_str().to_owned(), field.type_reference))
+            }
+            DataMember::Variant(_) | DataMember::Retired(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if let Some(case_name) = literal.case_name.as_ref()
+        && let Some(variant) = syntax
+            .tables
+            .items
+            .data_members(definition.members)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant) if variant.name.as_str() == case_name.as_str() => {
+                    Some(variant)
+                }
+                _ => None,
+            })
+    {
+        declared_fields.extend(
+            syntax
+                .tables
+                .items
+                .data_payload_fields(variant.payload)
+                .iter()
+                .map(|field| (field.name.as_str().to_owned(), field.type_reference)),
+        );
+    }
+    let authored = syntax.expressions.struct_fields(literal.fields).to_vec();
+    for field in authored {
+        let Some((_, field_type)) = declared_fields
+            .iter()
+            .find(|(name, _)| name == field.name.as_str())
+        else {
+            continue;
+        };
+        relabel_record_literal_for_expected_type(
+            syntax,
+            field.value,
+            *field_type,
+            synthesized_origins,
+        );
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -2842,10 +2992,335 @@ fn type_reference_mentions_parameter(
 #[cfg(test)]
 mod tests {
     use super::desugar_generic_data_instances;
+    use omega_layout::{DataShape, build_layout_plan};
+    use omega_target::NativeTarget;
+    use psi_checked_trees::CheckedTrees;
+    use psi_diagnostics::Diagnostic;
     use psi_source_files_to_tokens::Lexer;
+    use psi_syntax_trees::expression::ExpressionNode;
     use psi_syntax_trees::item::{DataMember, Item};
+    use psi_syntax_trees::statement::StatementNode;
     use psi_syntax_trees::types::TypeReferenceNode;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn checked(source: &str) -> Result<CheckedTrees, Vec<Diagnostic>> {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+        desugar_generic_data_instances(&mut syntax)?;
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .map_err(|diagnostic| vec![diagnostic])?;
+        psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    }
+
+    fn rejected(source: &str, expected: &str) {
+        let diagnostics = checked(source).expect_err("program should be rejected");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected diagnostic containing {expected:?}, got: {:?}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    fn local_initializer<'syntax>(
+        syntax: &'syntax psi_syntax_trees::SyntaxTrees,
+        local_name: &str,
+    ) -> &'syntax ExpressionNode {
+        let expression = syntax
+            .root_items()
+            .filter_map(|item| match item {
+                Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .flat_map(|machine| syntax.items.state_handles(machine.states))
+            .flat_map(|state| {
+                syntax
+                    .items
+                    .statements(syntax.items.state(*state).statements)
+            })
+            .find_map(|statement| match syntax.statements.statement(*statement) {
+                StatementNode::LocalData(local) if local.name.as_str() == local_name => {
+                    Some(local.initial_value)
+                }
+                _ => None,
+            })
+            .expect("named local initializer");
+        syntax.expressions.expression(expression)
+    }
+
+    #[test]
+    fn closed_generic_record_literal_uses_annotated_local_instance() {
+        let source = r#"
+            data Box<T> { value: T; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box { value: 7 };
+                boxed.value
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize");
+
+        let ExpressionNode::StructLiteral(literal) = local_initializer(&syntax, "boxed") else {
+            panic!("boxed initializer should remain a record literal");
+        };
+        assert_eq!(literal.type_name.as_str(), "Box<i32>");
+    }
+
+    #[test]
+    fn nested_closed_generic_record_literal_uses_concrete_field_instance() {
+        let source = r#"
+            data Box<T> { value: T; }
+            data Holder<T> { boxed: Box<T>; }
+            machine run() -> i32 {
+                let holder: Holder<i32> = Holder { boxed: Box { value: 7 } };
+                holder.boxed.value
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize");
+
+        let ExpressionNode::StructLiteral(holder) = local_initializer(&syntax, "holder") else {
+            panic!("holder initializer should remain a record literal");
+        };
+        assert_eq!(holder.type_name.as_str(), "Holder<i32>");
+        let boxed = syntax
+            .expressions
+            .struct_fields(holder.fields)
+            .iter()
+            .find(|field| field.name.as_str() == "boxed")
+            .expect("boxed field");
+        let ExpressionNode::StructLiteral(boxed) = syntax.expressions.expression(boxed.value)
+        else {
+            panic!("boxed field should remain a record literal");
+        };
+        assert_eq!(boxed.type_name.as_str(), "Box<i32>");
+    }
+
+    #[test]
+    fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
+        let checked = checked(
+            r#"
+            data Evidence { case Only; case WithPayload(value: i32); }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box { value: 7 };
+                boxed.value
+            }
+            "#,
+        )
+        .expect("closed generic erased record should check");
+
+        let literal = checked
+            .expression_table
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                psi_checked_trees::expression::ExpressionNode::StructLiteral(literal)
+                    if literal.type_name.as_str() == "Box<i32>" =>
+                {
+                    Some(literal)
+                }
+                _ => None,
+            })
+            .expect("closed Box literal");
+        let fields = checked.expression_table.struct_fields(literal.fields);
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["value", "proof"]
+        );
+        assert!(matches!(
+            checked.expression_table.expression(fields[1].value),
+            psi_checked_trees::expression::ExpressionNode::Name(_)
+        ));
+        let evidence = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Evidence")
+            .expect("Evidence definition");
+        let only_symbol = checked
+            .data_members(evidence)
+            .iter()
+            .find_map(|member| match member {
+                psi_checked_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == "Only" =>
+                {
+                    Some(variant.symbol)
+                }
+                _ => None,
+            })
+            .expect("Only variant");
+
+        let layout = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let boxed = layout
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Box<i32>")
+            .expect("closed Box layout");
+        let DataShape::Record { fields } = boxed.shape else {
+            panic!("closed Box should have record layout");
+        };
+        assert_eq!(layout.fields.span_or_empty(fields).len(), 1);
+        assert_eq!(boxed.layout.size, 4);
+
+        let graph = omega_checked_trees_to_state_graph::build_state_graph(&checked)
+            .expect("runtime state graph");
+        assert!(graph.expressions.iter_expressions().all(|(_, expression)| {
+            !matches!(
+                expression,
+                psi_checked_trees::expression::ExpressionNode::Name(path)
+                    if path.symbol == only_symbol
+            )
+        }));
+    }
+
+    #[test]
+    fn closed_generic_record_literal_checks_substituted_field_type() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box { value: true };
+                0
+            }
+            "#,
+            "stores a boolean into a `i32` field",
+        );
+    }
+
+    #[test]
+    fn closed_generic_record_literal_checks_concrete_field_names() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box { wrong: 7 };
+                0
+            }
+            "#,
+            "data `Box<i32>` has no field `wrong`",
+        );
+    }
+
+    #[test]
+    fn closed_generic_erased_record_rejects_ambiguous_omitted_evidence() {
+        rejected(
+            r#"
+            data Evidence { case First; case Second; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box { value: 7 };
+                0
+            }
+            "#,
+            "no unique accessible nullary constructor",
+        );
+    }
+
+    #[test]
+    fn closed_generic_erased_record_accepts_explicit_ambiguous_evidence() {
+        checked(
+            r#"
+            data Evidence { case First; case Second; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box {
+                    value: 7,
+                    proof: Evidence::Second,
+                };
+                boxed.value
+            }
+            "#,
+        )
+        .expect("explicit evidence should remain legal");
+    }
+
+    #[test]
+    fn distinct_closed_generic_erased_record_instances_validate_independently() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 {
+                let integer: Box<i32> = Box { value: 7 };
+                let boolean: Box<bool> = Box { value: true };
+                integer.value
+            }
+            "#,
+        )
+        .expect("each closed instance should use its own substituted field type");
+    }
+
+    #[test]
+    fn closed_generic_erased_record_still_rejects_generic_evidence_omission() {
+        rejected(
+            r#"
+            data Evidence<U> { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence<i32>; }
+            machine run() -> i32 {
+                let boxed: Box<i32> = Box { value: 7 };
+                0
+            }
+            "#,
+            "no unique accessible nullary constructor",
+        );
+    }
+
+    #[test]
+    fn bare_erased_generic_literal_in_return_context_is_rejected() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine make() -> Box<i32> {
+                Box { value: 7 }
+            }
+            "#,
+            "construction of erased generic data `Box` is unsupported in this context",
+        );
+    }
+
+    #[test]
+    fn bare_erased_generic_literal_in_call_context_is_rejected() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine consume(boxed: Box<i32>) -> i32 { boxed.value }
+            machine run() -> i32 {
+                consume(Box { value: 7 })
+            }
+            "#,
+            "construction of erased generic data `Box` is unsupported in this context",
+        );
+    }
+
+    #[test]
+    fn unused_erased_generic_schema_is_accepted() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            machine run() -> i32 { 0 }
+            "#,
+        )
+        .expect("an unused generic schema has no runtime erased representation");
+    }
 
     #[test]
     fn structured_const_field_order_has_one_canonical_instance_identity() {
