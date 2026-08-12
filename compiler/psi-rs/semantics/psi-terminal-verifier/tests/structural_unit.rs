@@ -15,7 +15,8 @@ use psi_terminal::{
     TerminalModule, Terminator, VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    ModuleError, ProofBundle, reconstruct_operation_obligations, validate_module, verify_module,
+    ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
+    validate_module, verify_module,
 };
 
 #[test]
@@ -375,6 +376,70 @@ fn entry_claims_are_dense_in_each_machine_local_namespace() {
             expected: claim_id(1),
             actual: claim_id(2),
         }
+    );
+}
+
+#[test]
+fn structural_semantic_sets_have_one_canonical_order() {
+    let second_domain = StructuralDomainDeclaration {
+        id: domain_id(2),
+        identity: "Ready".into(),
+        carrier: structural_type_id(1),
+    };
+
+    let mut qualifications = hard_root_module();
+    qualifications
+        .structural_domains
+        .push(second_domain.clone());
+    qualifications.machines[0].structural_parameters[0].qualifications =
+        vec![domain_id(2), domain_id(1)];
+    assert_eq!(
+        validate_module(&qualifications).unwrap_err(),
+        ModuleError::NonCanonicalStructuralQualifications(place_id(1))
+    );
+
+    let mut requirements = hard_root_module();
+    requirements.structural_domains.push(second_domain);
+    requirements.boundary_machines[0].requires = vec![
+        StructuralDomainRequirement {
+            argument_index: 0,
+            domain: domain_id(2),
+        },
+        StructuralDomainRequirement {
+            argument_index: 0,
+            domain: domain_id(1),
+        },
+    ];
+    assert_eq!(
+        validate_module(&requirements).unwrap_err(),
+        ModuleError::NonCanonicalBoundaryRequirements(boundary_id(1))
+    );
+
+    let second_service = ServiceDeclaration {
+        id: service_id(2),
+        identity: "DebugIo".into(),
+        parents: Vec::new(),
+    };
+    let mut ceiling = hard_root_module();
+    ceiling.services.push(second_service.clone());
+    ceiling.machines[0].published_service_ceiling = vec![service_id(2), service_id(1)];
+    assert_eq!(
+        validate_module(&ceiling).unwrap_err(),
+        ModuleError::NonCanonicalPublishedServiceCeiling(ServiceCeilingOwner::Machine(machine_id(
+            1
+        )))
+    );
+
+    let mut parents = hard_root_module();
+    parents.services.push(second_service);
+    parents.services.push(ServiceDeclaration {
+        id: service_id(3),
+        identity: "RootIo".into(),
+        parents: vec![service_id(2), service_id(1)],
+    });
+    assert_eq!(
+        validate_module(&parents).unwrap_err(),
+        ModuleError::NonCanonicalServiceParents(service_id(3))
     );
 }
 
