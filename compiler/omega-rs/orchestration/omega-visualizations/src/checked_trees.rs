@@ -555,6 +555,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, row.machine_symbol)
+                .expect("content identity reshuffle must name an exact owning machine"),
+        );
         json.push_str(",\n      \"state\": ");
         push_json_string(
             &mut json,
@@ -3216,8 +3222,8 @@ mod tests {
             .content
             .identity_reshuffles
             .push(ContentIdentityReshuffleFact {
-                machine_symbol: SymbolHandle::invalid(),
-                state_symbol: SymbolHandle::invalid(),
+                machine_symbol,
+                state_symbol,
                 claim_identity: psi_language_semantics::PermissionClaimIdentity::Established {
                     machine_symbol: SymbolHandle::invalid(),
                     state_symbol: SymbolHandle::invalid(),
@@ -3269,6 +3275,13 @@ mod tests {
         let claim_maps = &json[..json
             .find("\"content_projections\"")
             .expect("content projection section")];
+        let reshuffles_start = json
+            .find("\"content_identity_reshuffles\"")
+            .expect("identity reshuffle section");
+        let reshuffles_end = json
+            .find("\"content_partition_compositions\"")
+            .expect("partition composition section");
+        let reshuffles = &json[reshuffles_start..reshuffles_end];
 
         assert!(json.contains("\"claim_outcome_maps\""));
         assert!(
@@ -3286,6 +3299,11 @@ mod tests {
         assert!(json.contains("\"kind\": \"state_entry\""));
         assert!(json.contains("\"content_projections\""));
         assert!(json.contains("\"content_identity_reshuffles\": [\n    {"));
+        assert!(
+            reshuffles.contains(
+                "\"machine_overload_identity\": \"named-callable(path(Region::partition)"
+            )
+        );
         assert!(json.contains("\"content_partition_compositions\": [\n    {"));
         assert!(json.contains("\"source_derivation_depth\": 0"));
         assert!(json.contains("\"source_equation\": {\"left\":"));
