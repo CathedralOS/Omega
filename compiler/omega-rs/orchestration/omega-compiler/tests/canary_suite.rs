@@ -2196,7 +2196,7 @@ fn compiler_body_mixed_index_frame_pair_copy_footprints_reach_x86_and_aarch64_ar
             .expect("copy compiler-body mixed-index frame-pair canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body mixed-index frame-pair target");
         compile(CompileOptions {
@@ -2242,7 +2242,7 @@ fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_arti
             .expect("copy compiler-body cross-region indexed-pair canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body cross-region indexed-pair target");
         compile(CompileOptions {
@@ -2288,7 +2288,7 @@ fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch
             .expect("copy compiler-body cross-region double-indexed-pair canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body cross-region double-indexed-pair target");
         compile(CompileOptions {
