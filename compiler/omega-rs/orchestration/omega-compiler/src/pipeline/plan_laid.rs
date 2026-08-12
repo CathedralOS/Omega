@@ -266,7 +266,7 @@ pub(crate) fn compute_plan_laid_layouts(
 
     let mut layouts = Vec::with_capacity(records.len());
     for record in records {
-        let report = crate::pipeline::layout_plans::compute_layout_plan(
+        let report = psi_build_time_evaluation::compute_layout_plan(
             typed,
             &record.policy_machine,
             &record.schema_data,

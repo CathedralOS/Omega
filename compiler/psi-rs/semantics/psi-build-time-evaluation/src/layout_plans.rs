@@ -7,27 +7,25 @@
 //! field.
 
 use psi_checked_interpreter::BuildTimeValue;
-pub use psi_layout_plans::{
-    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-};
+pub use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
 
-use psi_build_time_evaluation::BuildTimeAdmissionPlan;
+use crate::BuildTimeAdmissionPlan;
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 const PLAN_ENTRY_CAPACITY: usize = 64;
 
 #[derive(Debug, Clone)]
-pub(super) struct SchemaFieldInfo {
-    pub(super) name: String,
-    pub(super) identity: Option<u64>,
-    pub(super) key: u64,
-    pub(super) size: u64,
-    pub(super) align: u64,
-    pub(super) source_bits: u64,
-    pub(super) primitive: PrimitiveType,
-    pub(super) declared_range: Option<(i64, i64)>,
+pub(crate) struct SchemaFieldInfo {
+    pub(crate) name: String,
+    pub(crate) identity: Option<u64>,
+    pub(crate) key: u64,
+    pub(crate) size: u64,
+    pub(crate) align: u64,
+    pub(crate) source_bits: u64,
+    pub(crate) primitive: PrimitiveType,
+    pub(crate) declared_range: Option<(i64, i64)>,
 }
 
 pub fn compute_layout_plan(
@@ -55,7 +53,7 @@ pub fn compute_layout_plan(
     validate_plan(&plan, &schema_fields, schema_identity, policy_machine)
 }
 
-pub(super) fn schema_fields(
+pub(crate) fn schema_fields(
     typed: &TypedTrees,
     schema_data: &str,
 ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
@@ -139,7 +137,7 @@ pub(super) fn schema_fields(
     Ok((fields, normalized_schema_identity(typed, data)))
 }
 
-pub(super) fn normalized_schema_identity(
+pub fn normalized_schema_identity(
     typed: &TypedTrees,
     data: &psi_typed_trees::data::DataDefinition,
 ) -> u64 {
@@ -341,7 +339,7 @@ fn build_schema_field_value(field: Option<&SchemaFieldInfo>) -> BuildTimeValue {
     }
 }
 
-pub(super) fn build_schema_value(
+pub(crate) fn build_schema_value(
     typed: &TypedTrees,
     schema_data: &str,
     schema_fields: &[SchemaFieldInfo],
@@ -507,7 +505,7 @@ pub(super) fn build_schema_value(
     })
 }
 
-pub(super) fn validate_plan(
+pub(crate) fn validate_plan(
     plan: &BuildTimeValue,
     schema_fields: &[SchemaFieldInfo],
     schema_identity: u64,

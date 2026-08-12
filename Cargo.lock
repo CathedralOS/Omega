@@ -1308,17 +1308,22 @@ dependencies = [
 name = "psi-build-time-evaluation"
 version = "0.1.0"
 dependencies = [
+ "psi-access-plans",
  "psi-arena",
  "psi-checked-interpreter",
  "psi-diagnostics",
  "psi-effects",
  "psi-generic-instances",
+ "psi-language-core",
  "psi-language-semantics",
+ "psi-layout-plans",
  "psi-numerics",
+ "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
  "psi-syntax-trees",
  "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
 ]
