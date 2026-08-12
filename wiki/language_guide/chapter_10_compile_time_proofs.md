@@ -287,10 +287,12 @@ field defaults remain ordinary defaults.
 
 The current executable slice requires the erased initializer explicitly; the
 visible-nullary-constructor omission rule remains to be implemented. Native
-erasure currently admits only non-generic transparent plain records. The
-compiler fails closed for case-bearing and generic data, plan-laid and placed
-views, wire/codec and ABI faces, and data with attached machines until each
-consumer has an erased-stripped representation.
+erasure currently admits non-generic transparent records, sums, and mixed
+common-field/case shapes. Erased payloads do not change tags or case numbering;
+they remain visible to semantic exhaustiveness and obligation checking. The
+compiler fails closed for generic data, plan-laid and placed views, wire/codec
+and ABI faces, and data with attached machines until each consumer has an
+erased-stripped representation.
 
 Runtime layout, ABI classification, codec shape, and placement offsets use the
 erased-stripped form. Nominal type identity and semantic fingerprints retain

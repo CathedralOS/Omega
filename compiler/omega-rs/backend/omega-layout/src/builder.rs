@@ -453,7 +453,8 @@ impl<'program> LayoutBuilder<'program> {
         let planned_common = members
             .iter()
             .filter_map(|member| match member {
-                DataMember::Field(field) => Some(field),
+                DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+                DataMember::Field(_) => None,
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
@@ -489,6 +490,7 @@ impl<'program> LayoutBuilder<'program> {
                 .program
                 .data_payload_fields(variant)
                 .iter()
+                .filter(|field| !field.relevance.is_erased())
                 .map(|field| {
                     let layout = self.layout_type_reference_handle_with_bindings(
                         field.type_reference,
@@ -1206,6 +1208,14 @@ mod tests {
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
+    fn checked(source: &str) -> CheckedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        CheckedTrees::with_roots(typed, CheckFacts::default())
+    }
+
     #[test]
     fn transparent_record_layout_excludes_erased_fields() {
         let source = r#"
@@ -1215,11 +1225,7 @@ mod tests {
                 tail: u8;
             }
         "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = CheckedTrees::with_roots(typed, CheckFacts::default());
+        let checked = checked(source);
 
         let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
         let packed = plan
@@ -1240,6 +1246,116 @@ mod tests {
                 .map(|field| (field.name.as_str(), field.offset))
                 .collect::<Vec<_>>(),
             [("head", 0), ("tail", 1)]
+        );
+    }
+
+    #[test]
+    fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
+        let checked = checked(
+            r#"
+            data Message {
+                case Empty;
+                case Data(value: u8, proof [erased]: u64);
+                case ProofOnly(proof [erased]: u64);
+            }
+            "#,
+        );
+        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let message = plan
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Message")
+            .expect("Message layout");
+        assert_eq!(message.layout.size, 8);
+        assert_eq!(message.layout.alignment, 4);
+        let DataShape::Enum {
+            common_fields,
+            variants,
+        } = message.shape
+        else {
+            panic!("Message should have case layout");
+        };
+        assert!(plan.fields.span_or_empty(common_fields).is_empty());
+        let variants = plan.variants.span_or_empty(variants);
+        assert_eq!(
+            variants
+                .iter()
+                .map(|variant| variant.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Empty", "Data", "ProofOnly"]
+        );
+        assert!(plan.fields.span_or_empty(variants[0].fields).is_empty());
+        assert_eq!(
+            plan.fields
+                .span_or_empty(variants[1].fields)
+                .iter()
+                .map(|field| (field.name.as_str(), field.offset))
+                .collect::<Vec<_>>(),
+            [("value", 4)]
+        );
+        assert!(plan.fields.span_or_empty(variants[2].fields).is_empty());
+    }
+
+    #[test]
+    fn mixed_case_layout_excludes_erased_common_and_payload_fields() {
+        let checked = checked(
+            r#"
+            data Event {
+                sequence: u8;
+                common_proof [erased]: u64;
+                case Ready(value: u16, payload_proof [erased]: u64);
+                case Waiting(code: u8);
+            }
+            "#,
+        );
+        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let event = plan
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Event")
+            .expect("Event layout");
+        assert_eq!(event.layout.size, 8);
+        assert_eq!(event.layout.alignment, 4);
+        let DataShape::Enum {
+            common_fields,
+            variants,
+        } = event.shape
+        else {
+            panic!("Event should have mixed case layout");
+        };
+        assert_eq!(
+            plan.fields
+                .span_or_empty(common_fields)
+                .iter()
+                .map(|field| (field.name.as_str(), field.offset))
+                .collect::<Vec<_>>(),
+            [("sequence", 4)]
+        );
+        let variants = plan.variants.span_or_empty(variants);
+        assert_eq!(
+            variants
+                .iter()
+                .map(|variant| variant.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Ready", "Waiting"]
+        );
+        assert_eq!(
+            plan.fields
+                .span_or_empty(variants[0].fields)
+                .iter()
+                .map(|field| (field.name.as_str(), field.offset))
+                .collect::<Vec<_>>(),
+            [("value", 6)]
+        );
+        assert_eq!(
+            plan.fields
+                .span_or_empty(variants[1].fields)
+                .iter()
+                .map(|field| (field.name.as_str(), field.offset))
+                .collect::<Vec<_>>(),
+            [("code", 6)]
         );
     }
 }

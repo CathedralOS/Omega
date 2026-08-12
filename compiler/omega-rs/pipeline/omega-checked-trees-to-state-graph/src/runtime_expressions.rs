@@ -46,15 +46,28 @@ fn runtime_field_is_retained(
     else {
         return true;
     };
-    program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            psi_checked_trees::data::DataMember::Field(field) if field.name == authored.name => {
-                Some(field.relevance)
-            }
-            _ => None,
+    let common = program.data_members(definition).iter().find_map(|member| {
+        let psi_checked_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        (field.name == authored.name).then_some(field.relevance)
+    });
+    let payload = literal.case_name.as_ref().and_then(|case_name| {
+        program.data_members(definition).iter().find_map(|member| {
+            let psi_checked_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.name == *case_name).then(|| {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name == authored.name)
+                    .map(|field| field.relevance)
+            })?
         })
+    });
+    common
+        .or(payload)
         .is_none_or(|relevance| !relevance.is_erased())
 }
 
@@ -108,6 +121,71 @@ mod tests {
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].name.as_str(), "value");
         assert_eq!(graph.expressions.expression_count(), 2);
+        assert!(graph.expressions.iter_expressions().all(|(_, expression)| {
+            !matches!(
+                expression,
+                psi_checked_trees::expression::ExpressionNode::Binary(_)
+            )
+        }));
+    }
+
+    #[test]
+    fn runtime_copy_omits_erased_common_and_exact_case_payload_subtrees() {
+        let source = r#"
+            data Event {
+                sequence: u8;
+                common_proof [erased]: u64;
+                case Ready(value: u8, payload_proof [erased]: u64);
+                case Waiting(other_proof [erased]: u64);
+            }
+            data Main {}
+            machine Main::run() -> i32 {
+                let event: Event = Event::Ready {
+                    sequence: 1,
+                    common_proof: 11 + 13,
+                    value: 2,
+                    payload_proof: 17 + 19,
+                };
+                0
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let literal = typed
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, expression)| {
+                matches!(expression, psi_checked_trees::expression::ExpressionNode::StructLiteral(literal)
+                    if literal.type_name.as_str() == "Event"
+                        && literal.case_name.as_ref().is_some_and(|name| name.as_str() == "Ready"))
+                .then_some(handle)
+            })
+            .expect("Event::Ready literal");
+        let checked = CheckedTrees::with_roots(typed, CheckFacts::default());
+        let mut graph = StateGraph::default();
+
+        let copied = copy_runtime_expression(&mut graph, &checked, literal);
+
+        let psi_checked_trees::expression::ExpressionNode::StructLiteral(literal) =
+            graph.expressions.expression(copied)
+        else {
+            panic!("runtime root should remain a case literal");
+        };
+        assert_eq!(
+            literal.case_name.as_ref().map(|name| name.as_str()),
+            Some("Ready")
+        );
+        let fields = graph.expressions.struct_fields(literal.fields);
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["sequence", "value"]
+        );
+        assert_eq!(graph.expressions.expression_count(), 3);
         assert!(graph.expressions.iter_expressions().all(|(_, expression)| {
             !matches!(
                 expression,

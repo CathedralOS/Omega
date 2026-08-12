@@ -219,15 +219,16 @@ Remaining:
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. The
   field-binding surface preserves explicit relevance through syntax, resolved,
-  and typed trees plus their snapshots. The first executable slice supports
-  non-generic transparent plain records: construction requires the erased term;
-  checked validation forbids runtime reads/writes/effects through it; proof,
-  multiplicity, and semantic identity retain it; the legacy proof-only
-  classifier ignores erased containment; and the checked/runtime expression
-  boundary plus record layout omit the field and its initializer subtree.
-  Expand this without compatibility scaffolding to case-bearing and generic
-  data, plan-laid and placed views, wire/codec and ABI classification, and data
-  with attached machines; all of those shapes currently fail closed. Implement
+  and typed trees plus their snapshots. The executable slice supports
+  non-generic transparent records, sums, and mixed common-field/case shapes:
+  construction requires the erased term; checked validation forbids runtime
+  reads/writes/effects through it; proof, multiplicity, exhaustiveness, case
+  identity, and semantic identity retain it; the legacy proof-only classifier
+  ignores erased containment; and the checked/runtime expression boundary plus
+  record/case layout omit the field and its initializer subtree without
+  renumbering variants. Expand this without compatibility scaffolding to
+  generic data, plan-laid and placed views, wire/codec and ABI classification,
+  and data with attached machines; all of those shapes currently fail closed. Implement
   the settled visible-nullary-constructor omission rule (the current slice
   requires every erased initializer explicitly). Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.

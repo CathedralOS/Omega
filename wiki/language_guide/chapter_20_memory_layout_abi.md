@@ -145,10 +145,11 @@ through its checked or admitted contract rather than pretending the fact
 occupies hardware bytes.
 
 The implemented native slice currently applies that rule to non-generic
-transparent plain-record layout. Case-bearing and generic data, explicit
-layout/placement plans, wire/codec faces, ABI faces, and attached-machine
-shapes are rejected until their representation classifiers consume the same
-erased-stripped form.
+transparent record, sum, and mixed common-field/case layout. Erased common and
+payload fields are omitted without changing the tag prefix, variant order, or
+case numbering. Generic data, explicit layout/placement plans, wire/codec
+faces, ABI faces, and attached-machine shapes are rejected until their
+representation classifiers consume the same erased-stripped form.
 
 Padding is not semantic data. Proofs and wire protocols must not rely on
 uninitialized padding bytes.

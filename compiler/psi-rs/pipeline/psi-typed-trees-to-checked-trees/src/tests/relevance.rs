@@ -94,12 +94,100 @@ fn runtime_projection_of_erased_field_is_rejected() {
 }
 
 #[test]
-fn case_bearing_erased_fields_fail_closed() {
+fn exact_case_payload_accepts_explicit_erased_initializer() {
+    lower_typed_trees(typed(
+        r#"
+        data Certified {
+            case First(value: i32, first_proof [erased]: i32);
+            case Second(value: i32, second_proof [erased]: i32);
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified::First {
+                value: 7,
+                first_proof: 11,
+            };
+            0
+        }
+        "#,
+    ))
+    .expect("only the constructed case's erased payload is required");
+}
+
+#[test]
+fn exact_case_payload_requires_erased_initializer() {
     rejected(
         r#"
         data Certified { case Proven(value: i32, proof [erased]: i32); }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified::Proven { value: 7 };
+            0
+        }
         "#,
-        "erased-stripped runtime support for case-bearing data is not implemented",
+        "omits erased field `proof`",
+    );
+}
+
+#[test]
+fn runtime_destructure_of_erased_payload_is_rejected() {
+    rejected(
+        r#"
+        data Certified { case Proven(value: i32, proof [erased]: i32); }
+        machine inspect(certified: Certified) -> i32 {
+            transition certified {
+                Certified::Proven { value as _, proof } -> proof
+            }
+        }
+        "#,
+        "erased field `proof` has no runtime value",
+    );
+}
+
+#[test]
+fn runtime_projection_of_erased_payload_is_rejected() {
+    rejected(
+        r#"
+        data Certified { case Proven(value: i32, proof [erased]: i32); }
+        machine inspect(certified: Certified) -> i32 {
+            certified.proof
+        }
+        "#,
+        "erased field `proof` has no runtime value",
+    );
+}
+
+#[test]
+fn erased_payload_may_flow_into_another_erased_payload() {
+    lower_typed_trees(typed(
+        r#"
+        data Source { case Proven(value: i32, proof [erased]: i32); }
+        data Target { case Proven(value: i32, proof [erased]: i32); }
+        machine convert(source: Source) -> Target {
+            transition source {
+                Source::Proven { value, proof } -> Target::Proven {
+                    value: value,
+                    proof: proof,
+                }
+            }
+        }
+        "#,
+    ))
+    .expect("erased payload use inside another erased initializer should check");
+}
+
+#[test]
+fn destructure_exhaustiveness_still_includes_erased_payload() {
+    rejected(
+        r#"
+        data Certified { case Proven(value: i32, proof [erased]: i32); }
+        machine inspect(certified: Certified) -> i32 {
+            transition certified {
+                Certified::Proven { value } -> value
+            }
+        }
+        "#,
+        "does not mention field `proof`",
     );
 }
 
@@ -117,5 +205,22 @@ fn erased_linear_field_retains_its_multiplicity_obligation() {
         }
         "#,
         "linear value `certified.proof` reaches scope exit",
+    );
+}
+
+#[test]
+fn erased_linear_case_payload_retains_its_multiplicity_obligation() {
+    rejected(
+        r#"
+        data Receipt [linear] { code: i32; }
+        data Certified { case Proven(proof [erased]: Receipt); }
+        data Main {}
+        machine Main::run() -> i32 {
+            let receipt: Receipt = Receipt { code: 1 };
+            let certified: Certified = Certified::Proven { proof: receipt };
+            0
+        }
+        "#,
+        "linear value `certified",
     );
 }
