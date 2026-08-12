@@ -887,6 +887,11 @@ fn validate_machine(
                                 operation: operation.id,
                                 callee,
                             })?;
+                    validate_service_reach(
+                        operation.id,
+                        &machine.published_service_ceiling,
+                        &callee.published_service_ceiling,
+                    )?;
                     if crash_continuations
                         .windows(2)
                         .any(|pair| pair[0].cause >= pair[1].cause)
