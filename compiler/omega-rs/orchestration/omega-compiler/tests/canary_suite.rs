@@ -2720,7 +2720,7 @@ fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
             .expect("copy compiler-body bounded-buffer source-append canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body bounded-buffer source-append target");
         compile(CompileOptions {
@@ -2766,7 +2766,7 @@ fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
             .expect("copy compiler-body text-buffer materialize canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body text-buffer materialize target");
         compile(CompileOptions {
@@ -2806,8 +2806,11 @@ fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artif
         .expect("create compiler-body frame-base-indexed text-assembly source directory");
     fs::copy(canary.join("main.omg"), source.join("main.omg"))
         .expect("copy compiler-body frame-base-indexed text-assembly canary");
-    fs::write(source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write compiler-body frame-base-indexed text-assembly target");
+    fs::write(
+        source.join("build.omg"),
+        hosted_main_program_entry_build("linux_arm64"),
+    )
+    .expect("write compiler-body frame-base-indexed text-assembly target");
     compile(CompileOptions {
         root_path: source.join("main.omg"),
         build_dir: Some(output.clone()),
@@ -2851,7 +2854,7 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
             .expect("copy compiler-body text literal-append canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body text literal-append target");
         compile(CompileOptions {
@@ -2897,7 +2900,7 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
             .expect("copy compiler-body stored-text append canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body stored-text append target");
         compile(CompileOptions {
@@ -2941,7 +2944,7 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
             .expect("copy compiler-body stored-text suffix canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body stored-text suffix target");
         compile(CompileOptions {
@@ -3063,7 +3066,7 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
             .expect("copy compiler-body bounded-buffer literal-append canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body bounded-buffer literal-append target");
         compile(CompileOptions {
@@ -3108,7 +3111,7 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body string-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body string-write target");
         compile(CompileOptions {
