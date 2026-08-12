@@ -13,5 +13,7 @@
 mod identity;
 mod module;
 
+pub use psi_language_core::BindingRelevance;
+
 pub use identity::*;
 pub use module::*;

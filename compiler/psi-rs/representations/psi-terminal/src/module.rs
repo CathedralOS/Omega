@@ -5,6 +5,7 @@ use psi_core::{
     ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
     ValueId,
 };
+use psi_language_core::BindingRelevance;
 
 /// Marker for the single unstable terminal-Psi semantic vocabulary.
 ///
@@ -109,13 +110,21 @@ pub enum StructuralTypeShape {
 pub struct StructuralFieldDeclaration {
     pub id: StructuralFieldId,
     pub identity: String,
+    /// Authored semantic relevance. Erased rows remain in terminal identity and
+    /// proof structure even though Omega omits them from native layout.
+    pub relevance: BindingRelevance,
     pub field_type: StructuralFieldType,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralFieldType {
     Scalar(ScalarType),
     Structural(StructuralTypeId),
+    /// Exact semantic type identity for an erased field whose carrier need not
+    /// belong to the executable structural/layout vocabulary.
+    Erased {
+        type_identity: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

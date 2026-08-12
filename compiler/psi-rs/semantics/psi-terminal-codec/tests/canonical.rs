@@ -7,8 +7,8 @@ use psi_core::{
     StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
-    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement,
+    ClaimTransfer, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, MachineContract, Operation,
     OperationKind, OperationResult, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
@@ -86,6 +86,64 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let mut changed = module.clone();
     changed.machines[0].attachment = Some(structural_type_id(3));
     assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
+}
+
+#[test]
+fn erased_structural_field_round_trips_and_changes_semantic_identity() {
+    let baseline = structural_effect_fixture();
+    let mut module = baseline.clone();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(3),
+        identity: "proof".to_owned(),
+        relevance: BindingRelevance::Erased,
+        field_type: StructuralFieldType::Erased {
+            type_identity: "named(name(example::Evidence))".to_owned(),
+        },
+    });
+
+    let bytes = encode_module(&module).expect("erased semantic field should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_ne!(
+        semantic_fingerprint(&module).unwrap(),
+        semantic_fingerprint(&baseline).unwrap(),
+        "erased bindings remain terminal semantic identity"
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
+    let mut opaque_relevant = structural_effect_fixture();
+    let StructuralTypeShape::Record { fields } = &mut opaque_relevant.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(3),
+        identity: "bad".to_owned(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Erased {
+            type_identity: "named(name(example::Evidence))".to_owned(),
+        },
+    });
+    assert_eq!(
+        encode_module(&opaque_relevant),
+        Err(CodecError::MalformedStructuralFoundation(
+            "opaque structural field type must have erased relevance and a nonempty type identity"
+        ))
+    );
+
+    let mut nonopaque_erased = structural_effect_fixture();
+    let StructuralTypeShape::Record { fields } = &mut nonopaque_erased.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(3),
+        identity: "bad".to_owned(),
+        relevance: BindingRelevance::Erased,
+        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    assert_eq!(
+        encode_module(&nonopaque_erased),
+        Err(CodecError::MalformedStructuralFoundation(
+            "erased structural field must use its opaque semantic type identity"
+        ))
+    );
 }
 
 #[test]
@@ -167,6 +225,7 @@ fn structural_foundation_rejects_recursive_by_value_types() {
                 fields: vec![StructuralFieldDeclaration {
                     id: structural_field_id(1),
                     identity: "b".to_owned(),
+                    relevance: BindingRelevance::Relevant,
                     field_type: StructuralFieldType::Structural(structural_type_id(2)),
                 }],
             },
@@ -178,6 +237,7 @@ fn structural_foundation_rejects_recursive_by_value_types() {
                 fields: vec![StructuralFieldDeclaration {
                     id: structural_field_id(1),
                     identity: "a".to_owned(),
+                    relevance: BindingRelevance::Relevant,
                     field_type: StructuralFieldType::Structural(structural_type_id(1)),
                 }],
             },
@@ -708,6 +768,7 @@ fn structural_effect_fixture() -> TerminalModule {
                         StructuralFieldDeclaration {
                             id: structural_field_id(1),
                             identity: "sequence".to_owned(),
+                            relevance: BindingRelevance::Relevant,
                             field_type: StructuralFieldType::Scalar(ScalarType::Integer(
                                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                             )),
@@ -715,6 +776,7 @@ fn structural_effect_fixture() -> TerminalModule {
                         StructuralFieldDeclaration {
                             id: structural_field_id(2),
                             identity: "metadata".to_owned(),
+                            relevance: BindingRelevance::Relevant,
                             field_type: StructuralFieldType::Structural(structural_type_id(2)),
                         },
                     ],

@@ -35418,6 +35418,41 @@ fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
 }
 
 #[test]
+fn cross_aarch64_erased_hfa_import_keeps_two_vector_fragments() {
+    let canary = pass_canary("capabilities/aarch64_erased_hfa_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-aarch64-erased-hfa-import-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("macos_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("erased-stripped HFA import should compile for macos_arm64");
+
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 Mach-O");
+    let fmov_d0_x17 = (0x9e67_0000u32 | (17 << 5)).to_le_bytes();
+    let fmov_d1_x17 = (0x9e67_0000u32 | (17 << 5) | 1).to_le_bytes();
+    assert!(
+        image
+            .windows(12)
+            .any(|window| { window[0..4] == fmov_d0_x17 && window[8..12] == fmov_d1_x17 }),
+        "erased evidence must not interrupt the HFA's d0/d1 fragments"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     let canary = pass_canary("capabilities/aarch64_scalar_float_import_compile");
     let scratch = std::env::temp_dir().join(format!(
@@ -35635,6 +35670,41 @@ fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
             .windows(12)
             .any(|window| { window[0..4] == fmov_x17_d0 && window[8..12] == fmov_x17_d1 }),
         "expected consecutive d0/d1 result fragments to spill through x17"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn cross_aarch64_erased_hfa_result_keeps_two_vector_fragments() {
+    let canary = pass_canary("capabilities/aarch64_erased_hfa_result_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-aarch64-erased-hfa-result-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("macos_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("erased-stripped HFA result should compile for macos_arm64");
+
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 Mach-O");
+    let fmov_x17_d0 = (0x9e66_0000u32 | 17).to_le_bytes();
+    let fmov_x17_d1 = (0x9e66_0000u32 | (1 << 5) | 17).to_le_bytes();
+    assert!(
+        image
+            .windows(12)
+            .any(|window| { window[0..4] == fmov_x17_d0 && window[8..12] == fmov_x17_d1 }),
+        "erased evidence must not interrupt the d0/d1 result spill"
     );
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -42816,6 +42886,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_hfa_result_entry", "linux_arm64"),
     ("targets/aarch64_large_result_entry", "linux_arm64"),
     ("targets/sysv_small_aggregate_entry", "linux_x64"),
+    ("targets/sysv_erased_small_aggregate_entry", "linux_x64"),
     ("targets/sysv_hfa_entry_argument", "linux_x64"),
     ("targets/sysv_mixed_aggregate_entry", "linux_x64"),
     ("targets/sysv_mixed_aggregate_stack_entry", "linux_x64"),
@@ -44691,6 +44762,33 @@ fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
             window[10..13] == [0x49, 0x89, 0xb7] && window[27..30] == [0x49, 0x89, 0x97]
         }),
         "expected consecutive runtime-frame stores from rsi and rdx"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_erased_small_aggregate_entry_spreads_only_relevant_fields() {
+    let canary = pass_canary("targets/sysv_erased_small_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-erased-small-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("erased-stripped SysV record should cross-compile through rsi/rdx");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(30).any(|window| {
+            window[10..13] == [0x49, 0x89, 0xb7] && window[27..30] == [0x49, 0x89, 0x97]
+        }),
+        "erased evidence must not interrupt consecutive rsi/rdx frame stores"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

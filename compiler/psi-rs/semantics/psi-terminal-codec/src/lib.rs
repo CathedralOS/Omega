@@ -33,8 +33,8 @@ use psi_core::{
     StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
-    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement,
+    ClaimTransfer, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
@@ -438,10 +438,27 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             "structural field identity",
         )?;
         for field in fields {
-            if let StructuralFieldType::Structural(field_type) = field.field_type
-                && !has_structural_type(module, field_type)
-            {
-                return malformed("structural field references an unknown structural type");
+            match &field.field_type {
+                StructuralFieldType::Structural(field_type)
+                    if !has_structural_type(module, *field_type) =>
+                {
+                    return malformed("structural field references an unknown structural type");
+                }
+                StructuralFieldType::Erased { type_identity }
+                    if !field.relevance.is_erased() || type_identity.is_empty() =>
+                {
+                    return malformed(
+                        "opaque structural field type must have erased relevance and a nonempty type identity",
+                    );
+                }
+                StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                    if field.relevance.is_erased() =>
+                {
+                    return malformed(
+                        "erased structural field must use its opaque semantic type identity",
+                    );
+                }
+                _ => {}
             }
         }
     }
@@ -731,9 +748,9 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             .find(|declaration| declaration.id == id)
             .expect("structural field targets were validated before graph traversal");
         let StructuralTypeShape::Record { fields } = &declaration.shape;
-        for field_type in fields.iter().map(|field| field.field_type) {
-            if let StructuralFieldType::Structural(target) = field_type {
-                visit(module, target, active, complete)?;
+        for field in fields {
+            if let StructuralFieldType::Structural(target) = &field.field_type {
+                visit(module, *target, active, complete)?;
             }
         }
         active.remove(&id);
@@ -1076,14 +1093,22 @@ fn encode_structural_type(
             for field in fields {
                 writer.id(field.id);
                 writer.string("structural field identity", &field.identity)?;
-                match field.field_type {
+                writer.u8(match field.relevance {
+                    BindingRelevance::Relevant => 1,
+                    BindingRelevance::Erased => 2,
+                });
+                match &field.field_type {
                     StructuralFieldType::Scalar(scalar_type) => {
                         writer.u8(1);
-                        encode_scalar_type(writer, scalar_type);
+                        encode_scalar_type(writer, *scalar_type);
                     }
                     StructuralFieldType::Structural(structural_type) => {
                         writer.u8(2);
-                        writer.id(structural_type);
+                        writer.id(*structural_type);
+                    }
+                    StructuralFieldType::Erased { type_identity } => {
+                        writer.u8(3);
+                        writer.string("erased structural field type identity", type_identity)?;
                     }
                 }
             }
@@ -2330,14 +2355,23 @@ fn decode_structural_type(
             fields: decode_counted(reader, |reader| {
                 let id = reader.id("StructuralFieldId")?;
                 let identity = reader.string("structural field identity")?;
+                let relevance = match reader.u8()? {
+                    1 => BindingRelevance::Relevant,
+                    2 => BindingRelevance::Erased,
+                    tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
+                };
                 let field_type = match reader.u8()? {
                     1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
                     2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
+                    3 => StructuralFieldType::Erased {
+                        type_identity: reader.string("erased structural field type identity")?,
+                    },
                     tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
                 };
                 Ok(StructuralFieldDeclaration {
                     id,
                     identity,
+                    relevance,
                     field_type,
                 })
             })?,

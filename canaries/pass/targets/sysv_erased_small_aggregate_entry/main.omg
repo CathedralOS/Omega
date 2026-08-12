@@ -1,0 +1,24 @@
+// `[erased]` evidence remains part of Pair's semantic identity but contributes
+// no SysV field, eightbyte, register, or runtime-frame storage. The leading
+// scalar consumes rdi and the stripped Pair still arrives whole in rsi/rdx.
+data Evidence {
+    case Only;
+}
+
+data Pair {
+    first: u64;
+    proof [erased]: Evidence;
+    second: u64;
+}
+
+data Main {
+    observed: u64;
+}
+
+boundary machine Main::main(&mut self, tag: u64, pair: Pair) -> i32 {
+    self.observed = tag + pair.first + pair.second;
+    transition { _ -> (0) }
+}
+
+target linux_x64 {
+}

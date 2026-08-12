@@ -118,6 +118,14 @@ no executable storage place or cleanup action. Runtime layout and operation
 encoding consume the erased-stripped form, while semantic fingerprints retain
 the binding and its type.
 
+Unit structural declarations apply the same rule directly: every field row
+retains authored relevance, and an erased row carries its exact normalized type
+identity as an opaque semantic type rather than forcing proof data into the
+executable structural-type graph. The codec and verifier reject mismatched
+relevance/type rows. Omega skips erased rows before ABI classification, so the
+terminal artifact preserves semantic identity without assigning proof evidence
+an offset or transfer.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and

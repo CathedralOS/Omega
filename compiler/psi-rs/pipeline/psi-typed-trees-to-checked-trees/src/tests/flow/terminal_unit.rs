@@ -1,5 +1,6 @@
 use super::*;
 use psi_checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType};
+use psi_language_core::BindingRelevance;
 use psi_language_semantics::Multiplicity;
 use psi_typed_trees::types::PrimitiveType;
 
@@ -266,5 +267,42 @@ fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
             .iter()
             .all(|shape| !shape.identity.contains("NestedRoot")),
         "unsupported nested construction must not leave an accepted empty placeholder"
+    );
+}
+
+#[test]
+fn retains_opaque_erased_field_identity_in_unit_structural_shape() {
+    let checked = checked(
+        r#"
+        data Evidence { case Only; }
+        data Certified {
+            value: u64;
+            proof [erased]: Evidence;
+        }
+        machine Certified::run(&self) {}
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(plans.for_machine(machine_named(&checked, "run")).is_some());
+    let certified = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity.contains("Certified"))
+        .expect("certified structural shape");
+    assert_eq!(certified.fields.len(), 2);
+    assert_eq!(certified.fields[0].relevance, BindingRelevance::Relevant);
+    assert_eq!(certified.fields[1].relevance, BindingRelevance::Erased);
+    assert!(matches!(
+        &certified.fields[1].field_type,
+        CheckedUnitStructuralFieldType::Erased { type_identity }
+            if type_identity.contains("Evidence")
+    ));
+    assert!(
+        plans
+            .structural_types
+            .iter()
+            .all(|shape| !shape.identity.contains("Evidence")),
+        "opaque erased field carriers do not enter the executable structural graph"
     );
 }

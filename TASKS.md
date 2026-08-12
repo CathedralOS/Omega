@@ -252,8 +252,8 @@ Remaining:
   contained-machine topology. Ambiguous, absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
   Expand this without compatibility scaffolding to ambiguous/overloaded or
-  attached-call generic record/sum construction contexts, ABI classification,
-  and attached machines over generic
+  attached-call generic record/sum construction contexts and attached machines
+  over generic
   or case-bearing data, non-checked supply modes, or unresolved machine
   parameters. Plan-laid values now omit erased bindings from physical Schema
   reflection, validated plan entries, native/interpreter layouts, recasts, and
@@ -267,6 +267,14 @@ Remaining:
   Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
   Do not infer carrier relation roles from relevance.
+  Fixed non-generic record boundary values now retain erased fields in semantic
+  identity, source-policy input, and terminal-Psi structural rows while omitting
+  them recursively from native argument/result layout and transfer. Direct and
+  nested SysV AMD64 and AAPCS64 entry/import canaries pin the erased-stripped
+  classifications. Case-bearing values and unresolved generic aggregates still
+  fail through their existing public ABI-shape limits rather than a relevance
+  fence; this slice does not manufacture an ABI for shapes the calling-policy
+  vocabulary cannot express.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the

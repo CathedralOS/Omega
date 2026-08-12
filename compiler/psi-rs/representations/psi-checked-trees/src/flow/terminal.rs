@@ -1,6 +1,7 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::types::PrimitiveType;
 
+use psi_language_core::BindingRelevance;
 use psi_language_semantics::{
     CarryPolicy, Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary,
 };
@@ -168,13 +169,22 @@ pub struct CheckedUnitStructuralTypePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralFieldPlan {
     pub identity: String,
+    pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
-    Structural { type_identity: String },
+    Structural {
+        type_identity: String,
+    },
+    /// An erased semantic field does not require an executable structural
+    /// carrier. Its exact normalized type identity remains independently
+    /// checkable in terminal Psi.
+    Erased {
+        type_identity: String,
+    },
 }
 
 /// One normalized structural qualification required by a retained parameter.
