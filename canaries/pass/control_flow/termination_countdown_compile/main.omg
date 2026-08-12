@@ -1,15 +1,5 @@
-use platform::console;
-
-data Main {
-    console: Console;
-}
-
-machine Main::main(&mut self) -> i32 {
-    self.countdown(4);
-    71
-}
-
-machine Main::countdown(&mut self, remaining: u64)
+// A recursive edge admitted by the explicit descending-natural ranking view.
+machine countdown(remaining: u64)
 terminates by remaining -> Nat::Descending;
 {
     transition remaining > 0 {
@@ -17,7 +7,5 @@ terminates by remaining -> Nat::Descending;
         false -> done()
     }
 
-    state done(&mut self) {
-        self.console.exit_process(71);
-    }
+    state done() {}
 }
