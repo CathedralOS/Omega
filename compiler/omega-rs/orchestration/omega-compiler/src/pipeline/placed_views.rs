@@ -98,7 +98,7 @@ pub(crate) fn desugar_placed_views(
     let mut plans = BTreeMap::new();
     for application in &applications {
         let policy_machine = format!("{}::plan", application.policy);
-        let plan = super::access_plans::compute_placement_plan(
+        let plan = psi_build_time_evaluation::compute_placement_plan(
             &typed,
             &policy_machine,
             &application.schema,
@@ -132,7 +132,7 @@ pub(crate) fn validate_placed_view_plans(
     records: &[PlacedViewRecord],
 ) -> Result<(), Vec<Diagnostic>> {
     for record in records {
-        let plan = super::access_plans::compute_placement_plan(
+        let plan = psi_build_time_evaluation::compute_placement_plan(
             typed,
             &record.policy_machine,
             &record.schema_data,

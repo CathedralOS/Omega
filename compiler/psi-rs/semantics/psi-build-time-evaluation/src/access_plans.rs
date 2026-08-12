@@ -16,8 +16,8 @@ use psi_checked_interpreter::BuildTimeValue;
 use psi_layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
 use psi_typed_trees::TypedTrees;
 
-use super::layout_plans::{SchemaFieldInfo, build_schema_value, schema_fields, validate_plan};
-use psi_build_time_evaluation::BuildTimeAdmissionPlan;
+use crate::BuildTimeAdmissionPlan;
+use crate::layout_plans::{SchemaFieldInfo, build_schema_value, schema_fields, validate_plan};
 
 const ACCESS_FIELD_CAPACITY: usize = 32;
 const BOUNDARY_REACH_CAPACITY: usize = 32;

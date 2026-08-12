@@ -161,6 +161,9 @@ schema cardinality from `AccessPlan::inaccessible(schema)` and keyed functional
 replacement. The compiler evaluates `Access::plan` against a reified validated
 layout, derives transfer widths from that geometry, and evaluates
 `Placement::plan` into one normalized layout/access/reach identity. The
+target-neutral service lives in `psi-build-time-evaluation`; Omega schedules it
+and consumes its sealed Psi plan carriers for target realization but does not
+own those language semantics. The
 `psi-access-plans` bootstrap validates geometry, exact widths,
 observation/operation compatibility, borrow polarity, atomic orderings, exact
 internal loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns

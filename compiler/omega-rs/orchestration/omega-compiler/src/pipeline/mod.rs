@@ -1,4 +1,3 @@
-mod access_plans;
 mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
@@ -11,7 +10,6 @@ pub mod compile_report;
 pub mod compiler;
 mod float_intrinsic_dispatch;
 pub mod frontend;
-mod layout_plans;
 mod operator_adapter_dispatch;
 mod output;
 mod placed_views;
@@ -31,7 +29,6 @@ mod trust_report;
 mod wire_plans;
 mod wire_report;
 
-pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
@@ -42,10 +39,6 @@ pub use compile_options::CompileOptions;
 pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::CompileReport;
 pub use compiler::{compile, compile_with_policy, compile_with_test_entry};
-pub use layout_plans::{
-    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-    compute_layout_plan,
-};
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
@@ -66,10 +59,16 @@ pub use provider_plans::{
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
+pub use psi_build_time_evaluation::{
+    compute_access_plan, compute_layout_plan, compute_placement_plan,
+};
 pub use psi_layout_plans::{
     ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, MaterializationAction,
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
     ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, SymbolicMaterializationPlan,
     decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
     normalized_layout_plan_fingerprint,
+};
+pub use psi_layout_plans::{
+    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };

@@ -239,8 +239,10 @@ Remaining:
   checked zero-argument evaluator now live in Psi. Const-generic call
   discovery, probing, evaluation, and substitution also form an
   ownership-taking Psi pre-resolution entry, and machine-backed concrete
-  const-domain facts are discharged in the same Psi build-time service; the
-  in-place generic syntax elaborator is private. Finish moving the remaining target-neutral
+  const-domain facts are discharged in the same Psi build-time service.
+  Programmable layout, access, and placement evaluation/normalization now also
+  live there over Psi typed trees and normalized plan carriers; the in-place
+  generic syntax elaborator is private. Finish moving the remaining target-neutral
   probe/conveyor sequencing out of
   `omega-compiler` before
   expanding computed, chained, dynamic-receiver, unresolved generic,
