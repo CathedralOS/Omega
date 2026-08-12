@@ -156,13 +156,6 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             .map(|field| field.name.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        let has_variants = program
-            .data_members(definition)
-            .iter()
-            .any(|member| matches!(member, DataMember::Variant(_)));
-        if has_variants {
-            diagnostics.push(unsupported(definition, &field_names, "case-bearing data"));
-        }
         if !definition.type_parameters.is_empty() {
             diagnostics.push(unsupported(definition, &field_names, "generic data"));
         }
@@ -291,6 +284,7 @@ fn validate_expression(
                         state,
                         member.receiver,
                         member.member.as_str(),
+                        member.case_variant.as_ref().map(|variant| variant.as_str()),
                         diagnostics,
                     );
                 }
@@ -506,7 +500,9 @@ fn validate_struct_literal(
         }
         return;
     };
-    let declared_erased = erased_fields(program, definition);
+    let declared_erased = literal_fields(program, definition, literal.case_name.as_ref())
+        .filter(|field| field.relevance.is_erased())
+        .collect::<Vec<_>>();
     let authored = program.expression_table.struct_fields(literal.fields);
     for erased in &declared_erased {
         if !authored.iter().any(|field| field.name == erased.name) {
@@ -589,6 +585,7 @@ fn report_runtime_erased_member_by_receiver(
     state: &State,
     receiver: ExpressionHandle,
     name: &str,
+    case_variant: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let receiver_type = crate::places::declared_place_type(program, machine, Some(state), receiver)
@@ -600,14 +597,60 @@ fn report_runtime_erased_member_by_receiver(
     }) else {
         return;
     };
-    if let Some(field) = program.data_members(definition).iter().find_map(|member| {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
-        (field.name.as_str() == name).then_some(field)
-    }) {
+    let field = if let Some(case_variant) = case_variant {
+        program.data_members(definition).iter().find_map(|member| {
+            let DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.name.as_str() == case_variant).then(|| {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name.as_str() == name)
+            })?
+        })
+    } else {
+        let common = program.data_members(definition).iter().find_map(|member| {
+            let DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.name.as_str() == name).then_some(field)
+        });
+        common.or_else(|| {
+            program.data_members(definition).iter().find_map(|member| {
+                let DataMember::Variant(variant) = member else {
+                    return None;
+                };
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name.as_str() == name && field.relevance.is_erased())
+            })
+        })
+    };
+    if let Some(field) = field {
         report_runtime_erased_field(program, field.symbol, diagnostics);
     }
+}
+
+fn literal_fields<'program>(
+    program: &'program TypedTrees,
+    definition: &'program DataDefinition,
+    case_name: Option<&psi_typed_trees::name::Identifier>,
+) -> impl Iterator<Item = &'program DataField> {
+    let mut fields = Vec::new();
+    for member in program.data_members(definition) {
+        match member {
+            DataMember::Field(field) => fields.push(field),
+            DataMember::Variant(variant)
+                if case_name.is_some_and(|case_name| *case_name == variant.name) =>
+            {
+                fields.extend(program.data_payload_fields(variant));
+            }
+            DataMember::Variant(_) => {}
+        }
+    }
+    fields.into_iter()
 }
 
 fn call_targets_proof_machine(
