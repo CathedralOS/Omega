@@ -192,7 +192,10 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     }
     assert!(matches!(
         root.operations[1],
-        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 1 }
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 1,
+            ..
+        }
     ));
 
     assert_eq!(helper.operations.len(), 3);
@@ -231,7 +234,10 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     }
     assert!(matches!(
         helper.operations[2],
-        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2 }
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 2,
+            ..
+        }
     ));
 }
 
@@ -433,6 +439,76 @@ fn retains_nested_record_field_custody_for_unit_call_closure() {
         panic!("helper should settle nested custody at the boundary")
     };
     assert_eq!(claim_settlements.len(), 1);
+}
+
+#[test]
+fn retains_reverse_declaration_affine_discards_on_unit_return() {
+    let checked = checked(
+        r#"
+        data Ticket { value: u64; }
+        data Root {}
+
+        machine Root::enter(first: Ticket, second: Ticket) {}
+        "#,
+    );
+
+    let root = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("affine Unit root plan");
+    assert_eq!(root.structural_parameters.len(), 2);
+    assert!(root.entry_claims.is_empty());
+    let [
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        },
+    ] = root.operations.as_slice()
+    else {
+        panic!("affine Unit root should contain only its return edge")
+    };
+    assert_eq!(trivial_affine_discards, &[1, 0]);
+}
+
+#[test]
+fn transferred_affine_parameter_is_not_also_discarded_on_return() {
+    let checked = checked(
+        r#"
+        data Ticket { value: u64; }
+        data Helper {}
+        machine Helper::run(ticket: Ticket) {}
+        data Root {}
+        machine Root::enter(ticket: Ticket) {
+            Helper::run(ticket);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("affine transfer root plan");
+    let helper = plans
+        .for_machine(machine_named(&checked, "run"))
+        .expect("affine transfer helper plan");
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        trivial_affine_discards: root_discards,
+        ..
+    } = root.operations.last().unwrap()
+    else {
+        unreachable!()
+    };
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        trivial_affine_discards: helper_discards,
+        ..
+    } = helper.operations.last().unwrap()
+    else {
+        unreachable!()
+    };
+    assert!(root_discards.is_empty());
+    assert_eq!(helper_discards, &[0]);
 }
 
 #[test]

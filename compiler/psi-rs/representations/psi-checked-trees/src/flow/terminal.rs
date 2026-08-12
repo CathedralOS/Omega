@@ -276,6 +276,9 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     ReturnUnit {
         statement_index: u32,
+        /// Owned affine structural parameters discarded on this return edge,
+        /// in reverse declaration order.
+        trivial_affine_discards: Vec<u32>,
     },
 }
 

@@ -711,7 +711,13 @@ pub enum Terminator {
     /// Bind the machine's stable result pseudo-value and finish execution.
     Return { edge: EdgeId, value: ValueId },
     /// Finish normally without producing or binding a runtime value.
-    ReturnUnit { edge: EdgeId },
+    ReturnUnit {
+        edge: EdgeId,
+        /// Exact no-code affine discards performed after outgoing-value
+        /// materialization and before control returns to the caller.
+        /// Entries are structural places in reverse declaration order.
+        trivial_affine_discards: Vec<PlaceId>,
+    },
     /// Leave checked execution without cleanup or a successor.
     ///
     /// `site_guard` is the canonical conjunction known on every path into this
@@ -741,7 +747,7 @@ impl Terminator {
         match self {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
-            | Self::ReturnUnit { edge }
+            | Self::ReturnUnit { edge, .. }
             | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } => {
                 panic!("a conditional terminator has two successor edges")
@@ -753,7 +759,7 @@ impl Terminator {
         let (first, second) = match self {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
-            | Self::ReturnUnit { edge }
+            | Self::ReturnUnit { edge, .. }
             | Self::Crash { edge, .. } => (*edge, None),
             Self::Conditional {
                 when_true,

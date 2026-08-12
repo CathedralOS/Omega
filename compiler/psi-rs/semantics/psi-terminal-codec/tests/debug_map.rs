@@ -66,7 +66,10 @@ fn typed_debug_map_rejects_unknown_subjects_invalid_spans_and_order_drift() {
 fn unit_machine_debug_map_cannot_name_an_absent_result_value() {
     let mut module = fixture();
     module.machines[0].result = TerminalMachineResult::Unit;
-    module.machines[0].blocks[0].terminator = Terminator::ReturnUnit { edge: edge_id(1) };
+    module.machines[0].blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(1),
+        trivial_affine_discards: Vec::new(),
+    };
     let mut map = debug_map(&module);
     map.sites.push(DebugSite {
         subject: DebugSubject::Value(value_id(2)),

@@ -413,7 +413,10 @@ fn unit_fixture() -> TerminalModule {
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: Vec::new(),
-                terminator: Terminator::ReturnUnit { edge: edge_id(900) },
+                terminator: Terminator::ReturnUnit {
+                    edge: edge_id(900),
+                    trivial_affine_discards: Vec::new(),
+                },
             }],
             contract: MachineContract {
                 id: contract_id(900),
@@ -486,7 +489,10 @@ fn unit_effect_fixture() -> TerminalModule {
                             },
                         },
                     ],
-                    terminator: Terminator::ReturnUnit { edge: edge_id(700) },
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(700),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 }],
                 contract: MachineContract {
                     id: contract_id(700),
@@ -521,7 +527,10 @@ fn unit_effect_fixture() -> TerminalModule {
                             requirement_obligations: Vec::new(),
                         },
                     }],
-                    terminator: Terminator::ReturnUnit { edge: edge_id(701) },
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(701),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 }],
                 contract: MachineContract {
                     id: contract_id(701),

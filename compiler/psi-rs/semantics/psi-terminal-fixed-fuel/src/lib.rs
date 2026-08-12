@@ -596,7 +596,7 @@ fn derive_segment_bound(
                     reached_terminal: edge,
                 });
             }
-            Terminator::ReturnUnit { edge } => {
+            Terminator::ReturnUnit { edge, .. } => {
                 return Err(FixedFuelError::SegmentEndNotReached {
                     requested: end_edge,
                     reached_terminal: edge,

@@ -113,7 +113,10 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         edge: edge_id(2),
         value: value_id(1),
     };
-    let unit_return_edge = Terminator::ReturnUnit { edge: edge_id(4) };
+    let unit_return_edge = Terminator::ReturnUnit {
+        edge: edge_id(4),
+        trivial_affine_discards: Vec::new(),
+    };
     let crash_edge = Terminator::Crash {
         edge: edge_id(3),
         cause: CrashCause::Abort,

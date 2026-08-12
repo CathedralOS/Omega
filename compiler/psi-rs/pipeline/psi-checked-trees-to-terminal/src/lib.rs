@@ -1941,6 +1941,28 @@ fn lower_attached_unit_closure(
                 kind,
             });
         }
+        let CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = plan.operations.last().expect("Unit sequence was validated")
+        else {
+            unreachable!()
+        };
+        let trivial_affine_discards = trivial_affine_discards
+            .iter()
+            .map(|parameter_index| {
+                parameters
+                    .get(usize::try_from(*parameter_index).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "Unit affine discard parameter index exceeds usize",
+                        )
+                    })?)
+                    .map(|parameter| parameter.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit affine discard has an invalid parameter index",
+                    ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let block = block_id(allocate_dense(&mut next_block)?);
         let edge = edge_id(allocate_dense(&mut next_edge)?);
         machines.push(TerminalMachine {
@@ -1974,7 +1996,10 @@ fn lower_attached_unit_closure(
                 id: block,
                 parameters: Vec::new(),
                 operations,
-                terminator: Terminator::ReturnUnit { edge },
+                terminator: Terminator::ReturnUnit {
+                    edge,
+                    trivial_affine_discards,
+                },
             }],
             contract: MachineContract {
                 id: contract_id(terminal_machine.get()),
@@ -2090,8 +2115,9 @@ fn checked_terminal_machine_name(
 fn validate_unit_operation_sequence(
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
-    let Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index }) =
-        machine.operations.last()
+    let Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index, ..
+    }) = machine.operations.last()
     else {
         return unsupported("Unit machine does not end in exactly one checked Unit return");
     };
@@ -7476,7 +7502,10 @@ mod tests {
                                 },
                             ],
                         },
-                        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 1 },
+                        CheckedUnitEffectOperationPlan::ReturnUnit {
+                            statement_index: 1,
+                            trivial_affine_discards: Vec::new(),
+                        },
                     ],
                 },
                 CheckedUnitEffectMachinePlan {
@@ -7521,7 +7550,10 @@ mod tests {
                                 },
                             ],
                         },
-                        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2 },
+                        CheckedUnitEffectOperationPlan::ReturnUnit {
+                            statement_index: 2,
+                            trivial_affine_discards: Vec::new(),
+                        },
                     ],
                 },
             ],
@@ -7616,11 +7648,11 @@ mod tests {
         assert!(requirement_obligations.is_empty());
         assert!(matches!(
             module.machines[0].blocks[0].terminator,
-            Terminator::ReturnUnit { edge } if edge == edge_id(1)
+            Terminator::ReturnUnit { edge, .. } if edge == edge_id(1)
         ));
         assert!(matches!(
             module.machines[1].blocks[0].terminator,
-            Terminator::ReturnUnit { edge } if edge == edge_id(2)
+            Terminator::ReturnUnit { edge, .. } if edge == edge_id(2)
         ));
         assert!(lowered.proof_bundle.evidence.is_empty());
         assert_eq!(
@@ -7843,6 +7875,14 @@ mod tests {
                 CheckedUnitEffectOperationPlan::BoundaryCallUnit { .. }
             )
         });
+        let CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = plans[1].operations.last_mut().unwrap()
+        else {
+            unreachable!()
+        };
+        *trivial_affine_discards = vec![0];
 
         let lowered = lower_machine(&checked, "example::Root::enter")
             .expect("the checked affine Unit transfer should lower and verify");
@@ -7857,6 +7897,44 @@ mod tests {
             unreachable!()
         };
         assert!(claim_transfers.is_empty());
+    }
+
+    #[test]
+    fn attached_unit_affine_return_lowers_exact_no_code_discard() {
+        let mut checked = hard_root_checked_fixture();
+        let root = &mut checked.facts.flow.terminal_unit_effects.machines[0];
+        root.structural_parameters[0].multiplicity = Multiplicity::Affine;
+        root.entry_claims.clear();
+        root.operations = vec![CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 0,
+            trivial_affine_discards: vec![0],
+        }];
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("checked affine discard should lower as explicit return-edge cleanup");
+        let [machine] = lowered.semantic_module.machines.as_slice() else {
+            panic!("the no-call closure should contain only its root")
+        };
+        let [block] = machine.blocks.as_slice() else {
+            panic!("the no-call root should contain one block")
+        };
+        let Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &block.terminator
+        else {
+            panic!("affine cleanup should remain attached to the Unit return")
+        };
+        assert_eq!(
+            trivial_affine_discards,
+            &[machine.structural_parameters[0].place]
+        );
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("affine discard must have a canonical terminal encoding");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes).expect("canonical affine discard bytes"),
+            lowered.semantic_module
+        );
     }
 
     #[test]

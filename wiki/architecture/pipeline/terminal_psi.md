@@ -154,6 +154,17 @@ unknown inner field rejects, a caller/callee truncation is a custody-set
 mismatch, and an ancestor claim cannot coexist with one of its descendant
 claims.
 
+The straight-line Unit return slice carries explicit no-code cleanup for owned
+affine structural parameters that have no claim rows. The checked plan derives
+the list from state-exit permission events in reverse parameter declaration
+order. Terminal verification independently reconstructs the exact live affine
+frontier, and rejects missing, extra, reordered, unknown, or claim-bearing
+discards. Interpretation charges the return edge before removing those places,
+so sponsor exhaustion cannot perform cleanup early. This is only trivial
+parameter disposal: affine locals, nominal cleanup machines, partial values,
+other edge kinds, and the whole-edge conservation witness remain outside the
+slice.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and

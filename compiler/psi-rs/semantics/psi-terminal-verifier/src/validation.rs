@@ -3006,7 +3006,34 @@ fn validate_structural_frontier(
                     .or_default()
                     .push(frontier);
             }
-            Terminator::ReturnUnit { .. } => {
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } => {
+                let expected_affine_discards = machine
+                    .structural_parameters
+                    .iter()
+                    .rev()
+                    .filter_map(|parameter| {
+                        (parameter.multiplicity == StructuralMultiplicity::Affine
+                            && frontier.owned_places.contains_key(&parameter.place)
+                            && !frontier
+                                .claims
+                                .values()
+                                .any(|claim| claim.input == Some(parameter.place))
+                            && !machine
+                                .content_entry_claims
+                                .iter()
+                                .any(|claim| claim.input.root == parameter.place))
+                        .then_some(parameter.place)
+                    })
+                    .collect::<Vec<_>>();
+                if *trivial_affine_discards != expected_affine_discards {
+                    return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
                 if let Some((claim, _)) = frontier
                     .claims
                     .iter()
@@ -4175,6 +4202,10 @@ pub enum ModuleError {
         machine: MachineId,
         block: BlockId,
         claim: ClaimId,
+    },
+    UnitReturnAffineDiscardsMismatch {
+        machine: MachineId,
+        block: BlockId,
     },
     LiveLinearClaimAtScalarReturn {
         machine: MachineId,
