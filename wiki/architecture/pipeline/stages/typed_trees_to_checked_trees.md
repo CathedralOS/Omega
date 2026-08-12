@@ -141,10 +141,15 @@ Current ownership is:
   absorbing, including across a direct member-after-index origin. An
   alias into a primitive scalar or recursively primitive fixed-array local is
   caller-isolated and contributes no published write; computed or
-  reference-bearing local roots remain opaque. An unsummarized body falls back
-  to its receiver plus every potentially exclusive place argument. Frames whose
-  places cannot be represented remain all-facts fences. Other writes into
-  attached or machine-owned persistent storage remain fail-closed until
+  reference-bearing local roots remain opaque. A free helper whose entire body
+  directly returns one mutable-reference parameter transfers that argument's
+  exact or collection-coarse origin through its call result and later
+  transparent chains. Projected or nontrivial results remain opaque; signature
+  lifetime elision alone is not relational frame evidence. An unsummarized body
+  falls back to its receiver plus every potentially exclusive place argument.
+  Frames whose places cannot be represented remain all-facts fences. Other
+  writes into attached or machine-owned persistent storage remain fail-closed
+  until
   parameter-backed loan propagation, runtime-indexed transport, broader exact
   R5 summaries, and general state-parameter loan-root rebasing are implemented.
 - `checks/carry.rs` joins canonical place liveness with direct/transitive

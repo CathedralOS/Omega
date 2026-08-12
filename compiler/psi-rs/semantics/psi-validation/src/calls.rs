@@ -1380,6 +1380,7 @@ fn summarize_state_written_paths(
                     parameters,
                     &isolated_local_roots,
                     &local_alias_origins,
+                    symbols,
                 )
             }
             _ => None,
@@ -1548,14 +1549,17 @@ struct FramePlaceOrigin {
 /// coarse, later member suffixes may never narrow that collection again.
 /// Primitive and recursively primitive fixed-array locals are also stable
 /// origins, but remain local-only and therefore disappear from the published
-/// caller frame. Everything less direct stays opaque: named local aggregates,
-/// call-produced references, and computed collections need richer evidence.
+/// caller frame. A value call is relational only when a free helper's sole
+/// terminal result directly forwards one mutable-reference parameter; its
+/// caller argument then supplies the origin. Projected/computed results and
+/// call-produced local collections stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
 ) -> Option<FramePlaceOrigin> {
     let TypeReferenceNode::Reference {
         is_mutable: true, ..
@@ -1565,23 +1569,119 @@ fn stable_local_mutable_alias_origin(
     else {
         return None;
     };
-    let ExpressionNode::Mutable(origin) = program.expression_table.expression(local.initial_value)
-    else {
-        return None;
+    stable_alias_expression_origin(
+        program,
+        local.initial_value,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        symbols,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stable_alias_expression_origin(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    allow_isolated_local: bool,
+) -> Option<FramePlaceOrigin> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => stable_alias_expression_origin(
+            program,
+            *inner,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            allow_isolated_local,
+        ),
+        ExpressionNode::Call(call) => transparent_call_result_origin(
+            program,
+            call,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+        ),
+        ExpressionNode::Indexed(indexed) => {
+            let mut collection = stable_alias_expression_origin(
+                program,
+                indexed.collection,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+            )?;
+            collection.precision = FramePathPrecision::CollectionCoarse;
+            Some(collection)
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = stable_alias_expression_origin(
+                program,
+                member.receiver,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+            )?;
+            Some(match receiver.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: format!("{}.{}", receiver.path, member.member.as_str()),
+                    precision: FramePathPrecision::Exact,
+                },
+                FramePathPrecision::CollectionCoarse => receiver,
+            })
+        }
+        _ => stable_alias_place_origin(
+            program,
+            expression,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            allow_isolated_local,
+        ),
+    }
+}
+
+fn stable_alias_place_origin(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+) -> Option<FramePlaceOrigin> {
+    let expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => expression,
     };
-    let origin = frame_place_path(program, *origin)?;
+    let origin = frame_place_path(program, expression)?;
     let (root, suffix) = split_place_root(&origin.path);
     if root == "self"
         || parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == root)
-        || isolated_local_roots.iter().any(|local| local == root)
+        || (allow_isolated_local && isolated_local_roots.iter().any(|local| local == root))
     {
         return Some(origin);
     }
     let parent = aliases
         .iter()
         .find_map(|(alias, parent)| (alias == root).then_some(parent))?;
+    if !allow_isolated_local
+        && isolated_local_roots
+            .iter()
+            .any(|local| local == split_place_root(&parent.path).0)
+    {
+        return None;
+    }
     Some(match parent.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&parent.path, suffix),
@@ -1592,6 +1692,76 @@ fn stable_local_mutable_alias_origin(
             precision: FramePathPrecision::CollectionCoarse,
         },
     })
+}
+
+/// Recover one deliberately structural value-call relation. The helper must be
+/// free, acyclic at the result surface, return `&mut`, and have one terminal
+/// result expression that is exactly one of its mutable-reference parameters.
+/// This is body evidence, not lifetime elision: a projection, nested call,
+/// named-state route, or alternate result fails closed.
+fn transparent_call_result_origin(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    caller_parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<FramePlaceOrigin> {
+    if call.receiver.is_valid() {
+        return None;
+    }
+    let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
+        .or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))?;
+    if callee_machine.attached_data.is_some()
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(callee_state.return_type),
+            TypeReferenceNode::Reference {
+                is_mutable: true,
+                ..
+            }
+        )
+    {
+        return None;
+    }
+
+    let [StatementNode::Expression(result)] = program
+        .statement_table
+        .statements(callee_state.statement_nodes)
+    else {
+        return None;
+    };
+
+    let (argument_index, _) = program
+        .state_parameters(callee_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .find(|(_, parameter)| {
+            matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference {
+                    is_mutable: true,
+                    ..
+                }
+            ) && expression_forwards_exact_symbol(program, *result, parameter.symbol)
+        })?;
+    let argument = *program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(argument_index)?;
+    stable_alias_expression_origin(
+        program,
+        argument,
+        caller_parameters,
+        isolated_local_roots,
+        aliases,
+        symbols,
+        false,
+    )
 }
 
 fn type_is_caller_isolated_local(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
