@@ -136,8 +136,9 @@ Current ownership is:
   nested boundary receiver/out-argument frames. State cycles keep exact frames
   through reordered primitive or shared-reference parameters, while rebinding
   a write-capable parameter remains conservative. Stable mutable-alias chains
-  retain exact member projections; indexed reborrows conservatively retain the
-  whole collection. An unsummarized body falls
+  retain exact member projections; an indexed reborrow through an exact alias
+  retains its nearest collection, while an already-coarse alias stays
+  absorbing. An unsummarized body falls
   back to its receiver plus every potentially exclusive place argument. Frames
   whose places cannot be represented remain all-facts fences. Other writes into
   attached or machine-owned persistent storage remain fail-closed until

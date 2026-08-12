@@ -1565,12 +1565,12 @@ fn stable_local_mutable_alias_origin(
     let parent = aliases
         .iter()
         .find_map(|(alias, parent)| (alias == root).then_some(parent))?;
-    Some(match (parent.precision, origin.precision) {
-        (FramePathPrecision::Exact, FramePathPrecision::Exact) => FramePlaceOrigin {
+    Some(match parent.precision {
+        FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&parent.path, suffix),
-            precision: FramePathPrecision::Exact,
+            precision: origin.precision,
         },
-        _ => FramePlaceOrigin {
+        FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
             path: parent.path.clone(),
             precision: FramePathPrecision::CollectionCoarse,
         },

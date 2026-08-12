@@ -322,12 +322,14 @@ state-parameter place substitutes that origin through positional transition
 arguments, including member suffixes and resolved calls. A stable bare local
 reborrow (`let child: &mut T = &mut parent`) or exact member reborrow
 (`&mut parent.field`) flattens through an already-known parent alias. An indexed
-origin such as `&mut self.cells[i]` or `&mut parent[i]` is known only at
-collection precision: it publishes the whole collection, and that coarsening is
-absorbing through later alias projections, member writes, calls, and
-transitions. Potential rebinding, local or computed collection origins, direct
-member-after-index origins, call-produced chains, and transport through a named
-state SCC remain opaque. Non-bijective, computed, or otherwise unrepresentable
+origin such as `&mut self.cells[i]` or `&mut parent.group.cells[i]` is known only
+at collection precision: an exact parent retains the nearest intermediate
+collection (`parent.group.cells`), while an already-coarse parent absorbs every
+later suffix. That coarsening remains absorbing through later alias projections,
+member writes, calls, and transitions. Potential rebinding, local or computed
+collection origins, direct member-after-index origins, call-produced chains,
+and transport through a named state SCC remain opaque. Non-bijective, computed,
+or otherwise unrepresentable
 cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns
 further relational candidates.
 
