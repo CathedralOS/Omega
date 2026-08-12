@@ -43492,6 +43492,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "text/bounded_carrier_construction_over_capacity_rejected",
     "text/bounded_carrier_return_over_capacity_rejected",
     "expressions/undeclared_two_segment_path_rejected",
+    "platform/platform_block_retired",
+    "ffi/raw_ptr_read_unavailable",
     "recast/recast_mut_fact_fenced",
     "recast/recast_mut_cross_carrier_domain_not_equivalent",
     "recast/recast_mut_range_bit_sets_differ",
@@ -48967,7 +48969,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/uefi_program_entry_wrong_calling_policy",
     "build/static_machine_parameter_contract_mismatch",
     "build/accept_boundary_outside_build",
-    "platform/platform_block_retired",
     "providers/via_with_body_rejected",
     "providers/slot_plan_ambiguous",
     "providers/provider_type_slot_ambiguous",
@@ -49085,7 +49086,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/unknown_effect_name",
     "capabilities/unknown_provider_category",
     "capabilities/undeclared_synchronous_invocation",
-    "ffi/raw_ptr_read_unavailable",
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
 ];
