@@ -29,6 +29,10 @@ pub struct TerminalMachineCodeFunction {
     /// closure. Other terminal function forms remain deliberately unreported
     /// until their complete temporary-stack accounting is retained.
     pub unit_stack: Option<TerminalUnitStackEvidence>,
+    /// Exact ordered stack mutations for a call-free, branch-free scalar
+    /// function. Object construction replays the target instructions and
+    /// derives the numeric peak; unsupported scalar forms remain `None`.
+    pub scalar_stack: Option<TerminalScalarStackEvidence>,
     /// Typed internal-call relocation fields, ordered by `offset`. Each row
     /// points at the mutable immediate bits of one architecture-native call;
     /// object construction validates the surrounding opcode before accepting
@@ -189,4 +193,25 @@ pub struct TerminalAarch64ReturnLinkEvidence {
     pub frame_byte_offset: u32,
     pub store_offset: usize,
     pub load_offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalScalarStackEvidence {
+    pub mutations: Vec<TerminalScalarStackMutation>,
+    pub stack_alignment: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalScalarStackMutation {
+    pub offset: usize,
+    pub byte_count: usize,
+    pub kind: TerminalScalarStackMutationKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalScalarStackMutationKind {
+    Allocate { byte_size: u32 },
+    Release { byte_size: u32 },
+    X86Push,
+    X86Pop,
 }

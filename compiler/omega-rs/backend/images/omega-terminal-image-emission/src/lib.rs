@@ -29,7 +29,8 @@ use omega_object_file::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
-    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalStackAdjustmentPair,
+    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarStackEvidence,
+    TerminalScalarStackMutation, TerminalScalarStackMutationKind, TerminalStackAdjustmentPair,
     TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
@@ -129,9 +130,10 @@ pub struct TerminalObjectFunction {
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
     pub byte_count: usize,
-    /// Emitter-derived stack facts for a completely accounted Unit body.
-    /// `None` means this function form has not yet joined the WCSU slice.
+    /// Byte-validated stack facts for a completely accounted Unit body.
     pub unit_stack: Option<TerminalObjectUnitStack>,
+    /// Byte-validated stack facts for a call-free, branch-free scalar body.
+    pub scalar_stack: Option<TerminalObjectScalarStack>,
     pub unit_call_stacks: Vec<TerminalObjectUnitCallStack>,
 }
 
@@ -161,11 +163,17 @@ pub struct TerminalObjectUnitStack {
     pub stack_alignment: u32,
 }
 
-/// Recomputed whole-call-closure stack demand for the fully accounted
-/// terminal Unit slice. This excludes the external entry adapter/interrupt
-/// arrival frame, which belongs to installed-root realization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalObjectScalarStack {
+    pub local_peak_bytes: u32,
+    pub stack_alignment: u32,
+}
+
+/// Recomputed stack demand for the accounted terminal function slices. This
+/// excludes the external entry adapter/interrupt arrival frame, which belongs
+/// to installed-root realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalUnitStackDemand {
+pub struct TerminalStackDemand {
     terminal_psi: TerminalPsiIdentity,
     target: NativeTarget,
     entry: MachineId,
@@ -174,7 +182,7 @@ pub struct TerminalUnitStackDemand {
     contributing_machines: std::collections::BTreeSet<MachineId>,
 }
 
-impl TerminalUnitStackDemand {
+impl TerminalStackDemand {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
     }
@@ -199,6 +207,10 @@ impl TerminalUnitStackDemand {
         &self.contributing_machines
     }
 }
+
+/// Compatibility name for the original Unit-only demand entry point. New
+/// callers should use [`TerminalStackDemand`] and [`derive_terminal_stack_demand`].
+pub type TerminalUnitStackDemand = TerminalStackDemand;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalObjectBoundarySettlement {
@@ -239,6 +251,7 @@ pub fn build_terminal_object_artifact(
     let mut saw_entry = false;
     let mut text_size = 0usize;
     let mut validated_unit_stacks = std::collections::BTreeMap::new();
+    let mut validated_scalar_stacks = std::collections::BTreeMap::new();
     for function in &plan.functions {
         if let Some(previous) = previous
             && previous >= function.machine
@@ -271,6 +284,23 @@ pub fn build_terminal_object_artifact(
                 )
             })
             .transpose()?;
+        if function.unit_stack.is_some() && function.scalar_stack.is_some() {
+            return Err(TerminalObjectError::ConflictingTerminalStackEvidence(
+                function.machine,
+            ));
+        }
+        if let Some(stack) = &function.scalar_stack {
+            validated_scalar_stacks.insert(
+                function.machine,
+                validate_linear_scalar_stack(
+                    plan.target.architecture,
+                    function.machine,
+                    &function.bytes,
+                    &function.internal_calls,
+                    stack,
+                )?,
+            );
+        }
         let mut validated_call_stacks = Vec::new();
         let mut call_operations = std::collections::BTreeSet::new();
         for call in &function.internal_calls {
@@ -548,6 +578,7 @@ pub fn build_terminal_object_artifact(
                 .checked_add(call.text_offset)
                 .ok_or(TerminalObjectError::TextSizeOverflow)?;
         }
+        let scalar_stack = validated_scalar_stacks.remove(&function.machine);
         functions.push(TerminalObjectFunction {
             machine: function.machine,
             provenance: function.provenance.clone(),
@@ -555,6 +586,7 @@ pub fn build_terminal_object_artifact(
             text_offset,
             byte_count: function.bytes.len(),
             unit_stack,
+            scalar_stack,
             unit_call_stacks,
         });
     }
@@ -697,6 +729,296 @@ fn validate_unit_function_stack(
         local_peak_bytes: frame_bytes,
         stack_alignment: evidence.stack_alignment,
     })
+}
+
+fn validate_linear_scalar_stack(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
+    evidence: &TerminalScalarStackEvidence,
+) -> Result<TerminalObjectScalarStack, TerminalObjectError> {
+    if evidence.stack_alignment != 16 {
+        return Err(TerminalObjectError::InvalidScalarStackAlignment {
+            machine,
+            alignment: evidence.stack_alignment,
+        });
+    }
+    if !calls.is_empty() {
+        return Err(TerminalObjectError::ScalarStackCallNotSupported(machine));
+    }
+    if evidence
+        .mutations
+        .windows(2)
+        .any(|pair| pair[0].offset >= pair[1].offset)
+    {
+        return Err(TerminalObjectError::NonCanonicalScalarStackMutationOrder(
+            machine,
+        ));
+    }
+    let mut claimed = evidence
+        .mutations
+        .iter()
+        .map(|mutation| (mutation.offset, *mutation))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if claimed.len() != evidence.mutations.len() {
+        return Err(TerminalObjectError::NonCanonicalScalarStackMutationOrder(
+            machine,
+        ));
+    }
+    let mut depth = 0_u32;
+    let mut peak = 0_u32;
+    match architecture {
+        Architecture::X86_64 => {
+            let mut decoder =
+                iced_x86::Decoder::with_ip(64, bytes, 0, iced_x86::DecoderOptions::NONE);
+            let mut info_factory = iced_x86::InstructionInfoFactory::new();
+            let mut saw_return = false;
+            while decoder.can_decode() {
+                let instruction = decoder.decode();
+                let offset = usize::try_from(instruction.ip()).expect("function-relative x86 IP");
+                if instruction.is_invalid() {
+                    return Err(TerminalObjectError::InvalidScalarInstructionEncoding {
+                        machine,
+                        offset,
+                    });
+                }
+                if instruction.mnemonic() == iced_x86::Mnemonic::Ret {
+                    if offset.checked_add(instruction.len()) != Some(bytes.len()) || saw_return {
+                        return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                            machine,
+                            offset,
+                        });
+                    }
+                    saw_return = true;
+                    continue;
+                }
+                if instruction.flow_control() != iced_x86::FlowControl::Next {
+                    return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                        machine,
+                        offset,
+                    });
+                }
+                let stack_kind = match instruction.mnemonic() {
+                    iced_x86::Mnemonic::Sub
+                        if instruction.op0_register() == iced_x86::Register::RSP =>
+                    {
+                        Some(true)
+                    }
+                    iced_x86::Mnemonic::Add
+                        if instruction.op0_register() == iced_x86::Register::RSP =>
+                    {
+                        Some(false)
+                    }
+                    iced_x86::Mnemonic::Push | iced_x86::Mnemonic::Pop => Some(false),
+                    _ => None,
+                };
+                if stack_kind.is_some() {
+                    let mutation = claimed.remove(&offset).ok_or(
+                        TerminalObjectError::UnclaimedScalarStackMutation { machine, offset },
+                    )?;
+                    validate_x86_scalar_mutation(machine, bytes, &instruction, mutation)?;
+                    replay_scalar_mutation(machine, offset, mutation.kind, &mut depth, &mut peak)?;
+                    continue;
+                }
+                let info = info_factory.info(&instruction);
+                if info.used_registers().iter().any(|register| {
+                    matches!(
+                        register.register(),
+                        iced_x86::Register::RSP
+                            | iced_x86::Register::ESP
+                            | iced_x86::Register::SP
+                            | iced_x86::Register::SPL
+                    ) && matches!(
+                        register.access(),
+                        iced_x86::OpAccess::Write
+                            | iced_x86::OpAccess::CondWrite
+                            | iced_x86::OpAccess::ReadWrite
+                            | iced_x86::OpAccess::ReadCondWrite
+                    )
+                }) {
+                    return Err(TerminalObjectError::UnsupportedScalarStackMutation {
+                        machine,
+                        offset,
+                    });
+                }
+            }
+            if !saw_return {
+                return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
+            }
+        }
+        Architecture::Aarch64 => {
+            if !bytes.len().is_multiple_of(4) {
+                return Err(TerminalObjectError::InvalidScalarInstructionEncoding {
+                    machine,
+                    offset: bytes.len() - bytes.len() % 4,
+                });
+            }
+            let mut saw_return = false;
+            for offset in (0..bytes.len()).step_by(4) {
+                let encoded = u32::from_le_bytes(
+                    bytes[offset..offset + 4]
+                        .try_into()
+                        .expect("four-byte AArch64 word"),
+                );
+                if encoded == 0xd65f_03c0 {
+                    if offset + 4 != bytes.len() || saw_return {
+                        return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                            machine,
+                            offset,
+                        });
+                    }
+                    saw_return = true;
+                    continue;
+                }
+                if aarch64_control_flow_instruction(encoded) {
+                    return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                        machine,
+                        offset,
+                    });
+                }
+                if aarch64_stack_adjustment_at(bytes, offset) {
+                    let mutation = claimed.remove(&offset).ok_or(
+                        TerminalObjectError::UnclaimedScalarStackMutation { machine, offset },
+                    )?;
+                    validate_aarch64_scalar_mutation(machine, encoded, mutation)?;
+                    replay_scalar_mutation(machine, offset, mutation.kind, &mut depth, &mut peak)?;
+                } else if aarch64_unsupported_sp_write(encoded) {
+                    return Err(TerminalObjectError::UnsupportedScalarStackMutation {
+                        machine,
+                        offset,
+                    });
+                }
+            }
+            if !saw_return {
+                return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
+            }
+        }
+    }
+    if let Some((&offset, _)) = claimed.first_key_value() {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    if depth != 0 {
+        return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
+    }
+    Ok(TerminalObjectScalarStack {
+        local_peak_bytes: peak,
+        stack_alignment: evidence.stack_alignment,
+    })
+}
+
+fn validate_x86_scalar_mutation(
+    machine: MachineId,
+    bytes: &[u8],
+    instruction: &iced_x86::Instruction,
+    mutation: TerminalScalarStackMutation,
+) -> Result<(), TerminalObjectError> {
+    let offset = mutation.offset;
+    let exact = match mutation.kind {
+        TerminalScalarStackMutationKind::Allocate { byte_size } => {
+            instruction.mnemonic() == iced_x86::Mnemonic::Sub
+                && instruction.op0_register() == iced_x86::Register::RSP
+                && bytes.get(offset..offset.saturating_add(instruction.len()))
+                    == Some(x86_64_stack_adjustment(byte_size, false).as_slice())
+        }
+        TerminalScalarStackMutationKind::Release { byte_size } => {
+            instruction.mnemonic() == iced_x86::Mnemonic::Add
+                && instruction.op0_register() == iced_x86::Register::RSP
+                && bytes.get(offset..offset.saturating_add(instruction.len()))
+                    == Some(x86_64_stack_adjustment(byte_size, true).as_slice())
+        }
+        TerminalScalarStackMutationKind::X86Push => {
+            instruction.mnemonic() == iced_x86::Mnemonic::Push
+                && instruction.op0_kind() == iced_x86::OpKind::Register
+        }
+        TerminalScalarStackMutationKind::X86Pop => {
+            instruction.mnemonic() == iced_x86::Mnemonic::Pop
+                && instruction.op0_kind() == iced_x86::OpKind::Register
+        }
+    };
+    if !exact || mutation.byte_count != instruction.len() {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    Ok(())
+}
+
+fn validate_aarch64_scalar_mutation(
+    machine: MachineId,
+    encoded: u32,
+    mutation: TerminalScalarStackMutation,
+) -> Result<(), TerminalObjectError> {
+    let expected = match mutation.kind {
+        TerminalScalarStackMutationKind::Allocate { byte_size }
+            if byte_size <= 0xfff && byte_size.is_multiple_of(16) =>
+        {
+            Some(0xd100_03ff | (byte_size << 10))
+        }
+        TerminalScalarStackMutationKind::Release { byte_size }
+            if byte_size <= 0xfff && byte_size.is_multiple_of(16) =>
+        {
+            Some(0x9100_03ff | (byte_size << 10))
+        }
+        _ => None,
+    };
+    if mutation.byte_count != 4 || expected != Some(encoded) {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence {
+            machine,
+            offset: mutation.offset,
+        });
+    }
+    Ok(())
+}
+
+fn replay_scalar_mutation(
+    machine: MachineId,
+    offset: usize,
+    kind: TerminalScalarStackMutationKind,
+    depth: &mut u32,
+    peak: &mut u32,
+) -> Result<(), TerminalObjectError> {
+    let (allocate, byte_size) = match kind {
+        TerminalScalarStackMutationKind::Allocate { byte_size } => (true, byte_size),
+        TerminalScalarStackMutationKind::Release { byte_size } => (false, byte_size),
+        TerminalScalarStackMutationKind::X86Push => (true, 8),
+        TerminalScalarStackMutationKind::X86Pop => (false, 8),
+    };
+    if byte_size == 0 {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    if allocate {
+        *depth = depth
+            .checked_add(byte_size)
+            .ok_or(TerminalObjectError::ScalarStackArithmeticOverflow(machine))?;
+        *peak = (*peak).max(*depth);
+    } else {
+        *depth = depth
+            .checked_sub(byte_size)
+            .ok_or(TerminalObjectError::ScalarStackReleaseExceedsAllocation { machine, offset })?;
+    }
+    Ok(())
+}
+
+fn aarch64_control_flow_instruction(encoded: u32) -> bool {
+    (encoded & 0x7c00_0000) == 0x1400_0000
+        || (encoded & 0xff00_0010) == 0x5400_0000
+        || (encoded & 0x7e00_0000) == 0x3400_0000
+        || (encoded & 0x7e00_0000) == 0x3600_0000
+        || (encoded & 0xfe00_0000) == 0xd600_0000
+}
+
+fn aarch64_unsupported_sp_write(encoded: u32) -> bool {
+    // ADD/SUB extended-register forms may name SP as destination. Scalar
+    // emission never uses them for stack allocation.
+    matches!(encoded & 0xff20_001f, 0x8b20_001f | 0xcb20_001f)
+        // Single-register immediate pre/post-indexed loads and stores update
+        // their SP base. Scalar emission uses only unsigned-offset accesses.
+        || ((encoded & 0x3b20_0000) == 0x3800_0000
+            && matches!((encoded >> 10) & 3, 1 | 3)
+            && ((encoded >> 5) & 31) == 31)
+        // Pair pre/post-indexed loads and stores likewise update the base.
+        || ((encoded & 0x3a00_0000) == 0x2800_0000
+            && matches!((encoded >> 23) & 3, 1 | 3)
+            && ((encoded >> 5) & 31) == 31)
 }
 
 fn validate_unit_call_stack(
@@ -1002,6 +1324,16 @@ pub fn derive_terminal_unit_stack_demand(
     artifact: &TerminalObjectArtifact,
     entry: MachineId,
 ) -> Result<TerminalUnitStackDemand, TerminalObjectError> {
+    derive_terminal_stack_demand(artifact, entry)
+}
+
+/// Compose byte-validated stack evidence for the currently admitted terminal
+/// function slices. Scalar functions are presently call-free; Unit functions
+/// retain the acyclic internal-call closure.
+pub fn derive_terminal_stack_demand(
+    artifact: &TerminalObjectArtifact,
+    entry: MachineId,
+) -> Result<TerminalStackDemand, TerminalObjectError> {
     let functions = artifact
         .functions
         .iter()
@@ -1020,7 +1352,7 @@ pub fn derive_terminal_unit_stack_demand(
         &mut memoized,
         &mut contributing_machines,
     )?;
-    Ok(TerminalUnitStackDemand {
+    Ok(TerminalStackDemand {
         terminal_psi: artifact.terminal_psi,
         target: artifact.target,
         entry,
@@ -1053,10 +1385,13 @@ fn derive_terminal_unit_stack_peak(
                 caller: machine,
                 target: machine,
             })?;
-    let stack = function
-        .unit_stack
-        .ok_or(TerminalObjectError::UnaccountedTerminalUnitStack(machine))?;
-    let mut peak = u64::from(stack.local_peak_bytes);
+    let mut peak = if let Some(stack) = function.unit_stack {
+        u64::from(stack.local_peak_bytes)
+    } else if let Some(stack) = function.scalar_stack {
+        u64::from(stack.local_peak_bytes)
+    } else {
+        return Err(TerminalObjectError::UnaccountedTerminalUnitStack(machine));
+    };
     for call in &function.unit_call_stacks {
         let callee_peak = derive_terminal_unit_stack_peak(
             call.target,
@@ -1349,6 +1684,39 @@ pub enum TerminalObjectError {
     InvalidUnitStackAlignment {
         machine: MachineId,
         alignment: u32,
+    },
+    ConflictingTerminalStackEvidence(MachineId),
+    InvalidScalarStackAlignment {
+        machine: MachineId,
+        alignment: u32,
+    },
+    ScalarStackCallNotSupported(MachineId),
+    NonCanonicalScalarStackMutationOrder(MachineId),
+    InvalidScalarInstructionEncoding {
+        machine: MachineId,
+        offset: usize,
+    },
+    NonLinearScalarControlFlow {
+        machine: MachineId,
+        offset: usize,
+    },
+    UnclaimedScalarStackMutation {
+        machine: MachineId,
+        offset: usize,
+    },
+    UnsupportedScalarStackMutation {
+        machine: MachineId,
+        offset: usize,
+    },
+    InvalidScalarStackEvidence {
+        machine: MachineId,
+        offset: usize,
+    },
+    MissingBalancedScalarReturn(MachineId),
+    ScalarStackArithmeticOverflow(MachineId),
+    ScalarStackReleaseExceedsAllocation {
+        machine: MachineId,
+        offset: usize,
     },
     UnitCallStackArithmeticOverflow {
         caller: MachineId,
