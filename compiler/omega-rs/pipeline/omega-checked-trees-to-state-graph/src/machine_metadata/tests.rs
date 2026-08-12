@@ -55,6 +55,7 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
             identity: None,
             symbol: worker_field_symbol,
             name: Identifier::generated("worker"),
+            relevance: Default::default(),
             type_reference: worker_type,
         }),
     );
@@ -64,6 +65,7 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
             identity: None,
             symbol: scalar_field_symbol,
             name: Identifier::generated("count"),
+            relevance: Default::default(),
             type_reference: scalar_type,
         }),
     );

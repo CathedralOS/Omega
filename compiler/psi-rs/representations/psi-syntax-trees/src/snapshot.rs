@@ -290,6 +290,7 @@ pub enum DataMemberSnapshot {
     Field {
         identity: Option<u64>,
         name: IdentifierSnapshot,
+        relevance: &'static str,
         type_reference: TypeReferenceSnapshot,
     },
     Variant {
@@ -1304,6 +1305,7 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
         DataMember::Field(field) => DataMemberSnapshot::Field {
             identity: field.identity,
             name: snapshot_identifier(&field.name),
+            relevance: snapshot_binding_relevance(field.relevance),
             type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
@@ -1314,6 +1316,13 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
         DataMember::Retired(identity) => DataMemberSnapshot::Retired {
             identity: *identity,
         },
+    }
+}
+
+fn snapshot_binding_relevance(relevance: psi_language_core::BindingRelevance) -> &'static str {
+    match relevance {
+        psi_language_core::BindingRelevance::Relevant => "relevant",
+        psi_language_core::BindingRelevance::Erased => "erased",
     }
 }
 

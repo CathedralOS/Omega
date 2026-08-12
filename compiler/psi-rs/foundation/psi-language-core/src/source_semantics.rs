@@ -11,6 +11,20 @@ pub enum Multiplicity {
     Linear,
 }
 
+/// Whether one authored binding occurrence contributes runtime representation.
+///
+/// Relevance is deliberately independent of the binding's type and
+/// multiplicity. An erased binding remains part of semantic identity and the
+/// proof calculus even though later lowering omits its runtime representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum BindingRelevance {
+    /// An ordinary binding with runtime representation.
+    #[default]
+    Relevant,
+    /// A proof-side binding authored with `[erased]`.
+    Erased,
+}
+
 /// How a data declaration obtains its representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DataSupplyMode {

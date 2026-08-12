@@ -269,6 +269,74 @@ fn parses_stable_field_identities_on_generic_data() {
 }
 
 #[test]
+fn parses_field_relevance_on_record_and_case_payload_bindings() {
+    let source = r#"
+        data Certified {
+            value: i32;
+            proof [erased]: i32;
+            case Wrapped(witness [erased]: i32);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("field relevance should parse");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data declaration");
+    let members = parsed.items.data_members(data.members);
+    let psi_syntax_trees::item::DataMember::Field(value) = &members[0] else {
+        panic!("value field");
+    };
+    let psi_syntax_trees::item::DataMember::Field(proof) = &members[1] else {
+        panic!("proof field");
+    };
+    let psi_syntax_trees::item::DataMember::Variant(wrapped) = &members[2] else {
+        panic!("wrapped case");
+    };
+    let [witness] = parsed.items.data_payload_fields(wrapped.payload) else {
+        panic!("one payload field");
+    };
+
+    assert_eq!(
+        value.relevance,
+        psi_language_core::BindingRelevance::Relevant
+    );
+    assert_eq!(proof.relevance, psi_language_core::BindingRelevance::Erased);
+    assert_eq!(
+        witness.relevance,
+        psi_language_core::BindingRelevance::Erased
+    );
+    let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
+    assert!(snapshot.contains("\"relevance\":\"relevant\""));
+    assert!(snapshot.contains("\"relevance\":\"erased\""));
+}
+
+#[test]
+fn rejects_unknown_or_duplicate_field_relevance_properties() {
+    for (source, expected) in [
+        (
+            "data Bad { proof [copy]: i32; }",
+            "unknown data-field binding property `copy`",
+        ),
+        (
+            "data Bad { proof [erased, erased]: i32; }",
+            "duplicate binding property `erased`",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("invalid field property must reject");
+        assert!(error.message.contains(expected), "{}", error.message);
+    }
+}
+
+#[test]
 fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
     let source = r#"
         data Optional<T> {

@@ -12,7 +12,7 @@ pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
 pub use cast_form::CastForm;
 pub use operator_spelling::{OperatorSpelling, ProviderCategory};
 pub use source_semantics::{
-    CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin, CarryAddress, CarryCpu,
-    CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension, DataSupplyMode,
-    DomainPredicateBody, Multiplicity,
+    BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
+    CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
+    DataSupplyMode, DomainPredicateBody, Multiplicity,
 };

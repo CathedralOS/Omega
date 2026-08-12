@@ -427,6 +427,7 @@ fn synthesize_probe_records(
                 DataMember::Field(DataField {
                     identity: field.identity,
                     name: field.name.clone(),
+                    relevance: field.relevance,
                     type_reference: accessor,
                 })
             })
@@ -520,6 +521,7 @@ fn synthesize_exact_records(
             members.push(DataMember::Field(DataField {
                 identity: field.identity,
                 name: field.name.clone(),
+                relevance: field.relevance,
                 type_reference: field_type,
             }));
         }

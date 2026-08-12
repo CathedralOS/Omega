@@ -49,6 +49,7 @@ pub(crate) fn data_definition_from_wire_schema(
                 identity: Some(field.number),
                 symbol: SymbolHandle::invalid(),
                 name: field.name.clone(),
+                relevance: Default::default(),
                 type_reference: field.type_reference.clone(),
             }),
             _ => None,
