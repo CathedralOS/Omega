@@ -1,23 +1,9 @@
-// FAIL CANARY (flipped from a pending DIVERGENCE pin, 2026-07-09): a
-// reference-typed let whose declared type disagrees with the borrowed
-// place's type used to compile UNJUDGED -- native compared the place's
-// raw bits under the stated type while the interpreter delivered the
-// semantic value (native 71 / interp 70 on this exact program). §5b says
-// revealing a place under a second shape is spelled `&x as &T` and passes
-// the static recast judgment; the bare mismatch refuses (recasts.rs's
-// companion rule).
-use omega::language::std::console;
-data Main {
-    console: Console;
+// A bare borrow retains its referent type. Exposing the same bytes through a
+// different checked shape requires an explicit `as` recast.
+data Bits {
     x: i64;
 }
-machine Main::main(&mut self) {
-    self.x = 3;
+
+machine Bits::implicit_pun(&self) {
     let v: &f32 = &self.x;
-    transition v > 2.9 && v < 3.1 {
-        true -> good()
-        _ -> bad()
-    }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self)  { self.console.exit_process(71); }
 }
