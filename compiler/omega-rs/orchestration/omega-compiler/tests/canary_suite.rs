@@ -49914,6 +49914,11 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     let canary = pass_canary("host/cross_console_byte_targets");
     let main_path = canary.join("main.omg");
 
+    // This canary declares a nonempty ProgramEntry matrix for all four targets.
+    // Each successful compile therefore proves target-scoped selection found
+    // that target's exact row; a missing selected-target row rejects before the
+    // remaining corpus's temporary Main::main naming fallback can run.
+
     let build_dir = std::env::temp_dir().join(format!("omega-bytes-win-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
