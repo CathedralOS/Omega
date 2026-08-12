@@ -2196,6 +2196,8 @@ fn statement_call_preserves_transparent_result(
         return false;
     }
     let arguments = program.statement_table.expression_handles(call.arguments);
+    // Sibling arguments are independent: each may contain one direct exact
+    // value call, while the helper below refuses any further call depth.
     if arguments.iter().any(|argument| {
         !statement_call_argument_preserves_transparent_result(
             program,
@@ -2242,6 +2244,9 @@ fn statement_call_preserves_transparent_result(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Admit one effectful layer in one statement-call argument. Applying this
+/// independently to every sibling permits bounded width without permitting
+/// unbounded expression depth.
 fn statement_call_argument_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,

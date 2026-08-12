@@ -3753,6 +3753,7 @@ fn stable_alias_index_frame_requires_an_effect_free_index() {
     let source = r#"
     data Main {
         cells: [u64; 2];
+        other_cells: [u64; 2];
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -3840,6 +3841,11 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         }
     }
 
+    machine write_slices(first: &mut [u64], second: &mut [u64]) {
+        write_slice(first);
+        write_slice(second);
+    }
+
     machine noop() {}
 
     machine write_value(value: &mut u64) {
@@ -3902,6 +3908,24 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         value
     }
 
+    machine return_after_sibling_call_arguments<'value, 'first, 'second>(
+        value: &'value mut u64,
+        first: &'first mut [u64; 2],
+        second: &'second mut [u64; 2]
+    ) -> &'value mut u64 {
+        write_slices(return_slice(first), return_slice(second));
+        value
+    }
+
+    machine return_after_mixed_sibling_call_arguments<'value, 'first, 'second>(
+        value: &'value mut u64,
+        first: &'first mut [u64; 2],
+        second: &'second mut [u64; 2]
+    ) -> &'value mut u64 {
+        write_slices(return_slice(first), return_recursive_slice(second));
+        value
+    }
+
     machine Main::direct_view(&mut self) {
         let view: &mut [u64] = self.cells.as_mut_slice();
         view[0] = 1;
@@ -3961,6 +3985,24 @@ fn mutable_slice_views_preserve_array_storage_origins() {
 
     machine Main::deep_call_argument_statement_call(&mut self) {
         let alias: &mut u64 = return_after_deep_call_argument(&mut self.value);
+        alias = 1;
+    }
+
+    machine Main::sibling_call_arguments_statement_call(&mut self) {
+        let alias: &mut u64 = return_after_sibling_call_arguments(
+            &mut self.value,
+            &mut self.cells,
+            &mut self.other_cells
+        );
+        alias = 1;
+    }
+
+    machine Main::mixed_sibling_call_arguments_statement_call(&mut self) {
+        let alias: &mut u64 = return_after_mixed_sibling_call_arguments(
+            &mut self.value,
+            &mut self.cells,
+            &mut self.other_cells
+        );
         alias = 1;
     }
 
@@ -4129,6 +4171,54 @@ fn mutable_slice_views_preserve_array_storage_origins() {
             )
             .is_complete(),
         "a deeper computed value-call argument remains outside this exact rung"
+    );
+
+    let sibling_call_arguments_statement_call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::sibling_call_arguments_statement_call")
+        .expect("sibling call-arguments statement caller");
+    let sibling_call_arguments_statement_call_entry = typed
+        .machine_states(sibling_call_arguments_statement_call)
+        .first()
+        .expect("sibling call-arguments statement caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(
+                sibling_call_arguments_statement_call,
+                sibling_call_arguments_statement_call_entry,
+            )
+            .complete_paths(),
+        Some(
+            [
+                "self.cells".to_owned(),
+                "self.other_cells".to_owned(),
+                "self.value".to_owned(),
+            ]
+            .as_slice()
+        ),
+        "exact sibling value-call arguments must compose their writes and the returned origin"
+    );
+
+    let mixed_sibling_call_arguments_statement_call = typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine.name.as_str() == "Main::mixed_sibling_call_arguments_statement_call"
+        })
+        .expect("mixed sibling call-arguments statement caller");
+    let mixed_sibling_call_arguments_statement_call_entry = typed
+        .machine_states(mixed_sibling_call_arguments_statement_call)
+        .first()
+        .expect("mixed sibling call-arguments statement caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(
+                mixed_sibling_call_arguments_statement_call,
+                mixed_sibling_call_arguments_statement_call_entry,
+            )
+            .is_complete(),
+        "one opaque sibling value-call argument must fence the whole returned-place relation"
     );
 }
 

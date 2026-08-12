@@ -434,10 +434,11 @@ customer-shaped compiler concept is introduced.
   effect-free discarded expressions and direct Unit statement calls with
   complete frames are neutral when their arguments do not expose a mutable-
   reference binding for rebinding; writes through references passed by value
-  change contents without redirecting their origin. One direct value-call
-  argument is also admitted when its own receiver/arguments are effect-free and
-  its frame is complete. Explicitly discarded call results, explicit binding
-  reborrows, deeper computed arguments, and opaque frames remain fences. A direct
+  change contents without redirecting their origin. Sibling direct value-call
+  arguments are independently admitted when each one's receiver/arguments are
+  effect-free and its frame is complete. Explicitly discarded call results,
+  explicit binding reborrows, deeper computed arguments, and any opaque sibling
+  remain fences. A direct
   helper-local alias rebind updates that name's origin without redirecting prior
   reborrows; a structurally transparent helper result may supply the replacement
   through the same origin algebra. Other computed rebinding, opaque or recursive
