@@ -7,7 +7,7 @@ mod expressions;
 mod model;
 
 pub(super) use expressions::resolve_branch_expression_handle;
-use expressions::resolve_runtime_branch_alias_expression_handle;
+use expressions::{insert_rebuilt_expression, resolve_runtime_branch_alias_expression_handle};
 pub(super) use model::{
     BranchParameterBinding, BranchParameterBindings, RuntimeBranchAlias, RuntimeBranchAliasBuffer,
 };
@@ -41,7 +41,11 @@ pub(super) fn branch_parameter_bindings(
                     expression_table.expression(argument_expression),
                     ExpressionNode::Mutable(_)
                 ) {
-                expression_table.insert(ExpressionNode::Mutable(argument_expression))
+                insert_rebuilt_expression(
+                    expression_table,
+                    argument_expression,
+                    ExpressionNode::Mutable(argument_expression),
+                )
             } else {
                 argument_expression
             };
@@ -92,13 +96,15 @@ fn resolve_elided_source_local_expression_handle(
                 binary.right,
                 expressions,
             );
-            expressions.insert(ExpressionNode::Binary(
-                psi_checked_trees::expression::TableBinaryExpression {
+            insert_rebuilt_expression(
+                expressions,
+                expression,
+                ExpressionNode::Binary(psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
-                },
-            ))
+                }),
+            )
         }
         ExpressionNode::Cast(cast) => {
             let value = resolve_elided_source_local_expression_handle(
@@ -108,8 +114,10 @@ fn resolve_elided_source_local_expression_handle(
                 cast.value,
                 expressions,
             );
-            expressions.insert(ExpressionNode::Cast(
-                psi_checked_trees::expression::TableCastExpression {
+            insert_rebuilt_expression(
+                expressions,
+                expression,
+                ExpressionNode::Cast(psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -119,8 +127,8 @@ fn resolve_elided_source_local_expression_handle(
                     semantic_domain_symbol: cast.semantic_domain_symbol,
                     semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
-                },
-            ))
+                }),
+            )
         }
         ExpressionNode::Mutable(target) => {
             let target = resolve_elided_source_local_expression_handle(
@@ -133,7 +141,7 @@ fn resolve_elided_source_local_expression_handle(
             if matches!(expressions.expression(target), ExpressionNode::Mutable(_)) {
                 target
             } else {
-                expressions.insert(ExpressionNode::Mutable(target))
+                insert_rebuilt_expression(expressions, expression, ExpressionNode::Mutable(target))
             }
         }
         ExpressionNode::Indexed(indexed) => {
@@ -151,9 +159,14 @@ fn resolve_elided_source_local_expression_handle(
                 indexed.index,
                 expressions,
             );
-            expressions.insert(ExpressionNode::Indexed(
-                psi_checked_trees::expression::TableIndexedExpression { collection, index },
-            ))
+            insert_rebuilt_expression(
+                expressions,
+                expression,
+                ExpressionNode::Indexed(psi_checked_trees::expression::TableIndexedExpression {
+                    collection,
+                    index,
+                }),
+            )
         }
         ExpressionNode::Member(member) => {
             let receiver = resolve_elided_source_local_expression_handle(
@@ -163,14 +176,16 @@ fn resolve_elided_source_local_expression_handle(
                 member.receiver,
                 expressions,
             );
-            expressions.insert(ExpressionNode::Member(
-                psi_checked_trees::expression::TableMemberExpression {
+            insert_rebuilt_expression(
+                expressions,
+                expression,
+                ExpressionNode::Member(psi_checked_trees::expression::TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,
                     case_variant: member.case_variant,
-                },
-            ))
+                }),
+            )
         }
         ExpressionNode::Name(path) if path.members.count() == 1 => {
             let Some(machine) = context
@@ -284,7 +299,11 @@ pub(super) fn bind_runtime_branch_aliases(
                 expression_table.expression(argument_expression),
                 ExpressionNode::Mutable(_)
             ) {
-            expression_table.insert(ExpressionNode::Mutable(argument_expression))
+            insert_rebuilt_expression(
+                expression_table,
+                argument_expression,
+                ExpressionNode::Mutable(argument_expression),
+            )
         } else {
             argument_expression
         };

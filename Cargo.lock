@@ -629,6 +629,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
+ "psi-source",
  "psi-symbols",
 ]
 
@@ -876,6 +877,7 @@ dependencies = [
  "omega-state-storage",
  "psi-arena",
  "psi-checked-trees",
+ "psi-source",
  "psi-symbols",
 ]
 

@@ -19,3 +19,6 @@ omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../omega-state-guards" }
 omega-state-storage = { path = "../omega-state-storage" }
+
+[dev-dependencies]
+psi-source = { path = "../../../psi-rs/foundation/psi-source" }
