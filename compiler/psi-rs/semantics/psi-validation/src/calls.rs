@@ -1654,57 +1654,19 @@ fn stable_alias_initializer_origin(
         ExpressionNode::Indexed(indexed)
             if expression_is_effectful_for_transparent_result(program, indexed.index) =>
         {
-            if expression_reborrows_stable_alias_binding(
+            if !stable_alias_index_expression_preserves_origin(
                 program,
-                indexed.index,
-                parameters,
-                aliases,
-            ) {
-                return None;
-            }
-            let ExpressionNode::Call(call) = program.expression_table.expression(indexed.index)
-            else {
-                return None;
-            };
-            if (call.receiver.is_valid()
-                && expression_is_effectful_for_transparent_result(program, call.receiver))
-                || program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| {
-                        expression_is_effectful_for_transparent_result(program, *argument)
-                    })
-            {
-                return None;
-            }
-            let receiver_members = if call.receiver.is_valid() {
-                receiver_member_chain(program, call.receiver)?
-            } else {
-                Vec::new()
-            };
-            let arguments = program.expression_table.expression_handles(call.arguments);
-            known_call_written_paths_for_parts(
-                program,
-                call.target_symbol,
-                call.target.as_str(),
-                &receiver_members,
-                arguments,
                 current_machine,
+                indexed.index,
                 machine_symbols,
                 symbols,
                 active_states,
-            )
-            .or_else(|| {
-                known_boundary_call_written_paths_for_parts(
-                    program,
-                    machine_symbols,
-                    symbols,
-                    &receiver_members,
-                    call.target.as_str(),
-                    arguments,
-                )
-            })?;
+                parameters,
+                aliases,
+                2,
+            ) {
+                return None;
+            }
             let mut collection = stable_alias_expression_origin(
                 program,
                 indexed.collection,
@@ -1727,6 +1689,87 @@ fn stable_alias_initializer_origin(
             allow_isolated_local,
         ),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+/// Admit the same bounded exact-call tree used by transparent statement-call
+/// arguments in an alias index. Every call must have a complete frame, and no
+/// node may reborrow a mutable-reference binding. The explicit depth budget
+/// keeps deeper computation out of the returned-place relation.
+fn stable_alias_index_expression_preserves_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, FramePlaceOrigin)],
+    remaining_call_depth: usize,
+) -> bool {
+    if expression_reborrows_stable_alias_binding(program, expression, parameters, aliases) {
+        return false;
+    }
+    if !expression_is_effectful_for_transparent_result(program, expression) {
+        return true;
+    }
+    if remaining_call_depth == 0 {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if call.receiver.is_valid()
+        && expression_is_effectful_for_transparent_result(program, call.receiver)
+    {
+        return false;
+    }
+    let receiver_members = if call.receiver.is_valid() {
+        let Some(receiver) = receiver_member_chain(program, call.receiver) else {
+            return false;
+        };
+        receiver
+    } else {
+        Vec::new()
+    };
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.iter().any(|argument| {
+        !stable_alias_index_expression_preserves_origin(
+            program,
+            current_machine,
+            *argument,
+            machine_symbols,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+            remaining_call_depth - 1,
+        )
+    }) {
+        return false;
+    }
+    known_call_written_paths_for_parts(
+        program,
+        call.target_symbol,
+        call.target.as_str(),
+        &receiver_members,
+        arguments,
+        current_machine,
+        machine_symbols,
+        symbols,
+        active_states,
+    )
+    .or_else(|| {
+        known_boundary_call_written_paths_for_parts(
+            program,
+            machine_symbols,
+            symbols,
+            &receiver_members,
+            call.target.as_str(),
+            arguments,
+        )
+    })
+    .is_some()
 }
 
 fn expression_reborrows_stable_alias_binding(
@@ -2665,7 +2708,7 @@ fn parameter_relative_place_origin(
                         active_states,
                         parameters,
                         aliases,
-                        1,
+                        2,
                     )
                 {
                     return None;

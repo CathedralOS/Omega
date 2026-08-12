@@ -343,11 +343,12 @@ customer-shaped compiler concept is introduced.
   caller-isolated scratch locals, statement-call arguments, and direct alias
   rebinding while ordinary call writes remain published. Member suffixes remain
   exact; indexing coarsens irreversibly to the nearest collection. One direct
-  non-rebinding value call with a complete frame is accepted in terminal return
-  indexes, stable-alias indexes, and direct alias-rebind replacements; nested or
-  recursive calls, binding reborrows, opaque nodes, effectful sources, escaped
-  aliases, non-bijective transport, and writes outside isolated roots remain
-  fences. Primitive-only concrete record/sum locals remain caller-isolated
+  non-rebinding direct-call tree through depth two, with complete frames, is
+  accepted in terminal return indexes, stable-alias indexes, and direct
+  alias-rebind replacements; deeper or recursive calls, binding reborrows,
+  opaque nodes, effectful sources, escaped aliases, non-bijective transport, and
+  writes outside isolated roots remain fences. Primitive-only concrete
+  record/sum locals remain caller-isolated
   through nested fixed arrays; generic, reference-bearing, and other computed
   roots do not. Continue with representable relational candidates without
   restoring authored `stores` clauses or treating lifetime elision as evidence.
