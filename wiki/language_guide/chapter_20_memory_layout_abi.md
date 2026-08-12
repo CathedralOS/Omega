@@ -823,7 +823,10 @@ not an unchecked transmute or a value conversion. The implemented mutable
 subset accepts equal-width fact-free primitive places, proven-in-bounds scalar
 offsets into byte regions, and recursively fact-free fixed record shapes over
 such regions. Those record shapes may contain literal-length fixed arrays,
-including arrays of nested records. Record fields and statically or dynamically
+including arrays of nested records. A plan-reflected fixed array remains one
+`Repeated` field and a recursively fixed record remains one `Nested` field;
+both require one whole-field `At` placement rather than scalar bit/integer
+placement or active field access. Record fields and statically or dynamically
 indexed array elements follow ordinary or validated plan-laid offsets
 recursively; reads and writes preserve the complete scalar footprints in both
 native backends and the interpreter. Top-level literal-length arrays use the

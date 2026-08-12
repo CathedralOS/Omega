@@ -1,0 +1,61 @@
+// A fixed record remains one aggregate schema field. Its whole extent follows
+// the policy's `At` placement, while compiler-derived record offsets govern
+// projections inside that extent.
+use omega::language::std::console;
+use omega::language::core::layout;
+
+data SpreadRecord { entries: [FieldEntry; 64]; }
+
+machine SpreadRecord::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 24 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 32,
+        size_is_dynamic: false,
+        align: 8,
+    }
+}
+
+data Pair {
+    low: u16;
+    high: u32;
+}
+
+data RecordWithPair {
+    pair: Pair;
+    marker: u8;
+}
+
+data RecordView { value: SpreadRecord<RecordWithPair>; }
+
+data Main {
+    console: Console;
+    bytes: [u8; 32];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut RecordView = &mut self.bytes[0] as &mut RecordView;
+    view.value.pair.low = 0x0201;
+    view.value.pair.high = 0x06050403;
+    view.value.marker = 7;
+    transition self.bytes[8] == 1 && self.bytes[9] == 2
+        && self.bytes[12] == 3 && self.bytes[13] == 4
+        && self.bytes[14] == 5 && self.bytes[15] == 6
+        && self.bytes[24] == 7
+        && view.value.pair.low == 0x0201
+        && view.value.pair.high == 0x06050403 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

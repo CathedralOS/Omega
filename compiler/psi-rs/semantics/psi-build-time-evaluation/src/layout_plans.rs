@@ -81,7 +81,7 @@ pub(crate) fn schema_fields(
         let (size, align, source_bits, primitive, kind, declared_range) =
             reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
                 format!(
-                    "schema data `{schema_data}` field `{}` is neither a supported primitive nor a fixed array composed of supported primitives",
+                    "schema data `{schema_data}` field `{}` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes",
                     field.name
                 )
             })?;
@@ -304,24 +304,116 @@ fn reflected_field_layout(
                 .map(|range| (range.minimum, range.maximum)),
         ));
     }
-    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
-        element_type,
-        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
-    } = typed.type_reference_table.type_reference(type_reference)
-    else {
+    match typed.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            let (element_size, element_align) =
+                reflected_repeated_element_layout(typed, *element_type)?;
+            let length = u64::try_from(*length).ok()?;
+            let size = element_size.checked_mul(length)?;
+            Some((
+                size,
+                element_align,
+                size.checked_mul(8)?,
+                None,
+                "Repeated",
+                None,
+            ))
+        }
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
+            let (size, align) =
+                reflected_record_layout(typed, *symbol, name.as_str(), &mut Vec::new())?;
+            Some((size, align, size.checked_mul(8)?, None, "Nested", None))
+        }
+        _ => None,
+    }
+}
+
+fn reflected_record_layout(
+    typed: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+    name: &str,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Option<(u64, u64)> {
+    let data = typed
+        .data_definitions()
+        .iter()
+        .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name.as_str() == name)?;
+    if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+        || data.name.as_str().contains('<')
+        || !data.type_parameters.is_empty()
+        || !data.lifetime_parameters.is_empty()
+        || visiting.contains(&data.symbol)
+    {
         return None;
-    };
-    let (element_size, element_align) = reflected_repeated_element_layout(typed, *element_type)?;
-    let length = u64::try_from(*length).ok()?;
-    let size = element_size.checked_mul(length)?;
-    Some((
-        size,
-        element_align,
-        size.checked_mul(8)?,
-        None,
-        "Repeated",
-        None,
-    ))
+    }
+    visiting.push(data.symbol);
+
+    let mut offset = 0u64;
+    let mut aggregate_align = 1u64;
+    let mut physical_fields = 0usize;
+    for member in typed.data_members(data) {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            visiting.pop();
+            return None;
+        };
+        if field.relevance.is_erased() {
+            continue;
+        }
+        physical_fields += 1;
+        let Some((size, align)) =
+            reflected_nested_member_layout(typed, field.type_reference, visiting)
+        else {
+            visiting.pop();
+            return None;
+        };
+        offset = checked_align_up(offset, align)?.checked_add(size)?;
+        aggregate_align = aggregate_align.max(align);
+    }
+    let result = (physical_fields != 0)
+        .then(|| checked_align_up(offset, aggregate_align).map(|size| (size, aggregate_align)))
+        .flatten();
+    visiting.pop();
+    result
+}
+
+fn reflected_nested_member_layout(
+    typed: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Option<(u64, u64)> {
+    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+        let size = primitive_byte_size(primitive)?;
+        return Some((size, size));
+    }
+    match typed.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            let (element_size, element_align) =
+                reflected_nested_member_layout(typed, *element_type, visiting)?;
+            Some((
+                element_size.checked_mul(u64::try_from(*length).ok()?)?,
+                element_align,
+            ))
+        }
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
+            reflected_record_layout(typed, *symbol, name.as_str(), visiting)
+        }
+        _ => None,
+    }
+}
+
+fn checked_align_up(value: u64, align: u64) -> Option<u64> {
+    if align == 0 {
+        return None;
+    }
+    value
+        .checked_add(align - 1)
+        .map(|value| value / align * align)
 }
 
 fn reflected_repeated_element_layout(
