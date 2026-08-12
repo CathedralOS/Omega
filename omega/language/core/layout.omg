@@ -21,8 +21,8 @@ use omega::language::core::option;
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, shape, and declared identity (-1 in the numeric mirror when
-// unnumbered). Fixed arrays of supported primitive elements are one Repeated
-// field. Ranges keep policy arithmetic Exact: a field is at most 4 KiB wide
+// unnumbered). Recursively nested fixed arrays composed of supported primitive
+// elements are one Repeated field. Ranges keep policy arithmetic Exact: a field is at most 4 KiB wide
 // and its alignment is a nonzero power of two at most 16. (Schema is
 // compiler-built and passed BY VALUE into plan() -- it is never
 // zero-initialized machine state, so the 0-excluding alignment range is sound.)

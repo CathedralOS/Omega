@@ -3509,7 +3509,15 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimePointeeTarget> {
-    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let Some(path) = normalized_storage_name_path_in_table(expressions, expression) else {
+        return resolve_runtime_pointee_stacked_fixed_path_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            expression,
+        );
+    };
     if path.is_empty() {
         return None;
     }
@@ -3603,6 +3611,142 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
         field_byte_offset,
         pointee_byte_size: field_layout.size,
     })
+}
+
+/// Resolve a reference-backed field path containing stacked constant array
+/// indexes (`view.record.matrix[1][0]`). `StorageNamePath` deliberately refuses
+/// stacked indices because one path member can retain only one index. Walk the
+/// checked expression tree instead, starting from the exact reference slot, so
+/// every fixed-array level contributes its own validated stride.
+fn resolve_runtime_pointee_stacked_fixed_path_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimePointeeTarget> {
+    let root = pointee_path_root_in_table(expressions, expression)?;
+    let root_path = normalized_storage_name_path_in_table(expressions, root)?;
+    if root_path.len() != 1 {
+        return None;
+    }
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        root,
+    )?;
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
+    let recast_referee_size = matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
+        .then_some(pointee_layout.size);
+    let wide_referee_slot = recast_referee_size
+        .is_some_and(|size| size > input.runtime_abi.pointer_size && slot.byte_size == size);
+    if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
+        return None;
+    }
+    let shared = matches!(
+        &slot.type_descriptor,
+        TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    );
+    if shared
+        && matches!(pointee_descriptor, TypeLayoutDescriptor::Named { .. })
+        && pointee_layout.size <= input.runtime_abi.pointer_size
+        && !input.program.machines().iter().any(|machine| {
+            machine.symbol == source_key.machine && machine.supply_mode.is_boundary_declaration()
+        })
+    {
+        return None;
+    }
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: pointee_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: pointee_descriptor.clone(),
+        layout: pointee_layout,
+    };
+    let cursor = resolve_stacked_fixed_path_cursor_in_table(
+        &input.layouts,
+        NestedFieldLayoutCursor::from_root(&root_field),
+        expressions,
+        expression,
+        root,
+    )?;
+    (cursor.layout().size > 0).then_some(RuntimePointeeTarget {
+        pointer_byte_offset: slot.byte_offset,
+        field_byte_offset: cursor.byte_offset(),
+        pointee_byte_size: cursor.layout().size,
+    })
+}
+
+fn pointee_path_root_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => pointee_path_root_in_table(expressions, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            pointee_path_root_in_table(expressions, indexed.collection)
+        }
+        ExpressionNode::Member(member) => pointee_path_root_in_table(expressions, member.receiver),
+        ExpressionNode::Name(_) => Some(expression),
+        _ => None,
+    }
+}
+
+fn resolve_stacked_fixed_path_cursor_in_table<'layout>(
+    layouts: &'layout omega_layout::LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    root: ExpressionHandle,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    if expression == root {
+        return Some(cursor);
+    }
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            resolve_stacked_fixed_path_cursor_in_table(layouts, cursor, expressions, *inner, root)
+        }
+        ExpressionNode::Member(member) => {
+            let cursor = resolve_stacked_fixed_path_cursor_in_table(
+                layouts,
+                cursor,
+                expressions,
+                member.receiver,
+                root,
+            )?;
+            resolve_nested_field_layout_step(
+                layouts,
+                cursor,
+                &member.member,
+                member.member_symbol,
+                None,
+                member.case_variant.as_ref(),
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let cursor = resolve_stacked_fixed_path_cursor_in_table(
+                layouts,
+                cursor,
+                expressions,
+                indexed.collection,
+                root,
+            )?;
+            let ExpressionNode::Integer(index) = expressions.expression(indexed.index) else {
+                return None;
+            };
+            apply_fixed_array_index_to_cursor(cursor, usize::try_from(index.value_i64()?).ok()?)
+        }
+        _ => None,
+    }
 }
 
 /// `IntegerAt` sibling of the ordinary pointee resolver. This deliberately
@@ -3730,7 +3874,7 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(
         &root_field,
         expressions,
         fixed.suffix_root,
-        ExpressionHandle::invalid(),
+        fixed.boundary,
     )?;
 
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
@@ -4154,7 +4298,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             index,
             expressions,
             fixed.suffix_root,
-            ExpressionHandle::invalid(),
+            fixed.boundary,
         ) {
             return Some(place);
         }
@@ -4175,7 +4319,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             &root_field,
             expressions,
             fixed.suffix_root,
-            ExpressionHandle::invalid(),
+            fixed.boundary,
         )?;
 
         return Some(RuntimeStoragePlace {
@@ -4227,7 +4371,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         index,
         expressions,
         fixed.suffix_root,
-        ExpressionHandle::invalid(),
+        fixed.boundary,
     ) {
         return Some(place);
     }
@@ -4248,7 +4392,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         &root_field,
         expressions,
         fixed.suffix_root,
-        ExpressionHandle::invalid(),
+        fixed.boundary,
     )?;
 
     Some(RuntimeStoragePlace {
@@ -4317,7 +4461,7 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
         &root_field,
         expressions,
         fixed.suffix_root,
-        ExpressionHandle::invalid(),
+        fixed.boundary,
     )?;
 
     Some(RuntimeFrameFixedIndexedTarget {
@@ -4398,6 +4542,9 @@ struct TableFixedIndexedTargetPath {
     collection: ExpressionHandle,
     index: i64,
     suffix_root: ExpressionHandle,
+    /// The fixed `Indexed` node already consumed as the base element. The
+    /// suffix walk stops here so a nested path does not apply that index twice.
+    boundary: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4459,6 +4606,7 @@ fn fixed_indexed_target_path_in_table(
                 collection: path.collection,
                 index: path.index,
                 suffix_root: expression,
+                boundary: path.boundary,
             })
         }
         ExpressionNode::Indexed(indexed) => {
@@ -4477,6 +4625,7 @@ fn fixed_indexed_target_path_in_table(
                     collection: path.collection,
                     index: path.index,
                     suffix_root: expression,
+                    boundary: path.boundary,
                 });
             }
             let index = const_fold_index_value_in_table(table, indexed.index)?;
@@ -4484,6 +4633,7 @@ fn fixed_indexed_target_path_in_table(
                 collection,
                 index,
                 suffix_root: expression,
+                boundary: expression,
             })
         }
         _ => None,

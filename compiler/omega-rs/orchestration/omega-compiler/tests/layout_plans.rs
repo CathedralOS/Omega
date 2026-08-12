@@ -297,6 +297,35 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn nested_fixed_primitive_arrays_remain_one_repeated_at_field() {
+    let main_path = write_program(
+        "nested-fixed-array-at",
+        r#"
+use omega::language::core::layout;
+
+data ArrayLayout { entries: [FieldEntry; 64]; }
+machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 16, size_is_dynamic: false, align: 2 }
+}
+data Samples { values: [[u16; 2]; 2]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("nested fixed array should reflect");
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+        .expect("one At placement should admit the complete nested-array extent");
+    assert_eq!(report.offsets, Some(vec![8]));
+    assert_eq!(report.size, Some(16));
+    assert_eq!(report.align, 2);
+}
+
+#[test]
 fn fixed_primitive_arrays_reject_scalar_bit_placement() {
     let main_path = write_program(
         "fixed-array-bits",

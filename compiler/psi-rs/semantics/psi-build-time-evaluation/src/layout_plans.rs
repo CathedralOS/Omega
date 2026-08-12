@@ -81,7 +81,7 @@ pub(crate) fn schema_fields(
         let (size, align, source_bits, primitive, kind, declared_range) =
             reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
                 format!(
-                    "schema data `{schema_data}` field `{}` is neither a supported primitive nor a fixed array of supported primitives",
+                    "schema data `{schema_data}` field `{}` is neither a supported primitive nor a fixed array composed of supported primitives",
                     field.name
                 )
             })?;
@@ -311,18 +311,37 @@ fn reflected_field_layout(
     else {
         return None;
     };
-    let primitive = typed.primitive_type_reference(*element_type)?;
-    let element_size = primitive_byte_size(primitive)?;
+    let (element_size, element_align) = reflected_repeated_element_layout(typed, *element_type)?;
     let length = u64::try_from(*length).ok()?;
     let size = element_size.checked_mul(length)?;
     Some((
         size,
-        element_size,
+        element_align,
         size.checked_mul(8)?,
         None,
         "Repeated",
         None,
     ))
+}
+
+fn reflected_repeated_element_layout(
+    typed: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<(u64, u64)> {
+    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+        let size = primitive_byte_size(primitive)?;
+        return Some((size, size));
+    }
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
+        element_type,
+        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+    } = typed.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let (element_size, element_align) = reflected_repeated_element_layout(typed, *element_type)?;
+    let length = u64::try_from(*length).ok()?;
+    Some((element_size.checked_mul(length)?, element_align))
 }
 
 fn field_key(schema: &str, field: &str) -> u64 {
