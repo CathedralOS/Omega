@@ -195,25 +195,9 @@ Remaining:
   Psi verifier. A Psi kernel port alone is insufficient.
 - **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
   add attributed response outcomes only when terminal wait/foreign edges can
-  derive them. Migrate Cathedral hard roots through a complete attached,
-  unit-returning, linear-parameter effect slice that retains provider/port
-  operations; an admitted or manually counted summary is not source evidence.
-  Checked production, Terminal Psi verification/interpretation/fixed fuel, and
-  the x86 native realization now retain Unit return, structural custody,
-  service-qualified port effects, exact admitted provider-execution evidence,
-  and metadata-only claim settlement without duplicating the hardware effect.
-  Cathedral's legacy timer-root canary pins the source-produced closure. The
-  same ledger-created provider execution now authorizes target lowering and
-  supplies the exact canonical installation closure; raw plan identities cannot
-  substitute. Add trusted inserted native metering. Native Unit artifacts and
-  canonical installation payloads
-  already retain the current fuel schedule, logical units, semantic site, and
-  exact byte interval—including zero-byte settlements—so charging must consume
-  those rows rather than rediscovering attribution from instructions. Inserted
-  native metering is design-blocked on the sponsor counter, exhaustion transfer,
-  and resumable continuation ABI in owner Q6. AAPCS64 Unit calls now preserve
-  aligned owned parameter homes, caller-copy aggregates, stack arguments, and
-  the link register across typed internal calls. Keep WCET and wall-clock
+  derive them. Inserted native metering must consume the installed exact-site
+  attribution rows, but is design-blocked on the sponsor counter, exhaustion
+  transfer, and resumable continuation ABI in owner Q6. Keep WCET and wall-clock
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. Explicit
