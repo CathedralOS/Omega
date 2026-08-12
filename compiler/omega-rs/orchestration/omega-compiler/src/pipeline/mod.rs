@@ -26,7 +26,6 @@ mod task_plans;
 mod timing;
 mod trust_lockfile;
 mod trust_report;
-mod wire_plans;
 mod wire_report;
 
 pub use artifacts::{

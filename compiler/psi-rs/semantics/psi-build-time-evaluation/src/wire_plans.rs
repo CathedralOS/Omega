@@ -62,7 +62,7 @@ impl FieldShape {
     }
 }
 
-pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // Classify first (immutable walk), then record (mutable): the placement
     // arena and the schema tables cannot be borrowed simultaneously.
     let mut classified = Vec::with_capacity(typed.wire_schemas().len());
@@ -112,8 +112,7 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
         .machines()
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
-    let admission =
-        policy_exists.then(|| psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(typed));
+    let admission = policy_exists.then(|| crate::BuildTimeAdmissionPlan::infer(typed));
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {
@@ -184,7 +183,7 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
 /// schema's facts and extract the authored placements, TAG-SORTED.
 fn evaluate_wire_policy(
     typed: &TypedTrees,
-    admission: &psi_build_time_evaluation::BuildTimeAdmissionPlan,
+    admission: &crate::BuildTimeAdmissionPlan,
     schema_name: &str,
     fields: &[(u64, FieldShape)],
 ) -> Result<Vec<WirePlacement>, String> {
