@@ -3829,15 +3829,29 @@ fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
 }
 
 #[test]
-fn stable_alias_index_frame_requires_an_effect_free_index() {
+fn stable_alias_index_frame_accepts_one_exact_direct_call() {
     let source = r#"
     data Main {
+        value: u64;
         cells: [u64; 2];
         other_cells: [u64; 2];
     }
 
     machine make_index() -> u64 [0..=1] {
         0
+    }
+
+    machine write_index(value: &mut u64) -> u64 [0..=1] {
+        value = 1;
+        0
+    }
+
+    machine identity_index(index: u64 [0..=1]) -> u64 [0..=1] {
+        index
+    }
+
+    machine recursive_index() -> u64 [0..=1] {
+        recursive_index()
     }
 
     machine Main::local_index_alias(&mut self) {
@@ -3848,6 +3862,21 @@ fn stable_alias_index_frame_requires_an_effect_free_index() {
 
     machine Main::call_index_alias(&mut self) {
         let alias: &mut u64 = &mut self.cells[make_index()];
+        alias = 1;
+    }
+
+    machine Main::write_call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut self.cells[write_index(&mut self.value)];
+        alias = 1;
+    }
+
+    machine Main::nested_call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut self.cells[identity_index(make_index())];
+        alias = 1;
+    }
+
+    machine Main::recursive_call_index_alias(&mut self) {
+        let alias: &mut u64 = &mut self.cells[recursive_index()];
         alias = 1;
     }
     "#;
@@ -3877,21 +3906,57 @@ fn stable_alias_index_frame_requires_an_effect_free_index() {
         "an effect-free local index preserves the alias's collection origin"
     );
 
-    let call = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::call_index_alias")
-        .expect("call-index alias machine");
-    let call_entry = typed
-        .machine_states(call)
-        .first()
-        .expect("call-index alias entry state");
-    assert!(
-        !resolver
-            .inferred_state_write_frame(call, call_entry)
-            .is_complete(),
-        "a call-computed alias index must keep the state frame opaque"
-    );
+    for (name, expected_paths) in [
+        ("Main::call_index_alias", vec!["self.cells"]),
+        (
+            "Main::write_call_index_alias",
+            vec!["self.cells", "self.value"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must publish the index call's writes and retain the coarse collection origin"
+        );
+    }
+
+    for name in [
+        "Main::nested_call_index_alias",
+        "Main::recursive_call_index_alias",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the one-direct-call alias-index rung"
+        );
+    }
 }
 
 #[test]
