@@ -331,7 +331,10 @@ dependencies = [
  "omega-core",
  "psi-checked-trees-to-terminal",
  "psi-core",
+ "psi-proof-kernel",
  "psi-terminal",
+ "psi-terminal-fixed-fuel",
+ "psi-terminal-verifier",
 ]
 
 [[package]]

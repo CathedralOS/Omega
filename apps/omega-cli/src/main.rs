@@ -4,7 +4,10 @@ use std::path::PathBuf;
 use omega_compiler::{CompileOptions, compile, compile_to_checked};
 use omega_core::allocations::CountingAllocator;
 use psi_core::{ServiceId, StructuralTypeId};
+use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
+use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use psi_terminal_verifier::verify_module;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
@@ -90,9 +93,40 @@ fn inspect_terminal(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     };
+    let verified = match verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    ) {
+        Ok(verified) => verified,
+        Err(error) => {
+            eprintln!(
+                "cannot verify terminal machine `{}`: {error}",
+                arguments.machine
+            );
+            std::process::exit(1);
+        }
+    };
+    let fixed_fuel = match derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry) {
+        Ok(fixed_fuel) => fixed_fuel,
+        Err(error) => {
+            eprintln!(
+                "cannot derive fixed fuel for terminal machine `{}`: {error}",
+                arguments.machine
+            );
+            std::process::exit(1);
+        }
+    };
+    if let Err(error) = validate_fixed_entry_fuel(&verified, &fixed_fuel) {
+        eprintln!(
+            "cannot validate fixed fuel for terminal machine `{}`: {error}",
+            arguments.machine
+        );
+        std::process::exit(1);
+    }
     print!(
         "{}",
-        terminal_summary(&arguments.machine, &lowered.semantic_module)
+        terminal_summary(&arguments.machine, &lowered.semantic_module, &fixed_fuel,)
     );
 }
 
@@ -137,7 +171,11 @@ fn parse_inspect_terminal_arguments(
     })
 }
 
-fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
+fn terminal_summary(
+    selected_machine: &str,
+    module: &TerminalModule,
+    fixed_fuel: &psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
+) -> String {
     let mut output = String::new();
     writeln!(
         output,
@@ -286,6 +324,18 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             .expect("writing to a String cannot fail");
         }
     }
+    let identity = fixed_fuel.terminal_psi();
+    writeln!(
+        output,
+        "fixed_fuel terminal_vocabulary={} terminal_fingerprint={} schedule={} entry=machine:{} ceiling_units={} relevant_preconditions={}",
+        identity.vocabulary_marker.get(),
+        identity.program_fingerprint,
+        fixed_fuel.schedule().marker(),
+        fixed_fuel.entry().get(),
+        fixed_fuel.ceiling_units(),
+        fixed_fuel.relevant_preconditions().len(),
+    )
+    .expect("writing to a String cannot fail");
     output
 }
 
