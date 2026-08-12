@@ -6138,16 +6138,10 @@ fn cross_darwin_time_host_compiles() {
     // the three POSIX calibration constants as no-call constant results.
     // COMPILE-ONLY (structural): native confirmation needs a Mac.
     let canary = pass_canary("time/cross_darwin_time_host");
-    let build_dir = std::env::temp_dir().join(format!("omega-darwin-time-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("macos_arm64".into()),
-        write_output: true,
-    })
-    .expect("darwin time-host cross-compile should succeed");
-    let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+    let scratch = std::env::temp_dir().join(format!("omega-darwin-time-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("darwin time-host cross-compile should succeed");
+    let footprints = fs::read_to_string(scratch.join("out/08_boundary_footprints.json"))
         .expect("Darwin time-host boundary footprints should be written");
     assert!(
         footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import\""),
@@ -6157,7 +6151,7 @@ fn cross_darwin_time_host_compiles() {
         footprints.contains("\"origin\": \"compiler_body_outbound_immediate_import_result\""),
         "Darwin clock calls with injected clock IDs must retain their result-import footprint"
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6251,24 +6245,10 @@ fn darwin_open_create_retains_its_variadic_adapter_footprint() {
         "omega-open-create-footprint-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&scratch);
-    let source_dir = scratch.join("src");
-    let build_dir = scratch.join("out");
-    fs::create_dir_all(&source_dir).expect("open-create source directory");
-    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-        .expect("copy open-create source");
-    fs::write(source_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write open-create target manifest");
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("Darwin open-create adapter should compile");
 
-    compile(CompileOptions {
-        root_path: source_dir.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("Darwin open-create adapter should compile");
-
-    let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+    let footprints = fs::read_to_string(scratch.join("out/08_boundary_footprints.json"))
         .expect("open-create footprints should be written");
     assert!(
         footprints.contains("\"origin\": \"compiler_body_outbound_open_create_import\""),
@@ -6284,22 +6264,9 @@ fn float_parameter_result_imports_compile_on_darwin() {
     let canary = pass_canary("float/native_float_two_args");
     let scratch =
         std::env::temp_dir().join(format!("omega-float-result-import-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&scratch);
-    let source_dir = scratch.join("src");
-    let build_dir = scratch.join("out");
-    fs::create_dir_all(&source_dir).expect("float-result import source directory");
-    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-        .expect("copy float-result import source");
-    fs::write(source_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write float-result import target manifest");
-    compile(CompileOptions {
-        root_path: source_dir.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("macos_arm64".into()),
-        write_output: true,
-    })
-    .expect("float-parameter result imports should cross-compile for macos_arm64");
-    let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("float-parameter result imports should cross-compile for macos_arm64");
+    let footprints = fs::read_to_string(scratch.join("out/08_boundary_footprints.json"))
         .expect("float-parameter result import footprints should be written");
     assert!(
         footprints.contains("\"origin\": \"compiler_body_outbound_float_import_result\""),
