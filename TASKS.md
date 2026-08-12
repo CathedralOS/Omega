@@ -218,12 +218,20 @@ Remaining:
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. The
-  field-binding surface now parses a closed `[erased]` property and preserves
-  explicit relevance through syntax, resolved, and typed trees plus their
-  snapshots; runtime validation, layout, construction, and lowering have not
-  yet consumed it. Explicit relevance supersedes “recursive means proof-only”;
-  non-layoutable `Type` values remain erased-only. Do not infer carrier relation
-  roles from relevance.
+  field-binding surface preserves explicit relevance through syntax, resolved,
+  and typed trees plus their snapshots. The first executable slice supports
+  non-generic transparent plain records: construction requires the erased term;
+  checked validation forbids runtime reads/writes/effects through it; proof,
+  multiplicity, and semantic identity retain it; the legacy proof-only
+  classifier ignores erased containment; and the checked/runtime expression
+  boundary plus record layout omit the field and its initializer subtree.
+  Expand this without compatibility scaffolding to case-bearing and generic
+  data, plan-laid and placed views, wire/codec and ABI classification, and data
+  with attached machines; all of those shapes currently fail closed. Implement
+  the settled visible-nullary-constructor omission rule (the current slice
+  requires every erased initializer explicitly). Explicit relevance supersedes
+  “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
+  Do not infer carrier relation roles from relevance.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the

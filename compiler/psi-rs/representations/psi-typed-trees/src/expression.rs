@@ -272,18 +272,43 @@ impl ExpressionTable {
         source: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> ExpressionHandle {
+        self.copy_from_filtering_struct_literal_fields(source, expression, &|_, _| true)
+    }
+
+    /// Copy one expression graph while omitting rejected struct-literal fields
+    /// before their values are visited. This is intentionally a copy-time
+    /// filter: consumers which iterate the destination arena must never observe
+    /// the omitted value subtrees, even as unreachable nodes.
+    pub fn copy_from_filtering_struct_literal_fields(
+        &mut self,
+        source: &ExpressionTable,
+        expression: ExpressionHandle,
+        retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    ) -> ExpressionHandle {
         let source_span = source.source_span(expression);
         let copied = match source.expression(expression) {
             ExpressionNode::ArrayLiteral(source_values) => {
-                let values = self.copy_expression_handles_from(source, *source_values);
+                let values = self
+                    .copy_expression_handles_from_slice_filtering_struct_literal_fields(
+                        source,
+                        source.expression_handles(*source_values),
+                        retain,
+                    );
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
             ExpressionNode::Atomic(atomic) => {
-                let value = self.copy_from(source, atomic.value);
+                let value =
+                    self.copy_from_filtering_struct_literal_fields(source, atomic.value, retain);
                 let result = atomic
                     .result
                     .is_valid()
-                    .then(|| self.copy_from(source, atomic.result))
+                    .then(|| {
+                        self.copy_from_filtering_struct_literal_fields(
+                            source,
+                            atomic.result,
+                            retain,
+                        )
+                    })
                     .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
@@ -292,8 +317,10 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Binary(binary) => {
-                let left = self.copy_from(source, binary.left);
-                let right = self.copy_from(source, binary.right);
+                let left =
+                    self.copy_from_filtering_struct_literal_fields(source, binary.left, retain);
+                let right =
+                    self.copy_from_filtering_struct_literal_fields(source, binary.right, retain);
                 self.insert(ExpressionNode::Binary(TableBinaryExpression {
                     left,
                     operator: binary.operator,
@@ -302,7 +329,8 @@ impl ExpressionTable {
             }
             ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
             ExpressionNode::Cast(cast) => {
-                let value = self.copy_from(source, cast.value);
+                let value =
+                    self.copy_from_filtering_struct_literal_fields(source, cast.value, retain);
                 let target_type = cast.target_type;
                 let target_label = self.copy_name_path_members(source, cast.target_label);
                 let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
@@ -322,9 +350,20 @@ impl ExpressionTable {
                 let receiver = call
                     .receiver
                     .is_valid()
-                    .then(|| self.copy_from(source, call.receiver))
+                    .then(|| {
+                        self.copy_from_filtering_struct_literal_fields(
+                            source,
+                            call.receiver,
+                            retain,
+                        )
+                    })
                     .unwrap_or_else(ExpressionHandle::invalid);
-                let arguments = self.copy_expression_handles_from(source, call.arguments);
+                let arguments = self
+                    .copy_expression_handles_from_slice_filtering_struct_literal_fields(
+                        source,
+                        source.expression_handles(call.arguments),
+                        retain,
+                    );
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
@@ -336,8 +375,13 @@ impl ExpressionTable {
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
             ExpressionNode::Indexed(indexed) => {
-                let collection = self.copy_from(source, indexed.collection);
-                let index = self.copy_from(source, indexed.index);
+                let collection = self.copy_from_filtering_struct_literal_fields(
+                    source,
+                    indexed.collection,
+                    retain,
+                );
+                let index =
+                    self.copy_from_filtering_struct_literal_fields(source, indexed.index, retain);
                 self.insert(ExpressionNode::Indexed(TableIndexedExpression {
                     collection,
                     index,
@@ -345,7 +389,8 @@ impl ExpressionTable {
             }
             ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value.clone())),
             ExpressionNode::Member(member) => {
-                let receiver = self.copy_from(source, member.receiver);
+                let receiver =
+                    self.copy_from_filtering_struct_literal_fields(source, member.receiver, retain);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
@@ -354,7 +399,11 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Mutable(inner_expression) => {
-                let inner_expression = self.copy_from(source, *inner_expression);
+                let inner_expression = self.copy_from_filtering_struct_literal_fields(
+                    source,
+                    *inner_expression,
+                    retain,
+                );
                 self.insert(ExpressionNode::Mutable(inner_expression))
             }
             ExpressionNode::Name(path) => {
@@ -372,12 +421,16 @@ impl ExpressionTable {
                 let start = range
                     .start
                     .is_valid()
-                    .then(|| self.copy_from(source, range.start))
+                    .then(|| {
+                        self.copy_from_filtering_struct_literal_fields(source, range.start, retain)
+                    })
                     .unwrap_or_else(ExpressionHandle::invalid);
                 let end = range
                     .end
                     .is_valid()
-                    .then(|| self.copy_from(source, range.end))
+                    .then(|| {
+                        self.copy_from_filtering_struct_literal_fields(source, range.end, retain)
+                    })
                     .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Range(TableRangeExpression {
                     start,
@@ -386,7 +439,8 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::StructLiteral(struct_literal) => {
-                let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
+                let fields =
+                    self.copy_struct_literal_fields_filtering(source, struct_literal, retain);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
                     case_name: struct_literal.case_name.clone(),
@@ -395,7 +449,8 @@ impl ExpressionTable {
             }
             ExpressionNode::String(value) => self.insert(ExpressionNode::String(value.clone())),
             ExpressionNode::Unary(unary) => {
-                let operand = self.copy_from(source, unary.operand);
+                let operand =
+                    self.copy_from_filtering_struct_literal_fields(source, unary.operand, retain);
                 self.insert(ExpressionNode::Unary(TableUnaryExpression {
                     operator: unary.operator,
                     operand,
@@ -535,6 +590,34 @@ impl ExpressionTable {
 
         for (offset, expression) in expressions.iter().enumerate() {
             let expression = self.copy_from(source, *expression);
+            self.set_expression_handle_at_offset(
+                copied,
+                offset
+                    .try_into()
+                    .expect("expression handle span count overflow"),
+                expression,
+            );
+        }
+
+        copied
+    }
+
+    fn copy_expression_handles_from_slice_filtering_struct_literal_fields(
+        &mut self,
+        source: &ExpressionTable,
+        expressions: &[ExpressionHandle],
+        retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    ) -> HandleSpan<ExpressionHandle> {
+        let copied = self.reserve_expression_handles(
+            expressions
+                .len()
+                .try_into()
+                .expect("expression handle span count overflow"),
+        );
+
+        for (offset, expression) in expressions.iter().enumerate() {
+            let expression =
+                self.copy_from_filtering_struct_literal_fields(source, *expression, retain);
             self.set_expression_handle_at_offset(
                 copied,
                 offset
@@ -695,27 +778,33 @@ impl ExpressionTable {
         ))
     }
 
-    fn copy_struct_literal_fields(
+    fn copy_struct_literal_fields_filtering(
         &mut self,
         source: &ExpressionTable,
-        fields: HandleSpan<TableStructLiteralField>,
+        literal: &TableStructLiteral,
+        retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     ) -> HandleSpan<TableStructLiteralField> {
-        // Reserve the span FIRST, then fill each slot. Copying a field VALUE
-        // (`copy_from`) can itself append struct-literal fields to THIS arena -- a
-        // NESTED struct literal `Line { start: Point { .. }, .. }` -- and an
-        // incremental `append_to_span` of the outer fields would then interleave
-        // those inner appends and break span contiguity (an arena panic). Reserve-
-        // then-set is interleave-safe, matching `copy_own_struct_literal_fields`.
-        let copied = self.reserve_struct_fields(fields.count());
+        let retained = source
+            .struct_fields(literal.fields)
+            .iter()
+            .filter(|field| retain(literal, field))
+            .collect::<Vec<_>>();
+        let copied = self.reserve_struct_fields(
+            retained
+                .len()
+                .try_into()
+                .expect("struct literal field span count overflow"),
+        );
 
-        for offset in 0..fields.count() {
-            let field = source.struct_field_at_offset(fields, offset).clone();
-            let value = self.copy_from(source, field.value);
+        for (offset, field) in retained.into_iter().enumerate() {
+            let value = self.copy_from_filtering_struct_literal_fields(source, field.value, retain);
             self.set_struct_field_at_offset(
                 copied,
-                offset,
+                offset
+                    .try_into()
+                    .expect("struct literal field span count overflow"),
                 TableStructLiteralField {
-                    name: field.name,
+                    name: field.name.clone(),
                     value,
                 },
             );

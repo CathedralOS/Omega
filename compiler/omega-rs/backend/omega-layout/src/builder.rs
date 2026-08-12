@@ -313,7 +313,8 @@ impl<'program> LayoutBuilder<'program> {
         let fields = members
             .iter()
             .filter_map(|member| match member {
-                DataMember::Field(field) => Some(field),
+                DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+                DataMember::Field(_) => None,
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
@@ -1192,4 +1193,53 @@ fn const_argument_value(
     }
     let binding = binding_for_type(*symbol, name, bindings)?;
     const_argument_value(program, binding.argument, bindings, depth + 1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_layout_plan;
+    use crate::DataShape;
+    use omega_target::NativeTarget;
+    use psi_checked_trees::{CheckFacts, CheckedTrees};
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn transparent_record_layout_excludes_erased_fields() {
+        let source = r#"
+            data Packed {
+                head: u8;
+                proof [erased]: u64;
+                tail: u8;
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = CheckedTrees::with_roots(typed, CheckFacts::default());
+
+        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let packed = plan
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Packed")
+            .expect("Packed layout");
+        assert_eq!(packed.layout.size, 2);
+        assert_eq!(packed.layout.alignment, 1);
+        let DataShape::Record { fields } = packed.shape else {
+            panic!("Packed should have record layout");
+        };
+        let fields = plan.fields.span_or_empty(fields);
+        assert_eq!(
+            fields
+                .iter()
+                .map(|field| (field.name.as_str(), field.offset))
+                .collect::<Vec<_>>(),
+            [("head", 0), ("tail", 1)]
+        );
+    }
 }

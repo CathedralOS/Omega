@@ -34,5 +34,6 @@ mod flow;
 mod generics;
 mod multiplicity;
 mod operators;
+mod relevance;
 mod termination;
 mod values;

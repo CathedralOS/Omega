@@ -182,6 +182,12 @@ pub(crate) fn validate_proof_only_consumption(
                 }
             };
             for field in fields {
+                // An erased occurrence has no runtime pointer or inline
+                // storage. Its proof-only mention is legal here and remains
+                // subject to proof and multiplicity checking elsewhere.
+                if field.relevance == psi_language_core::BindingRelevance::Erased {
+                    continue;
+                }
                 if let Some(held) = classification.proof_only_mention(program, field.type_reference)
                 {
                     diagnostics.push(Diagnostic::error(format!(

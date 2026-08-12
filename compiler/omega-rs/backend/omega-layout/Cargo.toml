@@ -18,3 +18,9 @@ psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 omega-runtime-abi = { path = "../../foundation/omega-runtime-abi" }
 omega-target = { path = "../../foundation/omega-target" }
+
+[dev-dependencies]
+psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
+psi-tokens-to-syntax-trees = { path = "../../../psi-rs/pipeline/psi-tokens-to-syntax-trees" }

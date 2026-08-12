@@ -335,7 +335,11 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -692,7 +696,11 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
 ]
 
 [[package]]
