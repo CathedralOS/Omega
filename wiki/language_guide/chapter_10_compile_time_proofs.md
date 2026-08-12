@@ -272,6 +272,11 @@ control. This noninterference rule is checked through every call and
 projection. `[erased]` is therefore a relevance judgment, not a promise that
 the implementation happens not to inspect the field.
 
+A proof-machine result likewise exists only in proof computation. It may feed
+another proof machine or an erased initializer, and a statement-position call
+may cite the machine for its established facts, but its result cannot initialize,
+return, branch, or otherwise determine runtime data.
+
 Erasure does not discharge obligations. Erased evidence may remain linear,
 borrow-scoped, lease-scoped, content-bearing, or provenance-bearing, and its
 obligations remain in the compiler frontier until explicitly consumed. What is

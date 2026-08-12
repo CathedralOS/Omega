@@ -422,6 +422,51 @@ fn erased_payload_may_flow_into_another_erased_payload() {
 }
 
 #[test]
+fn proof_machine_result_cannot_determine_runtime_data() {
+    rejected(
+        r#"
+        data Nat { case Zero; case Succ(previous: Nat); }
+        machine proof_value(value: Nat) -> i32 { 7 }
+        machine run() -> i32 { proof_value(Nat::Zero) }
+        "#,
+        "proof machine `proof_value` has no runtime result",
+    );
+}
+
+#[test]
+fn proof_machine_result_may_determine_proof_computation() {
+    lower_typed_trees(typed(
+        r#"
+        data Nat { case Zero; case Succ(previous: Nat); }
+        machine proof_value(value: Nat) -> i32 { 7 }
+        machine proof_twice(value: Nat) -> i32 {
+            proof_value(value) + proof_value(value)
+        }
+        "#,
+    ))
+    .expect("proof-machine results remain available to proof computation");
+}
+
+#[test]
+fn proof_machine_result_may_initialize_an_erased_binding() {
+    lower_typed_trees(typed(
+        r#"
+        data Nat { case Zero; case Succ(previous: Nat); }
+        data Certified { value: i32; proof [erased]: i32; }
+        machine proof_value(value: Nat) -> i32 { 7 }
+        machine run() -> i32 {
+            let certified: Certified = Certified {
+                value: 11,
+                proof: proof_value(Nat::Zero),
+            };
+            certified.value
+        }
+        "#,
+    ))
+    .expect("proof-machine results remain available to erased initializers");
+}
+
+#[test]
 fn destructure_exhaustiveness_still_includes_erased_payload() {
     rejected(
         r#"
