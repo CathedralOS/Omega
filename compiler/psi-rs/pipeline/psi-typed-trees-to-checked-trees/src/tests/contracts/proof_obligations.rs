@@ -2087,6 +2087,86 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
 }
 
 #[test]
+fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Group {
+            cells: [u32; 2];
+            other: u32;
+        }
+
+        data Main {
+            fw: Firmware;
+            group: Group;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.group.other);
+            self.touch_cells_through_member_index();
+            self.small = self.group.other;
+        }
+
+        machine Main::touch_cells_through_member_index(&mut self) {
+            let group_alias: &mut Group = &mut self.group;
+            let cell_alias: &mut u32 = &mut group_alias.cells[0];
+            cell_alias = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "the indexed projection should retain its intermediate collection and preserve a sibling witness",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Group {
+            cells: [u32; 2];
+            other: u32;
+        }
+
+        data Main {
+            fw: Firmware;
+            group: Group;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.group.cells[0]);
+            self.touch_cells_through_member_index();
+            self.small = self.group.cells[0];
+        }
+
+        machine Main::touch_cells_through_member_index(&mut self) {
+            let group_alias: &mut Group = &mut self.group;
+            let cell_alias: &mut u32 = &mut group_alias.cells[1];
+            cell_alias = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "the retained intermediate collection must invalidate an overlapping indexed witness",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
     let source = r#"
         boundary trait Firmware {

@@ -2344,6 +2344,7 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         cell: Cell;
         cells: [Cell; 2];
         values: [u64; 2];
+        group: Group;
         groups: [Group; 2];
     }
 
@@ -2535,6 +2536,12 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         alias = 20;
     }
 
+    machine Main::member_indexed_alias_projected_reborrow(&mut self) {
+        let group: &mut Group = &mut self.group;
+        let alias: &mut Cell = &mut group.cells[0];
+        alias.value = 20;
+    }
+
     machine Main::indexed_alias_self_loop(&mut self) {
         let alias: &mut Cell = &mut self.cells[0];
         alias.value = 21;
@@ -2609,6 +2616,10 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         ("Main::indexed_alias_chain", "self.cells"),
         ("Main::indexed_alias_projected_reborrow", "self.values"),
         ("Main::coarse_alias_projected_reborrow", "self.cells"),
+        (
+            "Main::member_indexed_alias_projected_reborrow",
+            "self.group.cells",
+        ),
         ("Main::indexed_alias_self_loop", "self.cells"),
         ("Main::indexed_alias_named", "self.cells"),
         ("Main::direct_indexed_call", "self.cells"),
