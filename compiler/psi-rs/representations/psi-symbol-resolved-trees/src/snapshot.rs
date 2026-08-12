@@ -272,8 +272,17 @@ pub enum DataMemberSnapshot {
     Variant {
         identity: Option<u64>,
         name: String,
+        payload: Vec<DataPayloadFieldSnapshot>,
         retired_payload_identities: Vec<u64>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DataPayloadFieldSnapshot {
+    pub identity: Option<u64>,
+    pub name: String,
+    pub relevance: &'static str,
+    pub type_reference: TypeReferenceSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -737,6 +746,16 @@ fn data_member_snapshot(program: &SymbolResolvedTrees, member: &DataMember) -> D
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             identity: variant.identity,
             name: variant.name.to_string(),
+            payload: program
+                .data_payload_fields(variant.payload)
+                .iter()
+                .map(|field| DataPayloadFieldSnapshot {
+                    identity: field.identity,
+                    name: field.name.to_string(),
+                    relevance: snapshot_binding_relevance(field.relevance),
+                    type_reference: type_reference_snapshot(program, &field.type_reference),
+                })
+                .collect(),
             retired_payload_identities: variant.retired_payload_identities.clone(),
         },
     }

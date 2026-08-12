@@ -1,5 +1,6 @@
-use super::{MachineSupplySnapshot, SymbolResolvedTreesSnapshot};
+use super::{DataMemberSnapshot, MachineSupplySnapshot, SymbolResolvedTreesSnapshot};
 use crate::SymbolResolvedTrees;
+use crate::data::{DataDefinition, DataDefinitionStorage, DataField, DataMember, DataVariant};
 use crate::domain::DomainDefinition;
 use crate::expression::ExpressionNode;
 use crate::machine::{Machine, MachineStorage};
@@ -137,4 +138,57 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         "the state return and domain carrier are both rebuilt into the type table"
     );
     assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
+fn variant_snapshot_retains_payload_only_erased_field() {
+    let mut program = SymbolResolvedTrees::default();
+    let payload = program
+        .tables
+        .declarations
+        .data_payload_fields
+        .append(DataField {
+            identity: Some(7),
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated("proof"),
+            relevance: psi_language_core::BindingRelevance::Erased,
+            type_reference: TypeReference::Named {
+                symbol: SymbolHandle::invalid(),
+                name: DiagnosticName::generated("Evidence"),
+            },
+        });
+    let member = program
+        .tables
+        .declarations
+        .data_members
+        .append(DataMember::Variant(DataVariant {
+            identity: Some(3),
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated("Certified"),
+            payload: HandleSpan::from_parts(payload, 1),
+            retired_payload_identities: Vec::new(),
+        }));
+    program.data_definitions.push(DataDefinition {
+        symbol: SymbolHandle::invalid(),
+        name: DiagnosticName::generated("Envelope"),
+        storage: DataDefinitionStorage {
+            members: HandleSpan::from_parts(member, 1),
+            ..Default::default()
+        },
+    });
+
+    let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
+    let DataMemberSnapshot::Variant { payload, .. } =
+        &snapshot.roots.data_definitions[0].members[0]
+    else {
+        panic!("variant snapshot");
+    };
+    assert_eq!(payload.len(), 1);
+    assert_eq!(payload[0].name, "proof");
+    assert_eq!(payload[0].relevance, "erased");
+    assert_eq!(payload[0].identity, Some(7));
+    assert!(matches!(
+        &payload[0].type_reference,
+        super::TypeReferenceSnapshot::Named { name, .. } if name == "Evidence"
+    ));
 }

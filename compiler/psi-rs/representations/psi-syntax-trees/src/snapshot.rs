@@ -296,11 +296,20 @@ pub enum DataMemberSnapshot {
     Variant {
         identity: Option<u64>,
         name: IdentifierSnapshot,
+        payload: Vec<DataPayloadFieldSnapshot>,
         retired_payload_identities: Vec<u64>,
     },
     Retired {
         identity: u64,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DataPayloadFieldSnapshot {
+    pub identity: Option<u64>,
+    pub name: IdentifierSnapshot,
+    pub relevance: &'static str,
+    pub type_reference: TypeReferenceSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1311,6 +1320,20 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             identity: variant.identity,
             name: snapshot_identifier(&variant.name),
+            payload: syntax_trees
+                .items
+                .data_payload_fields(variant.payload)
+                .iter()
+                .map(|field| DataPayloadFieldSnapshot {
+                    identity: field.identity,
+                    name: snapshot_identifier(&field.name),
+                    relevance: snapshot_binding_relevance(field.relevance),
+                    type_reference: snapshot_type_reference_handle(
+                        syntax_trees,
+                        field.type_reference,
+                    ),
+                })
+                .collect(),
             retired_payload_identities: variant.retired_payload_identities.clone(),
         },
         DataMember::Retired(identity) => DataMemberSnapshot::Retired {
