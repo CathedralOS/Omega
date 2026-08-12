@@ -73,9 +73,17 @@ pub(crate) fn rewrite_adapter_calls(
                 .plans()
                 .iter()
                 .find(|plan| plan.schema.trait_name == definition.name.as_str());
+            let requirement_identity =
+                crate::pipeline::provider_plans::satisfied_requirement_identity(
+                    typed,
+                    machine.name.as_str(),
+                    definition.name.as_str(),
+                    requirement.as_str(),
+                );
             let selected_row = selected_slot.and_then(|plan| {
                 plan.rows.iter().find(|row| {
                     row.method == requirement.as_str()
+                        && row.requirement_identity == requirement_identity
                         && matches!(
                             &row.binding,
                             omega_effects::provider_plan::ProviderBinding::CheckedAdapter {

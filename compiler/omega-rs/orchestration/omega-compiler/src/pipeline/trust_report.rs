@@ -38,7 +38,11 @@ pub(super) fn write_trust_report(
             .schema
             .methods
             .iter()
-            .filter(|method| plan.rows.iter().any(|row| row.method == method.name))
+            .filter(|method| {
+                plan.rows
+                    .iter()
+                    .any(|row| plan.schema.row_binds_method(row, method))
+            })
             .count();
         report.rows.push(TrustReportRow {
             commitment: format!(

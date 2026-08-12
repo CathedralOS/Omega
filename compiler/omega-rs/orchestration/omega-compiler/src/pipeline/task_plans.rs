@@ -208,7 +208,10 @@ fn selected_task_runtime_provider(
         .schema
         .methods
         .iter()
-        .filter(|method| method.name == requirement_name)
+        .filter(|method| {
+            method.name == requirement_name
+                && method.requirement_identity == authored_requirement_identity
+        })
         .collect::<Vec<_>>();
     let [method] = requirements.as_slice() else {
         return Err(vec![Diagnostic::error(match requirements.len() {

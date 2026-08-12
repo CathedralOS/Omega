@@ -1228,11 +1228,13 @@ pub fn merge_external_binding_rows(
             }
             continue;
         }
-        let operation_identity = if row.requirement_identity.is_empty() {
-            row.method.as_str()
-        } else {
-            row.requirement_identity.as_str()
-        };
+        if row.requirement_identity.is_empty() {
+            return Err(format!(
+                "external binding `{}::{}` has no exact requirement identity",
+                row.trait_name, row.method
+            ));
+        }
+        let operation_identity = row.requirement_identity.as_str();
         let key = HostOperationKey::from_names(&row.trait_name, operation_identity);
         if plan
             .bindings
@@ -2134,7 +2136,7 @@ mod binding_plan_tests {
                 target_name: "windows_x64".to_owned(),
                 trait_name: "UnresolvedService".to_owned(),
                 method: "invoke".to_owned(),
-                requirement_identity: String::new(),
+                requirement_identity: "UnresolvedService::invoke".to_owned(),
                 table_type: String::new(),
                 boundary_entry_plan: None,
                 binding: ExternalBindingKind::DllImport {
@@ -2483,7 +2485,7 @@ mod binding_plan_tests {
                 target_name: "windows_x64".to_owned(),
                 trait_name: "SourceService".to_owned(),
                 method: "invoke".to_owned(),
-                requirement_identity: String::new(),
+                requirement_identity: "SourceService::invoke".to_owned(),
                 table_type: String::new(),
                 boundary_entry_plan: Some(source_boundary.clone()),
                 binding: ExternalBindingKind::DllImport {
@@ -2498,7 +2500,7 @@ mod binding_plan_tests {
             .iter()
             .find(|(_, binding)| {
                 binding.operation_key.capability_name() == "SourceService"
-                    && binding.operation_key.operation_name() == "invoke"
+                    && binding.operation_key.operation_name() == "SourceService::invoke"
             })
             .expect("authored binding");
 
