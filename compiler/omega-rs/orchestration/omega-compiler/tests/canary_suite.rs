@@ -13219,6 +13219,22 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
 }
 
 #[test]
+fn unchanged_slice_length_ranking_rejects_in_checked_semantics() {
+    let canary = fail_canary("slices/termination_slice_length_order_unimplemented");
+    let diagnostics = check_canary(&canary)
+        .expect_err("an unchanged Slice::Length ranking must reject before lowering");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("cannot prove the `terminates by` ranking"),
+        "expected the unchanged Slice::Length ranking to be rejected, got:\n{combined}"
+    );
+}
+
+#[test]
 fn runtime_shrinking_slice_recursion_exit_canary_runs() {
     // Self-recursive dispatch with threaded scalar arguments over a shrinking
     // slice: `self.accumulate(items[1..], items[0].value)` retargets the SAME
@@ -43282,6 +43298,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "termination/proof_joint_machine_cycle_nondecreasing",
     "termination/proof_joint_machine_cycle_unmeasured",
     "termination/subtraction_spelling_retired",
+    "slices/termination_slice_length_order_unimplemented",
     "expressions/real_literal_suffix_retired",
     "expressions/match_duplicate_pattern_rejected",
     "expressions/primitive_member_access_rejected",
@@ -49015,7 +49032,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_where_missing_clobber",
     "inline_asm/asm_where_extra_clobber",
     "inline_asm/asm_where_contract",
-    "slices/termination_slice_length_order_unimplemented",
     "operators/duplicate_spelling_binding",
     "operators/app_package_provider_rejected",
     "operators/unregistered_provider_binding",
