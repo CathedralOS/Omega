@@ -1704,7 +1704,6 @@ fn lower_attached_unit_closure(
     }
 
     let mut lowered_machine_parameters = Vec::with_capacity(closure.len());
-    let mut next_claim = 1_u64;
     let mut lowered_claims = Vec::with_capacity(closure.len());
     for machine_symbol in &closure {
         let plan = unique_unit_machine(plans, *machine_symbol)?;
@@ -1726,6 +1725,9 @@ fn lower_attached_unit_closure(
         )?;
         let mut claims = Vec::with_capacity(plan.entry_claims.len());
         let mut claim_bindings = Vec::with_capacity(plan.entry_claims.len());
+        // ClaimId is machine-local; unrelated closure members must not shift
+        // this machine's canonical claim namespace.
+        let mut next_claim = 1_u64;
         for claim in &plan.entry_claims {
             if !claim.field_path.is_empty() || claim.carry != CarryPolicy::STRICT {
                 return unsupported(
@@ -7524,7 +7526,7 @@ mod tests {
         assert_eq!(module.machines[0].structural_parameters[0].position, 0);
         assert_eq!(module.machines[1].structural_parameters[0].position, 0);
         assert_eq!(module.machines[0].entry_claims[0].claim, claim_id(1));
-        assert_eq!(module.machines[1].entry_claims[0].claim, claim_id(2));
+        assert_eq!(module.machines[1].entry_claims[0].claim, claim_id(1));
 
         let [root_call] = module.machines[0].blocks[0].operations.as_slice() else {
             panic!("root emits one call before its Unit return")
@@ -7566,7 +7568,7 @@ mod tests {
         };
         assert_eq!(*boundary, boundary_machine_id(1));
         assert_eq!(structural_arguments[0].place, place_id(3));
-        assert_eq!(claim_settlements[0].claim, claim_id(2));
+        assert_eq!(claim_settlements[0].claim, claim_id(1));
         assert!(requirement_obligations.is_empty());
         assert!(matches!(
             module.machines[0].blocks[0].terminator,
