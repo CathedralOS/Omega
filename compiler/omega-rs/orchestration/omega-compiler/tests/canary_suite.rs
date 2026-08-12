@@ -2588,9 +2588,12 @@ machine Main::main(&mut self) {
             .expect("create compiler-body general x86 binary-write source directory");
         fs::write(source.join("main.omg"), source_text)
             .expect("write compiler-body general x86 binary-write source");
-        fs::write(source.join("build.omg"), "target linux_x64 {\n}\n")
-            .expect("write compiler-body general x86 binary-write target");
-        compile(CompileOptions {
+        fs::write(
+            source.join("build.omg"),
+            hosted_main_program_entry_build("linux_x64"),
+        )
+        .expect("write exact compiler-body general x86 binary-write target entry");
+        production_compile(CompileOptions {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some("linux_x64".into()),
