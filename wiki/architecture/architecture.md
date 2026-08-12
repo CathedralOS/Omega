@@ -11,8 +11,8 @@ lowers?"
 - [Repository Layout](repository_layout.md): workspace/folder shape and placement rules.
 - [Pipeline Architecture](pipeline/pipeline.md): semantic spine, durable stages, and the normalized questions every stage should answer.
 - [Terminal Psi Architecture](pipeline/terminal_psi.md): the Psi-to-Omega
-  boundary, why no current representation is the portable form, and the
-  expression-lowering, verifier, interpreter, and backend migration.
+  boundary, why the bootstrap graph/control representations are not portable,
+  and the terminal producer, verifier, interpreter, and Omega consumers.
 - [Codegen Representation Cleanup](codegen_representation_cleanup.md): standing plan to remove re-declared representations and annotation-only stages so the backend obeys the Architecture Rule below.
 - [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):

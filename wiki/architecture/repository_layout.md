@@ -35,24 +35,11 @@ object-file writers, the linker crates, and Wasm/RISC-V ISA crates) are still
 folded into other crates or do not exist yet. They are placement intent, not
 current packages.
 
-> **TRANSITIONAL TREE (2026-08-02).** Existing bootstrap crates drawn below live
-> under **`compiler/omega-rs/`**. New target-neutral terminal foundations live
-> under **`compiler/psi-rs/`**, beginning with
-> `foundation/psi-source`, `foundation/psi-core`, `representations/psi-tokens`,
-> `representations/psi-terminal`, `pipeline/psi-source-files-to-tokens`,
-> `semantics/psi-proof-kernel`, `semantics/psi-checked-interpreter`,
-> `semantics/psi-terminal-verifier`, and `semantics/psi-terminal-interpreter`;
-> parsing-through-lowering crates now live there; their former Omega package
-> adapters are retired. The unused
-> `omega-core` source/span, exact-bignum, const-value,
-> content, built-in-value-domain, atomic-ordering, cast-form,
-> operator-spelling, and inline-assembly aliases are retired; consumers use
-> their Psi owners directly. The unused generic trust grant/receipt carrier is
-> also retired; concrete semantic commitments keep their identities and
-> receipts with their admission consumers. `omega-core` now contains only
-> Omega execution/build utilities. The
-> diagram still uses the old unprefixed shorthand for the larger Omega tree.
-> `compiler/` also holds the bootstrap lattice rungs documented in
+> **Ownership boundary.** `compiler/psi-rs/` owns parsing and target-neutral
+> semantics through terminal Psi. `compiler/omega-rs/` owns the remaining
+> bootstrap lowering path plus long-term provider, ABI, target, artifact, and
+> execution machinery. The tree below marks that distinction explicitly;
+> bootstrap-lattice rungs are documented separately in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 
 ```text
@@ -234,9 +221,8 @@ Omega/
 ### Source And Packages
 
 - `foundation/` stays dependency-light. If it needs semantic or target details,
-  it is in the wrong layer. `omega-core` retains only Omega execution/build
-  utilities; source/span and target-neutral semantic foundations live in their
-  Psi owners.
+  it is in the wrong layer. `omega-core` contains Omega execution/build
+  utilities; source and target-neutral semantic foundations belong to Psi.
 - Source-preserving syntax data belongs in `representations/`; source-to-syntax
   transforms belong in `pipeline/`.
 - Package manifests, package graphs, and loading are placement intent for a
