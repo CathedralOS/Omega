@@ -1380,6 +1380,16 @@ fn validate_machine(
             ContractClauseKind::Ensures,
         )?;
     }
+    if machine
+        .contract
+        .ensures
+        .windows(2)
+        .any(|pair| pair[0].obligation >= pair[1].obligation)
+    {
+        return Err(ModuleError::NonCanonicalContractEnsures(
+            machine.contract.id,
+        ));
+    }
 
     validate_control_flow(machine, machines, &blocks, &value_types)?;
     validate_structural_frontier(module, machine, machines, &blocks)
@@ -3938,6 +3948,7 @@ pub enum ModuleError {
     },
     DuplicateEdge(EdgeId),
     DuplicateObligation(ObligationId),
+    NonCanonicalContractEnsures(ContractId),
     DuplicateValue(ValueId),
     DuplicatePlace(PlaceId),
     DuplicateClaim(ClaimId),
