@@ -155,7 +155,8 @@ Current ownership is:
   result and later transparent chains. The terminal place may follow a prefix
   of effect-free caller-isolated scratch locals and direct local `&mut` aliases,
   including mutable bindings and results of other structurally transparent
-  helpers.
+  helpers. The same exact returned-place relation composes when such a result is
+  supplied directly as a statement-call argument.
   Value-shaped assignments with effect-free right-hand sides may write through
   those origins, including exact transparent call-produced targets, without
   changing the relation; their ordinary exact frames remain published, and
@@ -163,9 +164,10 @@ Current ownership is:
   rebind updates that local's origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
-  rebinding, discarded/statement calls, computed initializers, and recursive
-  helper relations remain opaque. For an attached helper, its actual receiver
-  supplies the caller origin when the result is rooted in `self`. Other
+  rebinding, discarded/statement calls, opaque or recursive result producers,
+  effectful index computations, and computed initializers remain opaque. For an
+  attached helper, its actual receiver supplies the caller origin when the
+  result is rooted in `self`. Other
   nontrivial results remain opaque; signature lifetime elision alone is not
   relational frame evidence. An unsummarized body falls back to its receiver
   plus every potentially exclusive place argument.

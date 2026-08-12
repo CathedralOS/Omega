@@ -1333,6 +1333,8 @@ fn summarize_resolved_call(
             parameters,
             arguments,
             &[],
+            symbols,
+            active_states,
         )? && !written.contains(&instantiated)
         {
             written.push(instantiated);
@@ -1837,6 +1839,101 @@ fn transparent_call_result_origin(
         },
         FramePathPrecision::CollectionCoarse => argument_origin,
     })
+}
+
+/// Recover a transparent returned-place origin without imposing a caller
+/// namespace. This is used while instantiating a callee frame through a nested
+/// statement-call argument: direct places keep their existing spelling, while
+/// a structurally transparent helper selects and composes one of its actual
+/// mutable-reference origins. Opaque or recursive helpers fail closed.
+fn transparent_place_expression_origin(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> Option<FramePlaceOrigin> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            transparent_place_expression_origin(program, *inner, symbols, active_states)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            if expression_is_effectful_for_transparent_result(program, indexed.index) {
+                return None;
+            }
+            let mut origin = transparent_place_expression_origin(
+                program,
+                indexed.collection,
+                symbols,
+                active_states,
+            )?;
+            origin.precision = FramePathPrecision::CollectionCoarse;
+            Some(origin)
+        }
+        ExpressionNode::Member(member) => {
+            let origin = transparent_place_expression_origin(
+                program,
+                member.receiver,
+                symbols,
+                active_states,
+            )?;
+            Some(match origin.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: format!("{}.{}", origin.path, member.member.as_str()),
+                    precision: FramePathPrecision::Exact,
+                },
+                FramePathPrecision::CollectionCoarse => origin,
+            })
+        }
+        ExpressionNode::Call(call) => {
+            let (callee_machine, callee_state) =
+                machine_state_by_symbol(program, call.target_symbol).or_else(|| {
+                    (!call.receiver.is_valid())
+                        .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
+                        .flatten()
+                })?;
+            if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
+                return None;
+            }
+            let result_origin = transparent_callee_result_origin(
+                program,
+                callee_machine,
+                callee_state,
+                symbols,
+                active_states,
+            )?;
+            let parameters = program.state_parameters(callee_state);
+            let result_parameter = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
+            let actual = if result_parameter.is_self {
+                if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
+                    return None;
+                }
+                call.receiver
+            } else {
+                let (argument_index, _) = parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .enumerate()
+                    .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
+                *program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .get(argument_index)?
+            };
+            let actual_origin =
+                transparent_place_expression_origin(program, actual, symbols, active_states)?;
+            let (_, suffix) = split_place_root(&result_origin.place.path);
+            Some(match actual_origin.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: append_place_suffix(&actual_origin.path, suffix),
+                    precision: result_origin.place.precision,
+                },
+                FramePathPrecision::CollectionCoarse => actual_origin,
+            })
+        }
+        _ => frame_place_path(program, expression),
+    }
 }
 
 fn transparent_callee_result_origin(
@@ -2665,6 +2762,8 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                         program.state_parameters(target.state),
                         &edge.arguments,
                         &equation.locals,
+                        symbols,
+                        &mut outer_active_states.to_vec(),
                     )?
                     else {
                         continue;
@@ -3072,6 +3171,8 @@ fn summarize_transition_target_written_paths(
                     parameters,
                     arguments,
                     source_locals,
+                    symbols,
+                    active_states,
                 )? && !instantiated.contains(&path)
                 {
                     instantiated.push(path);
@@ -3214,6 +3315,8 @@ fn instantiate_written_path(
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
     locals: &[String],
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Option<String>> {
     let (root, suffix) = split_place_root(relative);
     if root == "self" {
@@ -3225,7 +3328,7 @@ fn instantiate_written_path(
         .position(|parameter| parameter.name.as_str() == root)
     {
         let argument = *arguments.get(argument_index)?;
-        let base = frame_place_path(program, argument)?;
+        let base = transparent_place_expression_origin(program, argument, symbols, active_states)?;
         return Some(Some(match base.precision {
             FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
             FramePathPrecision::CollectionCoarse => base.path,

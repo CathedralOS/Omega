@@ -2743,6 +2743,10 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine write_argument(value: &mut u64) {
+        value = 8;
+    }
+
     machine return_local_alias(value: &mut u64) -> &mut u64 {
         let alias: &mut u64 = &mut value;
         alias
@@ -2931,6 +2935,14 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine opaque_choose<'first, 'second>(
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'second mut u64 {
+        overwrite_alias_binding(&mut first);
+        second
+    }
+
     machine return_escaping_call_rebound_alias<'first, 'second>(
         first: &'first mut u64,
         second: &'second mut u64
@@ -2960,6 +2972,18 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         let first: &mut u64 = return_alias(&mut self.value);
         let second: &mut u64 = &mut first;
         second = 3;
+    }
+
+    machine Main::transparent_result_statement_argument(&mut self) {
+        write_argument(return_alias(&mut self.value));
+    }
+
+    machine Main::opaque_result_statement_argument(&mut self) {
+        write_argument(opaque_choose(&mut self.value, &mut self.other));
+    }
+
+    machine Main::effectful_index_statement_argument(&mut self) {
+        write_argument(&mut self.cells[make_index()]);
     }
 
     machine Main::nested_call_produced_alias_chain(&mut self) {
@@ -3278,6 +3302,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::alias_chain_rebind_from_alias", "self.value"),
         ("Main::indexed_alias_rebind", "self.other"),
         ("Main::call_produced_alias_chain", "self.value"),
+        ("Main::transparent_result_statement_argument", "self.value"),
         ("Main::nested_call_produced_alias_chain", "self.value"),
         (
             "Main::effectful_call_initialized_alias_helper_result",
@@ -3350,6 +3375,40 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "{name} must substitute the transparent call result back to its argument origin"
         );
     }
+
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::opaque_result_statement_argument")
+        .expect("opaque nested-result argument caller");
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .expect("opaque nested-result argument caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(machine, entry)
+            .complete_paths(),
+        Some(["self".to_owned(), "self.value".to_owned()].as_slice()),
+        "an opaque nested result must retain its conservative whole-receiver fence"
+    );
+
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::effectful_index_statement_argument")
+        .expect("effectful nested index argument caller");
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .expect("effectful nested index argument caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(machine, entry)
+            .complete_paths(),
+        Some(["self".to_owned(), "self.cells".to_owned()].as_slice()),
+        "a call hidden in the index must retain its conservative receiver and collection fences"
+    );
 
     let machine = typed
         .machines()
