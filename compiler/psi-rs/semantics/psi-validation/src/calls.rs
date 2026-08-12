@@ -2091,6 +2091,14 @@ fn transparent_callee_result_origin(
                 }
                 StatementNode::Expression(expression)
                     if !expression_is_effectful_for_transparent_result(program, *expression) => {}
+                StatementNode::Call(call)
+                    if statement_call_preserves_transparent_result(
+                        program,
+                        callee_machine,
+                        call,
+                        symbols,
+                        active_states,
+                    ) => {}
                 _ => return None,
             }
         }
@@ -2159,6 +2167,64 @@ fn isolated_local_initializer_preserves_transparent_result(
             let (root, _) = split_place_root(path);
             isolated_local_roots.iter().any(|local| local == root)
         })
+}
+
+/// One direct Unit statement call is neutral to a returned-place relation when
+/// its inferred frame is complete and empty. Explicitly discarded value
+/// results, effectful arguments, and every nonempty or opaque frame remain
+/// fences; this rung does not yet reason about statement-call writes.
+fn statement_call_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    call: &TableCall,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> bool {
+    if call.discards_result {
+        return false;
+    }
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    if arguments
+        .iter()
+        .any(|argument| expression_is_effectful_for_transparent_result(program, *argument))
+    {
+        return false;
+    }
+
+    let mut diagnostics = Vec::new();
+    let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return false;
+    }
+    let receiver_members = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect::<Vec<_>>();
+    known_call_written_paths_for_parts(
+        program,
+        call.target_symbol,
+        call.target.as_str(),
+        &receiver_members,
+        arguments,
+        current_machine,
+        &machine_symbols,
+        symbols,
+        active_states,
+    )
+    .or_else(|| {
+        known_boundary_call_written_paths_for_parts(
+            program,
+            &machine_symbols,
+            symbols,
+            &receiver_members,
+            call.target.as_str(),
+            arguments,
+        )
+    })
+    .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))
+    .is_some_and(|written| written.is_empty())
 }
 
 fn parameter_relative_alias_position(

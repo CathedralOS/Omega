@@ -408,11 +408,13 @@ customer-shaped compiler concept is introduced.
   Value-shaped assignments with effect-free right-hand sides may write through
   those origins, including exact transparent call-produced targets, without
   changing the relation, while their ordinary frames remain published;
-  effect-free discarded expressions are neutral. A direct helper-local alias
-  rebind updates that name's origin without redirecting prior reborrows; a
-  structurally transparent helper result may supply the replacement through the
-  same origin algebra. Other computed rebinding, discarded/statement calls,
-  opaque or recursive result producers, effectful index computations, other
+  effect-free discarded expressions and direct Unit statement calls with
+  complete empty frames are neutral. Explicitly discarded call results and
+  statement calls with nonempty or opaque frames remain fences. A direct
+  helper-local alias rebind updates that name's origin without redirecting prior
+  reborrows; a structurally transparent helper result may supply the replacement
+  through the same origin algebra. Other computed rebinding, opaque or recursive
+  result producers, effectful index computations, other
   computed helper initializers, and nontrivial results remain opaque. Opaque,
   recursive, or scratch initializer calls with any write outside those isolated
   roots remain fences.
