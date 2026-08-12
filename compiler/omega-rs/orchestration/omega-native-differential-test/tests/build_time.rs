@@ -35,6 +35,7 @@ machine Main::main(&mut self) -> i32 { 1 }
 "#,
     );
     let checked = compile_to_checked(&main_path, None).expect("entry probe should compile");
+    assert_eq!(checked.build_evaluation_usage(), None);
 
     let selected = interpret_entry(&checked, "Probe::start", &[]);
     assert_eq!(selected.error, None);

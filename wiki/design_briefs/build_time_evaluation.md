@@ -193,6 +193,12 @@ ordinary interpreted outcomes retain the resulting usage, and equal
 invocations reproduce it. This telemetry is not Terminal Psi fuel and cannot
 support an IR fixed-work certificate.
 
+Compiler build-machine evaluation retains that precursor usage alongside the
+computed build configuration in checked and full compilation reports. It does
+not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
+machines lower through terminal Psi, the canonical schedule replaces this
+precursor count rather than being inferred from it.
+
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records
 `result_cells` for successful semantic evaluation.

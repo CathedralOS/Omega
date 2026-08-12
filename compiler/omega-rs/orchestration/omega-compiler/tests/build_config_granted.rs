@@ -9,7 +9,7 @@
 //! real streams. The fail halves live in canaries/fail/build
 //! (undeclared services; unpinned custom boundary).
 
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, compile, compile_to_checked};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -79,13 +79,24 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     .expect("write main.omg");
 
     let build_dir = project.join("build");
-    compile(CompileOptions {
+    let checked = compile_to_checked(&project.join("main.omg"), None)
+        .expect("checked build evaluation should succeed");
+    let checked_usage = checked
+        .build_evaluation_usage()
+        .expect("build machine evaluation must publish precursor usage");
+    assert_eq!(checked_usage.usage_schema_version, 1);
+    assert_eq!(checked_usage.step_schedule_marker, 1);
+    assert!(checked_usage.fuel_units > 0);
+    assert!(checked_usage.result_cells > 0);
+
+    let report = compile(CompileOptions {
         root_path: PathBuf::from(project.join("main.omg")),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
+    assert_eq!(report.build_evaluation_usage, Some(checked_usage));
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
         .expect("the build machine should have staged stage/asset.bin at compile time");

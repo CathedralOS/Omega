@@ -5,11 +5,11 @@ pub(crate) use psi_source_files_to_tokens as lexer;
 pub(crate) use psi_tokens_to_syntax_trees as parser;
 
 pub use pipeline::{
-    AdmittedExternalRootEntryFactHandoff, ByteOrder, CheckedCompilation, CompileOptions,
-    CompileReport, ConsumptionInstant, DataSymbolId, EntryStubId, ExecutableTcbBuildPolicy,
-    InstalledImageSubextent, InstalledProgramStorageRoots, IntegerInterpretation,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
-    MaterializationContext, MaterializationDiagnostic, MaterializationWrite,
+    AdmittedExternalRootEntryFactHandoff, BuildEvaluationUsage, ByteOrder, CheckedCompilation,
+    CompileOptions, CompileReport, ConsumptionInstant, DataSymbolId, EntryStubId,
+    ExecutableTcbBuildPolicy, InstalledImageSubextent, InstalledProgramStorageRoots,
+    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    MaterializationAction, MaterializationContext, MaterializationDiagnostic, MaterializationWrite,
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, PartitionedProgramStorageRoots,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,

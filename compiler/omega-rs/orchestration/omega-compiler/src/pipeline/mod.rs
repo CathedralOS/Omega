@@ -40,6 +40,7 @@ pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
+pub use build_config::BuildEvaluationUsage;
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{CheckedCompilation, compile_to_checked};
 pub use compile_options::CompileOptions;

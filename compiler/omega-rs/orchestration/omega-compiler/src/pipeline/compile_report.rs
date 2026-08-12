@@ -9,6 +9,9 @@ pub struct CompileReport {
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
     pub program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
+    /// Deterministic accounting from the transitional typed-tree build
+    /// evaluator. This is explicitly not terminal-Psi fuel.
+    pub build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
 }
 
 impl CompileReport {
