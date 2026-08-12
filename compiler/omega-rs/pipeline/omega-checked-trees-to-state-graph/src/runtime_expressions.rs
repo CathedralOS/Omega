@@ -24,14 +24,14 @@ pub(crate) fn copy_runtime_expression_slice(
     program: &CheckedTrees,
     expressions: &[ExpressionHandle],
 ) -> HandleSpan<ExpressionHandle> {
-    let mut copied = HandleSpan::empty();
-    for expression in expressions {
-        let expression = copy_runtime_expression(target, program, *expression);
-        target
-            .expressions
-            .push_expression_handle(&mut copied, expression);
-    }
-    copied
+    // Copying an expression recursively appends its own child-handle spans to
+    // this table. Stage the copied roots so those recursive spans cannot split
+    // the contiguous span promised for this sibling list.
+    let copied = expressions
+        .iter()
+        .map(|expression| copy_runtime_expression(target, program, *expression))
+        .collect::<Vec<_>>();
+    target.expressions.insert_expression_handles(copied)
 }
 
 fn runtime_field_is_retained(
@@ -73,13 +73,58 @@ fn runtime_field_is_retained(
 
 #[cfg(test)]
 mod tests {
-    use super::copy_runtime_expression;
+    use super::{copy_runtime_expression, copy_runtime_expression_slice};
     use omega_state_graph::StateGraph;
     use psi_checked_trees::{CheckFacts, CheckedTrees};
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn runtime_copy_keeps_nested_expression_roots_contiguous() {
+        let source = r#"
+            data Main {}
+            machine Main::run() -> i32 {
+                let first: i32 = 1 + 2;
+                let second: i32 = 3 + 4;
+                first + second
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let roots = typed
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(handle, expression)| {
+                matches!(
+                    expression,
+                    psi_checked_trees::expression::ExpressionNode::Binary(_)
+                )
+                .then_some(handle)
+            })
+            .take(2)
+            .collect::<Vec<_>>();
+        assert_eq!(roots.len(), 2);
+        let checked = CheckedTrees::with_roots(typed, CheckFacts::default());
+        let mut graph = StateGraph::default();
+
+        let copied = copy_runtime_expression_slice(&mut graph, &checked, &roots);
+
+        assert_eq!(graph.expressions.expression_handles(copied).len(), 2);
+        assert!(
+            graph
+                .expressions
+                .expression_handles(copied)
+                .iter()
+                .all(|handle| matches!(
+                    graph.expressions.expression(*handle),
+                    psi_checked_trees::expression::ExpressionNode::Binary(_)
+                ))
+        );
+    }
 
     #[test]
     fn runtime_copy_omits_synthesized_nullary_erased_initializer() {
