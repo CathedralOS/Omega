@@ -9,15 +9,9 @@
 //! real streams. The fail halves live in canaries/fail/build
 //! (undeclared services; unpinned custom boundary).
 
-use omega_compiler::{CompileOptions, compile_to_checked, compile_with_test_entry};
+use omega_compiler::{CompileOptions, compile, compile_to_checked};
 use std::path::PathBuf;
 use std::process::Command;
-
-fn compile(
-    options: CompileOptions,
-) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    compile_with_test_entry(options, "Main::main")
-}
 
 fn executable_name() -> &'static str {
     if cfg!(windows) {
@@ -29,6 +23,7 @@ fn executable_name() -> &'static str {
 
 #[test]
 fn declared_filesystem_build_machine_stages_at_compile_time() {
+    let profile = omega_target::TargetProfile::host();
     let project =
         std::env::temp_dir().join(format!("omega-build-config-granted-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
@@ -40,6 +35,8 @@ fn declared_filesystem_build_machine_stages_at_compile_time() {
         format!(
             r#"use omega::language::std::console;
 use omega::language::std::filesystem_host;
+
+target {target} {{}}
 
 data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
 data Build {{ subsystem: Subsystem; freestanding: bool; }}
@@ -55,6 +52,7 @@ machine Stager::build(&mut self, b: &mut Build)
 reaches
     FilesystemHost + Console
 {{
+    b.roots.bind({root_owner}::ProgramEntry, Main::main);
     self.log.write_line("build: staging");
     self.fd = self.fs.create("{stage}/asset.bin", 438);
     transition self.fd >= 0 {{ true -> put(b) _ -> done(b) }}
@@ -72,6 +70,8 @@ reaches
             // (`C:\Users\...` would read `\U` as an escape sequence); every
             // host fs API accepts them.
             stage = stage.display().to_string().replace('\\', "/"),
+            target = profile.target_name(),
+            root_owner = profile.root_slot_owner_name(),
         ),
     )
     .expect("write build.omg");
@@ -85,8 +85,9 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     .expect("write main.omg");
 
     let build_dir = project.join("build");
-    let checked = compile_to_checked(&project.join("main.omg"), None)
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
         .expect("checked build evaluation should succeed");
+    assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
     let checked_usage = checked
         .build_evaluation_usage()
         .expect("build machine evaluation must publish precursor usage");
@@ -98,10 +99,11 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let report = compile(CompileOptions {
         root_path: PathBuf::from(project.join("main.omg")),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some(profile.target_name().to_owned()),
         write_output: true,
     })
     .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
+    assert!(report.wrote_output);
     assert_eq!(report.build_evaluation_usage, Some(checked_usage));
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
