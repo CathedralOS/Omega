@@ -1,17 +1,20 @@
-//! Every sample app under `samples/` must compile.
+//! Every sample app under `samples/` must reach checked semantics.
 //!
 //! Samples otherwise have almost no compile coverage — only `cli_mvp` is built
 //! by the canary suite and only the dungeon is parse-tested — so they silently
 //! bit-rot against language changes. That is exactly what happened when
 //! exact-arithmetic (decision 17) became a proof obligation: 22 of the 48
 //! samples stopped compiling and nothing noticed. This harness is the guard:
-//! one iterating test that compiles every sample `main.omg` under `samples/` for the default
-//! target and reports *all* broken samples at once, so a language change that
-//! breaks a demo fails the suite the same day.
+//! one iterating test that checks every sample `main.omg` under `samples/` for
+//! the default target and reports *all* broken samples at once, so a language
+//! change that breaks a demo fails the suite the same day. This broad source-
+//! compatibility sweep is entry-agnostic; native execution remains a separate
+//! oracle with an explicit temporary entry choice.
 //!
 //! Two guards:
-//!  * `all_samples_compile` — every sample `main.omg` under `samples/` must compile (catches
-//!    staleness like the decision-17 break).
+//!  * `all_samples_reach_checked_trees` — every sample `main.omg` under
+//!    `samples/` must reach checked semantics (catches staleness like the
+//!    decision-17 break without inventing deployment entry policy).
 //!  * `samples_with_documented_exit_run_correctly` — every sample whose comment
 //!    states `Expected exit: N` is compiled, RUN, and its exit asserted. This
 //!    catches runtime miscompiles that compile cleanly: stack_vm exited 71 vs 70
@@ -136,41 +139,30 @@ fn repo_root() -> PathBuf {
 }
 
 #[test]
-fn all_samples_compile() {
+fn all_samples_reach_checked_trees() {
     let sample_mains = sample_mains();
     let mut failures: Vec<String> = Vec::new();
     for main_path in &sample_mains {
         let name = sample_name(main_path);
-        let build_dir = std::env::temp_dir().join(format!(
-            "omega-sample-compile-{name}-{}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&build_dir);
 
-        // Target-shaped samples compile with their EXPLICIT cross target
+        // Target-shaped samples check with their EXPLICIT cross target
         // (the registered `uefi_x64`, 2026-07-11v) -- the sample IS the
-        // EFI image; a host-format compile can never satisfy it. Mirrors
+        // EFI image; host-target checking cannot satisfy it. Mirrors
         // the canary suite's CROSS_TARGET_PASS_CANARIES.
         let target_name = if name.contains("uefi_hello") {
             Some("uefi_x64".to_owned())
         } else {
             None
         };
-        let result = compile(CompileOptions {
-            root_path: main_path.clone(),
-            build_dir: Some(build_dir.clone()),
-            target_name,
-            write_output: true,
-        });
+        let result = compile_to_checked(main_path, target_name.as_deref());
         if let Err(error) = result {
             failures.push(format!("{name}: {error:?}"));
         }
-        let _ = fs::remove_dir_all(&build_dir);
     }
 
     assert!(
         failures.is_empty(),
-        "{} of {} samples failed to compile (run the sample's main.omg through \
+        "{} of {} samples failed to reach checked trees (run the sample's main.omg through \
          omega-cli for the full diagnostic):\n{}",
         failures.len(),
         sample_mains.len(),
