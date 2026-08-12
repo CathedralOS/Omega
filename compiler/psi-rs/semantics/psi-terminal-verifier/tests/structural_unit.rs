@@ -161,6 +161,59 @@ fn claims_are_linear_across_unit_operations_and_return() {
 }
 
 #[test]
+fn affine_structural_arguments_transfer_at_most_once() {
+    let mut repeated = hard_root_module();
+    for machine in &mut repeated.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims.clear();
+    }
+    unit_call_mut(&mut repeated).clear();
+    repeated.machines[1].blocks[0].operations.truncate(1);
+    let mut second_call = repeated.machines[0].blocks[0].operations[0].clone();
+    second_call.id = operation_id(4);
+    repeated.machines[0].blocks[0].operations.push(second_call);
+    assert_eq!(
+        validate_module(&repeated).unwrap_err(),
+        ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: operation_id(4),
+            place: place_id(1),
+        }
+    );
+
+    for machine in &mut repeated.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+    }
+    validate_module(&repeated).expect("unrestricted structural arguments remain reusable");
+
+    let mut repeated_boundary = hard_root_module();
+    repeated_boundary.machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    repeated_boundary.machines[0].entry_claims.clear();
+    repeated_boundary.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    let boundary_call = Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCallUnit {
+            boundary: boundary_id(1),
+            structural_arguments: vec![StructuralArgument { place: place_id(1) }],
+            claim_settlements: Vec::new(),
+            requirement_obligations: Vec::new(),
+        },
+    };
+    let mut second_boundary_call = boundary_call.clone();
+    second_boundary_call.id = operation_id(4);
+    repeated_boundary.machines[0].blocks[0].operations = vec![boundary_call, second_boundary_call];
+    assert_eq!(
+        validate_module(&repeated_boundary).unwrap_err(),
+        ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: operation_id(4),
+            place: place_id(1),
+        }
+    );
+}
+
+#[test]
 fn port_write_requires_a_declared_reachable_service_and_preserves_claims() {
     let mut outside_ceiling = hard_root_module();
     outside_ceiling.services.push(ServiceDeclaration {

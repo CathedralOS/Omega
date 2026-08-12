@@ -7587,6 +7587,43 @@ mod tests {
     }
 
     #[test]
+    fn attached_unit_affine_argument_lowers_as_an_owned_transfer_without_a_claim_row() {
+        let mut checked = hard_root_checked_fixture();
+        let plans = &mut checked.facts.flow.terminal_unit_effects.machines;
+        for plan in plans.iter_mut() {
+            plan.structural_parameters[0].multiplicity = Multiplicity::Affine;
+            plan.entry_claims.clear();
+        }
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            claim_transfers, ..
+        } = &mut plans[0].operations[0]
+        else {
+            unreachable!()
+        };
+        claim_transfers.clear();
+        plans[1].operations.retain(|operation| {
+            !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::BoundaryCallUnit { .. }
+            )
+        });
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("the checked affine Unit transfer should lower and verify");
+        assert_eq!(
+            lowered.semantic_module.machines[0].structural_parameters[0].multiplicity,
+            StructuralMultiplicity::Affine
+        );
+        let OperationKind::CallUnit {
+            claim_transfers, ..
+        } = &lowered.semantic_module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        assert!(claim_transfers.is_empty());
+    }
+
+    #[test]
     fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
         let mut checked = hard_root_checked_fixture();
         checked
