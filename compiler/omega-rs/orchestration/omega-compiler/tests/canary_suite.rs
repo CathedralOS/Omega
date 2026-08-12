@@ -1647,7 +1647,7 @@ fn compiler_body_from_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() 
             .expect("copy compiler-body from-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body from-indexed target");
 
@@ -1710,7 +1710,7 @@ fn compiler_body_to_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
         .expect("copy compiler-body to-indexed platform binding");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body to-indexed target");
 
@@ -1767,7 +1767,7 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
             .expect("copy compiler-body indexed-to-pointee canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body indexed-to-pointee target");
 
@@ -1820,7 +1820,7 @@ fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifact
             .expect("copy compiler-body frame-base-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-base-indexed target");
 
@@ -1892,7 +1892,7 @@ fn compiler_body_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifacts
             .expect("copy compiler-body machine-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed target");
 
@@ -1951,7 +1951,7 @@ fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifa
             .expect("copy compiler-body to-machine-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body to-machine-indexed target");
 
