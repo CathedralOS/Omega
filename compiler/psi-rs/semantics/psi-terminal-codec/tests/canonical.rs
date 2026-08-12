@@ -16,8 +16,8 @@ use psi_terminal::{
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -129,6 +129,77 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
     module.machines = vec![machine];
 
     let bytes = encode_module(&module).expect("jump affine discard should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn conditional_affine_discards_round_trip_canonically() {
+    let mut module = structural_effect_fixture();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(50),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(51),
+        scalar_type: ScalarType::Boolean,
+    });
+    let place = machine.structural_parameters[0].place;
+    machine.blocks = vec![
+        Block {
+            id: block_id(101),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: value_id(50),
+                when_true: SuccessorEdge {
+                    edge: edge_id(101),
+                    target: block_id(102),
+                    arguments: vec![value_id(50)],
+                    trivial_affine_discards: vec![place],
+                },
+                when_false: SuccessorEdge {
+                    edge: edge_id(102),
+                    target: block_id(103),
+                    arguments: vec![value_id(50)],
+                    trivial_affine_discards: vec![place],
+                },
+            },
+        },
+        Block {
+            id: block_id(102),
+            parameters: vec![ValueDeclaration {
+                id: value_id(52),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(103),
+                value: value_id(52),
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+        Block {
+            id: block_id(103),
+            parameters: vec![ValueDeclaration {
+                id: value_id(53),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(104),
+                value: value_id(53),
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+    ];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+
+    let bytes = encode_module(&module).expect("conditional affine discards should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }

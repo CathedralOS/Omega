@@ -288,11 +288,13 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
                     edge: edge_id(3),
                     target: block_id(4),
                     arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
                 },
             },
         },

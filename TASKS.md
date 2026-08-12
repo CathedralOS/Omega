@@ -173,9 +173,10 @@ Remaining:
   primitive-only source producer currently emits the empty list. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
-  arguments are materialized; Omega consumes it without emitting an operation.
-  Structural jump production and conditional-edge cleanup still require their
-  checked structural control plans.
+  arguments are materialized; each ordered conditional successor carries its
+  own independently selected subset under the same rule. Omega consumes both
+  forms without emitting an operation. Structural control-edge production
+  still requires its checked structural control plan.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned

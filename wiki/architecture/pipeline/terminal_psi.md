@@ -164,12 +164,13 @@ frontier, and rejects missing, extra, reordered, unknown, or claim-bearing
 discards. Interpretation charges the return edge before removing those places,
 so sponsor exhaustion cannot perform cleanup early. This is only trivial
 parameter disposal: affine locals, nominal cleanup machines, partial values,
-conditional edges, and the whole-edge conservation witness remain outside the
-slice. An unconditional jump may carry a canonical reverse-declaration subset
-of the same eligible parameters. Verification removes exactly those places from
-the successor frontier; interpretation charges the jump and materializes its
-scalar arguments before committing the no-code disposal. The primitive-only
-scalar source producer emits the canonical empty list; structural jump
+and the whole-edge conservation witness remain outside the slice. An
+unconditional jump and each ordered conditional successor may carry an
+independent canonical reverse-declaration subset of the same eligible
+parameters. Verification removes exactly those places from the corresponding
+successor frontier; interpretation charges the selected edge and materializes
+its scalar arguments before committing the no-code disposal. The primitive-only
+scalar source producer emits canonical empty lists; structural control-edge
 production waits for a checked structural control plan.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,

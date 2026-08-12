@@ -12,8 +12,8 @@ use psi_terminal::{
     ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
@@ -948,7 +948,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     *trivial_affine_discards = vec![place_id(2), place_id(4)];
     assert_eq!(
         validate_module(&reordered).unwrap_err(),
-        ModuleError::JumpAffineDiscardsInvalid { edge: edge_id(2) }
+        ModuleError::EdgeAffineDiscardsInvalid { edge: edge_id(2) }
     );
 
     let mut claim_bearing = module;
@@ -959,7 +959,96 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     });
     assert_eq!(
         validate_module(&claim_bearing).unwrap_err(),
-        ModuleError::JumpAffineDiscardsInvalid { edge: edge_id(2) }
+        ModuleError::EdgeAffineDiscardsInvalid { edge: edge_id(2) }
+    );
+}
+
+#[test]
+fn conditional_applies_affine_discards_only_to_each_selected_successor() {
+    let mut module = hard_root_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    let mut second_parameter = structural_parameter(place_id(4));
+    second_parameter.position = 1;
+    second_parameter.multiplicity = StructuralMultiplicity::Affine;
+    machine.structural_parameters.push(second_parameter);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks = vec![
+        Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: value_id(10),
+                when_true: SuccessorEdge {
+                    edge: edge_id(2),
+                    target: block_id(3),
+                    arguments: vec![value_id(10)],
+                    trivial_affine_discards: vec![place_id(4)],
+                },
+                when_false: SuccessorEdge {
+                    edge: edge_id(3),
+                    target: block_id(4),
+                    arguments: vec![value_id(10)],
+                    trivial_affine_discards: vec![place_id(2)],
+                },
+            },
+        },
+        Block {
+            id: block_id(3),
+            parameters: vec![ValueDeclaration {
+                id: value_id(12),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(4),
+                value: value_id(12),
+                trivial_affine_discards: vec![place_id(2)],
+            },
+        },
+        Block {
+            id: block_id(4),
+            parameters: vec![ValueDeclaration {
+                id: value_id(13),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(5),
+                value: value_id(13),
+                trivial_affine_discards: vec![place_id(4)],
+            },
+        },
+    ];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    validate_module(&module).expect("each conditional successor owns its cleanup subset");
+
+    let mut reordered = module;
+    let Terminator::Conditional { when_true, .. } = &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    when_true.trivial_affine_discards = vec![place_id(2), place_id(4)];
+    assert_eq!(
+        validate_module(&reordered).unwrap_err(),
+        ModuleError::EdgeAffineDiscardsInvalid { edge: edge_id(2) }
     );
 }
 

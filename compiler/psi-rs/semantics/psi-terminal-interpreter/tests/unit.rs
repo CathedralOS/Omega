@@ -9,8 +9,8 @@ use psi_terminal::{
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -230,6 +230,102 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
             TerminalScalarValue::Boolean(true)
         ))
     );
+}
+
+#[test]
+fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
+    let mut module = effect_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks = vec![
+        Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: value_id(10),
+                when_true: SuccessorEdge {
+                    edge: edge_id(2),
+                    target: block_id(3),
+                    arguments: vec![value_id(10)],
+                    trivial_affine_discards: vec![place_id(2)],
+                },
+                when_false: SuccessorEdge {
+                    edge: edge_id(3),
+                    target: block_id(4),
+                    arguments: vec![value_id(10)],
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        Block {
+            id: block_id(3),
+            parameters: vec![ValueDeclaration {
+                id: value_id(12),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(4),
+                value: value_id(12),
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+        Block {
+            id: block_id(4),
+            parameters: vec![ValueDeclaration {
+                id: value_id(13),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(5),
+                value: value_id(13),
+                trivial_affine_discards: vec![place_id(2)],
+            },
+        },
+    ];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    let semantic = encode_module(&module).expect("conditional affine cleanup module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+
+    for condition in [true, false] {
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(condition)],
+            &[structural_value(51)],
+        )
+        .expect("verified conditional affine cleanup should start");
+        let mut meter = TerminalFuelMeter::with_allowance(0);
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        meter.replenish(1).unwrap();
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        meter.replenish(1).unwrap();
+        assert_eq!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Boolean(condition)
+            ))
+        );
+    }
 }
 
 #[test]
