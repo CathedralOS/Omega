@@ -100,12 +100,12 @@ fn unit_call_requires_exact_aggregate_claim_path() {
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).expect("field identity"),
-        identity: "token".into(),
+        identity: "#7".into(),
         relevance: psi_terminal::BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(structural_type_id(2)),
     });
-    module.machines[0].entry_claims[0].field_path = vec!["token".into()];
-    module.machines[1].entry_claims[0].field_path = vec!["token".into()];
+    module.machines[0].entry_claims[0].field_path = vec!["#7".into()];
+    module.machines[1].entry_claims[0].field_path = vec!["#7".into()];
     validate_module(&module).expect("matching aggregate custody paths validate");
 
     let mut abandoned = module.clone();

@@ -201,7 +201,9 @@ Remaining:
   aggregate now retains a stable entry-claim path through source checking,
   canonical encoding, verification, interpretation, direct Unit transfer, and
   boundary settlement; invalid, erased, overlapping, noncanonical, or
-  call-mismatched paths reject. Add remaining aggregate and result-bearing custody,
+  call-mismatched paths reject, and numbered fields use the same canonical
+  `#<id>` identity in structural shapes and claim paths. Add remaining aggregate
+  and result-bearing custody,
   cleanup, returned transfer, loops, suspension, and scoped ordering as complete
   vertical slices. Ranked
   tail-recursive call graphs stay rejected until their tail-position and

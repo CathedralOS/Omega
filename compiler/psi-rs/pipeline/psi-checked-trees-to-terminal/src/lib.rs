@@ -7639,22 +7639,23 @@ mod tests {
             .iter_mut()
             .find(|shape| shape.identity == "example::Acknowledgement")
             .expect("acknowledgement shape");
+        acknowledgement.fields[0].identity = "#7".to_owned();
         acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
             type_identity: "example::Token".to_owned(),
         };
         for machine in &mut plans.machines {
-            machine.entry_claims[0].field_path = vec!["sequence".to_owned()];
+            machine.entry_claims[0].field_path = vec!["#7".to_owned()];
         }
 
         let lowered = lower_machine(&checked, "example::Root::enter")
             .expect("record-field custody should cross the complete Unit closure");
         assert_eq!(
             lowered.semantic_module.machines[0].entry_claims[0].field_path,
-            ["sequence"]
+            ["#7"]
         );
         assert_eq!(
             lowered.semantic_module.machines[1].entry_claims[0].field_path,
-            ["sequence"]
+            ["#7"]
         );
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
             .expect("aggregate custody must have a canonical terminal encoding");

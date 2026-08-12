@@ -127,7 +127,9 @@ terminal artifact preserves semantic identity without assigning proof evidence
 an offset or transfer.
 
 An entry claim may name either its complete structural parameter or a stable
-record-field path below it. A projected claim is linear even when its containing
+record-field path below it. Each path segment uses the structural field's exact
+canonical identity: `#<id>` for an authored numbered field and its spelling for
+an unnumbered field. A projected claim is linear even when its containing
 aggregate is affine. Paths traverse only relevant structural fields; case,
 index, scalar, erased, unknown, duplicate, overlapping ancestor/descendant, and
 noncanonical rows reject. Direct Unit calls require the caller and callee to

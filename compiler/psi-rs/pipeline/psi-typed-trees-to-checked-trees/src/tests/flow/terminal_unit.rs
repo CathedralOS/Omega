@@ -236,11 +236,11 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
 }
 
 #[test]
-fn retains_record_field_custody_for_unit_call_closure() {
+fn retains_numbered_record_field_custody_for_unit_call_closure() {
     let checked = checked(
         r#"
         data Token [linear] { value: u64; }
-        data Envelope { token: Token; }
+        data Envelope { #7 token: Token; }
 
         domain Envelope::Pending;
 
@@ -276,9 +276,9 @@ fn retains_record_field_custody_for_unit_call_closure() {
         .for_machine(machine_named(&checked, "run"))
         .expect("aggregate-custody helper plan");
     assert_eq!(root.entry_claims.len(), 1);
-    assert_eq!(root.entry_claims[0].field_path, ["token"]);
+    assert_eq!(root.entry_claims[0].field_path, ["#7"]);
     assert_eq!(helper.entry_claims.len(), 1);
-    assert_eq!(helper.entry_claims[0].field_path, ["token"]);
+    assert_eq!(helper.entry_claims[0].field_path, ["#7"]);
     let CheckedUnitEffectOperationPlan::CallUnit {
         claim_transfers, ..
     } = &root.operations[0]

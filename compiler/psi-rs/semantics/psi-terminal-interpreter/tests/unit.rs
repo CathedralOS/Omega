@@ -4,9 +4,10 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, EntryClaim, MachineContract,
-    Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralMultiplicity,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer,
+    EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
@@ -108,6 +109,41 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     assert_eq!(measured.effects(), expected);
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), 5);
+}
+
+#[test]
+fn unit_calls_transfer_numbered_record_field_claims() {
+    let mut module = effect_module();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "test::Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+        identity: "#7".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(2)),
+    });
+    for machine in &mut module.machines {
+        machine.entry_claims[0].field_path = vec!["#7".into()];
+    }
+    let semantic = encode_module(&module).expect("numbered field-custody module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural_value(45)],
+    )
+    .expect("verified numbered field custody should start");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
 }
 
 #[test]
