@@ -1428,6 +1428,7 @@ fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
             )?;
+            validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
                 operation.id,
                 &machine.published_service_ceiling,
@@ -1512,6 +1513,52 @@ fn validate_unit_operation_static(
             }
         }
         _ => unreachable!("caller selects only structural/effect operations"),
+    }
+    Ok(())
+}
+
+fn validate_unit_call_contract_places(
+    callee: &TerminalMachine,
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    let parameters = callee
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .collect::<BTreeSet<_>>();
+    let propositions = callee
+        .contract
+        .requires
+        .iter()
+        .chain(
+            callee
+                .contract
+                .ensures
+                .iter()
+                .map(|clause| &clause.proposition),
+        )
+        .chain(
+            callee
+                .contract
+                .crash_routes
+                .iter()
+                .flat_map(|bucket| &bucket.alternatives)
+                .filter_map(|guard| match guard {
+                    CrashRouteGuard::Truth => None,
+                    CrashRouteGuard::Predicate(predicate) => Some(predicate.proposition()),
+                }),
+        );
+    for proposition in propositions {
+        if let Some(place) = proposition_content_roots(proposition)
+            .into_iter()
+            .find(|place| !parameters.contains(place))
+        {
+            return Err(ModuleError::UnitCallContractPlaceHasNoArgument {
+                operation,
+                callee: callee.id,
+                place,
+            });
+        }
     }
     Ok(())
 }
@@ -3620,6 +3667,52 @@ fn proposition_contains_content(proposition: &Proposition) -> bool {
     }
 }
 
+fn proposition_content_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
+    fn collect_term(term: &ContentTerm, roots: &mut BTreeSet<PlaceId>) {
+        match term {
+            ContentTerm::Projection { subject, .. } => {
+                roots.insert(subject.root);
+            }
+            ContentTerm::Separate(terms) => {
+                for term in terms {
+                    collect_term(term, roots);
+                }
+            }
+        }
+    }
+
+    fn collect(proposition: &Proposition, roots: &mut BTreeSet<PlaceId>) {
+        match proposition {
+            Proposition::ContentConservation(conservation) => {
+                collect_term(conservation.left(), roots);
+                collect_term(conservation.right(), roots);
+            }
+            Proposition::Conjunction(conjuncts) => {
+                for conjunct in conjuncts {
+                    collect(conjunct, roots);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect(premise, roots);
+                collect(conclusion, roots);
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::Equal(_, _)
+            | Proposition::LessThan(_, _)
+            | Proposition::LessOrEqual(_, _) => {}
+        }
+    }
+
+    let mut roots = BTreeSet::new();
+    collect(proposition, &mut roots);
+    roots
+}
+
 fn require_defined(
     value: ValueId,
     value_types: &BTreeMap<ValueId, ScalarType>,
@@ -3846,6 +3939,11 @@ pub enum ModuleError {
     UnitCallTargetHasScalarSignature {
         operation: OperationId,
         callee: MachineId,
+    },
+    UnitCallContractPlaceHasNoArgument {
+        operation: OperationId,
+        callee: MachineId,
+        place: PlaceId,
     },
     UnknownBoundaryCallTarget {
         operation: OperationId,
