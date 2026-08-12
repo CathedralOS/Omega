@@ -527,6 +527,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             &mut json,
             &qualification_symbol_label(program, plan.machine),
         );
+        json.push_str(",\n      \"projection_machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, plan.machine)
+                .expect("content projection plan must name an exact projection machine"),
+        );
         json.push_str(",\n      \"algebra\": ");
         push_content_algebra_json(&mut json, &plan.algebra);
         json.push_str(",\n      \"normalized_projection\": ");
@@ -3064,6 +3070,8 @@ mod tests {
     fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         let machine_symbol = SymbolHandle::from_arena_index(20);
         let state_symbol = SymbolHandle::from_arena_index(21);
+        let projection_machine_symbol = SymbolHandle::from_arena_index(22);
+        let projection_state_symbol = SymbolHandle::from_arena_index(23);
         let mut program = CheckedTrees::default();
         let mut machine = Machine {
             symbol: machine_symbol,
@@ -3079,6 +3087,20 @@ mod tests {
             },
         );
         program.typed.push_machine(machine);
+        let mut projection_machine = Machine {
+            symbol: projection_machine_symbol,
+            name: Identifier::generated("Region::content"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut projection_machine,
+            State {
+                symbol: projection_state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(projection_machine);
         let output_segments = program.facts.flow.ownership.segments.insert_many([
             psi_facts::PlaceSegment::Case {
                 variant: SymbolHandle::invalid(),
@@ -3139,7 +3161,7 @@ mod tests {
                 domain: SymbolHandle::invalid(),
                 semantic_domain: SemanticDomainId(41),
                 carrier_identity: "named(name(Region))".to_owned(),
-                machine: SymbolHandle::invalid(),
+                machine: projection_machine_symbol,
                 algebra: ContentAlgebraIdentity::CountedQuantity {
                     unit: "named(name(ByteUnit))".to_owned(),
                 },
@@ -3299,6 +3321,11 @@ mod tests {
         let claim_maps = &json[..json
             .find("\"content_projections\"")
             .expect("content projection section")];
+        let projections_start = claim_maps.len();
+        let projections_end = json
+            .find("\"content_identity_reshuffles\"")
+            .expect("identity reshuffle section");
+        let projections = &json[projections_start..projections_end];
         let reshuffles_start = json
             .find("\"content_identity_reshuffles\"")
             .expect("identity reshuffle section");
@@ -3328,6 +3355,9 @@ mod tests {
         assert!(json.contains("\"ordinal\": 7"));
         assert!(json.contains("\"kind\": \"state_entry\""));
         assert!(json.contains("\"content_projections\""));
+        assert!(projections.contains(
+            "\"projection_machine_overload_identity\": \"named-callable(path(Region::content)"
+        ));
         assert!(json.contains("\"content_identity_reshuffles\": [\n    {"));
         assert!(
             reshuffles.contains(
