@@ -241,6 +241,20 @@ fn content_only_affine_claims_require_explicit_transfer_and_settlement() {
     });
     validate_module(&module)
         .expect("disjoint content claims may share one structural argument and transfer exactly");
+
+    let mut reordered_transfers = module.clone();
+    unit_call_mut(&mut reordered_transfers).swap(0, 1);
+    assert_eq!(
+        validate_module(&reordered_transfers).unwrap_err(),
+        ModuleError::NonCanonicalUnitCallClaimTransfers(operation_id(1))
+    );
+
+    let mut reordered_settlements = module;
+    boundary_call_mut(&mut reordered_settlements).0.swap(0, 1);
+    assert_eq!(
+        validate_module(&reordered_settlements).unwrap_err(),
+        ModuleError::NonCanonicalBoundaryClaimSettlements(operation_id(3))
+    );
 }
 
 #[test]

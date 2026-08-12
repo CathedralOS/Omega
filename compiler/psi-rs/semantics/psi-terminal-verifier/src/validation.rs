@@ -1693,6 +1693,9 @@ fn validate_unit_call_claim_transfers(
             });
         }
     }
+    if transfers.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(ModuleError::NonCanonicalUnitCallClaimTransfers(operation));
+    }
     Ok(())
 }
 
@@ -1855,6 +1858,9 @@ fn validate_boundary_settlements(
     }
     if actual != expected {
         return Err(ModuleError::BoundaryClaimSettlementMismatch(operation));
+    }
+    if settlements.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(ModuleError::NonCanonicalBoundaryClaimSettlements(operation));
     }
     Ok(())
 }
@@ -3889,6 +3895,7 @@ pub enum ModuleError {
         argument_index: u32,
     },
     DuplicateUnitCallClaimTransfer(OperationId),
+    NonCanonicalUnitCallClaimTransfers(OperationId),
     MissingUnitCallClaimTransfer {
         operation: OperationId,
         argument_index: u32,
@@ -3912,6 +3919,7 @@ pub enum ModuleError {
         domain: StructuralDomainId,
     },
     DuplicateBoundaryClaimSettlement(OperationId),
+    NonCanonicalBoundaryClaimSettlements(OperationId),
     BoundaryClaimSettlementMismatch(OperationId),
     ClaimNotLiveAtOperation {
         operation: OperationId,
