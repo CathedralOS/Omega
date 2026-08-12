@@ -3107,6 +3107,35 @@ fn accepts_static_persistent_copy_across_local_index_helper_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_local_index_alias_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: [u64; 2];
+        }
+
+        machine Main::touch_code(&mut self) {
+            let index: u64 = 0;
+            let alias: &mut u64 = &mut self.code[index];
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source).expect("an effect-free local-index alias preserves its collection frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_recast_local_frame() {
     let source = r#"
         data Message {
