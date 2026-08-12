@@ -1397,6 +1397,7 @@ fn summarize_state_written_paths(
                         parameters,
                         &isolated_local_roots,
                         &local_alias_origins,
+                        symbols,
                     )
                 }),
             _ => false,
@@ -1440,6 +1441,7 @@ fn summarize_state_written_paths(
                     parameters,
                     &isolated_local_roots,
                     &mut local_alias_origins,
+                    symbols,
                 )? {
                     continue;
                 }
@@ -1724,7 +1726,7 @@ fn stable_alias_place_origin(
 /// prior reborrows retain their established origins. Explicit arguments and an
 /// attached helper's actual receiver both supply exact caller origins. This is
 /// body evidence, not lifetime elision: a reference-bearing scratch local,
-/// computed rebind, nested/statement call, recursive helper relation,
+/// opaque computed rebind, statement call, recursive helper relation,
 /// named-state route, or alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
@@ -1864,9 +1866,7 @@ fn transparent_callee_result_origin(
                     local_aliases.push((local.name.as_str().to_owned(), local.symbol, origin));
                 }
                 StatementNode::Assignment(assignment) => {
-                    if expression_is_effectful_for_transparent_result(program, assignment.target)
-                        || expression_is_effectful_for_transparent_result(program, assignment.value)
-                    {
+                    if expression_is_effectful_for_transparent_result(program, assignment.target) {
                         return None;
                     }
                     if expression_may_rebind_mutable_alias(
@@ -1889,6 +1889,11 @@ fn transparent_callee_result_origin(
                             active_states,
                         )?;
                         local_aliases[position].2 = replacement;
+                    } else if expression_is_effectful_for_transparent_result(
+                        program,
+                        assignment.value,
+                    ) {
+                        return None;
                     }
                 }
                 _ => return None,
@@ -2291,8 +2296,9 @@ fn expression_reborrows_local_alias_binding(
 /// Update one local mutable-reference binding when its replacement is another
 /// directly representable place. Existing aliases retain their already-
 /// canonicalized origins, so rebinding an upstream local never redirects a
-/// previously established reborrow. Computed/call-produced replacements remain
-/// opaque at this rung.
+/// previously established reborrow. Structurally transparent call results
+/// compose through the same origin algebra; other computed replacements remain
+/// opaque.
 #[allow(clippy::too_many_arguments)]
 fn rebind_stable_local_mutable_alias_origin(
     program: &TypedTrees,
@@ -2303,6 +2309,7 @@ fn rebind_stable_local_mutable_alias_origin(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &mut [(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
 ) -> Option<bool> {
     let Some(position) = aliases.iter().position(|(alias, _)| alias == target) else {
         return Some(false);
@@ -2310,12 +2317,13 @@ fn rebind_stable_local_mutable_alias_origin(
     if !expression_may_rebind_mutable_alias(program, machine, state, value) {
         return Some(false);
     }
-    let origin = stable_alias_place_origin(
+    let origin = stable_alias_expression_origin(
         program,
         value,
         parameters,
         isolated_local_roots,
         aliases,
+        symbols,
         true,
     )?;
     aliases[position].1 = origin;
@@ -2332,15 +2340,17 @@ fn stable_local_mutable_alias_rebinding_is_representable(
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
 ) -> bool {
     aliases.iter().any(|(alias, _)| alias == target)
         && expression_may_rebind_mutable_alias(program, machine, state, value)
-        && stable_alias_place_origin(
+        && stable_alias_expression_origin(
             program,
             value,
             parameters,
             isolated_local_roots,
             aliases,
+            symbols,
             true,
         )
         .is_some()
@@ -2664,6 +2674,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                         parameters,
                         &isolated_local_roots,
                         &local_alias_origins,
+                        symbols,
                     )
                 }),
             _ => false,
@@ -2703,6 +2714,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     parameters,
                     &isolated_local_roots,
                     &mut local_alias_origins,
+                    symbols,
                 )? {
                     continue;
                 }

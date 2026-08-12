@@ -312,8 +312,10 @@ customer-shaped compiler concept is introduced.
   Effect-free value-shaped assignments may write through those origins without
   changing the relation, while their ordinary frames remain published. A direct
   helper-local alias rebind updates that name's origin without redirecting prior
-  reborrows. Computed rebinding, nested/statement calls, computed or recursive
-  helper initializers, and other nontrivial results remain opaque. Primitive-only
+  reborrows; a structurally transparent helper result may supply the replacement
+  through the same origin algebra. Other computed rebinding, statement calls,
+  computed or recursive helper initializers, and nontrivial results remain
+  opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.
   Recursive, generic, reference-bearing, or other computed local roots remain
