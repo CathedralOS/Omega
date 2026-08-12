@@ -3729,6 +3729,17 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         return_recursive_slice(cells)
     }
 
+    machine write_slice(view: &mut [u64]) {
+        transition view.len > 0 {
+            true -> write(view)
+            false -> {}
+        }
+
+        state write(view: &mut [u64]) {
+            view[0] = 1;
+        }
+    }
+
     machine Main::direct_view(&mut self) {
         let view: &mut [u64] = self.cells.as_mut_slice();
         view[0] = 1;
@@ -3743,6 +3754,14 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         let view: &mut [u64] = return_recursive_slice(&mut self.cells);
         view[0] = 1;
     }
+
+    machine Main::statement_view(&mut self) {
+        write_slice(self.cells.as_mut_slice());
+    }
+
+    machine Main::recursive_statement_view(&mut self) {
+        write_slice(return_recursive_slice(&mut self.cells));
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -3753,7 +3772,11 @@ fn mutable_slice_views_preserve_array_storage_origins() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
-    for name in ["Main::direct_view", "Main::helper_view"] {
+    for name in [
+        "Main::direct_view",
+        "Main::helper_view",
+        "Main::statement_view",
+    ] {
         let machine = typed
             .machines()
             .iter()
@@ -3786,6 +3809,24 @@ fn mutable_slice_views_preserve_array_storage_origins() {
             .inferred_state_write_frame(recursive, recursive_entry)
             .is_complete(),
         "an opaque recursive slice producer must remain a frame fence"
+    );
+
+    let recursive_statement = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::recursive_statement_view")
+        .expect("recursive statement-view caller");
+    let recursive_statement_entry = typed
+        .machine_states(recursive_statement)
+        .first()
+        .expect("recursive statement-view caller entry state");
+    let recursive_statement_frame =
+        resolver.inferred_state_write_frame(recursive_statement, recursive_statement_entry);
+    assert!(
+        recursive_statement_frame
+            .complete_paths()
+            .is_none_or(|paths| paths.iter().any(|path| path == "self")),
+        "an opaque recursive statement argument must retain a whole-receiver fence"
     );
 }
 
