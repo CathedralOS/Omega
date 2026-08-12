@@ -1456,7 +1456,6 @@ fn validate_unit_operation_static(
             validate_boundary_requirements(machine, boundary, structural_arguments, operation.id)?;
             validate_boundary_settlements(
                 machine,
-                boundary,
                 structural_arguments,
                 claim_settlements,
                 operation.id,
@@ -1600,19 +1599,27 @@ fn validate_unit_call_claim_transfers(
             });
         }
     }
-    if transfers.len() != callee.entry_claims.len() {
+    let callee_claims = callee
+        .entry_claims
+        .iter()
+        .map(|claim| (claim.claim, claim.input))
+        .chain(
+            callee
+                .content_entry_claims
+                .iter()
+                .map(|claim| (claim.claim, claim.input.root)),
+        )
+        .collect::<BTreeMap<_, _>>();
+    if transfers.len() != callee_claims.len() {
         return Err(ModuleError::UnitCallClaimTransferCountMismatch {
             operation,
-            expected: callee.entry_claims.len(),
+            expected: callee_claims.len(),
             actual: transfers.len(),
         });
     }
     let mut caller_claims = BTreeSet::new();
-    let mut argument_indices = BTreeSet::new();
     for transfer in transfers {
-        if !caller_claims.insert(transfer.claim)
-            || !argument_indices.insert(transfer.argument_index)
-        {
+        if !caller_claims.insert(transfer.claim) {
             return Err(ModuleError::DuplicateUnitCallClaimTransfer(operation));
         }
         let Some(argument) = arguments.get(transfer.argument_index as usize) else {
@@ -1621,17 +1628,13 @@ fn validate_unit_call_claim_transfers(
                 argument_index: transfer.argument_index,
             });
         };
-        let Some(claim) = caller
-            .entry_claims
-            .iter()
-            .find(|claim| claim.claim == transfer.claim)
-        else {
+        let Some(claim_input) = claim_input(caller, transfer.claim) else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: transfer.claim,
             });
         };
-        if claim.input != argument.place {
+        if claim_input != argument.place {
             return Err(ModuleError::ClaimActionPlaceMismatch {
                 operation,
                 claim: transfer.claim,
@@ -1639,11 +1642,11 @@ fn validate_unit_call_claim_transfers(
             });
         }
     }
-    for callee_claim in &callee.entry_claims {
+    for input in callee_claims.into_values() {
         let argument_index = callee
             .structural_parameters
             .iter()
-            .position(|parameter| parameter.place == callee_claim.input)
+            .position(|parameter| parameter.place == input)
             .expect("callee entry claims were validated against its signature")
             as u32;
         if !transfers
@@ -1657,6 +1660,19 @@ fn validate_unit_call_claim_transfers(
         }
     }
     Ok(())
+}
+
+fn claim_input(machine: &TerminalMachine, claim: ClaimId) -> Option<PlaceId> {
+    machine
+        .entry_claims
+        .iter()
+        .find_map(|candidate| (candidate.claim == claim).then_some(candidate.input))
+        .or_else(|| {
+            machine
+                .content_entry_claims
+                .iter()
+                .find_map(|candidate| (candidate.claim == claim).then_some(candidate.input.root))
+        })
 }
 
 fn validate_unit_call_crash_continuations(
@@ -1756,29 +1772,31 @@ fn validate_boundary_requirements(
 
 fn validate_boundary_settlements(
     caller: &TerminalMachine,
-    boundary: &BoundaryMachineDeclaration,
     arguments: &[StructuralArgument],
     settlements: &[ClaimSettlement],
     operation: OperationId,
 ) -> Result<(), ModuleError> {
-    let expected = boundary
-        .structural_parameters
+    let expected = arguments
         .iter()
         .enumerate()
-        .filter_map(|(index, parameter)| {
-            let argument = &arguments[index];
-            (parameter.multiplicity == StructuralMultiplicity::Linear
-                || caller
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place))
-            .then_some(index as u32)
+        .flat_map(|(index, argument)| {
+            caller
+                .entry_claims
+                .iter()
+                .filter_map(move |claim| {
+                    (claim.input == argument.place).then_some((index as u32, claim.claim))
+                })
+                .chain(caller.content_entry_claims.iter().filter_map(move |claim| {
+                    (claim.input.root == argument.place).then_some((index as u32, claim.claim))
+                }))
         })
         .collect::<BTreeSet<_>>();
     let mut actual = BTreeSet::new();
     let mut claims = BTreeSet::new();
     for settlement in settlements {
-        if !actual.insert(settlement.argument_index) || !claims.insert(settlement.claim) {
+        if !actual.insert((settlement.argument_index, settlement.claim))
+            || !claims.insert(settlement.claim)
+        {
             return Err(ModuleError::DuplicateBoundaryClaimSettlement(operation));
         }
         let Some(argument) = arguments.get(settlement.argument_index as usize) else {
@@ -1787,17 +1805,13 @@ fn validate_boundary_settlements(
                 argument_index: settlement.argument_index,
             });
         };
-        let Some(claim) = caller
-            .entry_claims
-            .iter()
-            .find(|claim| claim.claim == settlement.claim)
-        else {
+        let Some(claim_input) = claim_input(caller, settlement.claim) else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: settlement.claim,
             });
         };
-        if claim.input != argument.place {
+        if claim_input != argument.place {
             return Err(ModuleError::ClaimActionPlaceMismatch {
                 operation,
                 claim: settlement.claim,
@@ -1997,6 +2011,16 @@ fn validate_content_entry_claims(
             )
         {
             return Err(ModuleError::ContentEntryClaimRequiresEntryParameter(
+                binding.claim,
+            ));
+        }
+        if let Some(structural_claim) = machine
+            .entry_claims
+            .iter()
+            .find(|claim| claim.claim == binding.claim)
+            && structural_claim.input != binding.input.root
+        {
+            return Err(ModuleError::ContentEntryClaimStructuralBindingMismatch(
                 binding.claim,
             ));
         }
@@ -3908,6 +3932,7 @@ pub enum ModuleError {
     ContentEntryClaimHasNoProjections(ClaimId),
     NonCanonicalContentEntryProjectionOrder(ClaimId),
     ContentEntryClaimRequiresEntryParameter(ClaimId),
+    ContentEntryClaimStructuralBindingMismatch(ClaimId),
     DuplicateContentEntryClaimInput(ContentStructuralPlace),
     OverlappingContentEntryClaimInput {
         first: ContentStructuralPlace,
