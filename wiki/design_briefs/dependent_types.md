@@ -358,8 +358,13 @@ and the ordinary frame still publishes the index call's writes. Nested-computed,
 recursive, or opaque index calls remain fences.
 The same one-direct-call rule applies to a stable local mutable-alias index: its
 origin remains collection-coarse and the ordinary frame publishes the index
-call's writes. Nested-computed, rebinding, recursive, or opaque alias indexes
-remain fences.
+call's writes. Nested-computed, binding-reborrow, recursive, or opaque alias
+indexes remain fences.
+A direct helper-local alias rebind may take the same one-direct-call indexed
+replacement. Only the rebound name moves to the collection-coarse replacement;
+prior reborrows retain their established origins, and the ordinary frame still
+publishes index-call writes. Nested-computed, recursive, or opaque indexed
+replacements remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.

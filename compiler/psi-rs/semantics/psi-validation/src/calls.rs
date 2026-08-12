@@ -1396,6 +1396,8 @@ fn summarize_state_written_paths(
                     stable_local_mutable_alias_rebinding_is_representable(
                         program,
                         machine,
+                        &machine_symbols,
+                        active_states,
                         state,
                         &target,
                         assignment.value,
@@ -1441,6 +1443,8 @@ fn summarize_state_written_paths(
                     && rebind_stable_local_mutable_alias_origin(
                         program,
                         machine,
+                        &machine_symbols,
+                        active_states,
                         state,
                         relative,
                         assignment.value,
@@ -3067,6 +3071,8 @@ fn expression_reborrows_local_alias_binding(
 fn rebind_stable_local_mutable_alias_origin(
     program: &TypedTrees,
     machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
     state: &State,
     target: &str,
     value: ExpressionHandle,
@@ -3081,8 +3087,11 @@ fn rebind_stable_local_mutable_alias_origin(
     if !expression_may_rebind_mutable_alias(program, machine, state, value) {
         return Some(false);
     }
-    let origin = stable_alias_expression_origin(
+    let origin = stable_alias_initializer_origin(
         program,
+        machine,
+        machine_symbols,
+        active_states,
         value,
         parameters,
         isolated_local_roots,
@@ -3098,6 +3107,8 @@ fn rebind_stable_local_mutable_alias_origin(
 fn stable_local_mutable_alias_rebinding_is_representable(
     program: &TypedTrees,
     machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
     state: &State,
     target: &str,
     value: ExpressionHandle,
@@ -3108,8 +3119,11 @@ fn stable_local_mutable_alias_rebinding_is_representable(
 ) -> bool {
     aliases.iter().any(|(alias, _)| alias == target)
         && expression_may_rebind_mutable_alias(program, machine, state, value)
-        && stable_alias_expression_origin(
+        && stable_alias_initializer_origin(
             program,
+            machine,
+            machine_symbols,
+            active_states,
             value,
             parameters,
             isolated_local_roots,
@@ -3442,6 +3456,8 @@ fn build_permuted_cycle_frame_equation<'program>(
                     stable_local_mutable_alias_rebinding_is_representable(
                         program,
                         machine,
+                        machine_symbols,
+                        &mut active_states,
                         state,
                         &target,
                         assignment.value,
@@ -3483,6 +3499,8 @@ fn build_permuted_cycle_frame_equation<'program>(
                     && rebind_stable_local_mutable_alias_origin(
                         program,
                         machine,
+                        machine_symbols,
+                        &mut active_states,
                         state,
                         relative,
                         assignment.value,

@@ -3879,6 +3879,38 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
         let alias: &mut u64 = &mut self.cells[recursive_index()];
         alias = 1;
     }
+
+    machine Main::call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells[make_index()];
+        alias = 1;
+    }
+
+    machine Main::write_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells[write_index(&mut self.value)];
+        alias = 1;
+    }
+
+    machine Main::prior_alias_survives_call_index_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        let prior: &mut u64 = &mut alias;
+        alias = &mut self.other_cells[make_index()];
+        prior = 1;
+        alias = 2;
+    }
+
+    machine Main::nested_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells[identity_index(make_index())];
+        alias = 1;
+    }
+
+    machine Main::recursive_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells[recursive_index()];
+        alias = 1;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -3955,6 +3987,62 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
             "{name} must remain opaque outside the one-direct-call alias-index rung"
+        );
+    }
+
+    for (name, expected_paths) in [
+        ("Main::call_index_alias_rebind", vec!["self.other_cells"]),
+        (
+            "Main::write_call_index_alias_rebind",
+            vec!["self.other_cells", "self.value"],
+        ),
+        (
+            "Main::prior_alias_survives_call_index_rebind",
+            vec!["self.cells", "self.other_cells"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must move only the rebound alias to the direct-call indexed origin"
+        );
+    }
+
+    for name in [
+        "Main::nested_call_index_alias_rebind",
+        "Main::recursive_call_index_alias_rebind",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the one-direct-call alias-rebind rung"
         );
     }
 }
