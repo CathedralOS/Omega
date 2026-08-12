@@ -3974,14 +3974,28 @@ fn select_runtime_dispatch_local_initializer_write(
         expressions,
     );
     let resolved_initializer_source_key = resolved_initializer.source_key;
-    let resolved_initializer = simplify_runtime_local_initializer_handle(
-        input,
-        expressions,
-        source_key,
-        statement_index,
-        resolved_initializer.expression,
-    )
-    .unwrap_or(resolved_initializer.expression);
+    let preserve_authored_float_initializer = matches!(slot.type_name.as_ref(), "f32" | "f64")
+        || expression_contains_runtime_float_builtin(
+            input,
+            expressions,
+            resolved_initializer.expression,
+        );
+    let resolved_initializer = if preserve_authored_float_initializer {
+        // Retained float carriers and compiler-owned unary float builtins must
+        // consume their authored checked expression. Simplifying a prior local
+        // Name into its initializer moves nested float work across statement
+        // identity, where exact provider/policy evidence cannot follow.
+        resolved_initializer.expression
+    } else {
+        simplify_runtime_local_initializer_handle(
+            input,
+            expressions,
+            source_key,
+            statement_index,
+            resolved_initializer.expression,
+        )
+        .unwrap_or(resolved_initializer.expression)
+    };
     // §5b recast initializer (`let v: &f32 = &self.bits as &f32`): the view
     // is ADDRESS IDENTITY, and a reference-typed let materializes as a
     // pointee-VALUE copy -- so the judged recast strips to its source place
@@ -4255,6 +4269,71 @@ fn select_runtime_dispatch_local_initializer_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+fn expression_contains_runtime_float_builtin(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            expression_contains_runtime_float_builtin(input, expressions, binary.left)
+                || expression_contains_runtime_float_builtin(input, expressions, binary.right)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            expression_contains_runtime_float_builtin(input, expressions, atomic.value)
+                || expression_contains_runtime_float_builtin(input, expressions, atomic.result)
+        }
+        ExpressionNode::ArrayLiteral(values) => expressions
+            .expression_handles(*values)
+            .iter()
+            .any(|value| expression_contains_runtime_float_builtin(input, expressions, *value)),
+        ExpressionNode::Cast(cast) => {
+            expression_contains_runtime_float_builtin(input, expressions, cast.value)
+        }
+        ExpressionNode::Call(call) => {
+            crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_unary_call_operator_in_table(
+                input, call,
+            )
+            .is_some()
+                || (call.receiver.is_valid()
+                    && expression_contains_runtime_float_builtin(
+                        input,
+                        expressions,
+                        call.receiver,
+                    ))
+                || expressions.expression_handles(call.arguments).iter().any(|argument| {
+                    expression_contains_runtime_float_builtin(input, expressions, *argument)
+                })
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_contains_runtime_float_builtin(input, expressions, *inner)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_runtime_float_builtin(input, expressions, indexed.collection)
+                || expression_contains_runtime_float_builtin(input, expressions, indexed.index)
+        }
+        ExpressionNode::Member(member) => {
+            expression_contains_runtime_float_builtin(input, expressions, member.receiver)
+        }
+        ExpressionNode::Range(range) => {
+            (range.start.is_valid()
+                && expression_contains_runtime_float_builtin(input, expressions, range.start))
+                || (range.end.is_valid()
+                    && expression_contains_runtime_float_builtin(input, expressions, range.end))
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| {
+                expression_contains_runtime_float_builtin(input, expressions, field.value)
+            }),
+        ExpressionNode::Unary(unary) => {
+            expression_contains_runtime_float_builtin(input, expressions, unary.operand)
+        }
+        _ => false,
+    }
 }
 
 fn copy_assignment_value_call_result_into_local(

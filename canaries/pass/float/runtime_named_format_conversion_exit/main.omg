@@ -16,7 +16,10 @@ machine Main::main(&mut self) {
     let maximum64: f64 = 1.7976931348623157e308;
     let infinity64: f64 = maximum64 + maximum64;
     let infinity32: f32 = F32::from_f64(infinity64);
-    let infinity_ok: bool = F32::is_infinite(infinity32);
+    // Repeating one rewritten builtin in the same statement must retain each
+    // authored call's exact checked ProviderPlan rather than matching by target.
+    let infinity_ok: bool = F32::is_infinite(infinity32)
+        && F32::is_infinite(infinity32);
 
     transition {
         down == 1.0f32
