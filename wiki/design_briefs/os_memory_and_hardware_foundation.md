@@ -1038,11 +1038,13 @@ Retirement requires exact realization identity plus quiescence, execute removal,
 restored write authority, and completion facts before returning placement.
 The selected provider plan and sealed provider execution now prepare an exact
 installed-entry post-handoff writer context and join it to the matching AOT
-fragment. This validates artifact resolution and destination geometry but does
-not mint destination authority. Final invocation still needs a linear mapped,
-pinned, writable, unpublished destination carrier. Schema decoding,
-PCC/final-code validation, source linear integration, and live replacement also
-remain.
+fragment. The bound invocation consumes an activated mapping and an exact
+provider receipt establishing nonempty write rights, pinning, and
+non-publication, writes through the opaque installed-entry context, and returns
+the mapping as written but still unpublished; failures return the complete
+linear input. Consumer semantic validation/publication, physical AOT
+invocation, schema decoding, PCC/final-code validation, source linear
+integration, and live replacement remain.
 
 This invariant covers every route to execute permission. Translation providers
 require admitted-artifact provenance before deriving an executable mapping,

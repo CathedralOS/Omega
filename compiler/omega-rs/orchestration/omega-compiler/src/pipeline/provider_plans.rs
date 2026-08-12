@@ -30,6 +30,35 @@ pub struct BoundExternalRootPostHandoffWriterInvocation {
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
 }
 
+#[derive(Debug)]
+pub struct BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    prepared_error:
+        omega_external_roots::PreparedExternalRootWriterExecutionError<'mapping, 'bytes>,
+}
+
+impl<'mapping, 'bytes> BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
+        self.prepared_error.diagnostic()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        BoundExternalRootPostHandoffWriterInvocation,
+        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        let (prepared, destination) = self.prepared_error.into_parts();
+        (
+            BoundExternalRootPostHandoffWriterInvocation {
+                lowered: self.lowered,
+                prepared,
+            },
+            destination,
+        )
+    }
+}
+
 impl BoundExternalRootPostHandoffWriterInvocation {
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
@@ -39,6 +68,29 @@ impl BoundExternalRootPostHandoffWriterInvocation {
         &self,
     ) -> &omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation {
         &self.prepared
+    }
+
+    /// Consume the exact AOT/preparation join and one provider-prepared
+    /// destination. Success remains unpublished for the owning consumer's
+    /// semantic validation and publication transition.
+    pub fn execute<'mapping, 'bytes>(
+        self,
+        installed_code: &omega_executable_installation::InstalledCode,
+        destination: omega_executable_installation::PreparedPostHandoffWriterDestination<
+            'mapping,
+            'bytes,
+        >,
+    ) -> Result<
+        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        Box<BoundExternalRootWriterExecutionError<'mapping, 'bytes>>,
+    > {
+        match self.prepared.execute(installed_code, destination) {
+            Ok(written) => Ok(written),
+            Err(prepared_error) => Err(Box::new(BoundExternalRootWriterExecutionError {
+                lowered: self.lowered,
+                prepared_error: *prepared_error,
+            })),
+        }
     }
 }
 

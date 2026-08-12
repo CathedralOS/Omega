@@ -512,6 +512,14 @@ impl<'source> MappedExtent<'source> {
         self.mapped.lineage_root()
     }
 
+    /// Export inert evidence for provider receipts that must bind this exact
+    /// activated translation. The context carries no mapping authority and
+    /// exposes no address fields; the non-clonable `MappedExtent` remains the
+    /// sole live authority over the translated range.
+    pub fn receipt_context(&self) -> MappingReceiptContext {
+        MappingReceiptContext(self.evidence.clone())
+    }
+
     pub fn loan(&self, offset: u64, length: u64) -> Result<ExtentLoan<'_>, ExtentDiagnostic> {
         self.mapped.loan(offset, length)
     }
