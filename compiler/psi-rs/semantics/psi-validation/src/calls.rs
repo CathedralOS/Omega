@@ -2010,6 +2010,7 @@ struct PermutedCycleFrameEdge {
 struct PermutedCycleFrameEquation<'program> {
     state: &'program State,
     locals: Vec<String>,
+    local_alias_origins: Vec<(String, FramePlaceOrigin)>,
     direct_writes: Vec<String>,
     edges: Vec<PermutedCycleFrameEdge>,
 }
@@ -2077,6 +2078,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                     equation.state,
                     target,
                     &edge.arguments,
+                    &equation.local_alias_origins,
                 ) {
                     return None;
                 }
@@ -2115,6 +2117,8 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                     else {
                         continue;
                     };
+                    let instantiated =
+                        rebase_local_alias_path(&instantiated, &equation.local_alias_origins);
                     if !relative_state_path_is_visible(
                         &instantiated,
                         program.state_parameters(equation.state),
@@ -2152,6 +2156,8 @@ fn build_permuted_cycle_frame_equation<'program>(
 ) -> Option<PermutedCycleFrameEquation<'program>> {
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
+    let mut isolated_local_roots = Vec::new();
+    let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
     let mut direct_writes = Vec::new();
     let mut edges = Vec::new();
     let mut active_states = outer_active_states.to_vec();
@@ -2160,7 +2166,28 @@ fn build_permuted_cycle_frame_equation<'program>(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        let declared_local_alias_origin = match statement {
+            StatementNode::LocalData(local)
+                if type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference) =>
+            {
+                stable_local_mutable_alias_origin(
+                    program,
+                    local,
+                    parameters,
+                    &isolated_local_roots,
+                    &local_alias_origins,
+                    symbols,
+                )
+            }
+            _ => None,
+        };
         for expression in statement_value_expression_roots(program, statement) {
+            if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
+                && declared_local_alias_origin.is_none()
+            {
+                return None;
+            }
             let mut expression_writes = Vec::new();
             collect_expression_call_written_paths(
                 program,
@@ -2172,6 +2199,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                 &mut expression_writes,
             )?;
             for relative in expression_writes {
+                let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                 push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
             }
         }
@@ -2179,6 +2207,19 @@ fn build_permuted_cycle_frame_equation<'program>(
             StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
                 let relative = coarse_place_path(program, assignment.target)?;
+                if local_alias_origins
+                    .iter()
+                    .any(|(alias, _)| relative == *alias)
+                    && expression_may_rebind_mutable_alias(
+                        program,
+                        machine,
+                        state,
+                        assignment.value,
+                    )
+                {
+                    return None;
+                }
+                let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                 push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
             }
             StatementNode::Call(call) => {
@@ -2212,6 +2253,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                 })
                 .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))?;
                 for relative in nested_writes {
+                    let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                     push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
                 }
             }
@@ -2221,8 +2263,14 @@ fn build_permuted_cycle_frame_equation<'program>(
                 }
             }
             StatementNode::LocalData(local) => {
-                if type_may_carry_write(program, local.type_reference) {
-                    return None;
+                if type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference)
+                {
+                    let origin = declared_local_alias_origin?;
+                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                }
+                if type_is_caller_isolated_local(program, local.type_reference) {
+                    isolated_local_roots.push(local.name.as_str().to_owned());
                 }
                 locals.push(local.name.as_str().to_owned());
             }
@@ -2232,6 +2280,7 @@ fn build_permuted_cycle_frame_equation<'program>(
     Some(PermutedCycleFrameEquation {
         state,
         locals,
+        local_alias_origins,
         direct_writes,
         edges,
     })
@@ -2316,6 +2365,7 @@ fn transition_is_exact_write_parameter_permutation(
     source: &State,
     target: &State,
     arguments: &[ExpressionHandle],
+    aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     let source_write_parameters = program
         .state_parameters(source)
@@ -2341,7 +2391,12 @@ fn transition_is_exact_write_parameter_permutation(
     let mut forwarded = Vec::new();
     for (position, _) in target_write_positions {
         let Some(source_parameter) = source_write_parameters.iter().find(|parameter| {
-            expression_forwards_exact_symbol(program, arguments[position], parameter.symbol)
+            expression_forwards_exact_write_parameter(
+                program,
+                arguments[position],
+                parameter,
+                aliases,
+            )
         }) else {
             return false;
         };
@@ -2351,6 +2406,28 @@ fn transition_is_exact_write_parameter_permutation(
         forwarded.push(source_parameter.symbol);
     }
     forwarded.len() == source_write_parameters.len()
+}
+
+fn expression_forwards_exact_write_parameter(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameter: &StateParameter,
+    aliases: &[(String, FramePlaceOrigin)],
+) -> bool {
+    if expression_forwards_exact_symbol(program, expression, parameter.symbol) {
+        return true;
+    }
+    let Some(argument) = frame_place_path(program, expression) else {
+        return false;
+    };
+    let (root, suffix) = split_place_root(&argument.path);
+    suffix.is_empty()
+        && argument.precision == FramePathPrecision::Exact
+        && aliases.iter().any(|(alias, origin)| {
+            alias == root
+                && origin.precision == FramePathPrecision::Exact
+                && origin.path == parameter.name.as_str()
+        })
 }
 
 #[allow(clippy::too_many_arguments)]
