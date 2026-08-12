@@ -260,7 +260,9 @@ Remaining:
   checked/runtime expression boundary plus record/case layout and eligible
   attached-machine layout omit the field and its initializer subtree without
   renumbering variants; erased attached fields also create no runtime
-  contained-machine topology. Ambiguous, absent, generic, and otherwise
+  contained-machine topology. Proof-machine results may feed proof computation
+  or erased initialization but now reject in runtime value context. Ambiguous,
+  absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
   Result-domain free-call overloads and direct `self.method(...)` value or
   statement calls now provide exact generic record/sum construction context

@@ -32,6 +32,13 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
     validate_supported_shapes(program, diagnostics);
 
     for machine in program.machines() {
+        let machine_context = if proof_only.is_proof_machine(program, machine)
+            || crate::content_projections::is_content_projection_machine(program, machine)
+        {
+            Context::Proof
+        } else {
+            Context::Runtime
+        };
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
@@ -51,7 +58,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                             machine,
                             state,
                             assignment.target,
-                            Context::Runtime,
+                            machine_context,
                             diagnostics,
                         );
                         validate_expression(
@@ -60,11 +67,18 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                             machine,
                             state,
                             assignment.value,
-                            Context::Runtime,
+                            machine_context,
                             diagnostics,
                         );
                     }
                     StatementNode::Call(call) => {
+                        let argument_context = if machine_context == Context::Proof
+                            || call_targets_proof_machine(program, &proof_only, call.target_symbol)
+                        {
+                            Context::Proof
+                        } else {
+                            Context::Runtime
+                        };
                         for argument in program.statement_table.expression_handles(call.arguments) {
                             validate_expression(
                                 program,
@@ -72,7 +86,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                 machine,
                                 state,
                                 *argument,
-                                Context::Runtime,
+                                argument_context,
                                 diagnostics,
                             );
                         }
@@ -83,7 +97,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                         machine,
                         state,
                         *expression,
-                        Context::Runtime,
+                        machine_context,
                         diagnostics,
                     ),
                     StatementNode::LocalData(local) => validate_expression(
@@ -92,7 +106,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                         machine,
                         state,
                         local.initial_value,
-                        Context::Runtime,
+                        machine_context,
                         diagnostics,
                     ),
                     StatementNode::Transition(transition) => {
@@ -103,7 +117,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                 machine,
                                 state,
                                 guard,
-                                Context::Runtime,
+                                machine_context,
                                 diagnostics,
                             );
                         }
@@ -122,7 +136,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                             machine,
                                             state,
                                             *argument,
-                                            Context::Runtime,
+                                            machine_context,
                                             diagnostics,
                                         );
                                     }
@@ -133,7 +147,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                     machine,
                                     state,
                                     *value,
-                                    Context::Runtime,
+                                    machine_context,
                                     diagnostics,
                                 ),
                                 TransitionTargetNode::SelfTarget
@@ -381,6 +395,14 @@ fn validate_expression(
             diagnostics,
         ),
         ExpressionNode::Call(call) => {
+            if context == Context::Runtime
+                && call_targets_proof_machine(program, proof_only, call.target_symbol)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "call to proof machine `{}` has no runtime result; use it only in a proof or erased context, or as a statement citation",
+                    call.target
+                )));
+            }
             if context == Context::ErasedInitializer
                 && !call_targets_proof_machine(program, proof_only, call.target_symbol)
             {
