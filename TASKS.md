@@ -305,8 +305,9 @@ customer-shaped compiler concept is introduced.
   A free or attached helper may relate a returned `&mut` place to one
   mutable-reference parameter, including an attached helper's actual receiver;
   its terminal result may follow a prefix of direct immutable local `&mut`
-  aliases. Effectful/computed initializers and other nontrivial results remain
-  opaque. Primitive-only
+  aliases, including results of other structurally transparent helpers.
+  Effectful/computed or recursive helper initializers and other nontrivial
+  results remain opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
   recursive, generic, reference-bearing, or computed local roots remain fences.
   Escaped aliases, unrepresentable rebinding, and non-bijective cyclic transport
