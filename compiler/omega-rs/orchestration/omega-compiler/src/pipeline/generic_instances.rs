@@ -5,10 +5,11 @@
 //!
 //! The executable cohort includes fully substitutable records and pure sums.
 //! Records and pure sums may have multiple distinct closed instances. Sum
-//! constructors selected by an exact destination type and destructure paths
-//! selected by an exact local subject are relabeled to that closed identity;
-//! a sole closed instance remains an unambiguous fallback for other concrete
-//! executable contexts.
+//! constructors selected by an exact destination type, agreeing free-call
+//! parameters, or agreeing direct-self attached-call parameters and destructure
+//! paths selected by an exact local subject are relabeled to that closed
+//! identity; a sole closed instance remains an unambiguous fallback for other
+//! concrete executable contexts.
 //! Sluggable arguments are a plain concrete `Named` type OR a
 //! `Named` carrying only nameable domain constraints (`Box<i32 in Wrapping>`,
 //! `Store<u8 in Utf8>`) -- the substitution rides the argument's own type
@@ -700,21 +701,23 @@ fn relabel_closed_data_uses_in_exact_assignments(
 }
 
 /// Closed callable signatures provide exact contextual types without inferring
-/// from literal fields. Restrict this pass to free machines whose overloads all
-/// agree on one parameter signature. Result-domain overloads deliberately share
-/// that signature, so their arguments have one exact context before the result
-/// destination selects an overload. Parameter-distinct overloads and receiver
-/// selection remain resolver-owned and fail closed here.
+/// from literal fields. Free-machine overloads and concrete attached-machine
+/// overloads each contribute a context only when every same-name candidate on
+/// the exact owner agrees on one parameter signature. A direct `self.method`
+/// statement call has that exact owner from the enclosing attached machine;
+/// other receiver selection remains resolver-owned and fail closed here.
 fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
     synthesized_origins: &HashMap<String, String>,
 ) {
     let mut signatures = HashMap::<String, Option<Vec<TypeReferenceHandle>>>::new();
+    let mut attached_signatures =
+        HashMap::<(String, String), Option<Vec<TypeReferenceHandle>>>::new();
     for item in syntax.root_items() {
         let Item::Machine(machine) = item else {
             continue;
         };
-        if !machine.type_parameters.is_empty() || machine.attached_data.is_some() {
+        if !machine.type_parameters.is_empty() {
             continue;
         }
         let Some(entry) = syntax.tables.items.state_handles(machine.states).first() else {
@@ -725,16 +728,38 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
             .items
             .state_parameters(syntax.tables.items.state(*entry).parameters)
             .iter()
-            .map(|parameter| {
-                syntax
-                    .tables
-                    .items
-                    .state_parameter(*parameter)
-                    .type_reference
+            .filter_map(|parameter| {
+                let parameter = syntax.tables.items.state_parameter(*parameter);
+                (!parameter.is_self).then_some(parameter.type_reference)
             })
             .collect::<Vec<_>>();
-        let name = machine.name.as_str().to_owned();
-        if let Some(signature) = signatures.get_mut(&name) {
+        let (signature_map, name) = if let Some(attached) = machine.attached_data.as_ref() {
+            let method = machine
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .unwrap_or(machine.name.as_str())
+                .to_owned();
+            (
+                &mut attached_signatures,
+                (attached.as_str().to_owned(), method),
+            )
+        } else {
+            let name = machine.name.as_str().to_owned();
+            if let Some(signature) = signatures.get_mut(&name) {
+                let agrees = signature.as_ref().is_some_and(|prior| {
+                    call_context_parameter_types_agree(syntax, prior, &parameters)
+                });
+                if !agrees {
+                    *signature = None;
+                }
+            } else {
+                signatures.insert(name, Some(parameters));
+            }
+            continue;
+        };
+        if let Some(signature) = signature_map.get_mut(&name) {
             let agrees = signature.as_ref().is_some_and(|prior| {
                 call_context_parameter_types_agree(syntax, prior, &parameters)
             });
@@ -742,7 +767,7 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
                 *signature = None;
             }
         } else {
-            signatures.insert(name, Some(parameters));
+            signature_map.insert(name, Some(parameters));
         }
     }
 
@@ -752,10 +777,17 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
             Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
             _ => None,
         })
-        .flat_map(|machine| syntax.tables.items.state_handles(machine.states))
-        .copied()
+        .flat_map(|machine| {
+            syntax
+                .tables
+                .items
+                .state_handles(machine.states)
+                .iter()
+                .map(|state| (*state, machine.attached_data.clone()))
+                .collect::<Vec<_>>()
+        })
         .collect::<Vec<_>>();
-    for state_handle in concrete_states {
+    for (state_handle, attached_data) in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
         let statements = syntax.tables.items.statements(state.statements).to_vec();
         let final_statement = statements.last().copied();
@@ -771,8 +803,28 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
                         synthesized_origins,
                     );
                 }
-                StatementNode::Call(call) if call.receiver.is_empty() => {
-                    let Some(Some(parameters)) = signatures.get(call.target.as_str()) else {
+                StatementNode::Call(call)
+                    if call.receiver.is_empty()
+                        || (call.receiver_starts_at_self
+                            && syntax
+                                .tables
+                                .statements
+                                .identifier_path_members(call.receiver)
+                                .len()
+                                == 1) =>
+                {
+                    let parameters = if call.receiver.is_empty() {
+                        signatures.get(call.target.as_str())
+                    } else {
+                        let Some(attached) = attached_data.as_ref() else {
+                            continue;
+                        };
+                        attached_signatures.get(&(
+                            attached.as_str().to_owned(),
+                            call.target.as_str().to_owned(),
+                        ))
+                    };
+                    let Some(Some(parameters)) = parameters else {
                         continue;
                     };
                     let arguments = syntax
@@ -820,13 +872,29 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
             .filter(|(handle, _)| reachable.contains(&handle.arena_index()))
             .filter_map(|(_, expression)| match expression {
                 ExpressionNode::Call(call) if !call.receiver.is_valid() => {
-                    Some((call.target.clone(), call.arguments))
+                    Some((call.target.clone(), call.arguments, false))
+                }
+                ExpressionNode::Call(call)
+                    if matches!(
+                        syntax.expressions.expression(call.receiver),
+                        ExpressionNode::SelfValue
+                    ) =>
+                {
+                    Some((call.target.clone(), call.arguments, true))
                 }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        for (target, arguments) in calls {
-            let Some(Some(parameters)) = signatures.get(target.as_str()) else {
+        for (target, arguments, direct_self) in calls {
+            let parameters = if direct_self {
+                let Some(attached) = attached_data.as_ref() else {
+                    continue;
+                };
+                attached_signatures.get(&(attached.as_str().to_owned(), target.as_str().to_owned()))
+            } else {
+                signatures.get(target.as_str())
+            };
+            let Some(Some(parameters)) = parameters else {
                 continue;
             };
             let arguments = syntax.expressions.expression_handles(arguments).to_vec();
@@ -4789,6 +4857,73 @@ mod tests {
             "#,
         )
         .expect("a unique exact parameter should select the closed record identity");
+    }
+
+    #[test]
+    fn bare_erased_generic_literals_use_direct_self_call_context() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
+            data Main { boolean_box: Box<bool>; boolean_maybe: Maybe<bool>; }
+
+            machine Main::consume(
+                &self,
+                boxed: Box<i32>,
+                maybe: Maybe<i32>
+            ) -> i32 {
+                transition maybe {
+                    Maybe::Some { value as _, proof as _ } -> (boxed.value)
+                    Maybe::None -> 0
+                }
+            }
+
+            machine Main::run(&self) -> i32 {
+                self.consume(Box { value: 7 }, Maybe::Some { value: 9 })
+            }
+            "#,
+        )
+        .expect("the enclosing attached data should select a direct self-call context");
+    }
+
+    #[test]
+    fn bare_erased_generic_literal_uses_direct_self_statement_call_context() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Main { stored: i32; boolean_box: Box<bool>; }
+
+            machine Main::store(&mut self, boxed: Box<i32>) {
+                self.stored = boxed.value;
+            }
+
+            machine Main::run(&mut self) -> i32 {
+                self.store(Box { value: 7 });
+                self.stored
+            }
+            "#,
+        )
+        .expect("the enclosing attached data should select a direct self statement-call context");
+    }
+
+    #[test]
+    fn parameter_distinct_direct_self_overloads_remain_fail_closed() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
+            data Main { boolean: Maybe<bool>; }
+
+            machine Main::take(&self, value: Maybe<i32>) -> i32 { 1 }
+            machine Main::take(&self, value: Maybe<bool>) -> i32 { 2 }
+            machine Main::run(&self) -> i32 {
+                self.take(Maybe::Some { value: 7 })
+            }
+            "#,
+            "construction of erased generic data `Maybe` is unsupported in this context",
+        );
     }
 
     #[test]
