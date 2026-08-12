@@ -311,7 +311,7 @@ stackful representation. This preserves the same return-integrity argument
 across suspension, cancellation, and component replacement that applies while
 the activation is running.
 
-This opacity is enforced today, not only reserved by the model. Negative
+This opacity is enforced, not merely reserved by the model. Negative
 canaries reject projecting, recasting, taking the address of, or mutating a
 `continuation` through `Task<T>`. The same typed-place validation applies to
 ordinary data locals and parameters, including applied generic carriers, so a
