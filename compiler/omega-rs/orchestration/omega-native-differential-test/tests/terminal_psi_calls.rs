@@ -213,9 +213,7 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
     let artifact = build_terminal_object_artifact(&machine_code).expect("build call crash object");
     assert_eq!(
         derive_terminal_stack_demand(&artifact, machine_id(1)),
-        Err(TerminalObjectError::UnaccountedTerminalUnitStack(
-            machine_id(2)
-        ))
+        Err(TerminalObjectError::UnaccountedTerminalStack(machine_id(2)))
     );
     assert_eq!(
         emit_terminal_object_container(&artifact).output.relocations,
