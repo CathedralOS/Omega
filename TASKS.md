@@ -90,6 +90,9 @@ Remaining:
   adapter deliberately carries no Omega result place. Documented-exit sample
   execution now uses the same exact production-root staging; its current red
   members are ordinary lowering/runtime defects, not implicit-entry fallback.
+  The remaining report-only wire compatibility, compatibility-demand, and
+  numbered-identity fixtures now use production checked-only compilation and
+  assert that no program-storage entry was selected.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry

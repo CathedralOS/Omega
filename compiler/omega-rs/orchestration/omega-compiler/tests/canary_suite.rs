@@ -4548,13 +4548,15 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = production_compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("cross-era type change canary should compile with a migration verdict, not an error");
+    assert!(!compilation.wrote_output);
+    assert_eq!(compilation.program_storage_entry, None);
 
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
         .expect("wire protocol compatibility report should be written");
@@ -4589,13 +4591,15 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = production_compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("the declared rolling-channel demand should be satisfied");
+    assert!(!compilation.wrote_output);
+    assert_eq!(compilation.program_storage_entry, None);
 
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
         .expect("wire protocol compatibility report should be written");
@@ -13378,13 +13382,15 @@ fn numbered_case_identities_compile() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-numbered-cases-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = production_compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("numbered case identities should survive the compiler pipeline");
+    assert!(!compilation.wrote_output);
+    assert_eq!(compilation.program_storage_entry, None);
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
         .expect("identity-keyed ordinary data should appear in the wire artifact");
     assert!(
