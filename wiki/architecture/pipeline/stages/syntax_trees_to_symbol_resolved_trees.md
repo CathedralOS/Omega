@@ -60,9 +60,10 @@ The implementation should stay split by identity task:
 
 - `compiler/psi-rs/pipeline/psi-generic-instances` owns the pre-resolution
   closed-instance and contextual-construction normalization used by that stage
-  and by Psi-owned probe frontends. Omega orchestration invokes this Psi pass
-  only while the remaining probe conveyor is migrated; it does not own or
-  extend the language elaboration.
+  and by Psi-owned probe frontends. Its public entry consumes one syntax tree
+  and returns the normalized tree; the in-place elaborator is private. Omega
+  orchestration may sequence that Psi entry while the larger frontend conveyor
+  is split, but cannot own or extend the language elaboration.
 
 - `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
   output.

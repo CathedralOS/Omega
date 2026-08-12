@@ -356,7 +356,7 @@ impl Compiler {
         // PLAN-LAID VALUE TYPES (layouts L4), desugar half: synthesize the
         // `Policy<Schema>` instance definitions before resolution so every
         // later stage sees ordinary records.
-        psi_generic_instances::desugar_generic_data_instances(&mut syntax.syntax_trees)?;
+        syntax.syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax.syntax_trees)?;
         let plan_laid_records =
             crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
         // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
