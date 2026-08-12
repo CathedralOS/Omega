@@ -2004,7 +2004,7 @@ fn compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts() {
             .expect("copy compiler-body frame-double-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-double-indexed target");
         compile(CompileOptions {
@@ -2060,7 +2060,7 @@ fn compiler_body_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_ar
             .expect("copy compiler-body machine-double-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-double-indexed target");
         compile(CompileOptions {
@@ -2104,7 +2104,7 @@ fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64
             .expect("copy compiler-body to-machine-double-indexed canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body to-machine-double-indexed target");
         compile(CompileOptions {
@@ -2152,7 +2152,7 @@ fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_arti
             .expect("copy compiler-body machine-indexed-pair canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed-pair target");
         compile(CompileOptions {

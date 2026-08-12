@@ -65,8 +65,9 @@ Remaining:
   cover Windows x86-64, Linux x86-64, and Linux AArch64; target-scoped build
   selection now accepts a matrix of exact per-target root bindings, and the
   first four-target hosted canary plus the byte/line console replay matrices
-  and initial cross-architecture guard/copy footprint artifact cohorts have
-  migrated. Production and development interpreter callers require Omega's
+  and initial cross-architecture guard/copy and double-indexed footprint
+  artifact cohorts have migrated. Production and development interpreter
+  callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
   explicitly. Implicit Psi entry discovery and the former `Main::run` entry
