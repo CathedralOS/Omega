@@ -374,6 +374,9 @@ customer-shaped compiler concept is introduced.
   redirecting the returned origin. A value-shaped assignment RHS may likewise
   be a typed non-reference direct-call tree through depth two with complete
   frames; nested writes publish without redirecting a separate returned origin.
+  The bounded indexed target and bounded non-reference RHS may coexist on one
+  assignment; their complete frames and writes compose independently, while a
+  depth or rebinding violation on either side fences the relation.
   A caller-isolated primitive scratch initializer may likewise contain a
   direct-call tree through depth two when every frame is complete and every
   write stays inside already established isolated scratch roots; those writes

@@ -189,8 +189,10 @@ Current ownership is:
   call-produced places. An indexed target may use the same complete,
   non-rebinding direct-call tree through depth two; its collection-coarse write
   and every index-call write remain published. Deeper, binding-reborrow,
-  recursive, or opaque indexed targets remain fences. Other ordinary exact
-  frames remain published, and
+  recursive, or opaque indexed targets remain fences. The bounded indexed
+  target and bounded non-reference value tree may coexist on one assignment;
+  their frames compose independently, while either side exceeding its rail
+  fences the relation. Other ordinary exact frames remain published, and
   effect-free discarded expressions and direct Unit statement calls with
   complete non-rebinding frames are neutral, including exact sibling direct
   value-call arguments and their bounded two-level direct-call trees. A direct

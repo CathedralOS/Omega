@@ -362,6 +362,10 @@ separately returned parameter origin when its index is a complete,
 non-rebinding direct-call tree of maximum depth two. The ordinary frame
 publishes the collection-coarse target and every index-call write. Deeper,
 binding-reborrow, recursive, or opaque indexed targets remain fences.
+The bounded indexed target and bounded non-reference value tree may occur on
+the same assignment. Their complete frames compose and publish independently;
+either side exceeding its depth or non-rebinding rail fences the returned-place
+relation.
 A terminal returned-place index may contain a non-rebinding direct-call tree of
 maximum depth two when every inferred frame is complete. The returned origin
 remains collection-coarse, and the ordinary frame publishes every call's
