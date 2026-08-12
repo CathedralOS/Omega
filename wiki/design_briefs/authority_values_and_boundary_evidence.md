@@ -667,8 +667,11 @@ Artifacts record each fact origin as checked, transferred, validated, or
 accepted. Accepted origins include the domain, subject type, boundary machine,
 selected provider, and receipt. Authority-flow reports continue to record
 which packages accept, derive, retain, return, release, or acquire qualified
-values. Content-bearing reports additionally retain the normalized projection,
-receipt backing, root lineage, outcome mapping, and n-ary conservation witness.
+values. Static provider authority-flow rows keep the readable requirement owner
+and the canonical overload identity separately, plus the predicate-body and
+carry-policy facts bound by the provider-plan receipt. Content-bearing reports
+additionally retain the normalized projection, receipt backing, root lineage,
+outcome mapping, and n-ary conservation witness.
 
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row

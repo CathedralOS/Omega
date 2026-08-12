@@ -248,6 +248,8 @@ pub fn qualification_evidence_manifest_json(
         push_json_string(&mut json, &plan.schema.trait_name);
         json.push_str(",\n      \"requirement\": ");
         push_json_string(&mut json, &service_requirement_label(plan, method));
+        json.push_str(",\n      \"requirement_identity\": ");
+        push_json_string(&mut json, &method.requirement_identity);
         json.push_str(",\n      \"parameter_index\": ");
         json.push_str(&claim.parameter_index.to_string());
         json.push_str(",\n      \"subject_type\": ");
@@ -280,6 +282,8 @@ pub fn qualification_evidence_manifest_json(
         push_json_string(&mut json, &plan.schema.trait_name);
         json.push_str(",\n      \"requirement\": ");
         push_json_string(&mut json, &service_requirement_label(plan, method));
+        json.push_str(",\n      \"requirement_identity\": ");
+        push_json_string(&mut json, &method.requirement_identity);
         json.push_str(",\n      \"parameter_index\": null");
         json.push_str(",\n      \"subject_type\": ");
         if let Some(subject_type) = &method.result_type_identity {
@@ -289,6 +293,7 @@ pub fn qualification_evidence_manifest_json(
         }
         json.push_str(",\n      \"domain\": ");
         push_json_string(&mut json, &claim.domain);
+        json.push_str(",\n      \"predicate_body\": \"bodyless\"");
         json.push_str(",\n      \"effective_carry\": ");
         push_carry_policy_json(&mut json, claim.effective_carry);
         json.push_str(",\n      \"provider_plan\": ");
