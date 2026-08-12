@@ -761,7 +761,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
 ///
 /// Binding properties are intentionally distinct from data/type properties:
 /// `proof [erased]: Evidence` marks only `proof`, never `Evidence` itself.
-fn parse_field_relevance_brackets<'tokens, 'source>(
+pub(super) fn parse_field_relevance_brackets<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, psi_language_core::BindingRelevance> {
     if !input.at_punctuation(PunctuationKind::LeftBracket) {

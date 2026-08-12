@@ -748,6 +748,7 @@ impl SyntaxTrees {
                 WireDataMember::Field(field) => WireDataMember::Field(WireDataField {
                     number: field.number,
                     name: field.name.clone(),
+                    relevance: field.relevance,
                     type_reference: this.copy_type_reference_handle(other, field.type_reference),
                 }),
                 WireDataMember::Reserved(reserved) => WireDataMember::Reserved(WireDataReserved {

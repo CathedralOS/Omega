@@ -325,11 +325,12 @@ fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {
 /// the largest length-delimited payload's worst-case body -- the largest of
 /// the nested sub-messages' scalar bodies and the repeated fields' packed
 /// element runs -- placed ABOVE every real slot and the argument-staging
-/// scratch. Reserved whenever any wire schema's current era declares such a
-/// field -- a declared-but-never-called schema overallocates a few dozen
-/// frame bytes, which is cheaper than scanning every statement for
-/// encode/decode calls here. Call AFTER the frame layout is final (post
-/// call-context stacking).
+/// scratch. Reserved whenever any wire schema's current era declares a
+/// physically relevant field of either kind; erased fields retain semantic
+/// identity but need no descriptor or staging bytes. A declared-but-never-
+/// called schema overallocates a few dozen frame bytes, which is cheaper than
+/// scanning every statement for encode/decode calls here. Call AFTER the frame
+/// layout is final (post call-context stacking).
 pub fn reserve_wire_nested_scratch(
     plan: &mut RuntimeStoragePlan,
     program: &psi_checked_trees::CheckedTrees,
@@ -343,6 +344,9 @@ pub fn reserve_wire_nested_scratch(
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             if let Some(repeated) = program.wire_field_repeated_encoding(field) {
                 needs_wire_scratch = true;
                 staging_bytes = staging_bytes.max(repeated.worst_case_body_bytes());
@@ -523,6 +527,9 @@ pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use psi_checked_trees::wire::{WireField, WireMember, WireSchema};
+    use psi_checked_trees::{CheckedTrees, name::Identifier, types::TypeReferenceNode};
+    use psi_language_core::BindingRelevance;
 
     #[test]
     fn indirect_result_pointer_is_reserved_above_entry_spill() {
@@ -570,5 +577,42 @@ mod tests {
         assert_eq!(plan.entry_result_scratch_size, 24);
         assert_eq!(runtime_frame_storage_size(&plan), 88);
         assert_eq!(runtime_frame_storage_alignment(&plan), 8);
+    }
+
+    #[test]
+    fn erased_nested_field_does_not_reserve_wire_scratch() {
+        let mut program = CheckedTrees::default();
+        let child_type = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: Default::default(),
+                name: Identifier::generated("Child"),
+            });
+        let child_members = program.typed.append_wire_members(Vec::new());
+        program.typed.push_wire_schema(WireSchema {
+            name: Identifier::generated("Child"),
+            members: child_members,
+            ..WireSchema::default()
+        });
+        let parent_members =
+            program
+                .typed
+                .append_wire_members(vec![WireMember::Field(WireField {
+                    number: 1,
+                    name: Identifier::generated("child"),
+                    relevance: BindingRelevance::Erased,
+                    type_reference: child_type,
+                })]);
+        program.typed.push_wire_schema(WireSchema {
+            name: Identifier::generated("Parent"),
+            members: parent_members,
+            ..WireSchema::default()
+        });
+        let mut plan = RuntimeStoragePlan::default();
+
+        reserve_wire_nested_scratch(&mut plan, &program);
+
+        assert_eq!(plan.wire_scratch_size, 0);
     }
 }

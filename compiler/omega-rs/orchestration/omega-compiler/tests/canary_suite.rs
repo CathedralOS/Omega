@@ -43842,6 +43842,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "wire/field_reuses_reserved_number",
     "wire/duplicate_version_declaration",
     "wire/unknown_field_type",
+    "wire/erased_unknown_field_type",
     "wire/version_field_retired_without_reserved",
     "wire/version_chain_retired_without_reserved",
     "wire/nested_schema_cycle",
@@ -47785,6 +47786,102 @@ fn generic_erased_literals_use_exact_call_and_return_contexts() {
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("run exact call/return generic canary");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(output.status.code(), Some(70));
+}
+
+#[test]
+fn wire_erased_field_is_semantic_but_not_encoded() {
+    let canary = pass_canary("wire/runtime_wire_erased_field_roundtrip_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("wire erased field should reach checked semantics");
+    let schema = checked
+        .typed
+        .wire_schemas()
+        .iter()
+        .find(|schema| schema.name.as_str() == "CertifiedMessage")
+        .expect("wire schema");
+    let fields = checked
+        .typed
+        .wire_members(schema.members)
+        .iter()
+        .filter_map(|member| match member {
+            psi_typed_trees::wire::WireMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 4, "semantic schema retains erased evidence");
+    assert!(
+        fields
+            .iter()
+            .any(|field| { field.name.as_str() == "proof" && field.relevance.is_erased() })
+    );
+    assert!(
+        fields
+            .iter()
+            .any(|field| { field.name.as_str() == "certificate" && field.relevance.is_erased() })
+    );
+    let plan = checked
+        .typed
+        .wire_schema_plans
+        .iter()
+        .find(|plan| plan.schema == schema.symbol)
+        .expect("normalized wire plan");
+    assert_eq!(
+        checked
+            .typed
+            .wire_placements
+            .span_or_empty(plan.placements)
+            .iter()
+            .map(|placement| placement.tag())
+            .collect::<Vec<_>>(),
+        [0, 2]
+    );
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None, "wire interpreter error");
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-erased-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire erased field should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run wire erased field canary");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(output.status.code(), Some(70));
+}
+
+#[test]
+fn nested_wire_erased_field_is_not_encoded() {
+    let canary = pass_canary("wire/runtime_wire_nested_erased_field_roundtrip_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("nested erased wire field should reach checked semantics");
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None, "nested wire interpreter error");
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-nested-erased-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested erased wire field should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run nested erased wire field canary");
     let _ = fs::remove_dir_all(&build_dir);
     assert_eq!(output.status.code(), Some(70));
 }

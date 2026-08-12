@@ -1,9 +1,9 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, WireCaseReportEntry, WireCompatibilityDemandReportEntry,
-    WireCompatibilityFactReport, WireCompatibilityVerdicts, WireFieldReportEntry,
-    WireProtocolReport, WireRealizationOrigin, WireSchemaReportEntry, WireTrustClass,
-    WireVersionReportEntry,
+    WireCompatibilityFactReport, WireCompatibilityVerdicts, WireFieldRelevance,
+    WireFieldReportEntry, WireProtocolReport, WireRealizationOrigin, WireSchemaReportEntry,
+    WireTrustClass, WireVersionReportEntry,
 };
 use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
@@ -396,9 +396,17 @@ fn schema_accepts(reader: &WireSchemaReportEntry, writer: &WireSchemaReportEntry
 }
 
 fn fields_equal(left: &[WireFieldReportEntry], right: &[WireFieldReportEntry]) -> bool {
-    left.len() == right.len()
-        && left.iter().all(|left_field| {
-            right.iter().any(|right_field| {
+    let left_relevant = left
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .collect::<Vec<_>>();
+    let right_relevant = right
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .collect::<Vec<_>>();
+    left_relevant.len() == right_relevant.len()
+        && left_relevant.iter().all(|left_field| {
+            right_relevant.iter().any(|right_field| {
                 left_field.number == right_field.number
                     && left_field.type_display == right_field.type_display
             })
@@ -490,6 +498,7 @@ fn ordinary_data_schema_report_entry(
             DataMember::Field(field) => Some(WireFieldReportEntry {
                 number: field.identity?,
                 name: field.name.to_string(),
+                relevance: report_relevance(field.relevance),
                 type_display: typed.display_type_reference(field.type_reference),
             }),
             DataMember::Variant(_) => None,
@@ -508,6 +517,7 @@ fn ordinary_data_schema_report_entry(
                         Some(WireFieldReportEntry {
                             number: field.identity?,
                             name: field.name.to_string(),
+                            relevance: report_relevance(field.relevance),
                             type_display: typed.display_type_reference(field.type_reference),
                         })
                     })
@@ -562,6 +572,7 @@ fn collect_scope_table(typed: &TypedTrees, members: HandleSpan<WireMember>) -> S
             WireMember::Field(field) => table.fields.push(WireFieldReportEntry {
                 number: field.number,
                 name: field.name.to_string(),
+                relevance: report_relevance(field.relevance),
                 type_display: typed.display_type_reference(field.type_reference),
             }),
             WireMember::Reserved(reserved) => table.reserved.push(reserved.number),
@@ -658,7 +669,15 @@ fn compatibility_verdicts(
             .find(|candidate| candidate.number == field.number)
         {
             Some(successor_field) => {
-                if successor_field.type_display != field.type_display {
+                if successor_field.relevance != field.relevance {
+                    verdicts.requires_migration.push(format!(
+                        "field {} {} changes relevance {} -> {}; the current codec placement changes and the old era must decode before migration",
+                        field.number,
+                        field.name,
+                        report_relevance_name(field.relevance),
+                        report_relevance_name(successor_field.relevance)
+                    ));
+                } else if successor_field.type_display != field.type_display {
                     verdicts.requires_migration.push(format!(
                         "field {} changes type {} -> {}; decode via the old era's table and migrate up the chain",
                         field.number, field.type_display, successor_field.type_display
@@ -698,7 +717,12 @@ fn compatibility_verdicts(
             .any(|candidate| candidate.number == field.number);
 
         if !existed {
-            if predecessor.reserved.contains(&field.number) {
+            if field.relevance.is_erased() {
+                verdicts.compatible.push(format!(
+                    "added erased field {} {} {} (semantic identity only; no codec placement)",
+                    field.number, field.name, field.type_display
+                ));
+            } else if predecessor.reserved.contains(&field.number) {
                 verdicts.compatible.push(format!(
                     "added field {} {} {} (recycles a number the prior era retired; the era discriminator disambiguates)",
                     field.number, field.name, field.type_display
@@ -715,12 +739,73 @@ fn compatibility_verdicts(
     verdicts
 }
 
+fn report_relevance(relevance: psi_language_core::BindingRelevance) -> WireFieldRelevance {
+    match relevance {
+        psi_language_core::BindingRelevance::Relevant => WireFieldRelevance::Relevant,
+        psi_language_core::BindingRelevance::Erased => WireFieldRelevance::Erased,
+    }
+}
+
+fn report_relevance_name(relevance: WireFieldRelevance) -> &'static str {
+    match relevance {
+        WireFieldRelevance::Relevant => "relevant",
+        WireFieldRelevance::Erased => "erased",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        codec_requirement_identity, encode_requirement_identity, normalized_wire_plan_identity,
+        ScopeTable, codec_requirement_identity, compatibility_verdicts,
+        encode_requirement_identity, fields_equal, normalized_wire_plan_identity,
     };
+    use omega_artifacts::{WireFieldRelevance, WireFieldReportEntry};
     use psi_typed_trees::wire::WirePlacement;
+
+    fn field(
+        number: u64,
+        relevance: WireFieldRelevance,
+        type_display: &str,
+    ) -> WireFieldReportEntry {
+        WireFieldReportEntry {
+            number,
+            name: format!("field_{number}"),
+            relevance,
+            type_display: type_display.to_owned(),
+        }
+    }
+
+    #[test]
+    fn directional_wire_shape_ignores_semantic_only_erased_fields() {
+        let relevant = field(0, WireFieldRelevance::Relevant, "u32");
+        let erased = field(1, WireFieldRelevance::Erased, "Evidence");
+
+        assert!(fields_equal(
+            &[relevant.clone(), erased],
+            std::slice::from_ref(&relevant)
+        ));
+        assert!(!fields_equal(
+            std::slice::from_ref(&relevant),
+            &[field(0, WireFieldRelevance::Erased, "u32")]
+        ));
+    }
+
+    #[test]
+    fn relevance_change_requires_cross_era_migration() {
+        let predecessor = ScopeTable {
+            fields: vec![field(3, WireFieldRelevance::Relevant, "u32")],
+            reserved: Vec::new(),
+        };
+        let successor = ScopeTable {
+            fields: vec![field(3, WireFieldRelevance::Erased, "u32")],
+            reserved: Vec::new(),
+        };
+
+        let verdicts = compatibility_verdicts(&predecessor, &successor);
+        assert_eq!(verdicts.requires_migration.len(), 1);
+        assert!(verdicts.requires_migration[0].contains("changes relevance relevant -> erased"));
+        assert!(verdicts.compatible.is_empty());
+    }
 
     #[test]
     fn codec_requirement_identity_binds_the_normalized_schema() {

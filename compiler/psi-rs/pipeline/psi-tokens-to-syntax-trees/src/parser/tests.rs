@@ -5,6 +5,58 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn parses_relevance_on_numbered_wire_fields() {
+    let tokens = Lexer::new(
+        r#"
+        data Message {
+            #0 value: u32;
+            #1 proof [erased]: Evidence;
+            version v0 {
+                #7 historical_proof [erased]: Evidence;
+            }
+        }
+        "#,
+    )
+    .tokenize()
+    .expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("numbered relevance should parse");
+    let schema = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::WireData(schema) => Some(schema),
+            _ => None,
+        })
+        .expect("wire schema");
+    let fields = parsed
+        .items
+        .wire_data_members(schema.members)
+        .iter()
+        .filter_map(|member| match member {
+            psi_syntax_trees::item::WireDataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 2);
+    assert!(!fields[0].relevance.is_erased());
+    assert!(fields[1].relevance.is_erased());
+    let version = parsed
+        .items
+        .wire_data_members(schema.members)
+        .iter()
+        .find_map(|member| match member {
+            psi_syntax_trees::item::WireDataMember::Version(version) => Some(version),
+            _ => None,
+        })
+        .expect("wire version");
+    let [psi_syntax_trees::item::WireDataMember::Field(historical)] =
+        parsed.items.wire_data_members(version.members)
+    else {
+        panic!("historical wire field");
+    };
+    assert!(historical.relevance.is_erased());
+}
+
+#[test]
 fn parses_primitive_witness_and_transparent_proposition_declarations() {
     let source = r#"
         proposition related(left: i32, right: i32);

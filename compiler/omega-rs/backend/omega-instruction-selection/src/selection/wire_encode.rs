@@ -524,6 +524,9 @@ fn collect_field_appends(
         let WireMember::Field(field) = member else {
             continue;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         let member_handle = expressions.insert(ExpressionNode::Member(
             psi_checked_trees::expression::TableMemberExpression {
                 receiver,

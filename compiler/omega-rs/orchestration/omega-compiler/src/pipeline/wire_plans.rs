@@ -73,6 +73,9 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let shape = if typed.wire_field_repeated_encoding(field).is_some() {
                 FieldShape::Repeated
             } else if typed.wire_field_nested_schema(field).is_some() {

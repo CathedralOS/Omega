@@ -252,8 +252,8 @@ Remaining:
   contained-machine topology. Ambiguous, absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
   Expand this without compatibility scaffolding to ambiguous/overloaded or
-  attached-call generic record/sum construction contexts, plan-laid wire/codec and ABI
-  classification, and attached machines over generic
+  attached-call generic record/sum construction contexts, ABI classification,
+  and attached machines over generic
   or case-bearing data, non-checked supply modes, or unresolved machine
   parameters. Plan-laid values now omit erased bindings from physical Schema
   reflection, validated plan entries, native/interpreter layouts, recasts, and
@@ -261,6 +261,9 @@ Remaining:
   schema identity retain their terms, obligations, and relevance. `Placed<P,
   T>` erased-evidence establishment is design-blocked on owner Q8. All
   unsupported shapes continue to fail closed at use sites.
+  Numbered wire data preserves erased bindings and identities through syntax,
+  resolved/typed trees, snapshots, and semantic data while normalized plans,
+  validation, interpreter/native encode, and decode omit their tags and bytes.
   Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
   Do not infer carrier relation roles from relevance.

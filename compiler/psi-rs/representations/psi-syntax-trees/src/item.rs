@@ -199,6 +199,7 @@ impl Default for WireDataMember {
 pub struct WireDataField {
     pub number: u64,
     pub name: Identifier,
+    pub relevance: psi_language_core::BindingRelevance,
     pub type_reference: crate::types::TypeReferenceHandle,
 }
 

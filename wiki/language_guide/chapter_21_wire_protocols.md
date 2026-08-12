@@ -84,6 +84,12 @@ data Request {
 Stable identities are schema facts. A selected layout independently determines
 offsets, alignment, tag width, and runtime discriminants.
 
+An `[erased]` numbered field remains part of semantic and historical schema
+identity, including compatibility checks and retirement history, but receives
+no current codec placement and emits or consumes no tag or bytes. Decode
+establishes its erased term through checked elaboration rather than raw input.
+Erasure never renumbers the remaining wire identities.
+
 ## Presence Is Ordinary Data
 
 Optionality is an ordinary generic sum:

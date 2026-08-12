@@ -156,6 +156,11 @@ pub(crate) fn validate_proof_only_consumption(
             let psi_typed_trees::wire::WireMember::Field(field) = member else {
                 continue;
             };
+            // Erased numbered fields remain semantic schema/history facts but
+            // have no current codec placement or runtime bytes.
+            if field.relevance.is_erased() {
+                continue;
+            }
             if let Some(held) = classification.proof_only_mention(program, field.type_reference) {
                 diagnostics.push(Diagnostic::error(format!(
                     "wire data `{}` field `{}` mentions proof-only `{held}`, which has no \

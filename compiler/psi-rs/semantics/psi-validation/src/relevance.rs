@@ -172,13 +172,6 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
         {
             diagnostics.push(unsupported(definition, &field_names, "placed-view data"));
         }
-        if program
-            .wire_schemas()
-            .iter()
-            .any(|schema| schema.name == definition.name)
-        {
-            diagnostics.push(unsupported(definition, &field_names, "wire data"));
-        }
         let has_attached_machines = program
             .machines()
             .iter()
@@ -193,20 +186,6 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
     }
 
     validate_unresolved_erased_generic_uses(program, diagnostics);
-
-    for schema in program.wire_schemas() {
-        for member in program.wire_members(schema.members) {
-            let psi_typed_trees::wire::WireMember::Field(field) = member else {
-                continue;
-            };
-            if type_mentions_erased_record(program, field.type_reference) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}` mentions data with `[erased]` fields, but erased-stripped wire classification is not implemented yet",
-                    schema.name, field.name
-                )));
-            }
-        }
-    }
 
     for machine in program.machines().iter().filter(|machine| {
         matches!(

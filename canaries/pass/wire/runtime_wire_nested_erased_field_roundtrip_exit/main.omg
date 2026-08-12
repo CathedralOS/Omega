@@ -1,0 +1,56 @@
+use omega::language::std::console;
+
+data Evidence { case Only; case Step(previous: Evidence); }
+
+data Header {
+    #0 code: u32;
+    #1 proof [erased]: Evidence;
+}
+
+data Packet {
+    #0 header: Header;
+    #1 flag: bool;
+}
+
+data WireVerdict { case Invalid; case Sound; }
+
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    written: u64;
+    read: u64;
+    verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    let value: Packet = Packet {
+        header: Header { code: 70, proof: Evidence::Only },
+        flag: true,
+    };
+    Packet::encode(&value, &mut self.buffer, &mut self.written);
+
+    let decoded: Packet = Packet {
+        header: Header { code: 0, proof: Evidence::Only },
+        flag: false,
+    };
+    Packet::decode(
+        &mut decoded,
+        &self.buffer,
+        &mut self.read,
+        &mut self.verdict,
+    );
+
+    // era 0; header tag 0; nested length 2; child tag 0; code 70;
+    // flag tag 1; true. The child's erased tag 1 contributes no bytes.
+    transition self.verdict == WireVerdict::Sound
+        && self.written == 7
+        && self.read == 7
+        && decoded.header.code == 70
+        && decoded.flag
+    {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

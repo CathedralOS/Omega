@@ -1,6 +1,9 @@
 use super::{ItemSnapshot, SyntaxTreesSnapshot, TypeReferenceSnapshot};
 use crate::identifier::Identifier;
-use crate::item::{DataDefinition, DataField, DataMember, DataVariant, Item};
+use crate::item::{
+    DataDefinition, DataField, DataMember, DataVariant, Item, WireDataDefinition, WireDataField,
+    WireDataMember,
+};
 use crate::syntax_trees::SyntaxTrees;
 use crate::types::TypeReferenceNode;
 
@@ -128,6 +131,48 @@ fn variant_snapshot_retains_payload_only_erased_field() {
     assert_eq!(payload[0].identity, Some(7));
     assert!(matches!(
         &payload[0].type_reference,
+        TypeReferenceSnapshot::Named { name } if name.text == "Evidence"
+    ));
+}
+
+#[test]
+fn wire_snapshot_retains_erased_field_relevance() {
+    let mut syntax_trees = SyntaxTrees::new(Default::default());
+    let evidence_type = syntax_trees
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("Evidence")));
+    let field = syntax_trees
+        .items
+        .append_wire_data_member(WireDataMember::Field(WireDataField {
+            number: 7,
+            name: Identifier::generated("proof"),
+            relevance: psi_language_core::BindingRelevance::Erased,
+            type_reference: evidence_type,
+        }));
+    syntax_trees.push_root_item(Item::WireData(WireDataDefinition {
+        name: Identifier::generated("Certified"),
+        encoding: None,
+        members: psi_arena::HandleSpan::from_parts(field, 1),
+    }));
+
+    let snapshot = syntax_trees.snapshot();
+    let ItemSnapshot::WireData { members, .. } = &snapshot.root_items[0] else {
+        panic!("wire data snapshot");
+    };
+    let super::WireDataMemberSnapshot::Field {
+        number,
+        name,
+        relevance,
+        type_reference,
+    } = &members[0]
+    else {
+        panic!("wire field snapshot");
+    };
+    assert_eq!(*number, 7);
+    assert_eq!(name.text, "proof");
+    assert_eq!(*relevance, "erased");
+    assert!(matches!(
+        type_reference,
         TypeReferenceSnapshot::Named { name } if name.text == "Evidence"
     ));
 }

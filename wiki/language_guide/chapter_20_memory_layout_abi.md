@@ -153,7 +153,7 @@ contained-machine topology of closed, non-generic plain records when every
 attached machine is an ordinary checked body with no unresolved machine
 parameters. Erased common and payload fields are omitted without changing the
 tag prefix, variant order, or case numbering. Ambiguous unresolved generic
-uses, explicit placement plans, wire/codec faces, ABI faces, and attached
+uses, explicit placement plans, ABI faces, and attached
 machines outside that exact checked-record cohort remain rejected until their
 representation classifiers consume the same erased-stripped form.
 
