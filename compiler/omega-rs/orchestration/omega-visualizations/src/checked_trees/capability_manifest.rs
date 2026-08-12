@@ -3,8 +3,8 @@ use psi_checked_trees::CheckedTrees;
 use psi_effects::CapabilityFlowKind;
 use psi_symbols::SymbolHandle;
 
-/// Render capabilities for the exact Build-selected entry. `None` alone
-/// enables transitional corpus name discovery.
+/// Render capabilities for the exact Build-selected entry. `None` reports that
+/// no entry was selected; it never discovers one from a source name.
 pub fn capability_manifest_html(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
@@ -15,8 +15,8 @@ pub fn capability_manifest_html(
     )
 }
 
-/// Render capabilities for the exact Build-selected entry. `None` alone
-/// enables transitional corpus name discovery.
+/// Render capabilities for the exact Build-selected entry. `None` reports that
+/// no entry was selected; it never discovers one from a source name.
 pub fn capability_manifest_json(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
@@ -157,10 +157,7 @@ fn entry_machine(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
 ) -> Option<(SymbolHandle, String, String)> {
-    match selected_entry_machine {
-        Some(name) => entry_machine_named(program, name),
-        None => entry_machine_with_state(program, "Main::main", "main"),
-    }
+    selected_entry_machine.and_then(|name| entry_machine_named(program, name))
 }
 
 fn entry_machine_named(
@@ -177,28 +174,6 @@ fn entry_machine_named(
         machine.name.as_str().to_owned(),
         state.name.as_str().to_owned(),
     ))
-}
-
-fn entry_machine_with_state(
-    program: &CheckedTrees,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<(SymbolHandle, String, String)> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)?;
-    program
-        .machine_states(machine)
-        .iter()
-        .any(|state| state.name.as_str() == state_name)
-        .then(|| {
-            (
-                machine.symbol,
-                machine.name.as_str().to_owned(),
-                state_name.to_owned(),
-            )
-        })
 }
 
 #[cfg(test)]
@@ -300,5 +275,10 @@ mod tests {
         assert!(text.contains("may suspend:   yes"));
         assert!(text.contains("may block:     no"));
         assert!(!text.contains("effects:"));
+
+        let missing = capability_manifest_json(&program, None);
+        assert!(missing.contains("\"entry_machine\": \"<missing>\""));
+        assert!(missing.contains("\"entry_state\": \"<missing>\""));
+        assert!(!missing.contains("\"entry_machine\": \"Main::main\""));
     }
 }

@@ -2085,7 +2085,8 @@ pub struct UncheckedBoundaryPolicy {
 }
 
 /// Build the source/backend audit surface around the exact Build-selected
-/// entry. `None` alone enables the remaining `Main::main` corpus fallback.
+/// entry. With no selected entry, the report must not invent one from a source
+/// name.
 pub fn build_backend_surface_report(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
@@ -2096,10 +2097,7 @@ pub fn build_backend_surface_report(
         collect_machine(&mut report, program, machine);
     }
 
-    let selected = match selected_entry_machine {
-        Some(name) => entry_point_for_machine(program, name),
-        None => entry_point_with_state(program, "Main::main", "main"),
-    };
+    let selected = selected_entry_machine.and_then(|name| entry_point_for_machine(program, name));
     if let Some(entry) = selected {
         report.entry_points.insert(entry);
     }
@@ -2130,25 +2128,6 @@ fn entry_point_for_machine(program: &CheckedTrees, name: &str) -> Option<Backend
         machine: machine.name.as_str().to_owned(),
         state: state.name.as_str().to_owned(),
     })
-}
-
-fn entry_point_with_state(
-    program: &CheckedTrees,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<BackendEntryPoint> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)?;
-    program
-        .machine_states(machine)
-        .iter()
-        .any(|state| state.name.as_str() == state_name)
-        .then(|| BackendEntryPoint {
-            machine: machine_name.to_owned(),
-            state: state_name.to_owned(),
-        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2374,7 +2353,7 @@ mod tests {
     }
 
     #[test]
-    fn collects_remaining_corpus_fallback_entry_machine() {
+    fn missing_entry_selection_does_not_infer_main_machine() {
         let mut program = CheckedTrees::default();
         let mut machine = Machine {
             symbol: SymbolHandle::default(),
@@ -2399,12 +2378,12 @@ mod tests {
 
         let report = build_backend_surface_report(&program, None);
 
-        assert_eq!(report.entry_points.len(), 1);
+        assert!(report.entry_points.is_empty());
         assert_eq!(report.machines.len(), 1);
     }
 
     #[test]
-    fn explicit_entry_selection_overrides_corpus_fallback_in_surface_report() {
+    fn explicit_entry_selection_controls_surface_report() {
         let mut program = CheckedTrees::default();
         for (machine_name, state_name) in [("Main::main", "main"), ("Application::launch", "start")]
         {
