@@ -807,8 +807,17 @@ impl ArtifactWriter {
                     radius.stores,
                     radius.derives,
                 ));
-                for propagated in &radius.propagated_flows {
-                    output.push_str(&format!("  - {propagated}\n"));
+                for flow in &radius.flows {
+                    output.push_str(&format!(
+                        "  - `{}` {} at statement {} call {}",
+                        flow.state, flow.authority_flow, flow.statement_index, flow.call_ordinal,
+                    ));
+                    if let Some(via_state) = &flow.via_state {
+                        output.push_str(&format!(" via `{via_state}`"));
+                    } else {
+                        output.push_str(" direct");
+                    }
+                    output.push('\n');
                 }
             }
         }
@@ -2015,10 +2024,22 @@ pub struct CapabilityBlastRadius {
     pub acquires: usize,
     pub stores: usize,
     pub derives: usize,
-    /// Authority-flow verbs that reached a state through a nested helper call
-    /// rather than a direct boundary call, rendered as provenance lines such as
-    /// `Main::main acquires via Vault::expose`.
-    pub propagated_flows: Vec<String>,
+    /// Exact checked flow sites. Counts above are only a summary of these rows.
+    pub flows: Vec<CapabilityBlastRadiusFlow>,
+}
+
+/// One checked capability-flow fact retained in the boundary artifact.
+///
+/// Statement and call ordinals disambiguate repeated uses within an operation;
+/// `via_state` distinguishes a propagated helper route from a direct boundary
+/// use without turning a rendered provenance line into artifact identity.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CapabilityBlastRadiusFlow {
+    pub state: String,
+    pub authority_flow: String,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub via_state: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
