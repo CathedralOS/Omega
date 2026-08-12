@@ -43475,6 +43475,13 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "borrow/view_return_ambiguous_ref_inputs",
     "borrow/method_view_receiver_unrelated_field_write",
     "borrows/borrow_helper_alias_active",
+    "calls/runtime_two_state_tail_cycle_forwarding_rejected",
+    "calls/machine_call_cycle_rejected",
+    "calls/statement_tail_self_call_rejected",
+    "calls/terminal_self_call_recursion_rejected",
+    "calls/runtime_helper_ordering_return",
+    "calls/mutual_cycle_decrease_unproven",
+    "calls/mutual_cycle_disqualified_shape",
     "recast/recast_mut_fact_fenced",
     "recast/recast_mut_cross_carrier_domain_not_equivalent",
     "recast/recast_mut_range_bit_sets_differ",
@@ -48879,7 +48886,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/native_slice_external_leaf_rejected",
     "capabilities/native_bounded_text_external_leaf_rejected",
     "capabilities/native_vector_external_leaf_rejected",
-    "calls/runtime_two_state_tail_cycle_forwarding_rejected",
     "atomics/atomic_load_publish_ordering_rejected",
     "atomics/atomic_store_receive_ordering_rejected",
     "atomics/atomic_compare_exchange_failure_publish_rejected",
@@ -48994,10 +49000,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/legacy_numbered_field_spelling",
     "wire/unnumbered_field_in_numbered_data",
     "calls/nested_value_call_arg_rejected",
-    "calls/machine_call_cycle_rejected",
     "calls/machine_self_call_recursion_rejected",
-    "calls/statement_tail_self_call_rejected",
-    "calls/terminal_self_call_recursion_rejected",
     "build/build_effects_undeclared",
     "build/build_boundary_rowless",
     "calls/ambiguous_spliced_second_receiver_rejected",
@@ -49067,7 +49070,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "operators/duplicate_spelling_binding",
     "operators/app_package_provider_rejected",
     "operators/unregistered_provider_binding",
-    "calls/runtime_helper_ordering_return",
     "traits/runtime_dyn_varying_field_rejected",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/param_receiver_method_rejected",
@@ -49086,8 +49088,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
     "drops/drop_nonblocking_effect_unknown",
-    "calls/mutual_cycle_decrease_unproven",
-    "calls/mutual_cycle_disqualified_shape",
 ];
 
 #[derive(Clone, Copy)]
