@@ -213,9 +213,8 @@ fn emit_function(
                     target,
                 )?,
             };
-            scalar_stack_eligible = direct_linear_integer_arm(when_true)
-                && direct_linear_integer_arm(when_false)
-                && fragment.internal_calls.is_empty();
+            scalar_stack_eligible =
+                direct_linear_integer_arm(when_true) && direct_linear_integer_arm(when_false);
             if scalar_stack_eligible {
                 scalar_control_flow = fragment
                     .conditional
@@ -1333,6 +1332,28 @@ impl EmissionFragment {
                 .offset
                 .checked_add(base)
                 .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+            if let Some(stack) = &mut relocation.scalar_stack {
+                if let Some(outbound) = &mut stack.outbound {
+                    outbound.allocation_offset = outbound
+                        .allocation_offset
+                        .checked_add(base)
+                        .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+                    outbound.release_offset = outbound
+                        .release_offset
+                        .checked_add(base)
+                        .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+                }
+                if let Some(link) = &mut stack.aarch64_return_link {
+                    link.store_offset = link
+                        .store_offset
+                        .checked_add(base)
+                        .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+                    link.load_offset = link
+                        .load_offset
+                        .checked_add(base)
+                        .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+                }
+            }
         }
         self.bytes.append(&mut fragment.bytes);
         self.internal_calls.append(&mut fragment.internal_calls);
@@ -6053,6 +6074,86 @@ mod tests {
     }
 
     #[test]
+    fn parameter_conditional_retains_typed_calls_inside_direct_linear_arms() {
+        for (target, condition_register, argument_register) in [
+            (
+                NativeTarget::linux_x64(),
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rsi,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(1),
+            ),
+        ] {
+            let emitted = emit_machine_code(&calling_arm_conditional_plan(
+                target,
+                condition_register,
+                argument_register,
+            ))
+            .expect("emit conditional arm call");
+            let caller = &emitted.functions[0];
+            assert!(matches!(
+                caller
+                    .scalar_stack
+                    .as_ref()
+                    .expect("conditional call stack evidence")
+                    .control_flow,
+                TerminalScalarControlFlowEvidence::TopLevelTwoReturn { .. }
+            ));
+            assert_eq!(caller.internal_calls.len(), 1);
+            assert!(caller.internal_calls[0].scalar_stack.is_some());
+            assert_eq!(caller.internal_calls[0].target, MachineId::new(2).unwrap());
+        }
+
+        let mut excluded = calling_arm_conditional_plan(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rsi,
+        );
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
+            &mut excluded.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerControl::Return { expression, .. } = when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerExpression::WrappingAdd { right, .. } = expression else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerExpression::Call { arguments, .. } = right.as_mut() else {
+            unreachable!()
+        };
+        let TerminalTargetScalarExpression::Integer { expression, .. } =
+            &mut arguments[0].expression
+        else {
+            unreachable!()
+        };
+        *expression = TerminalTargetIntegerExpression::WrappingDivide {
+            psi_operation: OperationId::new(9).unwrap(),
+            left: Box::new(TerminalTargetIntegerExpression::Immediate {
+                source_value: ValueId::new(8).unwrap(),
+                value: IntegerValue::Unsigned(8),
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Immediate {
+                source_value: ValueId::new(9).unwrap(),
+                value: IntegerValue::Unsigned(2),
+            }),
+        };
+        assert_eq!(
+            emit_machine_code(&excluded)
+                .expect("excluded conditional call argument still emits")
+                .functions[0]
+                .scalar_stack,
+            None,
+            "branch-producing call arguments remain outside this slice"
+        );
+    }
+
+    #[test]
     fn emits_selected_register_parameter_returns_for_all_native_policies() {
         assert_eq!(
             emit_machine_code(&parameter_plan(
@@ -7446,6 +7547,90 @@ mod tests {
                     operation: TerminalTargetOperation::ReturnBooleanParameter {
                         psi_edge: EdgeId::new(5).unwrap(),
                         source_value: parameter,
+                        parameter_index: 0,
+                        location: TerminalScalarParameterLocation::Register(argument_register),
+                    },
+                },
+            ],
+        }
+    }
+
+    fn calling_arm_conditional_plan(
+        target: NativeTarget,
+        condition_register: MachineRegister,
+        argument_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let caller = MachineId::new(1).unwrap();
+        let callee = MachineId::new(2).unwrap();
+        let parameter = ValueId::new(1).unwrap();
+        let true_arm = TerminalTargetConditionalIntegerArm {
+            psi_edge: EdgeId::new(1).unwrap(),
+            control: Box::new(TerminalTargetIntegerControl::Return {
+                psi_return_edge: EdgeId::new(3).unwrap(),
+                source_value: ValueId::new(5).unwrap(),
+                expression: TerminalTargetIntegerExpression::WrappingAdd {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    left: Box::new(TerminalTargetIntegerExpression::Immediate {
+                        source_value: ValueId::new(2).unwrap(),
+                        value: IntegerValue::Unsigned(1),
+                    }),
+                    right: Box::new(TerminalTargetIntegerExpression::Call {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        source_value: ValueId::new(4).unwrap(),
+                        callee,
+                        arguments: vec![TerminalTargetCallArgument {
+                            scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                            location: TerminalScalarParameterLocation::Register(argument_register),
+                            expression: TerminalTargetScalarExpression::Integer {
+                                scalar_type,
+                                expression: TerminalTargetIntegerExpression::Immediate {
+                                    source_value: ValueId::new(3).unwrap(),
+                                    value: IntegerValue::Unsigned(7),
+                                },
+                            },
+                        }],
+                    }),
+                },
+            }),
+        };
+        let false_arm = TerminalTargetConditionalIntegerArm {
+            psi_edge: EdgeId::new(2).unwrap(),
+            control: Box::new(TerminalTargetIntegerControl::Return {
+                psi_return_edge: EdgeId::new(4).unwrap(),
+                source_value: ValueId::new(6).unwrap(),
+                expression: TerminalTargetIntegerExpression::Immediate {
+                    source_value: ValueId::new(6).unwrap(),
+                    value: IntegerValue::Unsigned(2),
+                },
+            }),
+        };
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: caller,
+            functions: vec![
+                TerminalTargetFunction {
+                    machine: caller,
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::ReturnIntegerConditionalControl {
+                        condition_source: parameter,
+                        condition_parameter_index: 0,
+                        condition_location: TerminalScalarParameterLocation::Register(
+                            condition_register,
+                        ),
+                        scalar_type,
+                        when_true: true_arm,
+                        when_false: false_arm,
+                    },
+                },
+                TerminalTargetFunction {
+                    machine: callee,
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::ReturnIntegerParameter {
+                        psi_edge: EdgeId::new(5).unwrap(),
+                        source_value: parameter,
+                        scalar_type,
                         parameter_index: 0,
                         location: TerminalScalarParameterLocation::Register(argument_register),
                     },

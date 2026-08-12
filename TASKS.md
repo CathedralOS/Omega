@@ -415,10 +415,11 @@ reach or trust, and private proof improvements do not change public identity.
   validates typed direct-call outbound/link evidence against those mutations,
   derives caller-live bytes with pending temporaries, and joins the same
   acyclic closure. One bounded scalar CFG shape is also sealed: a top-level
-  Boolean-parameter conditional with two direct, call-free linear integer
-  return arms, whose exact branch is validated and whose arms replay
-  independently by maximum. Extend that accounting to expression conditions,
-  nested/reconvergent conditionals, calls or crashes in arms, the external entry
+  Boolean-parameter conditional with two direct linear integer return arms,
+  whose exact branch is validated and whose arms replay independently by
+  maximum. Typed scalar calls within those arms reuse exact call evidence and
+  closure composition. Extend that accounting to expression conditions,
+  nested/reconvergent conditionals, crashes in arms, the external entry
   adapter, and installed-root/provider admission before treating it as a full
   root `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
