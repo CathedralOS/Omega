@@ -1572,6 +1572,7 @@ fn aarch64_control_flow_instruction(encoded: u32) -> bool {
         || (encoded & 0x7e00_0000) == 0x3400_0000
         || (encoded & 0x7e00_0000) == 0x3600_0000
         || (encoded & 0xfe00_0000) == 0xd600_0000
+        || (encoded & 0xff00_0000) == 0xd400_0000
 }
 
 fn aarch64_unsupported_sp_write(encoded: u32) -> bool {
