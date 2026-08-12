@@ -4422,51 +4422,83 @@ fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
 fn boundary_trait_canary_reports_capability_use() {
     let canary = pass_canary("traits/boundary_trait_effects_host_call");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-capability-manifest-canary-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
+    let checked_dir = scratch.join("checked");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
+    let checked_compilation = production_compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(checked_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
-    .expect("boundary trait canary should compile with capability artifacts");
+    .expect("boundary trait canary should compile with checked capability artifacts");
+    assert!(!checked_compilation.wrote_output);
+    assert_eq!(checked_compilation.program_storage_entry, None);
 
-    let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
+    let checked_manifest = fs::read_to_string(checked_dir.join("05_capability_manifest.json"))
         .expect("capability manifest should be written");
-    let typed_trees = fs::read_to_string(build_dir.join("04_typed_trees.html"))
-        .expect("typed-tree report should be written");
-    let checked_trees = fs::read_to_string(build_dir.join("05_checked_trees.html"))
-        .expect("checked-tree report should be written");
-    let state_graph = fs::read_to_string(build_dir.join("06_state_graph.html"))
-        .expect("state graph report should be written");
-    let control_flow = fs::read_to_string(build_dir.join("07_control_flow.html"))
-        .expect("control-flow report should be written");
-    let carry_manifest = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
+    let carry_manifest = fs::read_to_string(checked_dir.join("05_carry_manifest.json"))
         .expect("carry manifest should be written");
-    let task_manifest = fs::read_to_string(build_dir.join("05_task_activations.json"))
+    let task_manifest = fs::read_to_string(checked_dir.join("05_task_activations.json"))
         .expect("task activation manifest should be written");
+
+    let source_dir = scratch.join("source");
+    fs::create_dir_all(&source_dir).expect("create exact-entry capability source directory");
+    fs::copy(&main_path, source_dir.join("main.omg"))
+        .expect("copy boundary-trait capability canary");
+    fs::write(
+        source_dir.join("build.omg"),
+        hosted_main_program_entry_build("macos_arm64"),
+    )
+    .expect("write exact macOS AArch64 ProgramEntry binding");
+    let lowered_dir = scratch.join("lowered");
+    let lowered_compilation = production_compile(CompileOptions {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(lowered_dir.clone()),
+        target_name: Some("macos_arm64".into()),
+        write_output: false,
+    })
+    .expect("exact-root boundary trait canary should reach lowering reports");
+    assert!(!lowered_compilation.wrote_output);
+
+    let state_graph = fs::read_to_string(lowered_dir.join("06_state_graph.html"))
+        .expect("state graph report should be written");
+    let control_flow = fs::read_to_string(lowered_dir.join("07_control_flow.html"))
+        .expect("control-flow report should be written");
+    let typed_trees = fs::read_to_string(lowered_dir.join("04_typed_trees.html"))
+        .expect("exact-root typed-tree report should be written");
+    let checked_trees = fs::read_to_string(lowered_dir.join("05_checked_trees.html"))
+        .expect("exact-root checked-tree report should be written");
+    let entry_manifest = fs::read_to_string(lowered_dir.join("05_capability_manifest.json"))
+        .expect("exact-root capability manifest should be written");
     assert!(
-        manifest.contains("\"capability_flows\": {\"uses\": 2"),
+        checked_manifest.contains("\"capability_flows\": {\"uses\": 2"),
         "capability manifest should report both boundary capability uses\n{}",
-        manifest
+        checked_manifest
     );
     assert!(
-        manifest.contains("\"service_reach\": [\"Console\"]")
-            && manifest.contains("\"may_suspend\": false")
-            && manifest.contains("\"may_block\": false"),
+        checked_manifest.contains("\"entry_machine\": \"<missing>\"")
+            && checked_manifest.contains("\"service_reach\": []"),
+        "entry-agnostic capability checking must not invent an entry reach\n{checked_manifest}"
+    );
+    assert!(
+        entry_manifest.contains("\"service_reach\": [\"Console\"]")
+            && entry_manifest.contains("\"may_suspend\": false")
+            && entry_manifest.contains("\"may_block\": false"),
         "capability manifest should report canonical service reach and independent operational axes\n{}",
-        manifest
+        entry_manifest
     );
-    assert!(
-        !manifest.contains("\"effect_bits\"") && !manifest.contains("\"effects\""),
-        "capability manifest must not expose the retired compatibility effect set\n{}",
-        manifest
-    );
+    for manifest in [&checked_manifest, &entry_manifest] {
+        assert!(
+            !manifest.contains("\"effect_bits\"") && !manifest.contains("\"effects\""),
+            "capability manifest must not expose the retired compatibility effect set\n{}",
+            manifest
+        );
+    }
     for (name, report) in [
         ("typed trees", typed_trees.as_str()),
         ("checked trees", checked_trees.as_str()),
@@ -4504,7 +4536,7 @@ fn boundary_trait_canary_reports_capability_use() {
         task_manifest
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
