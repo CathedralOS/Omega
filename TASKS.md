@@ -93,6 +93,9 @@ Remaining:
   The remaining report-only wire compatibility, compatibility-demand, and
   numbered-identity fixtures now use production checked-only compilation and
   assert that no program-storage entry was selected.
+  The report-only capability authority-verb and exact-flow-site cohort likewise
+  stops at checked artifacts under production compilation and asserts that no
+  runtime entry or native image was selected.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
