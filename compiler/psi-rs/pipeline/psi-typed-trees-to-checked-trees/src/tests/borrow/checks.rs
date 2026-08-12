@@ -3184,6 +3184,40 @@ fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_pure_expression_helper_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: i32;
+        }
+
+        machine return_after_read(value: &mut i32) -> &mut i32 {
+            value == value;
+            value
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut i32 = return_after_read(&mut self.code);
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("an effect-free discarded expression cannot alter the returned alias origin");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_receiver_result_frame() {
     let source = r#"
         data Message {

@@ -1722,12 +1722,13 @@ fn stable_alias_place_origin(
 /// earlier such local, or another structurally transparent helper. Effect-free
 /// value-shaped assignments may write through those places or scratch locals
 /// without changing their origins; the ordinary frame summary still publishes
-/// caller-visible writes. A direct stable alias rebind updates only that local;
-/// prior reborrows retain their established origins. Explicit arguments and an
-/// attached helper's actual receiver both supply exact caller origins. This is
-/// body evidence, not lifetime elision: a reference-bearing scratch local,
-/// opaque computed rebind, statement call, recursive helper relation,
-/// named-state route, or alternate result fails closed.
+/// caller-visible writes. Effect-free discarded expressions are also neutral.
+/// A direct stable alias rebind updates only that local; prior reborrows retain
+/// their established origins. Explicit arguments and an attached helper's
+/// actual receiver both supply exact caller origins. This is body evidence, not
+/// lifetime elision: a reference-bearing scratch local, opaque computed rebind,
+/// discarded/statement call, recursive helper relation, named-state route, or
+/// alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1896,6 +1897,8 @@ fn transparent_callee_result_origin(
                         return None;
                     }
                 }
+                StatementNode::Expression(expression)
+                    if !expression_is_effectful_for_transparent_result(program, *expression) => {}
                 _ => return None,
             }
         }

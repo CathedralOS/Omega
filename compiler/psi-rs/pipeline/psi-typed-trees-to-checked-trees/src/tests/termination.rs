@@ -2844,6 +2844,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_after_pure_expression(value: &mut u64) -> &mut u64 {
+        value == value;
+        value
+    }
+
+    machine return_after_discarded_call(value: &mut u64) -> &mut u64 {
+        _ = make_scratch();
+        value
+    }
+
     machine return_rebound_alias<'first, 'second>(
         first: &'first mut u64,
         second: &'second mut u64
@@ -2957,6 +2967,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::call_scratch_helper_result(&mut self) {
         let alias: &mut u64 = return_with_call_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::pure_expression_helper_result(&mut self) {
+        let alias: &mut u64 = return_after_pure_expression(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::discarded_call_helper_result(&mut self) {
+        let alias: &mut u64 = return_after_discarded_call(&mut self.value);
         alias = 3;
     }
 
@@ -3188,6 +3208,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::nontrivial_call_result_alias", "self.value"),
         ("Main::nontrivial_call_rebound_alias", "self.other"),
         ("Main::isolated_scratch_helper_result", "self.value"),
+        ("Main::pure_expression_helper_result", "self.value"),
         ("Main::rebound_helper_result", "self.other"),
         ("Main::pre_rebind_helper_result", "self.value"),
         ("Main::call_rebound_helper_result", "self.other"),
@@ -3268,6 +3289,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",
         "Main::call_scratch_helper_result",
+        "Main::discarded_call_helper_result",
         "Main::escaping_call_rebound_helper_result",
         "Main::escaping_call_then_result_alias",
         "duplicate_parameter_alias_cycle",
