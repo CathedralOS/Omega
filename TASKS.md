@@ -302,9 +302,11 @@ customer-shaped compiler concept is introduced.
   direct stable rebinding: the rebound name takes the replacement origin while
   earlier reborrows keep their established origin. Member suffixes remain exact;
   indexing coarsens to the nearest collection and that coarsening is absorbing.
-  A one-expression free or attached helper may relate a returned `&mut` place
-  to one mutable-reference parameter, including an attached helper's actual
-  receiver; computed or nontrivial results remain opaque. Primitive-only
+  A free or attached helper may relate a returned `&mut` place to one
+  mutable-reference parameter, including an attached helper's actual receiver;
+  its terminal result may follow a prefix of direct immutable local `&mut`
+  aliases. Effectful/computed initializers and other nontrivial results remain
+  opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
   recursive, generic, reference-bearing, or computed local roots remain fences.
   Escaped aliases, unrepresentable rebinding, and non-bijective cyclic transport
