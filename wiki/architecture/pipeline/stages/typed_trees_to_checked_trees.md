@@ -191,8 +191,11 @@ Current ownership is:
   supply the replacement through the same origin algebra. Other computed
   rebinding, explicitly discarded call results, statement calls with binding
   reborrows or opaque frames, opaque or recursive result producers,
-  effectful index computations (including stable-alias and terminal
-  returned-place indexes), and other computed initializers remain opaque. For an
+  effectful stable-alias indexes, and other computed initializers remain opaque.
+  A terminal returned-place index may be one direct non-rebinding value call
+  when its frame is complete; it remains collection-coarse while the ordinary
+  frame publishes the call's writes. Nested-computed, recursive, or opaque
+  terminal index calls remain fences. For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other
   nontrivial results remain opaque; signature lifetime elision alone is not

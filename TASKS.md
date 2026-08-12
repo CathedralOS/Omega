@@ -464,6 +464,10 @@ customer-shaped compiler concept is introduced.
   computed helper initializers, and nontrivial results remain opaque. Opaque,
   recursive, or scratch initializer calls with any write outside those isolated
   roots remain fences.
+  A terminal returned-place index may be one direct non-rebinding value call
+  when its inferred frame is complete; the result remains collection-coarse and
+  the call's writes remain published. Nested-computed, recursive, or opaque
+  index calls remain fences.
   Primitive-only concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.
   Recursive, generic, reference-bearing, or other computed local roots remain
