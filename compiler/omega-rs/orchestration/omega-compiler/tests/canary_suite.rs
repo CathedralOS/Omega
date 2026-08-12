@@ -5523,19 +5523,13 @@ fn unapproved_boundary_call_canary_is_rejected() {
 #[test]
 fn value_call_as_host_arg_exit_canary_runs() {
     let canary = pass_canary("calls/value_call_as_host_arg_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-value-call-host-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested value call used as a host argument should compile");
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("nested value call used as a host argument should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested value-call host argument canary should run");
     assert_eq!(
@@ -5546,25 +5540,19 @@ fn value_call_as_host_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn computed_host_arg_exit_canary_runs() {
     let canary = pass_canary("calls/computed_host_arg_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-computed-host-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed scalar host argument should compile");
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("computed scalar host argument should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("computed scalar host argument canary should run");
     assert_eq!(
@@ -5575,45 +5563,27 @@ fn computed_host_arg_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 
     let cross_dir = std::env::temp_dir().join(format!(
         "omega-computed-host-arg-arm64-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&cross_dir);
-    let src_dir = cross_dir.join("src");
-    let out_dir = cross_dir.join("out");
-    fs::create_dir_all(&src_dir).expect("scratch source directory");
-    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write target manifest");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(out_dir),
-        target_name: Some("linux_arm64".into()),
-        write_output: true,
-    })
-    .expect("computed scalar host argument should cross-compile for AArch64");
+    compile_single_file_hosted_main(&canary, &cross_dir, "linux_arm64")
+        .expect("computed scalar host argument should cross-compile for AArch64");
     let _ = fs::remove_dir_all(&cross_dir);
 }
 
 #[test]
 fn computed_host_cast_arg_exit_canary_runs() {
     let canary = pass_canary("calls/computed_host_cast_arg_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-computed-host-cast-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed cast host argument should compile");
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("computed cast host argument should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("computed cast host argument canary should run");
     assert_eq!(
@@ -5623,27 +5593,21 @@ fn computed_host_cast_arg_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn computed_host_builtin_arg_exit_canary_runs() {
     let canary = pass_canary("calls/computed_host_builtin_arg_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-computed-host-builtin-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed builtin host argument should compile");
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("computed builtin host argument should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("computed builtin host argument canary should run");
     assert_eq!(
@@ -5653,27 +5617,21 @@ fn computed_host_builtin_arg_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn computed_host_indexed_arg_exit_canary_runs() {
     let canary = pass_canary("calls/computed_host_indexed_arg_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-computed-host-indexed-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime-indexed host argument should compile");
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("runtime-indexed host argument should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-indexed host argument canary should run");
     assert_eq!(
@@ -5683,7 +5641,7 @@ fn computed_host_indexed_arg_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -48837,6 +48795,29 @@ fn hosted_main_program_entry_build(target: &str) -> String {
     format!(
         "target {target} {{\n}}\n\nmachine build(b: &mut Build) {{\n    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
     )
+}
+
+fn compile_single_file_hosted_main(
+    canary: &Path,
+    scratch: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let _ = fs::remove_dir_all(scratch);
+    let source = scratch.join("source");
+    fs::create_dir_all(&source).expect("create exact-entry hosted source directory");
+    fs::copy(canary.join("main.omg"), source.join("main.omg"))
+        .expect("copy single-file hosted canary");
+    fs::write(
+        source.join("build.omg"),
+        hosted_main_program_entry_build(target),
+    )
+    .expect("write exact hosted ProgramEntry binding");
+    production_compile(CompileOptions {
+        root_path: source.join("main.omg"),
+        build_dir: Some(scratch.join("out")),
+        target_name: Some(target.into()),
+        write_output: true,
+    })
 }
 
 fn pending_canary(path: &str) -> PathBuf {
