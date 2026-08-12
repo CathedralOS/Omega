@@ -69,7 +69,8 @@ Remaining:
   declaration/bound/rejection, borrow/lifetime, scalar-constraint, and
   structural data-shape/pattern, control-flow rejection, expression type/operator,
   basic call/result/recursion, numeric conversion, value construction, Exact arithmetic
-  proof/theorem/runtime-use, dependent-contract/frame, domain qualification/operator, trait requirement,
+  proof/theorem/runtime-use, dependent-contract/frame, domain qualification/operator,
+  trait and effect-contract requirement,
   invariant-window, slice/collection bounds, overlap, and range-flow validation,
   operator-overload identity, and recast representation checking, plus pure
   ownership-checker fixtures now use explicit checked-only harnesses;
