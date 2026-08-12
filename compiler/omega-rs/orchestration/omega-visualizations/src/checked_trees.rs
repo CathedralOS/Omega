@@ -465,6 +465,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, map.machine_symbol));
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, map.machine_symbol)
+                .expect("claim outcome map must name an exact owning machine"),
+        );
         json.push_str(",\n      \"state\": ");
         push_json_string(
             &mut json,
@@ -3032,7 +3038,23 @@ mod tests {
 
     #[test]
     fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
+        let machine_symbol = SymbolHandle::from_arena_index(20);
+        let state_symbol = SymbolHandle::from_arena_index(21);
         let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Region::partition"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
         let output_segments = program.facts.flow.ownership.segments.insert_many([
             psi_facts::PlaceSegment::Case {
                 variant: SymbolHandle::invalid(),
@@ -3080,8 +3102,8 @@ mod tests {
             .ownership
             .claim_outcome_maps
             .insert(FlowClaimOutcomeMapFact {
-                machine_symbol: SymbolHandle::invalid(),
-                state_symbol: SymbolHandle::invalid(),
+                machine_symbol,
+                state_symbol,
                 entries,
             });
         program
@@ -3244,8 +3266,16 @@ mod tests {
             });
 
         let json = claim_outcome_manifest_json(&program);
+        let claim_maps = &json[..json
+            .find("\"content_projections\"")
+            .expect("content projection section")];
 
         assert!(json.contains("\"claim_outcome_maps\""));
+        assert!(
+            claim_maps.contains(
+                "\"machine_overload_identity\": \"named-callable(path(Region::partition)"
+            )
+        );
         assert!(
             json.contains("\"output_path\": [{\"case\": \"invalid\"}, {\"field\": \"invalid\"}]")
         );
