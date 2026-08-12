@@ -392,6 +392,12 @@ pub(super) fn resolve_runtime_alias_binding_handle(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &mut ExpressionTable,
 ) -> RuntimeResolvedExpressionHandle {
+    if aliases.is_empty() {
+        return RuntimeResolvedExpressionHandle {
+            source_key,
+            expression,
+        };
+    }
     match alias_expressions.expression(expression).clone() {
         ExpressionNode::ArrayLiteral(values) => {
             let mut resolved_source_key = source_key;
@@ -656,6 +662,13 @@ pub(super) fn resolve_leaf_binding_expression_handle(
     expression: ExpressionHandle,
     bindings: &[RuntimeLeafBranchBinding],
 ) -> ExpressionHandle {
+    // Preserve the copied tree's exact authored spans when there is no
+    // substitution to perform. Rebuilding a no-op tree would synthesize fresh
+    // nodes without those spans, severing checked operator/provider evidence
+    // from later instruction selection.
+    if bindings.is_empty() {
+        return expression;
+    }
     resolve_leaf_binding_expression_handle_at_depth(source_table, table, expression, bindings, 0)
 }
 
@@ -910,6 +923,9 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
     expression: ExpressionHandle,
     bindings: &[RuntimeStraightLineBranchBinding],
 ) -> ExpressionHandle {
+    if bindings.is_empty() {
+        return expression;
+    }
     resolve_straight_line_binding_expression_handle_at_depth(
         source_table,
         table,
@@ -1157,6 +1173,9 @@ pub(super) fn resolve_branch_prelude_binding_expression_handle(
     expression: ExpressionHandle,
     bindings: &[RuntimeBranchPreludeBinding],
 ) -> ExpressionHandle {
+    if bindings.is_empty() {
+        return expression;
+    }
     resolve_branch_prelude_binding_expression_handle_at_depth(
         source_table,
         table,
