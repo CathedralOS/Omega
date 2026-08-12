@@ -6058,16 +6058,10 @@ fn runtime_i64_min_literal_exit_canary_runs() {
     // the magnitude parses as an uninterpreted payload and the negative fold flips the
     // sign textually. Guard proves the stored value is strictly below -(i64::MAX); exit 70.
     let canary = pass_canary("arithmetic/runtime_i64_min_literal_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-i64min-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("i64::MIN literal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-i64min-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("i64::MIN literal canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("i64::MIN literal canary should run");
     assert_eq!(
@@ -6076,7 +6070,7 @@ fn runtime_i64_min_literal_exit_canary_runs() {
         "expected the spelled i64::MIN to compare strictly below -(i64::MAX) (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6924,16 +6918,10 @@ fn runtime_scoped_const_exit_canary_runs() {
     // const-v0 (D15): scalar + struct type-scoped consts substitute their
     // literal initializers at symbol resolution; 60 + 10 == 70, exit 70.
     let canary = pass_canary("constants/runtime_scoped_const_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-const-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("scoped-const canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-const-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("scoped-const canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("scoped-const canary should run");
     assert_eq!(
@@ -6942,7 +6930,7 @@ fn runtime_scoped_const_exit_canary_runs() {
         "expected the substituted consts to sum to 70, got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6950,16 +6938,10 @@ fn runtime_u64_max_literal_exit_canary_runs() {
     // D14 fire C: u64::MAX stores full-width into a u64 target; MAX + 1 wraps to
     // exactly 0 only if every bit was set. Exit 70.
     let canary = pass_canary("arithmetic/runtime_u64_max_literal_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-u64max-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("u64::MAX literal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-u64max-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("u64::MAX literal canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("u64::MAX literal canary should run");
     assert_eq!(
@@ -6968,7 +6950,7 @@ fn runtime_u64_max_literal_exit_canary_runs() {
         "expected the stored u64::MAX to wrap to 0 on +1 (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -48818,6 +48800,26 @@ fn compile_single_file_hosted_main(
         target_name: Some(target.into()),
         write_output: true,
     })
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+fn native_hosted_target() -> &'static str {
+    "windows_x64"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn native_hosted_target() -> &'static str {
+    "linux_x64"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+fn native_hosted_target() -> &'static str {
+    "linux_arm64"
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn native_hosted_target() -> &'static str {
+    "macos_arm64"
 }
 
 fn pending_canary(path: &str) -> PathBuf {

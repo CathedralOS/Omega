@@ -105,6 +105,9 @@ Remaining:
   The value-call, arithmetic, cast, builtin, and indexed host-argument runtime
   cohort now stages exact macOS AArch64 roots, while its retained Linux AArch64
   cross-compile leg selects that target's exact root too.
+  The signed-min literal, scoped-constant, and unsigned-max literal native
+  canaries now select the running host's exact target-owned root before keeping
+  their byte-exact exit assertions.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
