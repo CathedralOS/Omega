@@ -411,8 +411,7 @@ Console boundaries should use the same shape:
 
 ```omega
 // The result of a byte-level read. `Eof` is ordinal 0: a zero-initialized
-// ByteRead IS end-of-input -- ZII, no sentinel value anywhere (ruled
-// 2026-07-16; the -1 spelling was rejected as non-ZII).
+// ByteRead IS end-of-input—ZII, with no sentinel value.
 data ByteRead {
     case Eof;
     case Byte(value: i32 [0..=255]);
@@ -1125,8 +1124,8 @@ Blocking and parking are distinct. An imported/provider contract carries
 `blocks` when it may occupy the calling worker and `suspends` when it may park a
 task. Those ceilings are checked against the pinned requirement at admission; the
 eventual provider cannot widen a consumer compiled against a no-block/no-park
-slot. Decision 23 represents positive wake/fairness premises as sealed,
-grant-backed opaque progress profiles on the pinned operation/provider
+slot. Positive wake/fairness premises are sealed, grant-backed opaque progress
+profiles on the pinned operation/provider
 contract. They participate in admission and trust reports but do not become
 ordinary proof facts or follow merely from an operational clause.
 

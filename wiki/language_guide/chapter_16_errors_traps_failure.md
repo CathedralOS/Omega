@@ -36,7 +36,7 @@ mechanisms Omega already has:
 
 | Guarantee | Omega mechanism (general, not error-specific) |
 |---|---|
-| The result cannot be ignored | **Strict-use (decision 9):** discarding a non-unit return is a compile error; intentional discard is `_ = call();`. |
+| The result cannot be ignored | **Strict use:** discarding a non-unit return is a compile error; intentional discard is `_ = call();`. |
 | Every failure case must be handled | **Exhaustive transitions** over the sum's cases. |
 | The success payload is unreachable on a failure path | **Case-payload binding:** `value` exists only inside the `Parsed` arm. |
 
@@ -49,7 +49,7 @@ actual failures.
 
 A transition over a sum is a **partition**: each arm learns which case holds, and
 therefore that case's facts. This is the same flow-sensitive narrowing the
-arithmetic domains use for scalar guards (chapter 7 / decision 17) — one unified
+arithmetic domains use for scalar guards (chapter 7)—one unified
 **fact catalog** threaded through the control-flow graph, carrier-generic over
 scalars (intervals), sums (which-case), slices (length, encoding), and
 references (validity).
@@ -120,8 +120,8 @@ discharged at compile time:
 
 - a **proven-impossible state** is dead code (eliminated) or a contradiction (a
   compile error) — never a runtime trap;
-- a **failed exact-arithmetic proof** is a compile error (decision 17: exact
-  arithmetic is a proof obligation);
+- a **failed exact-arithmetic proof** is a compile error because exact
+  arithmetic is a proof obligation;
 - a **provable contract violation** is a compile error.
 
 When the prover *cannot* discharge an obligation, that does not silently become a
@@ -131,7 +131,7 @@ incompleteness produces a required handler or an explicit opt-in — never a hid
 death.
 
 The one in-language failure that legitimately reaches runtime is **opt-in
-`Trapping` arithmetic** (decision 17): `T::Trapping` emits a hardware trap on
+`Trapping` arithmetic**: `T::Trapping` emits a hardware trap on
 overflow. It is explicit in the type, chosen deliberately, and already
 implemented. That is the model — not a default.
 
@@ -276,7 +276,7 @@ is not a separate machine-body form.
 
 ## Cancellation
 
-Cancellation (chapter 18 / decision 16) rides this same channel: it is a
+Cancellation (chapter 18) rides this same channel: it is a
 zero-case value delivered in a task's mailbox sum and handled by an ordinary
 transition. There is no unwinding and no special cancellation control flow — a
 cancelled task observes a case and transitions to its own cleanup-and-exit

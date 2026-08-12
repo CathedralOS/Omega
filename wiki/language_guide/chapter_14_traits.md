@@ -1141,9 +1141,9 @@ Once trait generators exist, the synthesized core set above stops being
 special: `Equatable` becomes an ordinary core trait written this way, and the
 compiler privilege dissolves into the same mechanism.[^build-time-open]
 
-Equatable acquisition (frozen decision 11): IMPLICIT for primitives and
-payload-less sums -- tag identity is the only thing equality could mean
-there, and match desugaring depends on it -- and DECLARED
+Equatable acquisition is implicit for primitives and payload-less sums—tag
+identity is the only thing equality could mean there, and match desugaring
+depends on it—and declared
 through an explicitly named synthesis block for records and payload-bearing
 sums. This is
 deliberately looser than Rust's universal derive: whole-program compilation
