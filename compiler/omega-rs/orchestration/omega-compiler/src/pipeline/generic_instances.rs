@@ -3988,6 +3988,22 @@ mod tests {
     }
 
     #[test]
+    fn closed_generic_sum_preserves_generic_zero_home_lemma() {
+        checked(
+            r#"
+            data Optional<T> { case None; case Some(value: T); }
+            machine zero_is_none<T>()
+            ensures
+                zero_value<Optional<T>>() == Optional::None
+            {
+            }
+            data Holder { value: Optional<u64>; }
+            "#,
+        )
+        .expect("closing one runtime instance must not specialize the generic zero-home lemma");
+    }
+
+    #[test]
     fn bare_erased_generic_literal_in_return_context_is_rejected() {
         rejected(
             r#"
