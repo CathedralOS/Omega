@@ -285,12 +285,6 @@ pub(crate) fn compute_plan_laid_layouts(
             ))]);
         };
 
-        let field_count = typed
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == record.schema_data)
-            .map(|data| typed.data_members(data).len())
-            .unwrap_or(0);
         let schema_fields = typed
             .data_definitions()
             .iter()
@@ -301,14 +295,15 @@ pub(crate) fn compute_plan_laid_layouts(
                     .iter()
                     .filter_map(|member| match member {
                         psi_typed_trees::data::DataMember::Field(field) => {
-                            Some((field.name.as_str().to_owned(), field.type_reference))
+                            (!field.relevance.is_erased())
+                                .then_some((field.name.as_str().to_owned(), field.type_reference))
                         }
                         psi_typed_trees::data::DataMember::Variant(_) => None,
                     })
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        debug_assert_eq!(schema_fields.len(), field_count);
+        let field_count = schema_fields.len();
 
         let mut offsets = vec![None; field_count];
         let mut bit_fields = Vec::<PlanLaidBitField>::new();

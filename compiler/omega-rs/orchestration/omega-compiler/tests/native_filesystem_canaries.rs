@@ -26,9 +26,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn compile_run(canary: &str) -> (Option<i32>, String) {
-    let source_dir = repo_root()
-        .join("canaries/pass/filesystem")
-        .join(canary);
+    let source_dir = repo_root().join("canaries/pass/filesystem").join(canary);
     let build_dir =
         std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
     let project_dir = build_dir.join("source");
