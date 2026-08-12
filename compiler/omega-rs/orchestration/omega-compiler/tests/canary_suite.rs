@@ -3890,7 +3890,7 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
             .expect("copy compiler-body bounded-buffer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body bounded-buffer-write target");
         compile(CompileOptions {
@@ -3936,7 +3936,7 @@ fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifa
             .expect("copy compiler-body storage-bit-field-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body storage-bit-field-write target");
         compile(CompileOptions {
@@ -4028,7 +4028,7 @@ fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_
             .expect("copy compiler-body machine-indexed convert-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed convert-write target");
         compile(CompileOptions {
@@ -4075,7 +4075,7 @@ fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifact
             .expect("copy compiler-body pointee integer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body pointee integer-write target");
         compile(CompileOptions {
@@ -4143,7 +4143,7 @@ machine Main::main(&mut self) {
         .expect("write compiler-body cross-region frame-indexed integer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-indexed integer-write target");
         compile(CompileOptions {
@@ -4217,7 +4217,7 @@ machine Main::main(&mut self) {
         .expect("write compiler-body frame-base-indexed integer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-base-indexed integer-write target");
         compile(CompileOptions {
@@ -4264,7 +4264,7 @@ fn compiler_body_machine_indexed_integer_write_footprints_reach_artifacts() {
             .expect("copy compiler-body machine-indexed integer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed integer-write target");
         compile(CompileOptions {
@@ -4331,7 +4331,7 @@ machine Main::main(&mut self) {
         .expect("write compiler-body double-indexed integer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body double-indexed integer-write target");
         compile(CompileOptions {
@@ -4383,7 +4383,7 @@ fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
             .expect("copy runtime-value guard canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write runtime-value guard target");
 
