@@ -12,7 +12,8 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
-    TerminalMachineCodePlan, TerminalPortEffectRecord,
+    TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
+    TerminalPortEffectRecord,
 };
 use omega_terminal_target_operations::{
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -271,6 +272,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 },
                 bytes: bytes.clone(),
                 internal_calls: Vec::new(),
+                fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
             }],
@@ -471,6 +473,32 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             },
             bytes,
             internal_calls: Vec::new(),
+            fuel_attribution: vec![
+                TerminalNativeFuelAttribution {
+                    schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
+                    site: TerminalNativeFuelSite::Operation(port_operation),
+                    units: 1,
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 27,
+                },
+                TerminalNativeFuelAttribution {
+                    schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
+                    site: TerminalNativeFuelSite::Operation(settlement_operation),
+                    units: 1,
+                    operation_ordinal: 1,
+                    code_offset: 27,
+                    byte_count: 0,
+                },
+                TerminalNativeFuelAttribution {
+                    schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
+                    site: TerminalNativeFuelSite::Edge(edge_id(1)),
+                    units: 1,
+                    operation_ordinal: 2,
+                    code_offset: 27,
+                    byte_count: 1,
+                },
+            ],
             port_effects: vec![TerminalPortEffectRecord {
                 psi_operation: port_operation,
                 service,
@@ -493,12 +521,15 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         }],
     };
     let artifact = build_terminal_object_artifact(&plan).expect("effect artifact");
+    assert_eq!(artifact.fuel_attribution().len(), 3);
+    assert_eq!(artifact.fuel_attribution()[1].attribution.byte_count, 0);
     assert_eq!(artifact.port_effects()[0].effect.service, service);
     assert_eq!(
         artifact.boundary_settlements()[0].settlement.realization,
         realization
     );
     let image = emit_terminal_executable_image(&artifact, 3).expect("effect image");
+    assert_eq!(image.fuel_attribution(), artifact.fuel_attribution());
     let record = build_terminal_installation_record(
         &image,
         ProfileDecisionId::new(1).unwrap(),
@@ -558,6 +589,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 },
                 bytes: integer_return(3),
                 internal_calls: Vec::new(),
+                fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
             },
@@ -569,6 +601,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 },
                 bytes: integer_return(7),
                 internal_calls: Vec::new(),
+                fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
             },
@@ -598,6 +631,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 },
                 bytes: callee,
                 internal_calls: Vec::new(),
+                fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
             },
@@ -613,6 +647,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     target: machine_id(1),
                     offset: call_offset,
                 }],
+                fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
             },
