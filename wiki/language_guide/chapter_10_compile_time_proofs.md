@@ -297,9 +297,11 @@ the term. Holders may also be closed synthesized generic records when the
 instance is selected by an explicitly typed local initializer, direct exact
 assignment, exact return, or one parameter signature shared by every
 same-name free-call candidate. A syntactically direct `self.method(...)` call
-uses the same rule over the exact enclosing attached-data owner; its implicit
-receiver is not a value argument. This contextual record elaboration does not
-infer type arguments from fields. Pure and mixed common-field/
+uses the same rule over the exact enclosing attached-data owner; an explicitly
+typed local receiver or direct `self.field` receiver uses its exact nominal
+owner. The implicit receiver is not a value argument. Computed, chained, and
+dynamic receivers remain fail-closed. This contextual record elaboration does
+not infer type arguments from fields. Pure and mixed common-field/
 case generic sums admit multiple exact closed instances per generic base in the executable slice. A
 closed annotated local, direct assignment, agreeing free/direct-self call
 parameter, or return destination selects construction identity; an exact local,
@@ -323,8 +325,8 @@ topology use the erased-stripped fields, while semantic ownership and proof
 obligations retain every field. Erased payloads do not
 change tags or case numbering; they remain visible to semantic exhaustiveness
 and obligation checking. The compiler fails closed for unresolved generic uses,
-ambiguous generic record/sum construction contexts, non-direct or dynamically
-selected receivers, placed views, wire/codec and ABI faces, and attached
+ambiguous generic record/sum construction contexts, computed, chained, or
+dynamically selected receivers, placed views, wire/codec and ABI faces, and attached
 machines over unresolved generic uses, non-checked supply modes, or unresolved
 machine parameters.
 

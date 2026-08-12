@@ -281,11 +281,12 @@ Remaining:
   or erased initialization but now reject in runtime value context. Ambiguous,
   absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
-  Result-domain free-call overloads and direct `self.method(...)` value or
-  statement calls now provide exact generic record/sum construction context
-  when every same-name candidate on the exact owner agrees on its non-receiver
-  parameter signature. Parameter-distinct overloads and non-direct or dynamic
-  receiver selection remain resolver-owned and fail closed. Expand this without
+  Result-domain free-call overloads and attached value or statement calls on
+  direct `self`, explicitly typed local, or direct `self.field` receivers now
+  provide exact generic record/sum construction context when every same-name
+  candidate on the exact owner agrees on its non-receiver parameter signature.
+  Parameter-distinct overloads and computed, chained, or dynamic receiver
+  selection remain resolver-owned and fail closed. Expand this without
   compatibility scaffolding to those remaining contexts and attached machines
   over unresolved generic uses, non-checked supply modes, or unresolved machine
   parameters. Plan-laid values now omit erased bindings
