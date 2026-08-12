@@ -25,6 +25,12 @@ pub enum BindingRelevance {
     Erased,
 }
 
+impl BindingRelevance {
+    pub const fn is_erased(self) -> bool {
+        matches!(self, Self::Erased)
+    }
+}
+
 /// How a data declaration obtains its representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DataSupplyMode {

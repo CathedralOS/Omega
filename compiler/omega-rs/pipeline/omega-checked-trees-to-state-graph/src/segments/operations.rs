@@ -5,6 +5,7 @@ use psi_checked_trees::name::Identifier;
 use psi_checked_trees::statement::{StatementNode, TableAssignment, TableCall};
 
 use super::copy_statement_expression_span;
+use crate::runtime_expressions::copy_runtime_expression;
 
 pub(super) fn operation_kind(
     program: &CheckedTrees,
@@ -40,40 +41,28 @@ pub(super) fn operation_kind(
 }
 
 pub(super) fn operation_expression_refs(
+    program: &CheckedTrees,
     statement: &StatementNode,
-    source_expressions: &ExpressionTable,
     state_graph: &mut StateGraph,
-    statement_table: &psi_checked_trees::statement::StatementTable,
 ) -> OperationExpressionRefs {
     match statement {
         StatementNode::AssemblyFact(_) => OperationExpressionRefs::None,
         StatementNode::Assignment(assignment) => OperationExpressionRefs::Assignment {
-            target: state_graph
-                .expressions
-                .copy_from(source_expressions, assignment.target),
-            value: state_graph
-                .expressions
-                .copy_from(source_expressions, assignment.value),
+            target: copy_runtime_expression(state_graph, program, assignment.target),
+            value: copy_runtime_expression(state_graph, program, assignment.value),
         },
         StatementNode::Call(call) => OperationExpressionRefs::Call {
-            arguments: copy_statement_expression_span(
-                state_graph,
-                source_expressions,
-                statement_table,
-                call.arguments,
-            ),
+            arguments: copy_statement_expression_span(state_graph, program, call.arguments),
         },
         StatementNode::Expression(expression) => OperationExpressionRefs::Expression(
-            state_graph
-                .expressions
-                .copy_from(source_expressions, *expression),
+            copy_runtime_expression(state_graph, program, *expression),
         ),
         StatementNode::LocalData(local_data) if local_data.initial_value.is_valid() => {
-            OperationExpressionRefs::Expression(
-                state_graph
-                    .expressions
-                    .copy_from(source_expressions, local_data.initial_value),
-            )
+            OperationExpressionRefs::Expression(copy_runtime_expression(
+                state_graph,
+                program,
+                local_data.initial_value,
+            ))
         }
         StatementNode::LocalData(_) | StatementNode::Transition(_) => OperationExpressionRefs::None,
     }

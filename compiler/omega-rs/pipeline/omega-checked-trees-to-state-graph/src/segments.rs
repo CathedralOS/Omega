@@ -143,12 +143,7 @@ pub(super) fn split_state_segments(
         let operation = Operation {
             statement_index,
             kind: operation_kind(program, table_statement),
-            expressions: operation_expression_refs(
-                table_statement,
-                &program.expression_table,
-                state_graph,
-                &program.statement_table,
-            ),
+            expressions: operation_expression_refs(program, table_statement, state_graph),
         };
         state_graph
             .operations

@@ -184,6 +184,13 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
                 DataMember::Variant(variant) => program.data_payload_fields(variant),
             };
             for field in fields {
+                // Occurrence-level erasure removes this containment edge from
+                // the runtime representation graph. The field remains in the
+                // semantic tree and in proof/ownership frontiers; it simply
+                // cannot make its containing runtime record proof-only.
+                if field.relevance == psi_language_core::BindingRelevance::Erased {
+                    continue;
+                }
                 collect_inline_data_edges(
                     program,
                     field.type_reference,

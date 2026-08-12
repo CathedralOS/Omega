@@ -144,6 +144,12 @@ transfer operation. A placement plan establishes any proof fact it carries
 through its checked or admitted contract rather than pretending the fact
 occupies hardware bytes.
 
+The implemented native slice currently applies that rule to non-generic
+transparent plain-record layout. Case-bearing and generic data, explicit
+layout/placement plans, wire/codec faces, ABI faces, and attached-machine
+shapes are rejected until their representation classifiers consume the same
+erased-stripped form.
+
 Padding is not semantic data. Proofs and wire protocols must not rely on
 uninitialized padding bytes.
 

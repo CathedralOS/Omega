@@ -1,9 +1,11 @@
 use omega_state_graph::StateGraph;
 use psi_arena::{Arena, HandleSpan};
-use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::ExpressionHandle;
 use psi_checked_trees::statement::{TableTransition, TransitionGuardNode};
 
 use super::StateSegment;
+use crate::runtime_expressions::copy_runtime_expression_slice;
 
 #[derive(Debug, Clone)]
 pub(crate) enum SegmentTransition {
@@ -64,13 +66,13 @@ pub(crate) fn segment_has_unconditional_transition(
 
 pub(crate) fn copy_statement_expression_span(
     state_graph: &mut StateGraph,
-    source_expressions: &ExpressionTable,
-    statement_table: &psi_checked_trees::statement::StatementTable,
+    program: &CheckedTrees,
     expressions: HandleSpan<ExpressionHandle>,
 ) -> HandleSpan<ExpressionHandle> {
-    state_graph.expressions.copy_expression_handles_from_slice(
-        source_expressions,
-        statement_table.expression_handles(expressions),
+    copy_runtime_expression_slice(
+        state_graph,
+        program,
+        program.statement_table.expression_handles(expressions),
     )
 }
 

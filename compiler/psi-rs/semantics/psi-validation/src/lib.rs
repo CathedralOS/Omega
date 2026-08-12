@@ -28,6 +28,7 @@ mod proposition_entailment;
 mod qualification_evidence;
 mod quotients;
 mod recasts;
+mod relevance;
 mod result_overloads;
 mod state_signatures;
 mod struct_literals;
@@ -184,6 +185,7 @@ fn validate_program_internal(
         diagnostics.append(&mut dynamic_diagnostics);
     }
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    relevance::validate_relevance(program, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
     // spelled); every runtime consumption face refuses with the
     // classification named.

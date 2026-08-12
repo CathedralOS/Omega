@@ -5,6 +5,7 @@ use psi_checked_trees::expression::ExpressionHandle;
 use psi_checked_trees::statement::TableCall;
 use psi_diagnostics::Diagnostic;
 
+use crate::runtime_expressions::copy_runtime_expression;
 use crate::segments::{
     SegmentTransition, StateSegment, copy_statement_expression_span,
     table_transition_guard_expression,
@@ -44,11 +45,7 @@ pub(super) fn plan_transition(
             let guard_expression = table_transition_guard_expression(*table);
             let guard_expression = guard_expression
                 .is_valid()
-                .then(|| {
-                    state_graph
-                        .expressions
-                        .copy_from(&program.expression_table, guard_expression)
-                })
+                .then(|| copy_runtime_expression(state_graph, program, guard_expression))
                 .unwrap_or_else(ExpressionHandle::invalid);
 
             Ok(TransitionEdge {
@@ -77,9 +74,7 @@ pub(super) fn plan_transition(
             continuation: PlannedTransitionTarget::None,
             expressions: TransitionExpressionRefs {
                 target_arguments: psi_arena::HandleSpan::empty(),
-                target_value: state_graph
-                    .expressions
-                    .copy_from(&program.expression_table, *expression),
+                target_value: copy_runtime_expression(state_graph, program, *expression),
                 continuation_arguments: psi_arena::HandleSpan::empty(),
                 continuation_value: ExpressionHandle::invalid(),
                 guard: ExpressionHandle::invalid(),
@@ -101,8 +96,7 @@ pub(super) fn plan_transition(
                 expressions: TransitionExpressionRefs {
                     target_arguments: copy_statement_expression_span(
                         state_graph,
-                        &program.expression_table,
-                        &program.statement_table,
+                        program,
                         table.arguments,
                     ),
                     target_value: ExpressionHandle::invalid(),
@@ -155,12 +149,7 @@ fn table_transition_target_arguments(
 
     match program.statement_table.transition_target(target) {
         psi_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-            copy_statement_expression_span(
-                state_graph,
-                &program.expression_table,
-                &program.statement_table,
-                *arguments,
-            )
+            copy_statement_expression_span(state_graph, program, *arguments)
         }
         psi_checked_trees::statement::TransitionTargetNode::SelfTarget
         | psi_checked_trees::statement::TransitionTargetNode::Terminal
@@ -180,9 +169,9 @@ fn table_transition_target_value(
     }
 
     match program.statement_table.transition_target(target) {
-        psi_checked_trees::statement::TransitionTargetNode::Value(expression) => state_graph
-            .expressions
-            .copy_from(&program.expression_table, *expression),
+        psi_checked_trees::statement::TransitionTargetNode::Value(expression) => {
+            copy_runtime_expression(state_graph, program, *expression)
+        }
         _ => psi_checked_trees::expression::ExpressionHandle::invalid(),
     }
 }

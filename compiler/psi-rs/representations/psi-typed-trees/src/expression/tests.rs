@@ -128,3 +128,55 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     assert_eq!(*symbol, field_symbol);
     assert_eq!(copied.name_path_members(*members).len(), 2);
 }
+
+#[test]
+fn filtered_copy_never_inserts_rejected_field_subtrees() {
+    let expression = Expression::StructLiteral(StructLiteral {
+        type_name: Identifier::generated("Certified"),
+        case_name: None,
+        fields: Arc::from(
+            vec![
+                StructLiteralField {
+                    name: Identifier::generated("value"),
+                    value: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
+                        7,
+                    )),
+                },
+                StructLiteralField {
+                    name: Identifier::generated("proof"),
+                    value: Expression::Binary(Box::new(BinaryExpression {
+                        left: Expression::Integer(
+                            psi_numerics::literals::IntegerLiteral::from_value(11),
+                        ),
+                        operator: BinaryOperator::Add,
+                        right: Expression::Integer(
+                            psi_numerics::literals::IntegerLiteral::from_value(13),
+                        ),
+                    })),
+                },
+            ]
+            .into_boxed_slice(),
+        ),
+    });
+    let mut source = ExpressionTable::new();
+    let root = source.insert_tree(&expression);
+    assert_eq!(source.expression_count(), 5);
+
+    let mut copied = ExpressionTable::new();
+    let copied_root =
+        copied.copy_from_filtering_struct_literal_fields(&source, root, &|_, field| {
+            field.name.as_str() != "proof"
+        });
+
+    let ExpressionNode::StructLiteral(literal) = copied.expression(copied_root) else {
+        panic!("root should remain a struct literal");
+    };
+    assert_eq!(copied.struct_fields(literal.fields).len(), 1);
+    assert_eq!(copied.expression_count(), 2);
+    assert!(
+        copied
+            .iter_expressions()
+            .all(|(_, node)| !matches!(node, ExpressionNode::Binary(_))),
+        "rejected initializer subtree must not exist even as unreachable arena nodes"
+    );
+}
