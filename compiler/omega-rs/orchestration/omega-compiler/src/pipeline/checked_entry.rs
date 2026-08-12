@@ -96,7 +96,7 @@ fn compile_to_checked_inner(
         crate::pipeline::placed_views::desugar_placed_views(&mut syntax.syntax_trees)?;
     // PLAN-LAID VALUE TYPES (layouts L4), desugar half -- exactly as the full
     // `compile` pipeline does.
-    psi_generic_instances::desugar_generic_data_instances(&mut syntax.syntax_trees)?;
+    syntax.syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax.syntax_trees)?;
     let plan_laid_records =
         crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
     // TARGET-SCOPED MACHINES -- exactly as the full `compile` pipeline does:

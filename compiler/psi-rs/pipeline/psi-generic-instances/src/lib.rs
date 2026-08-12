@@ -77,7 +77,17 @@ enum GenericDataShape {
 /// generic data definition, synthesize one concrete instance record per
 /// distinct spelling (the parameter substituted for the argument), and rewrite
 /// the field spellings to the instances' plain names.
-pub fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+/// Run Psi's target-neutral pre-resolution generic-data normalization and
+/// return the only syntax tree downstream stages may consume.
+///
+/// Taking ownership prevents orchestration code from retaining an unnormalized
+/// sibling or reaching into the elaborator as an in-place syntax mutator.
+pub fn normalize_pre_resolution(mut syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    desugar_generic_data_instances(&mut syntax)?;
+    Ok(syntax)
+}
+
+fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     // Index generic data definitions by name (only those with type parameters;
     // a non-generic `Base<..>` is either plan-laid or an existing error path).
     // Generic bases that carry attached MACHINES (a generic container like
