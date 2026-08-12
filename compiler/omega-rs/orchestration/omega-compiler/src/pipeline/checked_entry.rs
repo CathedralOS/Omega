@@ -130,7 +130,7 @@ fn compile_to_checked_inner(
     crate::pipeline::placed_views::validate_placed_view_plans(&mut typed, &placed_view_records)?;
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
-    crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+    psi_build_time_evaluation::compute_wire_plans(&mut typed)?;
     let _boundary_calling_plan_realizations =
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
     let computed_build_config =

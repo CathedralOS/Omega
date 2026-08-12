@@ -243,7 +243,9 @@ Remaining:
   ownership-taking Psi pre-resolution entry, and machine-backed concrete
   const-domain facts are discharged in the same Psi build-time service.
   Programmable layout, access, and placement evaluation/normalization now also
-  live there over Psi typed trees and normalized plan carriers; the in-place
+  live there over Psi typed trees and normalized plan carriers. Wire placement
+  derivation, authored codec-policy evaluation/agreement, and encode-obligation
+  recording now live in the same Psi service; the in-place
   generic syntax elaborator is private. Finish moving the remaining target-neutral
   probe/conveyor sequencing out of
   `omega-compiler` before

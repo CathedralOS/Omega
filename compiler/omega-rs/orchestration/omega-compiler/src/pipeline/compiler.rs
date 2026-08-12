@@ -415,7 +415,7 @@ impl Compiler {
         // WIRE PLANS (mint arc rung 2a): derive each numbered schema's
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
-        crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+        psi_build_time_evaluation::compute_wire_plans(&mut typed)?;
         let boundary_calling_plan_realizations =
             crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
         // PDI3 selected operation/algebra authority is public type identity,
