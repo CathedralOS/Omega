@@ -1729,10 +1729,8 @@ fn lower_attached_unit_closure(
         // this machine's canonical claim namespace.
         let mut next_claim = 1_u64;
         for claim in &plan.entry_claims {
-            if !claim.field_path.is_empty() || claim.carry != CarryPolicy::STRICT {
-                return unsupported(
-                    "Unit entry claim has an unsupported field projection or non-default carry policy",
-                );
+            if claim.carry != CarryPolicy::STRICT {
+                return unsupported("Unit entry claim has a non-default carry policy");
             }
             let parameter = parameters
                 .get(usize::try_from(claim.parameter_index).map_err(|_| {
@@ -1763,6 +1761,7 @@ fn lower_attached_unit_closure(
             claims.push(EntryClaim {
                 claim: id,
                 input: parameter.place,
+                field_path: claim.field_path.clone(),
             });
             claim_bindings.push((claim.claim_identity, id));
         }
@@ -1842,16 +1841,24 @@ fn lower_attached_unit_closure(
                     ..
                 } => {
                     let target = unique_unit_boundary(plans, *target_machine)?;
-                    let expected_claim_arguments = target
-                        .structural_parameters
+                    let expected_claim_arguments = structural_arguments
                         .iter()
                         .enumerate()
-                        .filter_map(|(index, parameter)| {
-                            (parameter.multiplicity == Multiplicity::Linear)
-                                .then(|| u32::try_from(index).ok())
-                                .flatten()
+                        .flat_map(|(argument_index, argument)| {
+                            plan.entry_claims
+                                .iter()
+                                .filter(move |claim| {
+                                    claim.parameter_index == argument.source_parameter_index
+                                })
+                                .map(move |_| {
+                                    u32::try_from(argument_index).map_err(|_| {
+                                        LoweringError::Unsupported(
+                                            "boundary Unit argument index exceeds u32",
+                                        )
+                                    })
+                                })
                         })
-                        .collect::<Vec<_>>();
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     validate_transfer_shape(
                         structural_arguments,
                         claim_settlements,
@@ -7614,6 +7621,46 @@ mod tests {
                 .semantic_module,
             *module,
             "canonical identities must be deterministic"
+        );
+    }
+
+    #[test]
+    fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
+        let mut checked = hard_root_checked_fixture();
+        let plans = &mut checked.facts.flow.terminal_unit_effects;
+        plans
+            .structural_types
+            .push(psi_checked_trees::CheckedUnitStructuralTypePlan {
+                identity: "example::Token".to_owned(),
+                fields: Vec::new(),
+            });
+        let acknowledgement = plans
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == "example::Acknowledgement")
+            .expect("acknowledgement shape");
+        acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
+            type_identity: "example::Token".to_owned(),
+        };
+        for machine in &mut plans.machines {
+            machine.entry_claims[0].field_path = vec!["sequence".to_owned()];
+        }
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("record-field custody should cross the complete Unit closure");
+        assert_eq!(
+            lowered.semantic_module.machines[0].entry_claims[0].field_path,
+            ["sequence"]
+        );
+        assert_eq!(
+            lowered.semantic_module.machines[1].entry_claims[0].field_path,
+            ["sequence"]
+        );
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("aggregate custody must have a canonical terminal encoding");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes).expect("canonical aggregate custody bytes"),
+            lowered.semantic_module
         );
     }
 

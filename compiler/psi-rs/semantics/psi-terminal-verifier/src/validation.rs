@@ -9,7 +9,7 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, ContentPartitionComposition,
-    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, OperationKind,
+    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, OperationKind,
     PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
@@ -481,7 +481,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             &services,
             ServiceCeilingOwner::Machine(machine.id),
         )?;
-        validate_machine_entry_claims(machine)?;
+        validate_machine_entry_claims(module, machine)?;
     }
     Ok(())
 }
@@ -714,9 +714,12 @@ fn validate_service_ceiling(
     Ok(())
 }
 
-fn validate_machine_entry_claims(machine: &TerminalMachine) -> Result<(), ModuleError> {
+fn validate_machine_entry_claims(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<(), ModuleError> {
     let mut claims = BTreeSet::new();
-    let mut inputs = BTreeSet::new();
+    let mut inputs = Vec::<&EntryClaim>::new();
     for (index, claim) in machine.entry_claims.iter().enumerate() {
         let expected = ClaimId::new(
             u64::try_from(index)
@@ -735,7 +738,9 @@ fn validate_machine_entry_claims(machine: &TerminalMachine) -> Result<(), Module
         if !claims.insert(claim.claim) {
             return Err(ModuleError::DuplicateClaim(claim.claim));
         }
-        if !inputs.insert(claim.input) {
+        if inputs.iter().any(|previous| {
+            previous.input == claim.input && previous.field_path == claim.field_path
+        }) {
             return Err(ModuleError::DuplicateEntryClaimInput(claim.input));
         }
         let Some(parameter) = machine
@@ -750,6 +755,28 @@ fn validate_machine_entry_claims(machine: &TerminalMachine) -> Result<(), Module
         if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
             return Err(ModuleError::EntryClaimRequiresOwnedParameter(claim.claim));
         }
+        if !entry_claim_field_path_is_valid(module, parameter.structural_type, &claim.field_path) {
+            return Err(ModuleError::InvalidEntryClaimFieldPath(claim.claim));
+        }
+        if inputs.iter().any(|previous| {
+            previous.input == claim.input
+                && (previous.field_path.starts_with(&claim.field_path)
+                    || claim.field_path.starts_with(&previous.field_path))
+        }) {
+            return Err(ModuleError::OverlappingEntryClaimInput {
+                first: inputs
+                    .iter()
+                    .find(|previous| {
+                        previous.input == claim.input
+                            && (previous.field_path.starts_with(&claim.field_path)
+                                || claim.field_path.starts_with(&previous.field_path))
+                    })
+                    .expect("overlap predicate found a prior claim")
+                    .claim,
+                second: claim.claim,
+            });
+        }
+        inputs.push(claim);
     }
     for parameter in &machine.structural_parameters {
         if parameter.multiplicity == StructuralMultiplicity::Linear
@@ -764,7 +791,49 @@ fn validate_machine_entry_claims(machine: &TerminalMachine) -> Result<(), Module
             });
         }
     }
+    if machine.entry_claims.windows(2).any(|pair| {
+        let key = |claim: &EntryClaim| {
+            let position = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == claim.input)
+                .expect("entry claim parameter was validated")
+                .position;
+            (position, claim.field_path.clone())
+        };
+        key(&pair[0]) >= key(&pair[1])
+    }) {
+        return Err(ModuleError::NonCanonicalEntryClaimOrder(machine.id));
+    }
     Ok(())
+}
+
+fn entry_claim_field_path_is_valid(
+    module: &TerminalModule,
+    mut structural_type: StructuralTypeId,
+    field_path: &[String],
+) -> bool {
+    for identity in field_path {
+        let Some(declaration) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+        else {
+            return false;
+        };
+        let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape;
+        let Some(field) = fields
+            .iter()
+            .find(|field| field.identity == *identity && !field.relevance.is_erased())
+        else {
+            return false;
+        };
+        let psi_terminal::StructuralFieldType::Structural(next) = field.field_type else {
+            return false;
+        };
+        structural_type = next;
+    }
+    true
 }
 
 #[derive(Default)]
@@ -1667,15 +1736,21 @@ fn validate_unit_call_claim_transfers(
         .zip(&callee.structural_parameters)
         .enumerate()
     {
-        let caller_has_claim = caller
+        let mut caller_claim_paths = caller
             .entry_claims
             .iter()
-            .any(|claim| claim.input == argument.place);
-        let callee_has_claim = callee
+            .filter(|claim| claim.input == argument.place)
+            .map(|claim| claim.field_path.as_slice())
+            .collect::<Vec<_>>();
+        let mut callee_claim_paths = callee
             .entry_claims
             .iter()
-            .any(|claim| claim.input == parameter.place);
-        if caller_has_claim != callee_has_claim {
+            .filter(|claim| claim.input == parameter.place)
+            .map(|claim| claim.field_path.as_slice())
+            .collect::<Vec<_>>();
+        caller_claim_paths.sort();
+        callee_claim_paths.sort();
+        if caller_claim_paths != callee_claim_paths {
             return Err(ModuleError::UnitCallClaimPresenceMismatch {
                 operation,
                 argument_index: argument_index as u32,
@@ -2139,7 +2214,14 @@ fn validate_content_entry_claims(
             .entry_claims
             .iter()
             .find(|claim| claim.claim == binding.claim)
-            && structural_claim.input != binding.input.root
+            && (structural_claim.input != binding.input.root
+                || binding.input.segments
+                    != structural_claim
+                        .field_path
+                        .iter()
+                        .cloned()
+                        .map(psi_core::ContentPlaceSegment::Field)
+                        .collect::<Vec<_>>())
         {
             return Err(ModuleError::ContentEntryClaimStructuralBindingMismatch(
                 binding.claim,
@@ -2745,7 +2827,11 @@ fn validate_structural_frontier(
             claim.claim,
             LiveClaim {
                 input: Some(claim.input),
-                multiplicity: Some(parameter.multiplicity),
+                multiplicity: Some(if claim.field_path.is_empty() {
+                    parameter.multiplicity
+                } else {
+                    StructuralMultiplicity::Linear
+                }),
             },
         );
     }
@@ -3965,6 +4051,12 @@ pub enum ModuleError {
         place: PlaceId,
     },
     DuplicateEntryClaimInput(PlaceId),
+    InvalidEntryClaimFieldPath(ClaimId),
+    OverlappingEntryClaimInput {
+        first: ClaimId,
+        second: ClaimId,
+    },
+    NonCanonicalEntryClaimOrder(MachineId),
     EntryClaimRequiresStructuralParameter(ClaimId),
     EntryClaimRequiresOwnedParameter(ClaimId),
     LinearParameterHasNoEntryClaim {

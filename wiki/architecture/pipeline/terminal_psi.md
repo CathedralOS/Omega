@@ -126,6 +126,16 @@ relevance/type rows. Omega skips erased rows before ABI classification, so the
 terminal artifact preserves semantic identity without assigning proof evidence
 an offset or transfer.
 
+An entry claim may name either its complete structural parameter or a stable
+record-field path below it. A projected claim is linear even when its containing
+aggregate is affine. Paths traverse only relevant structural fields; case,
+index, scalar, erased, unknown, duplicate, overlapping ancestor/descendant, and
+noncanonical rows reject. Direct Unit calls require the caller and callee to
+agree on the complete ordered claim-path set for each structural argument, and
+content-entry bindings must name that same root and field path. The interpreter
+and verifier transfer those exact claims together; neither treats aggregate
+custody as a Boolean property of the containing parameter.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and

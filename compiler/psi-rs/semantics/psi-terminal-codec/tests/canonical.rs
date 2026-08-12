@@ -173,10 +173,12 @@ fn structural_foundation_rejects_noncanonical_rows() {
         EntryClaim {
             claim: claim_id(2),
             input: place_id(10),
+            field_path: Vec::new(),
         },
         EntryClaim {
             claim: claim_id(1),
             input: place_id(10),
+            field_path: Vec::new(),
         },
     ];
     assert_eq!(
@@ -838,6 +840,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: caller_place,
+                    field_path: Vec::new(),
                 }],
                 published_service_ceiling: vec![service],
                 content_entry_claims: Vec::new(),
@@ -893,6 +896,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: callee_place,
+                    field_path: Vec::new(),
                 }],
                 published_service_ceiling: vec![service],
                 content_entry_claims: Vec::new(),

@@ -10,9 +10,10 @@ use psi_terminal::{
     ContentEntryClaim, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
     ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, ServiceCeilingOwner, reconstruct_operation_obligations,
@@ -89,6 +90,41 @@ fn unit_call_checks_structural_type_qualification_and_transfer_shape() {
             operation: operation_id(1),
             expected: 1,
             actual: 0,
+        }
+    );
+}
+
+#[test]
+fn unit_call_requires_exact_aggregate_claim_path() {
+    let mut module = hard_root_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+        identity: "token".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(2)),
+    });
+    module.machines[0].entry_claims[0].field_path = vec!["token".into()];
+    module.machines[1].entry_claims[0].field_path = vec!["token".into()];
+    validate_module(&module).expect("matching aggregate custody paths validate");
+
+    let mut abandoned = module.clone();
+    abandoned.machines[1].blocks[0].operations.pop();
+    assert_eq!(
+        validate_module(&abandoned).unwrap_err(),
+        ModuleError::LiveLinearClaimAtUnitReturn {
+            machine: machine_id(2),
+            block: block_id(2),
+            claim: claim_id(1),
+        }
+    );
+
+    module.machines[1].entry_claims[0].field_path.clear();
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::UnitCallClaimPresenceMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
         }
     );
 }
@@ -774,6 +810,7 @@ fn hard_root_module() -> TerminalModule {
         entry_claims: vec![EntryClaim {
             claim: claim_id(1),
             input: place_id(1),
+            field_path: Vec::new(),
         }],
         published_service_ceiling: vec![port_io.id],
         content_entry_claims: Vec::new(),
@@ -812,6 +849,7 @@ fn hard_root_module() -> TerminalModule {
         entry_claims: vec![EntryClaim {
             claim: claim_id(1),
             input: place_id(2),
+            field_path: Vec::new(),
         }],
         published_service_ceiling: vec![port_io.id],
         content_entry_claims: Vec::new(),

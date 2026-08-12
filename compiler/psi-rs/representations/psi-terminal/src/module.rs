@@ -270,10 +270,15 @@ pub struct TerminalMachine {
     pub contract: MachineContract,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntryClaim {
     pub claim: ClaimId,
+    /// Structural parameter root that owns this claim.
     pub input: PlaceId,
+    /// Stable record-field identities below `input`. Empty names the complete
+    /// parameter. This first aggregate-custody slice deliberately excludes
+    /// cases and indexes, which require their own typed-place vocabulary.
+    pub field_path: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -10,7 +10,7 @@ use psi_checked_trees::{
     ContractProofFactOwner,
 };
 use psi_language_semantics::{
-    MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, SemanticDomainId,
 };
 use psi_symbols::{BuiltinFunction, SymbolHandle};
@@ -164,6 +164,7 @@ fn build_checked_machine(
         return None;
     }
     let entry_claims = entry_claims(
+        program,
         facts,
         machine.symbol,
         state.symbol,
@@ -439,10 +440,11 @@ fn call_claim_transfers(
         .collect::<Vec<_>>();
     let mut output = Vec::new();
     for (argument_index, argument) in arguments.iter().enumerate() {
-        let Some(entry) = entry_claims
+        let entries = entry_claims
             .iter()
-            .find(|entry| entry.parameter_index == argument.source_parameter_index)
-        else {
+            .filter(|entry| entry.parameter_index == argument.source_parameter_index)
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
             if caller_parameters
                 .get(argument.source_parameter_index as usize)?
                 .multiplicity
@@ -451,26 +453,20 @@ fn call_claim_transfers(
                 return None;
             }
             continue;
-        };
-        let matching = events
-            .iter()
-            .filter(|event| {
-                event.claim_identity == entry.claim_identity
-                    && facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .is_empty()
-            })
-            .collect::<Vec<_>>();
-        if matching.len() != 1 || entry.claim_identity == PermissionClaimIdentity::Unknown {
-            return None;
         }
-        output.push(CheckedUnitClaimTransferPlan {
-            claim_identity: entry.claim_identity,
-            argument_index: u32::try_from(argument_index).ok()?,
-        });
+        for entry in entries {
+            let matching = events
+                .iter()
+                .filter(|event| event.claim_identity == entry.claim_identity)
+                .collect::<Vec<_>>();
+            if matching.len() != 1 || entry.claim_identity == PermissionClaimIdentity::Unknown {
+                return None;
+            }
+            output.push(CheckedUnitClaimTransferPlan {
+                claim_identity: entry.claim_identity,
+                argument_index: u32::try_from(argument_index).ok()?,
+            });
+        }
     }
     if output.len() != events.len() {
         return None;
@@ -564,6 +560,7 @@ fn structural_signature(
 }
 
 fn entry_claims(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -588,46 +585,71 @@ fn entry_claims(
         .collect::<Vec<_>>();
     let mut output = Vec::new();
     for (parameter_index, parameter) in structural_parameters.iter().enumerate() {
-        if parameter.multiplicity != Multiplicity::Linear {
+        if parameter.multiplicity == Multiplicity::Unrestricted {
             continue;
         }
         let source = source_parameters.get(parameter.position as usize)?;
         let expected_root = psi_facts::PlaceRoot::Symbol(parameter_root_symbol(machine, source));
         let matching = events
             .iter()
-            .filter(|event| {
-                event.root == expected_root
-                    && facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .is_empty()
-            })
+            .filter(|event| event.root == expected_root)
             .collect::<Vec<_>>();
-        let [event] = matching.as_slice() else {
-            return None;
-        };
-        if event.claim_identity == PermissionClaimIdentity::Unknown {
+        if matching.is_empty() {
             return None;
         }
-        let policies = facts
-            .carry
-            .claim_policies
-            .iter()
-            .filter(|policy| policy.claim_identity == event.claim_identity)
-            .collect::<Vec<_>>();
-        let [policy] = policies.as_slice() else {
-            return None;
-        };
-        output.push(CheckedUnitEntryClaimPlan {
-            claim_identity: event.claim_identity,
-            parameter_index: u32::try_from(parameter_index).ok()?,
-            field_path: Vec::new(),
-            carry: policy.effective,
-        });
+        for event in matching {
+            if event.claim_identity == PermissionClaimIdentity::Unknown {
+                return None;
+            }
+            let policies = facts
+                .carry
+                .claim_policies
+                .iter()
+                .filter(|policy| policy.claim_identity == event.claim_identity)
+                .collect::<Vec<_>>();
+            let carry = match policies.as_slice() {
+                [] => CarryPolicy::STRICT,
+                [policy] => policy.effective,
+                _ => return None,
+            };
+            let field_path = facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments)
+                .iter()
+                .map(|segment| match segment {
+                    psi_facts::PlaceSegment::Field { symbol } => {
+                        terminal_field_identity(program, *symbol)
+                    }
+                    psi_facts::PlaceSegment::Case { .. }
+                    | psi_facts::PlaceSegment::FixedIndex { .. }
+                    | psi_facts::PlaceSegment::Index { .. } => None,
+                })
+                .collect::<Option<Vec<_>>>()?;
+            output.push(CheckedUnitEntryClaimPlan {
+                claim_identity: event.claim_identity,
+                parameter_index: u32::try_from(parameter_index).ok()?,
+                field_path,
+                carry,
+            });
+        }
     }
+    output.sort_by(|left, right| {
+        (left.parameter_index, &left.field_path).cmp(&(right.parameter_index, &right.field_path))
+    });
     (output.len() == events.len()).then_some(output)
+}
+
+fn terminal_field_identity(program: &TypedTrees, symbol: SymbolHandle) -> Option<String> {
+    program.data_definitions().iter().find_map(|definition| {
+        program.data_members(definition).iter().find_map(|member| {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.symbol == symbol).then(|| field.name.as_str().to_owned())
+        })
+    })
 }
 
 fn checked_state_contracts_supported(

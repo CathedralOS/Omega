@@ -544,10 +544,42 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
                 return malformed("entry claim cannot bind an unrestricted parameter");
             }
+            validate_entry_claim_field_path(module, parameter.structural_type, &claim.field_path)?;
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             validate_operation_foundation(module, machine, operation)?;
         }
+    }
+    Ok(())
+}
+
+fn validate_entry_claim_field_path(
+    module: &TerminalModule,
+    mut structural_type: StructuralTypeId,
+    field_path: &[String],
+) -> Result<(), CodecError> {
+    for identity in field_path {
+        if identity.is_empty() {
+            return malformed("entry claim field identity cannot be empty");
+        }
+        let Some(declaration) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+        else {
+            return malformed("entry claim has an unknown structural type");
+        };
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        let Some(field) = fields.iter().find(|field| field.identity == *identity) else {
+            return malformed("entry claim has an unknown structural field");
+        };
+        if field.relevance.is_erased() {
+            return malformed("entry claim cannot bind an erased structural field");
+        }
+        let StructuralFieldType::Structural(next) = field.field_type else {
+            return malformed("entry claim field path must end in structural custody");
+        };
+        structural_type = next;
     }
     Ok(())
 }
@@ -1261,6 +1293,10 @@ fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), 
     for claim in &machine.entry_claims {
         writer.id(claim.claim);
         writer.id(claim.input);
+        writer.len("entry claim field path", claim.field_path.len())?;
+        for field in &claim.field_path {
+            writer.string("entry claim field", field)?;
+        }
     }
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     writer.len("content entry claims", machine.content_entry_claims.len())?;
@@ -2554,6 +2590,7 @@ fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError
         Ok(EntryClaim {
             claim: reader.id("ClaimId")?,
             input: reader.id("PlaceId")?,
+            field_path: decode_counted(reader, |reader| reader.string("entry claim field"))?,
         })
     })?;
     let published_service_ceiling = decode_ids(reader, "ServiceId")?;
