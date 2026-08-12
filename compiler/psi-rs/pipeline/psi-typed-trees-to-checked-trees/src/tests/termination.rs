@@ -2433,6 +2433,12 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         second.value = 11;
     }
 
+    machine Main::local_alias_projected_reborrow(&mut self) {
+        let first: &mut Cell = &mut self.cell;
+        let second: &mut u64 = &mut first.value;
+        second = 11;
+    }
+
     machine Main::local_alias_chain_call(&mut self) {
         let first: &mut u64 = &mut self.value;
         let second: &mut u64 = &mut first;
@@ -2445,8 +2451,18 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         second = 12;
     }
 
+    machine alias_parameter_projection(cell: &mut Cell) {
+        let root: &mut Cell = &mut cell;
+        let value: &mut u64 = &mut root.value;
+        value = 12;
+    }
+
     machine Main::call_alias_parameter_chain(&mut self) {
         alias_parameter_chain(&mut self.value);
+    }
+
+    machine Main::call_alias_parameter_projection(&mut self) {
+        alias_parameter_projection(&mut self.cell);
     }
 
     machine Main::local_alias_chain_self_loop(&mut self) {
@@ -2507,6 +2523,18 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         alias.value = 20;
     }
 
+    machine Main::indexed_alias_projected_reborrow(&mut self) {
+        let root: &mut [u64; 2] = &mut self.values;
+        let alias: &mut u64 = &mut root[0];
+        alias = 20;
+    }
+
+    machine Main::coarse_alias_projected_reborrow(&mut self) {
+        let root: &mut Cell = &mut self.cells[0];
+        let alias: &mut u64 = &mut root.value;
+        alias = 20;
+    }
+
     machine Main::indexed_alias_self_loop(&mut self) {
         let alias: &mut Cell = &mut self.cells[0];
         alias.value = 21;
@@ -2564,9 +2592,12 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         ("Main::call_alias_parameter_named", "self.value"),
         ("Main::local_alias_chain", "self.value"),
         ("Main::local_alias_chain_member_write", "self.cell.value"),
+        ("Main::local_alias_projected_reborrow", "self.cell.value"),
         ("Main::local_alias_chain_call", "self.value"),
         ("alias_parameter_chain", "$P0"),
+        ("alias_parameter_projection", "$P0.value"),
         ("Main::call_alias_parameter_chain", "self.value"),
+        ("Main::call_alias_parameter_projection", "self.cell.value"),
         ("Main::local_alias_chain_self_loop", "self.value"),
         ("Main::named_alias_chain", "self.value"),
         ("Main::indexed_alias_fixed", "self.values"),
@@ -2576,6 +2607,8 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
         ("indexed_alias_parameter", "$P0"),
         ("Main::call_indexed_alias_parameter", "self.cells"),
         ("Main::indexed_alias_chain", "self.cells"),
+        ("Main::indexed_alias_projected_reborrow", "self.values"),
+        ("Main::coarse_alias_projected_reborrow", "self.cells"),
         ("Main::indexed_alias_self_loop", "self.cells"),
         ("Main::indexed_alias_named", "self.cells"),
         ("Main::direct_indexed_call", "self.cells"),
@@ -2632,18 +2665,6 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         let first: &mut u64 = &mut self.value;
         let second: &mut u64 = &mut first;
         second = &mut self.other;
-        second = 2;
-    }
-
-    machine Main::alias_chain_member_projection(&mut self) {
-        let first: &mut Cell = &mut self.cell;
-        let second: &mut u64 = &mut first.value;
-        second = 2;
-    }
-
-    machine Main::alias_chain_indexed_projection(&mut self) {
-        let first: &mut [u64; 2] = &mut self.cells;
-        let second: &mut u64 = &mut first[0];
         second = 2;
     }
 
@@ -2775,8 +2796,6 @@ fn write_frame_keeps_unstable_or_unrepresentable_local_aliases_opaque() {
         "Main::rebound_alias",
         "Main::alias_chain_upstream_rebind",
         "Main::alias_chain_leaf_rebind",
-        "Main::alias_chain_member_projection",
-        "Main::alias_chain_indexed_projection",
         "Main::local_origin",
         "Main::indexed_local_origin",
         "Main::indexed_member_after_index",

@@ -320,11 +320,12 @@ resolved callers. Within one state, a direct `self` loop, or an acyclic named
 state graph, a stable local mutable alias initialized from an exact `self` or
 state-parameter place substitutes that origin through positional transition
 arguments, including member suffixes and resolved calls. A stable bare local
-reborrow (`let child: &mut T = &mut parent`) flattens through an already-known
-parent alias. A terminal indexed origin such as `&mut self.cells[i]` is known
-only at collection precision: it publishes `self.cells`, and that coarsening is
-absorbing through member writes, calls, and transitions. Potential rebinding,
-local or computed collection origins, projection through a local alias,
+reborrow (`let child: &mut T = &mut parent`) or exact member reborrow
+(`&mut parent.field`) flattens through an already-known parent alias. An indexed
+origin such as `&mut self.cells[i]` or `&mut parent[i]` is known only at
+collection precision: it publishes the whole collection, and that coarsening is
+absorbing through later alias projections, member writes, calls, and
+transitions. Potential rebinding, local or computed collection origins, direct
 member-after-index origins, call-produced chains, and transport through a named
 state SCC remain opaque. Non-bijective, computed, or otherwise unrepresentable
 cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns

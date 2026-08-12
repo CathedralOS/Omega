@@ -2009,6 +2009,84 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
 }
 
 #[test]
+fn boundary_witness_survives_disjoint_projected_alias_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Cell {
+            size: u32;
+            other: u32;
+        }
+
+        data Main {
+            fw: Firmware;
+            cell: Cell;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.cell.size);
+            self.touch_other_through_projection();
+            self.small = self.cell.size;
+        }
+
+        machine Main::touch_other_through_projection(&mut self) {
+            let cell_alias: &mut Cell = &mut self.cell;
+            let other: &mut u32 = &mut cell_alias.other;
+            other = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("an exact projected-alias frame should preserve a witness on a disjoint sibling");
+}
+
+#[test]
+fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Cell {
+            size: u32;
+            other: u32;
+        }
+
+        data Main {
+            fw: Firmware;
+            cell: Cell;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.cell.size);
+            self.touch_size_through_projection();
+            self.small = self.cell.size;
+        }
+
+        machine Main::touch_size_through_projection(&mut self) {
+            let cell_alias: &mut Cell = &mut self.cell;
+            let size: &mut u32 = &mut cell_alias.size;
+            size = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an overlapping projected-alias frame must invalidate the range witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
     let source = r#"
         boundary trait Firmware {
