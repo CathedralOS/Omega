@@ -404,7 +404,7 @@ impl Compiler {
         // length position and substitute concrete literals BEFORE checking,
         // proof facts, and layout consume the lengths.
         psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
-        crate::pipeline::const_domain_facts::evaluate_const_domain_facts(&mut typed)?;
+        psi_build_time_evaluation::evaluate_const_domain_facts(&mut typed)?;
         // PLAN-LAID VALUE TYPES, plan half: evaluate + validate each policy
         // application and record the placements for the layout builder.
         crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;

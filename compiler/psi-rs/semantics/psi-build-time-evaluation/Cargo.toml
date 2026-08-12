@@ -9,6 +9,7 @@ name = "psi_build_time_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+psi-arena = { path = "../../foundation/psi-arena" }
 psi-checked-interpreter = { path = "../psi-checked-interpreter" }
 psi-diagnostics = { path = "../../foundation/psi-diagnostics" }
 psi-effects = { path = "../../representations/psi-effects" }

@@ -128,11 +128,11 @@ The same denomination serves:
   corresponding terminal-Psi blocks.
 
 The target-neutral admission floor, checked zero-argument/fixed-array
-evaluator, and ownership-taking const-generic pre-resolution evaluation are Psi
-services (`psi-build-time-evaluation`). Omega orchestration may schedule those
-services, but it does not own or reinterpret their language semantics.
-Target-specific compilation consumes the resulting syntax/checked values and
-terminal Psi.
+evaluator, ownership-taking const-generic pre-resolution evaluation, and
+machine-backed concrete const-domain fact discharge are Psi services
+(`psi-build-time-evaluation`). Omega orchestration may schedule those services,
+but it does not own or reinterpret their language semantics. Target-specific
+compilation consumes the resulting syntax/checked values and terminal Psi.
 
 Optimization may reduce physical work without reducing logical fuel. A
 compiler release may not silently change budget behavior merely because its

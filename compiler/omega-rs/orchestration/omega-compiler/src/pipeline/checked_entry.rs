@@ -124,7 +124,7 @@ fn compile_to_checked_inner(
     // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
     // checking, exactly as the full `compile` pipeline does.
     psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
-    crate::pipeline::const_domain_facts::evaluate_const_domain_facts(&mut typed)?;
+    psi_build_time_evaluation::evaluate_const_domain_facts(&mut typed)?;
     // PLAN-LAID VALUE TYPES, plan half: evaluate + validate + record.
     crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
     crate::pipeline::placed_views::validate_placed_view_plans(&mut typed, &placed_view_records)?;

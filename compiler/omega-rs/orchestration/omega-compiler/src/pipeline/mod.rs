@@ -9,7 +9,6 @@ pub mod compile_options;
 mod compile_policy;
 pub mod compile_report;
 pub mod compiler;
-mod const_domain_facts;
 mod float_intrinsic_dispatch;
 pub mod frontend;
 mod layout_plans;
