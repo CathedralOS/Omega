@@ -2994,6 +2994,39 @@ fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_attached_transparent_result_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: i32;
+        }
+
+        machine Main::forward_alias(&self, value: &mut i32) -> &mut i32 {
+            value
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut i32 = self.forward_alias(&mut self.code);
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("an attached transparent result preserves its explicit argument's disjoint frame");
+}
+
+#[test]
 fn accepts_same_place_reassignment_from_static_persistent_storage() {
     let source = r#"
         data Main {
