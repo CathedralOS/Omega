@@ -144,7 +144,9 @@ Current ownership is:
   redirecting aliases established from its prior value. Stable mutable-alias
   chains retain exact member projections; an indexed reborrow through an exact
   alias retains its nearest collection, while an already-coarse alias stays
-  absorbing, including across a direct member-after-index origin. An
+  absorbing, including across a direct member-after-index origin. A validated
+  mutable recast local retains its source storage origin when that source
+  expression is effect-free; effectful recast sources remain opaque. An
   alias into a primitive scalar, concrete primitive-only record/sum, or nested
   fixed-array local is caller-isolated and contributes no published write;
   structurally transparent helpers preserve that local origin. Recursive,

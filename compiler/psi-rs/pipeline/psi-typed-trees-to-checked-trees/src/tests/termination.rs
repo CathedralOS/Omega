@@ -2974,6 +2974,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         second = 3;
     }
 
+    machine Main::recast_local_origin(&mut self) {
+        let view: &mut f64 = &mut self.value as &mut f64;
+        view = 3.0;
+    }
+
+    machine Main::effectful_index_recast_origin(&mut self) {
+        let view: &mut f64 = &mut self.cells[make_index()] as &mut f64;
+        view = 3.0;
+    }
+
     machine Main::transparent_result_statement_argument(&mut self) {
         write_argument(return_alias(&mut self.value));
     }
@@ -3302,6 +3312,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::alias_chain_rebind_from_alias", "self.value"),
         ("Main::indexed_alias_rebind", "self.other"),
         ("Main::call_produced_alias_chain", "self.value"),
+        ("Main::recast_local_origin", "self.value"),
         ("Main::transparent_result_statement_argument", "self.value"),
         ("Main::nested_call_produced_alias_chain", "self.value"),
         (
@@ -3432,6 +3443,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
+        "Main::effectful_index_recast_origin",
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",
         "Main::call_scratch_helper_result",
