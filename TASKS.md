@@ -67,8 +67,8 @@ Remaining:
   first four-target hosted canary plus the byte/line console replay matrices
   and initial cross-architecture guard/copy, double-indexed, and indexed-pair
   binary-write, text/bounded-buffer, wire, and storage/guard footprint artifact
-  cohorts have migrated. Production and development interpreter callers
-  require Omega's
+  cohorts plus the primitive-float differential matrix have migrated.
+  Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
   explicitly. Implicit Psi entry discovery and the former `Main::run` entry

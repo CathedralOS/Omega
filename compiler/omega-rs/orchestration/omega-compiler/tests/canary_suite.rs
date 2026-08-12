@@ -39500,7 +39500,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         "binary32 equality and ordered comparisons",
         "binary64 equality and ordered comparisons",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xab78_9e85_39fe_9f96;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5101_40de_2e9f_11be;
     const PRIMITIVE_REQUIREMENTS: &[&str] = &[
         "Float::add",
         "Float::subtract",
@@ -39630,7 +39630,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
             .expect("copy primitive float canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write primitive float target manifest");
         compile(CompileOptions {
