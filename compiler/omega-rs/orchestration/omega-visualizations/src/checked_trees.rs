@@ -726,6 +726,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(&mut json, &symbol_label(program, plan.owner));
         json.push_str(",\n      \"callable\": ");
         push_json_string(&mut json, &symbol_label(program, plan.callable));
+        json.push_str(",\n      \"callable_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &callable_overload_identity(program, plan.owner, plan.callable)
+                .expect("content conservation plan must name an exact callable"),
+        );
         json.push_str(",\n      \"algebra\": ");
         push_content_algebra_json(&mut json, &plan.algebra);
         json.push_str(",\n      \"equation\": {\"left\": ");
@@ -3251,6 +3257,12 @@ mod tests {
             .facts
             .qualifications
             .content
+            .conservation_plans
+            .push(plan.clone());
+        program
+            .facts
+            .qualifications
+            .content
             .partition_compositions
             .push(ContentPartitionCompositionFact {
                 machine_symbol,
@@ -3299,6 +3311,7 @@ mod tests {
             .find("\"content_conservation\"")
             .expect("content conservation section");
         let compositions = &json[compositions_start..compositions_end];
+        let conservation = &json[compositions_end..];
 
         assert!(json.contains("\"claim_outcome_maps\""));
         assert!(
@@ -3355,6 +3368,11 @@ mod tests {
         assert!(json.contains("\"path\": [\"length\"]"));
         assert!(json.contains("\"operator\": \"add\""));
         assert!(json.contains("\"fingerprint\": \"0x0123456789abcdef\""));
+        assert!(
+            conservation.contains(
+                "\"callable_overload_identity\": \"named-callable(path(Region::partition)"
+            )
+        );
     }
 
     #[test]
