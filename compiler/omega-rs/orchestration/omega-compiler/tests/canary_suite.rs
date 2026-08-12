@@ -42905,6 +42905,30 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "errors/fallible_result_data_shape",
     "errors/host_failure_boundary_machine",
     "errors/trap_unrecoverable_statement",
+    "dependent/data_where_surface_compile",
+    "dependent/data_where_gated_construction_compile",
+    "dependent/data_where_length_construction_compile",
+    "dependent/data_where_symbolic_equal_construction_compile",
+    "dependent/data_where_invariant_window_restored_exit",
+    "dependent/range_sugar_gated_construction_compile",
+    "dependent/nested_gated_construction_compile",
+    "dependent/zero_case_absorbs_nested_gate_compile",
+    "dependent/nested_data_where_window_restored_exit",
+    "dependent/indexed_data_where_window_restored_exit",
+    "dependent/data_where_flow_proven_construction_compile",
+    "dependent/data_where_zero_satisfying",
+    "dependent/data_where_cross_state_establish",
+    "dependent/data_where_cross_state_valuation",
+    "dependent/data_where_param_write_proves",
+    "dependent/data_where_hypothesis_discharges",
+    "dependent/data_where_window_closes",
+    "dependent/data_where_ranged_param_constructs",
+    "dependent/data_where_product_hypothesis",
+    "dependent/data_where_callee_establishes",
+    "dependent/data_where_multistate_callee",
+    "dependent/data_where_chained_hypothesis",
+    "dependent/data_where_window_transport",
+    "dependent/data_where_gated_literal_proves",
     "capabilities/uses_caller_folder",
     "capabilities/uses_caller_capability_requires",
     "core/float_meaning_core_surface",
@@ -45906,7 +45930,7 @@ fn range_gated_establishment_canaries_compile() {
         "dependent/data_where_gated_literal_proves",
     ] {
         let canary = pass_canary(name);
-        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
                 "{} failed:\n{}",
                 canary.display(),
@@ -45932,8 +45956,8 @@ fn range_gated_establishment_canaries_reject_unsafe_uses() {
         let canary = fail_canary(name);
         let expected = fs::read_to_string(canary.join("expected.txt"))
             .expect("range-gated fail canary should carry expected.txt");
-        let diagnostics = compile_canary_without_output(&canary)
-            .expect_err("unsafe range-gated use should be rejected");
+        let diagnostics =
+            check_canary(&canary).expect_err("unsafe range-gated use should be rejected");
         let combined = diagnostics
             .iter()
             .map(ToString::to_string)
@@ -45957,7 +45981,7 @@ fn default_domain_membership_canaries_compile() {
         "dependent/data_where_membership_zero_valid_compile",
     ] {
         let canary = pass_canary(name);
-        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
                 "{} failed:\n{}",
                 canary.display(),
@@ -45981,7 +46005,7 @@ fn default_domain_membership_canaries_reject_invalid_claims() {
         let canary = fail_canary(name);
         let expected = fs::read_to_string(canary.join("expected.txt"))
             .expect("membership fail canary should carry expected.txt");
-        let diagnostics = compile_canary_without_output(&canary)
+        let diagnostics = check_canary(&canary)
             .expect_err("invalid default-domain membership should be rejected");
         let combined = diagnostics
             .iter()
@@ -46043,7 +46067,7 @@ fn default_domain_measure_and_symbolic_canaries() {
         "dependent/data_where_capacity_measure_compile",
     ] {
         let canary = pass_canary(name);
-        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
                 "{} failed:\n{}",
                 canary.display(),
@@ -46087,7 +46111,7 @@ fn default_domain_measure_and_symbolic_canaries() {
     ] {
         let canary = fail_canary(name);
         assert!(
-            compile_canary_without_output(&canary).is_err(),
+            check_canary(&canary).is_err(),
             "{} unexpectedly compiled; symbolic facts must not survive unrelated writes or state boundaries",
             canary.display()
         );
@@ -46097,7 +46121,7 @@ fn default_domain_measure_and_symbolic_canaries() {
 #[test]
 fn default_domain_product_hypothesis_canary() {
     let canary = pass_canary("dependent/data_where_product_hypothesis");
-    compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed:\n{}",
             canary.display(),
@@ -46116,7 +46140,7 @@ fn default_domain_product_hypothesis_canary() {
     ] {
         let canary = fail_canary(name);
         assert!(
-            compile_canary_without_output(&canary).is_err(),
+            check_canary(&canary).is_err(),
             "{} unexpectedly compiled; calls must not establish an invalid or open default domain",
             canary.display()
         );
@@ -46131,7 +46155,7 @@ fn default_domain_symbolic_correlation_canaries() {
         "dependent/data_where_flow_proven_construction_compile",
     ] {
         let canary = pass_canary(name);
-        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
                 "{} failed:\n{}",
                 canary.display(),
@@ -46150,7 +46174,7 @@ fn default_domain_symbolic_correlation_canaries() {
     ] {
         let canary = fail_canary(name);
         assert!(
-            compile_canary_without_output(&canary).is_err(),
+            check_canary(&canary).is_err(),
             "{} unexpectedly compiled; symbolic correlations must remain state-local",
             canary.display()
         );
@@ -48619,21 +48643,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/runtime_requires_guarded_call_exit",
     "dependent/runtime_sibling_len_index_exit",
     "dependent/runtime_bounded_product_index_exit",
-    "dependent/data_where_surface_compile",
-    "dependent/data_where_gated_construction_compile",
-    "dependent/data_where_length_construction_compile",
-    "dependent/data_where_symbolic_equal_construction_compile",
     "dependent/data_where_standing_bound_exit",
-    "dependent/data_where_invariant_window_restored_exit",
     "dependent/data_where_gated_machine_established_exit",
-    "dependent/range_sugar_gated_construction_compile",
-    "dependent/nested_gated_construction_compile",
-    "dependent/zero_case_absorbs_nested_gate_compile",
-    "dependent/nested_data_where_window_restored_exit",
     "dependent/nested_data_where_standing_bound_exit",
-    "dependent/indexed_data_where_window_restored_exit",
     "dependent/indexed_data_where_standing_bound_exit",
-    "dependent/data_where_flow_proven_construction_compile",
     "recast/runtime_scalar_pun_shared_let_exit",
     "recast/runtime_scalar_pun_mutable_write_exit",
     "recast/runtime_mutable_equivalent_domain_recast_exit",
@@ -48715,19 +48728,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_not_equals_exit",
     "traits/equatable_string_equality_guard_exit",
     "traits/equatable_sum_payload_equality_exit",
-    "dependent/data_where_zero_satisfying",
-    "dependent/data_where_cross_state_establish",
-    "dependent/data_where_cross_state_valuation",
-    "dependent/data_where_param_write_proves",
-    "dependent/data_where_hypothesis_discharges",
-    "dependent/data_where_window_closes",
-    "dependent/data_where_ranged_param_constructs",
-    "dependent/data_where_product_hypothesis",
-    "dependent/data_where_callee_establishes",
-    "dependent/data_where_multistate_callee",
-    "dependent/data_where_chained_hypothesis",
-    "dependent/data_where_window_transport",
-    "dependent/data_where_gated_literal_proves",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/runtime_local_string_field_copy_through_mut_exit",
