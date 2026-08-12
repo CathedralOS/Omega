@@ -43471,6 +43471,10 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "termination/rank_range_unconsumed",
     "generics/const_data_where_machine_fact_effectful",
     "generics/const_data_machine_call_requires_pure",
+    "borrow/free_machine_view_invalidated_by_linked_input_write",
+    "borrow/view_return_ambiguous_ref_inputs",
+    "borrow/method_view_receiver_unrelated_field_write",
+    "borrows/borrow_helper_alias_active",
     "recast/recast_mut_fact_fenced",
     "recast/recast_mut_cross_carrier_domain_not_equivalent",
     "recast/recast_mut_range_bit_sets_differ",
@@ -49024,9 +49028,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/repeated_nested_element",
     "wire/borrowed_scalar_slice_decode_requires_storage",
     "capabilities/unapproved_host_call",
-    "borrows/borrow_helper_alias_active",
-    "borrow/free_machine_view_invalidated_by_linked_input_write",
-    "borrow/view_return_ambiguous_ref_inputs",
     "concurrency/barrier_wait_contract",
     "concurrency/mutex_lock_guard",
     "concurrency/spawn_retired",
@@ -49087,7 +49088,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "drops/drop_nonblocking_effect_unknown",
     "calls/mutual_cycle_decrease_unproven",
     "calls/mutual_cycle_disqualified_shape",
-    "borrow/method_view_receiver_unrelated_field_write",
 ];
 
 #[derive(Clone, Copy)]
