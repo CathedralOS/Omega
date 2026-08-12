@@ -638,6 +638,42 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A FLOAT local consumed by later arithmetic, a cast, or a compiler-owned
+    // numeric builtin must preserve its authored value at its own statement.
+    // Folding even a literal carrier into the consumer can move a checked
+    // float operation across statement identity, where its exact
+    // provider/policy evidence cannot follow by resemblance. Materialize the
+    // local instead, so the consumer reads the already-computed carrier. This
+    // also covers a format-conversion result consumed by a classification
+    // predicate (`let narrowed = source as f32; let finite = is_finite(narrowed)`).
+    let local_is_float = statements
+        .get(local_statement_index)
+        .and_then(|statement| match statement {
+            StatementNode::LocalData(local) => {
+                program.primitive_type_reference(local.type_reference)
+            }
+            _ => None,
+        })
+        .is_some_and(|primitive| {
+            matches!(
+                primitive,
+                psi_checked_trees::types::PrimitiveType::F32
+                    | psi_checked_trees::types::PrimitiveType::F64
+            )
+        });
+    if local_is_float
+        && local_or_bare_copy_used_as_arithmetic_operand(
+            program,
+            expressions,
+            statements,
+            local_statement_index,
+            local_symbol,
+            local_name,
+        )
+    {
+        return true;
+    }
+
     // A local consumed as a RUNTIME INDEX (`let m = self.k + 1; self.arr[m]`)
     // keeps its slot when its initializer is a COMPUTED value: eliding it folds
     // the initializer back into the index position, re-creating a computed

@@ -827,6 +827,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // Float operations consume exact checked provider and adapter evidence
     // carried through control flow. Only integer operations use the ordinary
     // operand-domain path inside the shared resolver.
+    let operation_byte_width = classification_byte_width.unwrap_or(target_place.byte_count);
     let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,
@@ -837,7 +838,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         left_expression,
         right_expression,
         is_float,
-        target_place.byte_count,
+        operation_byte_width,
     )?;
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
@@ -1267,6 +1268,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // Consume carried checked adapter evidence for normalized float
     // operations; only compatibility-only shapes reconstruct from operand
     // domains.
+    let operation_byte_width = classification_byte_width.unwrap_or(byte_size);
     let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,
@@ -1277,7 +1279,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         left_expression,
         right_expression,
         is_float,
-        byte_size,
+        operation_byte_width,
     )?;
     let target_signed = resolved_signed.unwrap_or(false);
     Some(

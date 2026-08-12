@@ -39670,7 +39670,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         "binary32-to-binary64 exact widening",
         "binary64 infinity to binary32 infinity",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xeb1e_22fd_ac58_5936;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x12f4_bd01_ad92_cca3;
 
     let canary = pass_canary("float/runtime_named_format_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -39742,6 +39742,46 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         selected_plan_identities.len(),
         2,
         "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per direction"
+    );
+
+    let classification_plan_evidence = checked
+        .facts
+        .operators
+        .named_uses()
+        .filter_map(|operator_use| {
+            let plan = checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)?;
+            let [row] = plan.rows.as_slice() else {
+                return None;
+            };
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+                &row.binding
+            else {
+                return None;
+            };
+            (name == "F32::is_infinite.f32")
+                .then_some((operator_use.expression, operator_use.provider_plan_identity))
+        })
+        .collect::<Vec<_>>();
+    let classification_plan_evidence =
+        classification_plan_evidence
+            .into_iter()
+            .fold(Vec::new(), |mut unique, evidence| {
+                if !unique.contains(&evidence) {
+                    unique.push(evidence);
+                }
+                unique
+            });
+    assert_eq!(
+        classification_plan_evidence.len(),
+        2,
+        "both repeated classification calls must retain checked plan evidence"
+    );
+    assert!(
+        classification_plan_evidence[0].1 != 0
+            && classification_plan_evidence[0].1 == classification_plan_evidence[1].1,
+        "repeated classification calls must agree on one exact nonzero plan"
     );
 
     let outcome = interpret(&checked, &[]);

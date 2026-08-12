@@ -76,8 +76,9 @@ enum CanonicalOperatorExpression {
 /// planners have copied its expression into a private table. `copy_from`
 /// preserves the authored source span on every node, including the operator
 /// token span on binary expressions, so the span plus statement origin is the
-/// stable identity across those tables. Synthetic expressions have a default
-/// span and deliberately do not acquire checked evidence by resemblance.
+/// stable identity across those tables. When a realization necessarily
+/// rebuilds a normalized operator without that identity, the stricter
+/// evidence-equivalence bridge below is the only fallback.
 fn canonical_checked_operator_expression(
     program: &psi_checked_trees::CheckedTrees,
     source_key: StateKey,
@@ -141,10 +142,125 @@ fn canonical_checked_operator_expression(
         }
     }
 
-    resolved.map_or(
+    if let Some(expression) = resolved {
+        return CanonicalOperatorExpression::Resolved(expression);
+    }
+
+    // Float realization can rebuild one already-checked operator into a
+    // private expression table without carrying its authored span. Bridge
+    // that synthetic node only when every same-statement fact with the same
+    // normalized operation shape agrees on both one exact nonzero
+    // ProviderPlan identity and one policy adapter. Repeated uses of the same
+    // requirement are therefore valid; mixed F32/F64 or policy evidence stays
+    // ambiguous and fails closed.
+    let mut shape_match = None;
+    let mut shape_identity = None;
+    let mut shape_policy = None;
+    for (candidate_expression, origin, identity, policy_adapter) in program
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(_, operator_use)| {
+            (
+                operator_use.expression,
+                operator_use.origin,
+                operator_use.provider_plan_identity,
+                operator_use.policy_adapter,
+            )
+        })
+        .chain(
+            program
+                .facts
+                .operators
+                .named_uses
+                .iter()
+                .map(|(_, operator_use)| {
+                    (
+                        operator_use.expression,
+                        operator_use.origin,
+                        operator_use.provider_plan_identity,
+                        operator_use.policy_adapter,
+                    )
+                }),
+        )
+    {
+        let psi_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index: candidate_statement,
+            ..
+        } = origin
+        else {
+            continue;
+        };
+        if machine_symbol != source_key.machine
+            || state_symbol != source_key.state
+            || candidate_statement != statement_index
+        {
+            continue;
+        }
+        if !same_normalized_operator_shape(
+            expressions,
+            expression,
+            canonical_table,
+            candidate_expression,
+        ) {
+            continue;
+        }
+        if identity == 0 {
+            return CanonicalOperatorExpression::Invalid;
+        }
+        match shape_identity {
+            Some(existing) if existing != identity => {
+                return CanonicalOperatorExpression::Invalid;
+            }
+            None => shape_identity = Some(identity),
+            _ => {}
+        }
+        match shape_policy {
+            Some(existing) if existing != policy_adapter => {
+                return CanonicalOperatorExpression::Invalid;
+            }
+            None => shape_policy = Some(policy_adapter),
+            _ => {}
+        }
+        shape_match.get_or_insert(candidate_expression);
+    }
+    shape_match.map_or(
         CanonicalOperatorExpression::Missing,
         CanonicalOperatorExpression::Resolved,
     )
+}
+
+fn same_normalized_operator_shape(
+    local_table: &ExpressionTable,
+    local_expression: ExpressionHandle,
+    checked_table: &ExpressionTable,
+    checked_expression: ExpressionHandle,
+) -> bool {
+    match (
+        local_table.expression(local_expression),
+        checked_table.expression(checked_expression),
+    ) {
+        (ExpressionNode::Binary(local), ExpressionNode::Binary(checked)) => {
+            local.operator == checked.operator
+        }
+        (ExpressionNode::Call(local), ExpressionNode::Call(checked)) => {
+            !local.receiver.is_valid()
+                && !checked.receiver.is_valid()
+                && local.target_symbol.is_valid()
+                && local.target_symbol == checked.target_symbol
+                && local.arguments.count() == checked.arguments.count()
+        }
+        (ExpressionNode::Cast(local), ExpressionNode::Cast(checked)) => {
+            local.target_type == checked.target_type
+                && local.domain == checked.domain
+                && local.semantic_domain_symbol == checked.semantic_domain_symbol
+                && local.form == checked.form
+        }
+        _ => false,
+    }
 }
 
 fn checked_float_provider_plan_for_statement(
