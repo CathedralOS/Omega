@@ -2335,7 +2335,7 @@ fn compiler_body_direct_integer_write_footprints_reach_x86_and_aarch64_artifacts
             .expect("copy compiler-body direct integer-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body direct integer-write target");
         compile(CompileOptions {
@@ -2430,7 +2430,7 @@ fn compiler_body_pointee_binary_write_footprints_reach_x86_and_aarch64_artifacts
             .expect("copy compiler-body pointee binary-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body pointee binary-write target");
         compile(CompileOptions {
@@ -2993,7 +2993,7 @@ fn compiler_body_place_address_footprints_reach_artifacts() {
             .expect("copy compiler-body place-address canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body place-address target");
         compile(CompileOptions {
