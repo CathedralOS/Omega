@@ -64,8 +64,10 @@ Remaining:
   bindings and delete the naming fallback. Three single-target hosted canaries
   cover Windows x86-64, Linux x86-64, and Linux AArch64; the bulk multi-target
   corpus still needs target-scoped build engineering. Production and development
-  interpreter callers already receive Omega's exact entry choice; implicit Psi
-  entry discovery and `Main::run` are retired. Final composition of firmware
+  interpreter callers require Omega's exact entry choice; checked-only semantic
+  compilation no longer invents `Main::main`, while legacy test harnesses name
+  that temporary fixture entry explicitly. Implicit Psi entry discovery and
+  `Main::run` are retired. Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
