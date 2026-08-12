@@ -3846,6 +3846,10 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         value = 1;
     }
 
+    machine return_value(value: &mut u64) -> &mut u64 {
+        value
+    }
+
     machine return_after_discarded_slice_view<'value, 'cells>(
         value: &'value mut u64,
         cells: &'cells mut [u64; 2]
@@ -3874,6 +3878,27 @@ fn mutable_slice_views_preserve_array_storage_origins() {
 
     machine return_after_binding_reborrow_statement_call(value: &mut u64) -> &mut u64 {
         write_value(&mut value);
+        value
+    }
+
+    machine return_after_direct_call_argument<'value, 'cells>(
+        value: &'value mut u64,
+        cells: &'cells mut [u64; 2]
+    ) -> &'value mut u64 {
+        write_slice(return_slice(cells));
+        value
+    }
+
+    machine return_after_recursive_call_argument<'value, 'cells>(
+        value: &'value mut u64,
+        cells: &'cells mut [u64; 2]
+    ) -> &'value mut u64 {
+        write_slice(return_recursive_slice(cells));
+        value
+    }
+
+    machine return_after_deep_call_argument(value: &mut u64) -> &mut u64 {
+        write_value(return_value(return_value(value)));
         value
     }
 
@@ -3919,6 +3944,23 @@ fn mutable_slice_views_preserve_array_storage_origins() {
     machine Main::binding_reborrow_statement_call(&mut self) {
         let alias: &mut u64 =
             return_after_binding_reborrow_statement_call(&mut self.value);
+        alias = 1;
+    }
+
+    machine Main::direct_call_argument_statement_call(&mut self) {
+        let alias: &mut u64 =
+            return_after_direct_call_argument(&mut self.value, &mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::recursive_call_argument_statement_call(&mut self) {
+        let alias: &mut u64 =
+            return_after_recursive_call_argument(&mut self.value, &mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::deep_call_argument_statement_call(&mut self) {
+        let alias: &mut u64 = return_after_deep_call_argument(&mut self.value);
         alias = 1;
     }
 
@@ -4029,6 +4071,64 @@ fn mutable_slice_views_preserve_array_storage_origins() {
             )
             .is_complete(),
         "an explicit mutable-reference binding reborrow must keep the helper relation opaque"
+    );
+
+    let direct_call_argument_statement_call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::direct_call_argument_statement_call")
+        .expect("direct call-argument statement caller");
+    let direct_call_argument_statement_call_entry = typed
+        .machine_states(direct_call_argument_statement_call)
+        .first()
+        .expect("direct call-argument statement caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(
+                direct_call_argument_statement_call,
+                direct_call_argument_statement_call_entry,
+            )
+            .complete_paths(),
+        Some(["self.cells".to_owned(), "self.value".to_owned()].as_slice()),
+        "one exact direct value-call argument must preserve both its write and the returned origin"
+    );
+
+    let recursive_call_argument_statement_call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::recursive_call_argument_statement_call")
+        .expect("recursive call-argument statement caller");
+    let recursive_call_argument_statement_call_entry = typed
+        .machine_states(recursive_call_argument_statement_call)
+        .first()
+        .expect("recursive call-argument statement caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(
+                recursive_call_argument_statement_call,
+                recursive_call_argument_statement_call_entry,
+            )
+            .is_complete(),
+        "an opaque recursive value-call argument must remain a returned-place fence"
+    );
+
+    let deep_call_argument_statement_call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::deep_call_argument_statement_call")
+        .expect("deep call-argument statement caller");
+    let deep_call_argument_statement_call_entry = typed
+        .machine_states(deep_call_argument_statement_call)
+        .first()
+        .expect("deep call-argument statement caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(
+                deep_call_argument_statement_call,
+                deep_call_argument_statement_call_entry,
+            )
+            .is_complete(),
+        "a deeper computed value-call argument remains outside this exact rung"
     );
 }
 

@@ -2174,9 +2174,10 @@ fn isolated_local_initializer_preserves_transparent_result(
 /// One direct Unit statement call is neutral to a returned-place relation when
 /// its inferred frame is complete and no argument exposes a mutable-reference
 /// binding for rebinding. Writes through references passed by value may change
-/// their contents, but cannot redirect the established origin. Explicitly
-/// discarded value results, effectful arguments, binding reborrows, and opaque
-/// frames remain fences.
+/// their contents, but cannot redirect the established origin. One direct
+/// value-call argument is admitted under the same complete-frame rule.
+/// Explicitly discarded value results, deeper computed arguments, binding
+/// reborrows, and opaque frames remain fences.
 fn statement_call_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -2189,21 +2190,27 @@ fn statement_call_preserves_transparent_result(
     if call.discards_result {
         return false;
     }
-    let arguments = program.statement_table.expression_handles(call.arguments);
-    if arguments.iter().any(|argument| {
-        expression_is_effectful_for_transparent_result(program, *argument)
-            || expression_reborrows_transparent_alias_binding(
-                program, *argument, parameters, aliases,
-            )
-    }) {
-        return false;
-    }
-
     let mut diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
     if !diagnostics.is_empty() {
         return false;
     }
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    if arguments.iter().any(|argument| {
+        !statement_call_argument_preserves_transparent_result(
+            program,
+            current_machine,
+            *argument,
+            &machine_symbols,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+        )
+    }) {
+        return false;
+    }
+
     let receiver_members = program
         .statement_table
         .name_path_members(call.receiver)
@@ -2225,6 +2232,70 @@ fn statement_call_preserves_transparent_result(
         known_boundary_call_written_paths_for_parts(
             program,
             &machine_symbols,
+            symbols,
+            &receiver_members,
+            call.target.as_str(),
+            arguments,
+        )
+    })
+    .is_some()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn statement_call_argument_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    if expression_reborrows_transparent_alias_binding(program, expression, parameters, aliases) {
+        return false;
+    }
+    if !expression_is_effectful_for_transparent_result(program, expression) {
+        return true;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if (call.receiver.is_valid()
+        && expression_is_effectful_for_transparent_result(program, call.receiver))
+        || program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .any(|argument| expression_is_effectful_for_transparent_result(program, *argument))
+    {
+        return false;
+    }
+
+    let receiver_members = if call.receiver.is_valid() {
+        let Some(receiver) = receiver_member_chain(program, call.receiver) else {
+            return false;
+        };
+        receiver
+    } else {
+        Vec::new()
+    };
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    known_call_written_paths_for_parts(
+        program,
+        call.target_symbol,
+        call.target.as_str(),
+        &receiver_members,
+        arguments,
+        current_machine,
+        machine_symbols,
+        symbols,
+        active_states,
+    )
+    .or_else(|| {
+        known_boundary_call_written_paths_for_parts(
+            program,
+            machine_symbols,
             symbols,
             &receiver_members,
             call.target.as_str(),

@@ -347,8 +347,10 @@ nested-computed, and calls with any write outside those isolated roots remain
 fences. One direct Unit statement call with a complete frame may likewise
 precede the terminal place when its arguments do not expose a mutable-reference
 binding for rebinding; writes through references passed by value change contents
-without redirecting their origins. Explicitly discarded call results, effectful
-arguments, explicit binding reborrows, and opaque frames remain fences.
+without redirecting their origins. One direct value-call argument is also
+admitted when its own receiver and arguments are effect-free and its frame is
+complete. Explicitly discarded call results, explicit binding reborrows, deeper
+computed arguments, and opaque frames remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
