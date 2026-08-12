@@ -341,8 +341,10 @@ collection-coarse aliases disappear from the caller-visible frame. Named,
 reference-bearing, and generic local roots do not receive that exception. One
 direct call may initialize a caller-isolated scratch local without obscuring a
 separately returned parameter origin only when the call's inferred frame is
-complete and empty; opaque, recursive, nested-computed, and write-capable calls
-remain fences. Non-bijective, computed, or otherwise unrepresentable
+complete and every write resolves into a previously established caller-isolated
+scratch local; an empty frame is the degenerate case. Opaque, recursive,
+nested-computed, and calls with any write outside those isolated roots remain
+fences. Non-bijective, computed, or otherwise unrepresentable
 cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns
 further relational candidates.
 

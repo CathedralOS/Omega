@@ -2009,6 +2009,7 @@ fn transparent_callee_result_origin(
 
         let parameters = program.state_parameters(callee_state);
         let mut local_aliases = Vec::new();
+        let mut isolated_local_roots = Vec::new();
         for statement in prefix {
             match statement {
                 StatementNode::LocalData(local) => {
@@ -2019,9 +2020,11 @@ fn transparent_callee_result_origin(
                             local.initial_value,
                             symbols,
                             active_states,
+                            &isolated_local_roots,
                         ) {
                             return None;
                         }
+                        isolated_local_roots.push(local.name.as_str().to_owned());
                         continue;
                     }
                     let TypeReferenceNode::Reference {
@@ -2107,15 +2110,17 @@ fn transparent_callee_result_origin(
 /// A caller-isolated scratch local cannot itself redirect a returned place.
 /// Its initializer may therefore precede a transparent returned-place result
 /// when it is syntactically effect-free, or when it is one direct value call
-/// whose inferred frame is both complete and empty. Keep computed/nested calls
-/// and every write-capable or opaque call fenced: this predicate proves only
-/// that the initializer cannot perturb the returned-place relation.
+/// whose inferred frame is complete and writes only previously established
+/// caller-isolated scratch locals. Keep computed/nested calls and every
+/// caller-visible or opaque call fenced: this predicate proves only that the
+/// initializer cannot perturb the returned-place relation.
 fn isolated_local_initializer_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
+    isolated_local_roots: &[String],
 ) -> bool {
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
@@ -2150,7 +2155,10 @@ fn isolated_local_initializer_preserves_transparent_result(
         &mut written,
     )
     .is_some()
-        && written.is_empty()
+        && written.iter().all(|path| {
+            let (root, _) = split_place_root(path);
+            isolated_local_roots.iter().any(|local| local == root)
+        })
 }
 
 fn parameter_relative_alias_position(
