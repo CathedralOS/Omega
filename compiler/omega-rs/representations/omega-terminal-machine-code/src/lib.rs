@@ -29,9 +29,9 @@ pub struct TerminalMachineCodeFunction {
     /// closure. Other terminal function forms remain deliberately unreported
     /// until their complete temporary-stack accounting is retained.
     pub unit_stack: Option<TerminalUnitStackEvidence>,
-    /// Exact ordered stack mutations for a call-free, branch-free scalar
-    /// function. Object construction replays the target instructions and
-    /// derives the numeric peak; unsupported scalar forms remain `None`.
+    /// Exact ordered stack mutations for a branch-free scalar function.
+    /// Object construction replays the target instructions and derives the
+    /// numeric peak; unsupported scalar forms remain `None`.
     pub scalar_stack: Option<TerminalScalarStackEvidence>,
     /// Typed internal-call relocation fields, ordered by `offset`. Each row
     /// points at the mutable immediate bits of one architecture-native call;
@@ -151,6 +151,11 @@ pub struct TerminalInternalCallRelocation {
     /// enters its callee. Absent for non-Unit function forms whose full stack
     /// accounting has not yet migrated.
     pub unit_stack: Option<TerminalUnitCallStackEvidence>,
+    /// Exact scalar-expression call-site stack facts. The object boundary
+    /// replays the surrounding ordered mutations and derives caller-live
+    /// bytes; this evidence names only the encoded outbound area and, on
+    /// AArch64, the explicit link-register save/restore.
+    pub scalar_stack: Option<TerminalScalarCallStackEvidence>,
     /// Byte offset within this function at which the relocation field begins.
     /// On x86-64 this points at the four-byte displacement following `CALL`;
     /// on AArch64 it points at the `BL` instruction word.
@@ -177,6 +182,12 @@ pub struct TerminalUnitCallStackEvidence {
     /// this call. The object boundary derives the transient contribution from
     /// these validated target instructions plus architecture-owned linkage.
     pub outbound: Option<TerminalStackAdjustmentPair>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalScalarCallStackEvidence {
+    pub outbound: Option<TerminalStackAdjustmentPair>,
+    pub aarch64_return_link: Option<TerminalAarch64ReturnLinkEvidence>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

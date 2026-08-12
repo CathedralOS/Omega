@@ -2,7 +2,8 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
-    build_terminal_object_artifact, emit_terminal_executable_image, emit_terminal_object_container,
+    TerminalObjectError, build_terminal_object_artifact, derive_terminal_stack_demand,
+    emit_terminal_executable_image, emit_terminal_object_container,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
@@ -110,6 +111,10 @@ fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
         machine_id(2)
     );
     let artifact = build_terminal_object_artifact(&machine_code).expect("build call object");
+    let stack = derive_terminal_stack_demand(&artifact, machine_id(1))
+        .expect("compose byte-validated scalar call stack");
+    assert!(stack.ceiling_bytes() >= 16);
+    assert_eq!(stack.contributing_machines().len(), 2);
     let object = emit_terminal_object_container(&artifact);
     assert_eq!(object.output.relocations, 1);
     let image = emit_terminal_executable_image(&artifact, 3).expect("resolve internal call image");
@@ -206,6 +211,12 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
     let machine_code = emit_machine_code(&assigned).expect("emit call and callee crash leaf");
     assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
     let artifact = build_terminal_object_artifact(&machine_code).expect("build call crash object");
+    assert_eq!(
+        derive_terminal_stack_demand(&artifact, machine_id(1)),
+        Err(TerminalObjectError::UnaccountedTerminalUnitStack(
+            machine_id(2)
+        ))
+    );
     assert_eq!(
         emit_terminal_object_container(&artifact).output.relocations,
         1

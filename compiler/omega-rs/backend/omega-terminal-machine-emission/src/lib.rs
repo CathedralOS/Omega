@@ -21,8 +21,9 @@ use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarCallStackEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -315,6 +316,11 @@ fn emit_function(
     let scalar_stack = scalar_stack_eligible
         .then(|| collect_linear_scalar_stack_evidence(architecture, &bytes))
         .transpose()?;
+    if !scalar_stack_eligible {
+        for call in &mut internal_calls {
+            call.scalar_stack = None;
+        }
+    }
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
         provenance: function.provenance.clone(),
@@ -622,6 +628,7 @@ fn emit_x86_64_unit_call(
         unit_stack: Some(TerminalUnitCallStackEvidence {
             outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
         }),
+        scalar_stack: None,
         offset,
     });
     Ok(())
@@ -674,6 +681,7 @@ fn emit_aarch64_unit_call(
         unit_stack: Some(TerminalUnitCallStackEvidence {
             outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
         }),
+        scalar_stack: None,
         offset,
     });
     Ok(())
@@ -2565,8 +2573,11 @@ fn emit_x86_64_call(
             byte_size: outgoing_stack_bytes,
         },
     )?;
+    let mut allocation = None;
     if call_stack_bytes != 0 {
+        let allocation_offset = bytes.len();
         emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+        allocation = Some((allocation_offset, bytes.len() - allocation_offset));
     }
     for argument in arguments {
         let TerminalAssignedCallDestination::OutgoingStack { byte_offset } = argument.destination
@@ -2607,15 +2618,22 @@ fn emit_x86_64_call(
     bytes.push(0xe8); // call rel32
     let offset = bytes.len();
     bytes.extend_from_slice(&0_i32.to_le_bytes());
+    let mut release = None;
+    if call_stack_bytes != 0 {
+        let release_offset = bytes.len();
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
+        release = Some((release_offset, bytes.len() - release_offset));
+    }
     relocations.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
         unit_stack: None,
+        scalar_stack: Some(TerminalScalarCallStackEvidence {
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
+            aarch64_return_link: None,
+        }),
         offset,
     });
-    if call_stack_bytes != 0 {
-        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
-    }
     Ok(())
 }
 
@@ -4215,7 +4233,9 @@ fn emit_aarch64_call(
                 value: source_value,
                 byte_size: outgoing_stack_bytes,
             })?;
+    let allocation_offset = instructions.len() * 4;
     emit_aarch64_adjust_sp(instructions, call_stack_bytes, false)?;
+    let link_store_offset = instructions.len() * 4;
     instructions.push(aarch64_stack_access(
         0xf900_0000,
         30,
@@ -4270,19 +4290,33 @@ fn emit_aarch64_call(
     }
     let offset = instructions.len() * 4;
     instructions.push(0x9400_0000); // bl #0
-    relocations.push(TerminalInternalCallRelocation {
-        psi_operation,
-        target: callee,
-        unit_stack: None,
-        offset,
-    });
+    let link_load_offset = instructions.len() * 4;
     instructions.push(aarch64_stack_access(
         0xf940_0000,
         30,
         source_value,
         outgoing_stack_bytes,
     )?); // ldr x30 above outgoing arguments
+    let release_offset = instructions.len() * 4;
     emit_aarch64_adjust_sp(instructions, call_stack_bytes, true)?;
+    relocations.push(TerminalInternalCallRelocation {
+        psi_operation,
+        target: callee,
+        unit_stack: None,
+        scalar_stack: Some(TerminalScalarCallStackEvidence {
+            outbound: stack_adjustment_pair(
+                call_stack_bytes,
+                Some((allocation_offset, 4)),
+                Some((release_offset, 4)),
+            ),
+            aarch64_return_link: Some(TerminalAarch64ReturnLinkEvidence {
+                frame_byte_offset: outgoing_stack_bytes,
+                store_offset: link_store_offset,
+                load_offset: link_load_offset,
+            }),
+        }),
+        offset,
+    });
     Ok(())
 }
 
@@ -4431,7 +4465,9 @@ fn emit_aarch64_adjust_sp(
 
 fn linear_boolean_expression(expression: &TerminalAssignedBooleanExpression) -> bool {
     match expression {
-        TerminalAssignedBooleanExpression::Call { .. } => false,
+        TerminalAssignedBooleanExpression::Call { arguments, .. } => arguments
+            .iter()
+            .all(|argument| linear_scalar_expression(&argument.expression)),
         TerminalAssignedBooleanExpression::Immediate { .. }
         | TerminalAssignedBooleanExpression::Parameter { .. } => true,
         TerminalAssignedBooleanExpression::Not { operand, .. } => {
@@ -4450,8 +4486,10 @@ fn linear_boolean_expression(expression: &TerminalAssignedBooleanExpression) -> 
 
 fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> bool {
     match expression {
-        TerminalAssignedIntegerExpression::Call { .. }
-        | TerminalAssignedIntegerExpression::ExactDivide { .. }
+        TerminalAssignedIntegerExpression::Call { arguments, .. } => arguments
+            .iter()
+            .all(|argument| linear_scalar_expression(&argument.expression)),
+        TerminalAssignedIntegerExpression::ExactDivide { .. }
         | TerminalAssignedIntegerExpression::ExactRemainder { .. }
         | TerminalAssignedIntegerExpression::WrappingDivide { .. }
         | TerminalAssignedIntegerExpression::WrappingRemainder { .. }
@@ -4494,6 +4532,17 @@ fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> 
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
             linear_integer_expression(left) && linear_integer_expression(right)
+        }
+    }
+}
+
+fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bool {
+    match expression {
+        TerminalAssignedScalarExpression::Boolean(expression) => {
+            linear_boolean_expression(expression)
+        }
+        TerminalAssignedScalarExpression::Integer { expression, .. } => {
+            linear_integer_expression(expression)
         }
     }
 }
@@ -5791,6 +5840,7 @@ mod tests {
             let emitted = emit_machine_code(&calling_conditional_plan(target, argument_register))
                 .expect("emit conditional calls");
             let caller = &emitted.functions[0];
+            assert_eq!(caller.scalar_stack, None);
             assert_eq!(caller.internal_calls.len(), 3);
             assert_eq!(
                 caller
@@ -5808,6 +5858,7 @@ mod tests {
             );
             for relocation in &caller.internal_calls {
                 assert_eq!(relocation.target, MachineId::new(2).unwrap());
+                assert_eq!(relocation.scalar_stack, None);
                 match target.architecture {
                     Architecture::X86_64 => {
                         assert_eq!(caller.bytes[relocation.offset - 1], 0xe8);
@@ -6837,41 +6888,49 @@ mod tests {
                             psi_edge: EdgeId::new(1).expect("return edge"),
                             source_value: call_result,
                             scalar_type,
-                            expression: TerminalTargetIntegerExpression::Call {
-                                psi_operation: call_operation,
-                                source_value: call_result,
-                                callee,
-                                arguments: vec![
-                                    TerminalTargetCallArgument {
-                                        scalar_type: psi_core::ScalarType::Integer(scalar_type),
-                                        location: TerminalScalarParameterLocation::Register(
-                                            argument_register,
-                                        ),
-                                        expression: TerminalTargetScalarExpression::Integer {
-                                            scalar_type,
-                                            expression:
-                                                TerminalTargetIntegerExpression::Immediate {
-                                                    source_value: argument,
-                                                    value: IntegerValue::Unsigned(7),
+                            expression: TerminalTargetIntegerExpression::WrappingAdd {
+                                psi_operation: OperationId::new(7).expect("add operation"),
+                                left: Box::new(TerminalTargetIntegerExpression::Immediate {
+                                    source_value: ValueId::new(7).expect("pending left value"),
+                                    value: IntegerValue::Unsigned(1),
+                                }),
+                                right: Box::new(TerminalTargetIntegerExpression::Call {
+                                    psi_operation: call_operation,
+                                    source_value: call_result,
+                                    callee,
+                                    arguments: vec![
+                                        TerminalTargetCallArgument {
+                                            scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                            location: TerminalScalarParameterLocation::Register(
+                                                argument_register,
+                                            ),
+                                            expression: TerminalTargetScalarExpression::Integer {
+                                                scalar_type,
+                                                expression:
+                                                    TerminalTargetIntegerExpression::Immediate {
+                                                        source_value: argument,
+                                                        value: IntegerValue::Unsigned(7),
+                                                    },
+                                            },
+                                        },
+                                        TerminalTargetCallArgument {
+                                            scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                            location:
+                                                TerminalScalarParameterLocation::IncomingStack {
+                                                    byte_offset: stack_byte_offset,
                                                 },
+                                            expression: TerminalTargetScalarExpression::Integer {
+                                                scalar_type,
+                                                expression:
+                                                    TerminalTargetIntegerExpression::Immediate {
+                                                        source_value: ValueId::new(6)
+                                                            .expect("stack argument"),
+                                                        value: IntegerValue::Unsigned(9),
+                                                    },
+                                            },
                                         },
-                                    },
-                                    TerminalTargetCallArgument {
-                                        scalar_type: psi_core::ScalarType::Integer(scalar_type),
-                                        location: TerminalScalarParameterLocation::IncomingStack {
-                                            byte_offset: stack_byte_offset,
-                                        },
-                                        expression: TerminalTargetScalarExpression::Integer {
-                                            scalar_type,
-                                            expression:
-                                                TerminalTargetIntegerExpression::Immediate {
-                                                    source_value: ValueId::new(6)
-                                                        .expect("stack argument"),
-                                                    value: IntegerValue::Unsigned(9),
-                                                },
-                                        },
-                                    },
-                                ],
+                                    ],
+                                }),
                             },
                         },
                     },
@@ -6890,13 +6949,19 @@ mod tests {
             };
             let emitted = emit_machine_code(&plan).expect("emit direct call");
             let caller = &emitted.functions[0];
-            assert_eq!(caller.scalar_stack, None);
+            assert!(caller.scalar_stack.is_some());
             assert_eq!(caller.internal_calls.len(), 1);
             let relocation = caller.internal_calls[0];
             assert_eq!(relocation.psi_operation, call_operation);
             assert_eq!(relocation.target, callee);
+            let call_stack = relocation
+                .scalar_stack
+                .expect("linear scalar call stack evidence");
+            assert_eq!(relocation.unit_stack, None);
             match target.architecture {
                 Architecture::X86_64 => {
+                    assert_eq!(call_stack.aarch64_return_link, None);
+                    assert!(call_stack.outbound.is_some());
                     assert_eq!(caller.bytes[relocation.offset - 1], 0xe8);
                     assert_eq!(
                         &caller.bytes[relocation.offset..relocation.offset + 4],
@@ -6913,22 +6978,26 @@ mod tests {
                             ]
                     }));
                     if target.object_format == ObjectFormat::Coff {
+                        assert_eq!(call_stack.outbound.expect("COFF outbound").byte_size, 48);
                         assert!(
                             caller
                                 .bytes
                                 .windows(4)
-                                .any(|window| window == [0x48, 0x83, 0xec, 40])
+                                .any(|window| window == [0x48, 0x83, 0xec, 48])
                         );
                     } else {
+                        assert_eq!(call_stack.outbound.expect("SysV outbound").byte_size, 16);
                         assert!(
                             caller
                                 .bytes
                                 .windows(4)
-                                .any(|window| window == [0x48, 0x83, 0xec, 8])
+                                .any(|window| window == [0x48, 0x83, 0xec, 16])
                         );
                     }
                 }
                 Architecture::Aarch64 => {
+                    assert!(call_stack.outbound.is_some());
+                    assert!(call_stack.aarch64_return_link.is_some());
                     assert_eq!(
                         &caller.bytes[relocation.offset..relocation.offset + 4],
                         &0x9400_0000_u32.to_le_bytes()

@@ -29,9 +29,9 @@ use omega_object_file::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
-    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarStackEvidence,
-    TerminalScalarStackMutation, TerminalScalarStackMutationKind, TerminalStackAdjustmentPair,
-    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
@@ -132,9 +132,10 @@ pub struct TerminalObjectFunction {
     pub byte_count: usize,
     /// Byte-validated stack facts for a completely accounted Unit body.
     pub unit_stack: Option<TerminalObjectUnitStack>,
-    /// Byte-validated stack facts for a call-free, branch-free scalar body.
+    /// Byte-validated stack facts for a branch-free scalar body.
     pub scalar_stack: Option<TerminalObjectScalarStack>,
     pub unit_call_stacks: Vec<TerminalObjectUnitCallStack>,
+    pub scalar_call_stacks: Vec<TerminalObjectScalarCallStack>,
 }
 
 impl TerminalObjectFunction {
@@ -150,6 +151,14 @@ pub struct TerminalObjectUnitCallStack {
     pub text_offset: usize,
     pub active_frame_bytes: u32,
     pub transient_bytes: u32,
+    pub caller_live_bytes: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalObjectScalarCallStack {
+    pub psi_operation: psi_core::OperationId,
+    pub target: MachineId,
+    pub text_offset: usize,
     pub caller_live_bytes: u32,
 }
 
@@ -343,6 +352,22 @@ pub fn build_terminal_object_artifact(
                 }
                 (None, Some(_)) => {
                     return Err(TerminalObjectError::UnexpectedUnitCallStackEvidence {
+                        caller: function.machine,
+                        operation: call.psi_operation,
+                    });
+                }
+                (None, None) => {}
+            }
+            match (function.scalar_stack.as_ref(), call.scalar_stack) {
+                (Some(_), Some(_)) => {}
+                (Some(_), None) => {
+                    return Err(TerminalObjectError::MissingScalarCallStackEvidence {
+                        caller: function.machine,
+                        operation: call.psi_operation,
+                    });
+                }
+                (None, Some(_)) => {
+                    return Err(TerminalObjectError::UnexpectedScalarCallStackEvidence {
                         caller: function.machine,
                         operation: call.psi_operation,
                     });
@@ -578,7 +603,14 @@ pub fn build_terminal_object_artifact(
                 .checked_add(call.text_offset)
                 .ok_or(TerminalObjectError::TextSizeOverflow)?;
         }
-        let scalar_stack = validated_scalar_stacks.remove(&function.machine);
+        let (scalar_stack, mut scalar_call_stacks) = validated_scalar_stacks
+            .remove(&function.machine)
+            .map_or((None, Vec::new()), |(stack, calls)| (Some(stack), calls));
+        for call in &mut scalar_call_stacks {
+            call.text_offset = text_offset
+                .checked_add(call.text_offset)
+                .ok_or(TerminalObjectError::TextSizeOverflow)?;
+        }
         functions.push(TerminalObjectFunction {
             machine: function.machine,
             provenance: function.provenance.clone(),
@@ -588,6 +620,7 @@ pub fn build_terminal_object_artifact(
             unit_stack,
             scalar_stack,
             unit_call_stacks,
+            scalar_call_stacks,
         });
     }
 
@@ -737,15 +770,18 @@ fn validate_linear_scalar_stack(
     bytes: &[u8],
     calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
     evidence: &TerminalScalarStackEvidence,
-) -> Result<TerminalObjectScalarStack, TerminalObjectError> {
+) -> Result<
+    (
+        TerminalObjectScalarStack,
+        Vec<TerminalObjectScalarCallStack>,
+    ),
+    TerminalObjectError,
+> {
     if evidence.stack_alignment != 16 {
         return Err(TerminalObjectError::InvalidScalarStackAlignment {
             machine,
             alignment: evidence.stack_alignment,
         });
-    }
-    if !calls.is_empty() {
-        return Err(TerminalObjectError::ScalarStackCallNotSupported(machine));
     }
     if evidence
         .mutations
@@ -766,6 +802,16 @@ fn validate_linear_scalar_stack(
             machine,
         ));
     }
+    let mut call_sites = std::collections::BTreeMap::new();
+    for call in calls {
+        validate_internal_call_site(architecture, machine, bytes, *call)?;
+        let call_start = match architecture {
+            Architecture::X86_64 => call.offset - 1,
+            Architecture::Aarch64 => call.offset,
+        };
+        call_sites.insert(call_start, *call);
+    }
+    let mut validated_calls = Vec::with_capacity(calls.len());
     let mut depth = 0_u32;
     let mut peak = 0_u32;
     match architecture {
@@ -791,6 +837,29 @@ fn validate_linear_scalar_stack(
                         });
                     }
                     saw_return = true;
+                    continue;
+                }
+                if instruction.mnemonic() == iced_x86::Mnemonic::Call {
+                    let call = call_sites.remove(&offset).ok_or(
+                        TerminalObjectError::UntypedScalarInternalCall { machine, offset },
+                    )?;
+                    let call_evidence = call.scalar_stack.ok_or(
+                        TerminalObjectError::MissingScalarCallStackEvidence {
+                            caller: machine,
+                            operation: call.psi_operation,
+                        },
+                    )?;
+                    let validated = validate_scalar_call_stack(
+                        architecture,
+                        machine,
+                        bytes,
+                        call,
+                        call_evidence,
+                        evidence,
+                        depth,
+                    )?;
+                    peak = peak.max(validated.caller_live_bytes);
+                    validated_calls.push(validated);
                     continue;
                 }
                 if instruction.flow_control() != iced_x86::FlowControl::Next {
@@ -871,6 +940,29 @@ fn validate_linear_scalar_stack(
                     saw_return = true;
                     continue;
                 }
+                if encoded == 0x9400_0000 {
+                    let call = call_sites.remove(&offset).ok_or(
+                        TerminalObjectError::UntypedScalarInternalCall { machine, offset },
+                    )?;
+                    let call_evidence = call.scalar_stack.ok_or(
+                        TerminalObjectError::MissingScalarCallStackEvidence {
+                            caller: machine,
+                            operation: call.psi_operation,
+                        },
+                    )?;
+                    let validated = validate_scalar_call_stack(
+                        architecture,
+                        machine,
+                        bytes,
+                        call,
+                        call_evidence,
+                        evidence,
+                        depth,
+                    )?;
+                    peak = peak.max(validated.caller_live_bytes);
+                    validated_calls.push(validated);
+                    continue;
+                }
                 if aarch64_control_flow_instruction(encoded) {
                     return Err(TerminalObjectError::NonLinearScalarControlFlow {
                         machine,
@@ -898,12 +990,164 @@ fn validate_linear_scalar_stack(
     if let Some((&offset, _)) = claimed.first_key_value() {
         return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
     }
+    if let Some((_, call)) = call_sites.first_key_value() {
+        return Err(TerminalObjectError::InvalidInternalCallSite {
+            caller: machine,
+            operation: call.psi_operation,
+            offset: call.offset,
+        });
+    }
     if depth != 0 {
         return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
     }
-    Ok(TerminalObjectScalarStack {
-        local_peak_bytes: peak,
-        stack_alignment: evidence.stack_alignment,
+    Ok((
+        TerminalObjectScalarStack {
+            local_peak_bytes: peak,
+            stack_alignment: evidence.stack_alignment,
+        },
+        validated_calls,
+    ))
+}
+
+fn validate_scalar_call_stack(
+    architecture: Architecture,
+    caller: MachineId,
+    bytes: &[u8],
+    relocation: omega_terminal_machine_code::TerminalInternalCallRelocation,
+    call: TerminalScalarCallStackEvidence,
+    function: &TerminalScalarStackEvidence,
+    replay_depth: u32,
+) -> Result<TerminalObjectScalarCallStack, TerminalObjectError> {
+    let operation = relocation.psi_operation;
+    let (call_start, call_end) = match architecture {
+        Architecture::X86_64 => (relocation.offset - 1, relocation.offset + 4),
+        Architecture::Aarch64 => (relocation.offset, relocation.offset + 4),
+    };
+    if let Some(outbound) = call.outbound {
+        validate_stack_adjustment_pair(architecture, caller, Some(operation), bytes, outbound)
+            .map_err(|_| TerminalObjectError::InvalidScalarCallStackEvidence {
+                caller,
+                operation,
+                offset: outbound.allocation_offset,
+            })?;
+        let allocation = function
+            .mutations
+            .iter()
+            .find(|mutation| mutation.offset == outbound.allocation_offset);
+        let release = function
+            .mutations
+            .iter()
+            .find(|mutation| mutation.offset == outbound.release_offset);
+        if allocation.is_none_or(|mutation| {
+            mutation.byte_count != outbound.allocation_byte_count
+                || mutation.kind
+                    != TerminalScalarStackMutationKind::Allocate {
+                        byte_size: outbound.byte_size,
+                    }
+        }) || release.is_none_or(|mutation| {
+            mutation.byte_count != outbound.release_byte_count
+                || mutation.kind
+                    != TerminalScalarStackMutationKind::Release {
+                        byte_size: outbound.byte_size,
+                    }
+        }) {
+            return Err(TerminalObjectError::InvalidScalarCallStackEvidence {
+                caller,
+                operation,
+                offset: outbound.allocation_offset,
+            });
+        }
+        let allocation_end = outbound
+            .allocation_offset
+            .checked_add(outbound.allocation_byte_count)
+            .ok_or(TerminalObjectError::ScalarStackArithmeticOverflow(caller))?;
+        if allocation_end > call_start
+            || (architecture == Architecture::X86_64 && outbound.release_offset != call_end)
+        {
+            return Err(TerminalObjectError::InvalidScalarCallStackEvidence {
+                caller,
+                operation,
+                offset: outbound.allocation_offset,
+            });
+        }
+    }
+    match architecture {
+        Architecture::X86_64 => {
+            if call.aarch64_return_link.is_some() {
+                return Err(TerminalObjectError::InvalidScalarCallStackEvidence {
+                    caller,
+                    operation,
+                    offset: call_start,
+                });
+            }
+        }
+        Architecture::Aarch64 => {
+            let outbound =
+                call.outbound
+                    .ok_or(TerminalObjectError::InvalidScalarCallStackEvidence {
+                        caller,
+                        operation,
+                        offset: call_start,
+                    })?;
+            let link = call.aarch64_return_link.ok_or(
+                TerminalObjectError::InvalidScalarCallStackEvidence {
+                    caller,
+                    operation,
+                    offset: call_start,
+                },
+            )?;
+            let link_end = link
+                .frame_byte_offset
+                .checked_add(8)
+                .ok_or(TerminalObjectError::ScalarStackArithmeticOverflow(caller))?;
+            let link_area_end = link
+                .frame_byte_offset
+                .checked_add(16)
+                .ok_or(TerminalObjectError::ScalarStackArithmeticOverflow(caller))?;
+            let allocation_end = outbound.allocation_offset + outbound.allocation_byte_count;
+            if !link.frame_byte_offset.is_multiple_of(8)
+                || link_end > outbound.byte_size
+                || link_area_end != outbound.byte_size
+                || link.store_offset != allocation_end
+                || link.store_offset >= call_start
+                || link.load_offset != call_end
+                || outbound.release_offset != link.load_offset + 4
+                || bytes.get(link.store_offset..link.store_offset + 4)
+                    != Some(
+                        &aarch64_unit_link_instruction(false, link.frame_byte_offset).to_le_bytes(),
+                    )
+                || bytes.get(link.load_offset..link.load_offset + 4)
+                    != Some(
+                        &aarch64_unit_link_instruction(true, link.frame_byte_offset).to_le_bytes(),
+                    )
+            {
+                return Err(TerminalObjectError::InvalidScalarCallStackEvidence {
+                    caller,
+                    operation,
+                    offset: link.store_offset,
+                });
+            }
+        }
+    }
+    let caller_live_bytes = replay_depth
+        .checked_add(if architecture == Architecture::X86_64 {
+            8
+        } else {
+            0
+        })
+        .ok_or(TerminalObjectError::ScalarStackArithmeticOverflow(caller))?;
+    if !caller_live_bytes.is_multiple_of(function.stack_alignment) {
+        return Err(TerminalObjectError::MisalignedScalarCalleeEntry {
+            caller,
+            operation,
+            caller_live_bytes,
+        });
+    }
+    Ok(TerminalObjectScalarCallStack {
+        psi_operation: operation,
+        target: relocation.target,
+        text_offset: relocation.offset,
+        caller_live_bytes,
     })
 }
 
@@ -1328,8 +1572,8 @@ pub fn derive_terminal_unit_stack_demand(
 }
 
 /// Compose byte-validated stack evidence for the currently admitted terminal
-/// function slices. Scalar functions are presently call-free; Unit functions
-/// retain the acyclic internal-call closure.
+/// function slices. Unit and branch-free scalar functions retain the acyclic
+/// internal-call closure.
 pub fn derive_terminal_stack_demand(
     artifact: &TerminalObjectArtifact,
     entry: MachineId,
@@ -1393,6 +1637,23 @@ fn derive_terminal_unit_stack_peak(
         return Err(TerminalObjectError::UnaccountedTerminalUnitStack(machine));
     };
     for call in &function.unit_call_stacks {
+        let callee_peak = derive_terminal_unit_stack_peak(
+            call.target,
+            functions,
+            active,
+            memoized,
+            contributing_machines,
+        )?;
+        let caller_live = u64::from(call.caller_live_bytes);
+        let composed = caller_live.checked_add(callee_peak).ok_or(
+            TerminalObjectError::TerminalUnitStackCompositionOverflow {
+                caller: machine,
+                operation: call.psi_operation,
+            },
+        )?;
+        peak = peak.max(composed);
+    }
+    for call in &function.scalar_call_stacks {
         let callee_peak = derive_terminal_unit_stack_peak(
             call.target,
             functions,
@@ -1681,6 +1942,14 @@ pub enum TerminalObjectError {
         caller: MachineId,
         operation: psi_core::OperationId,
     },
+    MissingScalarCallStackEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    UnexpectedScalarCallStackEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
     InvalidUnitStackAlignment {
         machine: MachineId,
         alignment: u32,
@@ -1690,7 +1959,20 @@ pub enum TerminalObjectError {
         machine: MachineId,
         alignment: u32,
     },
-    ScalarStackCallNotSupported(MachineId),
+    UntypedScalarInternalCall {
+        machine: MachineId,
+        offset: usize,
+    },
+    InvalidScalarCallStackEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+        offset: usize,
+    },
+    MisalignedScalarCalleeEntry {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+        caller_live_bytes: u32,
+    },
     NonCanonicalScalarStackMutationOrder(MachineId),
     InvalidScalarInstructionEncoding {
         machine: MachineId,
