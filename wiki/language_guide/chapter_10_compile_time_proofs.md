@@ -285,18 +285,23 @@ accessible nullary constructor; the compiler does not invoke a general
 inhabitance judgment or synthesize a zero/default value. Ordinary authored
 field defaults remain ordinary defaults.
 
-For currently resolved and nameable non-generic checked-shape holders and
+For currently resolved and nameable checked-shape holders and non-generic
 evidence types, the executable slice elaborates an omitted erased initializer
 only when exactly one payloadless constructor with no common fields determines
-the term. The semantic typed tree receives that constructor term before proof
-and multiplicity checking. Ambiguous, absent, generic, or otherwise ineligible
-constructors still require an explicit term; omission never invokes a default
-or general inhabitance search. Native erasure admits non-generic transparent
-records, sums, and mixed common-field/case shapes. Erased payloads do not change
-tags or case numbering; they remain visible to semantic exhaustiveness and
-obligation checking. The compiler fails closed for generic data, plan-laid and
-placed views, wire/codec and ABI faces, and data with attached machines until
-each consumer has an erased-stripped representation.
+the term. Holders may also be closed synthesized generic records when the
+instance is selected by an explicitly typed local initializer; this contextual
+elaboration does not infer type arguments from fields or extend to call,
+assignment, or return literals. The semantic typed tree receives the constructor
+term before proof and multiplicity checking. Ambiguous, absent, generic, or
+otherwise ineligible evidence constructors still require an explicit term;
+omission never invokes a default or general inhabitance search. Native erasure
+admits non-generic transparent records, sums, mixed common-field/case shapes,
+and those closed generic-record instances. Erased payloads do not change tags or
+case numbering; they remain visible to semantic exhaustiveness and obligation
+checking. The compiler fails closed for unresolved generic uses, generic-sum
+construction or runtime use, plan-laid and placed views, wire/codec and ABI
+faces, and data with attached machines until each consumer has an
+erased-stripped representation.
 
 Runtime layout, ABI classification, codec shape, and placement offsets use the
 erased-stripped form. Nominal type identity and semantic fingerprints retain

@@ -1,10 +1,11 @@
 //! Runtime noninterference and fail-closed fences for occurrence-level
 //! `[erased]` data fields.
 //!
-//! This first executable slice deliberately supports only transparent plain
-//! records. The full semantic tree remains intact for proofs and ownership;
-//! native lowering later strips erased literal fields from its private runtime
-//! expression graph.
+//! The executable slice supports transparent records and sums, plus closed
+//! synthesized generic-record instances at explicitly typed local
+//! initializers. The full semantic tree remains intact for proofs and
+//! ownership; native lowering later strips erased literal fields from its
+//! private runtime expression graph.
 
 use psi_diagnostics::Diagnostic;
 use psi_language_core::BindingRelevance;
@@ -156,9 +157,6 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             .map(|field| field.name.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        if !definition.type_parameters.is_empty() {
-            diagnostics.push(unsupported(definition, &field_names, "generic data"));
-        }
         if definition.supply_mode == DataSupplyMode::BoundaryOpaque {
             diagnostics.push(unsupported(
                 definition,
@@ -200,6 +198,8 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
         }
     }
 
+    validate_unresolved_erased_generic_uses(program, diagnostics);
+
     for schema in program.wire_schemas() {
         for member in program.wire_members(schema.members) {
             let psi_typed_trees::wire::WireMember::Field(field) = member else {
@@ -235,9 +235,71 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
     }
 }
 
+fn validate_unresolved_erased_generic_uses(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for definition in program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.type_parameters.is_empty())
+    {
+        for member in program.data_members(definition) {
+            let fields = match member {
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => program.data_payload_fields(variant),
+            };
+            for field in fields {
+                if let Some(base) = unresolved_erased_generic_base(program, field.type_reference) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "data `{}` field `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                        definition.name, field.name
+                    )));
+                }
+            }
+        }
+    }
+
+    for machine in program
+        .machines()
+        .iter()
+        .filter(|machine| program.machine_type_parameters(machine).is_empty())
+    {
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                if let Some(base) =
+                    unresolved_erased_generic_base(program, parameter.type_reference)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}::{}` parameter `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                        machine.name, state.name, parameter.name
+                    )));
+                }
+            }
+            if let Some(base) = unresolved_erased_generic_base(program, state.return_type) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}::{}` result uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                    machine.name, state.name
+                )));
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                if let Some(base) = unresolved_erased_generic_base(program, local.type_reference) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}::{}` local `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                        machine.name, state.name, local.name
+                    )));
+                }
+            }
+        }
+    }
+}
+
 fn unsupported(definition: &DataDefinition, fields: &str, shape: &str) -> Diagnostic {
     Diagnostic::error(format!(
-        "data `{}` has erased field(s) `{fields}`, but erased-stripped runtime support for {shape} is not implemented yet; this slice supports only non-generic transparent plain records",
+        "data `{}` has erased field(s) `{fields}`, but erased-stripped runtime support for {shape} is not implemented yet",
         definition.name
     ))
 }
@@ -500,12 +562,20 @@ fn validate_struct_literal(
         }
         return;
     };
+    let unsupported_bare_generic =
+        !definition.type_parameters.is_empty() && !erased_fields(program, definition).is_empty();
+    if unsupported_bare_generic {
+        diagnostics.push(Diagnostic::error(format!(
+            "construction of erased generic data `{}` is unsupported in this context; use a closed generic record in an explicitly typed local initializer",
+            definition.name
+        )));
+    }
     let declared_erased = literal_fields(program, definition, literal.case_name.as_ref())
         .filter(|field| field.relevance.is_erased())
         .collect::<Vec<_>>();
     let authored = program.expression_table.struct_fields(literal.fields);
     for erased in &declared_erased {
-        if !authored.iter().any(|field| field.name == erased.name) {
+        if !unsupported_bare_generic && !authored.iter().any(|field| field.name == erased.name) {
             diagnostics.push(Diagnostic::error(format!(
                 "construction of `{}` omits erased field `{}`; supply an explicit proof term because no unique accessible nullary constructor determines this binding",
                 definition.name, erased.name
@@ -707,6 +777,56 @@ fn field_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DataFi
 
 fn type_mentions_erased_record(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
     type_mentions_erased_record_inner(program, handle, &mut Vec::new())
+}
+
+fn unresolved_erased_generic_base(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<String> {
+    if !handle.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            unresolved_erased_generic_base(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            unresolved_erased_generic_base(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            unresolved_erased_generic_base(program, *element_type)
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } => {
+            let base = program.data_definitions().iter().find(|definition| {
+                if base_symbol.is_valid() {
+                    definition.symbol == *base_symbol
+                } else {
+                    definition.name == *base_name
+                }
+            });
+            if base.is_some_and(|definition| {
+                !definition.type_parameters.is_empty()
+                    && !erased_fields(program, definition).is_empty()
+            }) {
+                return Some(base_name.as_str().to_owned());
+            }
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .find_map(|argument| unresolved_erased_generic_base(program, *argument))
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => None,
+    }
 }
 
 fn type_mentions_erased_record_inner(

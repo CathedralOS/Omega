@@ -222,7 +222,9 @@ Remaining:
   noninterference, erased-stripped layout, and obligation preservation. The
   field-binding surface preserves explicit relevance through syntax, resolved,
   and typed trees plus their snapshots. The executable slice supports
-  non-generic transparent records, sums, and mixed common-field/case shapes:
+  non-generic transparent records, sums, and mixed common-field/case shapes,
+  plus closed synthesized generic-record instances selected by explicitly typed
+  local initializers (including nested concrete record fields):
   construction elaborates an omitted exact common or selected-case erased
   binding only when a currently resolved/nameable non-generic evidence type has
   exactly one payloadless constructor and no common fields, while checked
@@ -232,9 +234,10 @@ Remaining:
   checked/runtime expression boundary plus record/case layout omit the field and
   its initializer subtree without renumbering variants. Ambiguous, absent,
   generic, and otherwise ineligible evidence remains explicit-term-required.
-  Expand this without compatibility scaffolding to
-  generic data, plan-laid and placed views, wire/codec and ABI classification,
-  and data with attached machines; all of those shapes currently fail closed.
+  Expand this without compatibility scaffolding to generic-sum construction and
+  runtime use, unresolved generic construction contexts beyond annotated locals,
+  plan-laid and placed views, wire/codec and ABI classification, and data with
+  attached machines; all of those shapes currently fail closed at use sites.
   Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
   Do not infer carrier relation roles from relevance.
@@ -399,10 +402,12 @@ reach or trust, and private proof improvements do not change public identity.
   park/resume, and implement the suspension-safe-loan subset. The terminal
   Unit-body native slice now retains exact code-positioned stack/link evidence;
   object construction validates the instructions, derives local and caller-live
-  peaks, and composes an acyclic closure demand. The call-free, branch-free
-  scalar slice likewise retains and replays exact frame and temporary-stack
-  mutations. Extend that sealed accounting to scalar calls and conditional
-  control-flow stacks, the external entry
+  peaks, and composes an acyclic closure demand. The branch-free scalar slice
+  likewise retains and replays exact frame and temporary-stack mutations,
+  validates typed direct-call outbound/link evidence against those mutations,
+  derives caller-live bytes with pending temporaries, and joins the same
+  acyclic closure. Extend that sealed accounting to conditional control-flow
+  stacks, the external entry
   adapter, and installed-root/provider admission before treating it as a full
   root `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
