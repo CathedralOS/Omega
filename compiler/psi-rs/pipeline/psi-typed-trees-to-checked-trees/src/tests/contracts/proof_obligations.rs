@@ -2318,6 +2318,85 @@ fn boundary_witness_dies_across_computed_local_collection_fence() {
 }
 
 #[test]
+fn boundary_witness_survives_transparent_call_result_alias_chain() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            values: [u32; 2];
+            small: u32 [0..=8];
+        }
+
+        machine identity_values(values: &mut [u32; 2]) -> &mut [u32; 2] {
+            values
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_values_through_identity_calls();
+            self.small = self.n;
+        }
+
+        machine Main::touch_values_through_identity_calls(&mut self) {
+            let first: &mut [u32; 2] = identity_values(&mut self.values);
+            let second: &mut [u32; 2] = identity_values(first);
+            let alias: &mut u32 = &mut second[0];
+            alias = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a direct identity-result chain should preserve a witness outside its argument origin",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_across_projected_call_result_fence() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            values: [u32; 2];
+            small: u32 [0..=8];
+        }
+
+        machine first_value(values: &mut [u32; 2]) -> &mut u32 {
+            &mut values[0]
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_projected_call_result();
+            self.small = self.n;
+        }
+
+        machine Main::touch_projected_call_result(&mut self) {
+            let value: &mut u32 = first_value(&mut self.values);
+            value = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a projected call result must remain a conservative frame fence");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
     let source = r#"
         boundary trait Firmware {

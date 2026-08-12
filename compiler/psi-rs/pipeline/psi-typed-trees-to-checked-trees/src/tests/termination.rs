@@ -2737,6 +2737,10 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         cells
     }
 
+    machine project_cell_value(cells: &mut [Cell; 2]) -> &mut u64 {
+        &mut cells[0].value
+    }
+
     machine Main::call_rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
         overwrite_alias_binding(&mut alias);
@@ -2759,6 +2763,12 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         second = 3;
     }
 
+    machine Main::nested_call_produced_alias_chain(&mut self) {
+        let first: &mut u64 = return_alias(return_alias(&mut self.value));
+        let second: &mut u64 = &mut first;
+        second = 3;
+    }
+
     machine Main::call_produced_indexed_alias(&mut self) {
         let cells: &mut [u64; 2] = return_cells(&mut self.cells);
         let alias: &mut u64 = &mut cells[0];
@@ -2767,6 +2777,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::call_produced_member_after_index_alias(&mut self) {
         let alias: &mut u64 = &mut return_cell_items(&mut self.cell_items)[0].value;
+        alias = 3;
+    }
+
+    machine Main::projected_call_result_alias(&mut self) {
+        let alias: &mut u64 = project_cell_value(&mut self.cell_items);
         alias = 3;
     }
 
@@ -2862,6 +2877,33 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         );
     }
 
+    for (name, expected_path) in [
+        ("Main::call_produced_alias_chain", "self.value"),
+        ("Main::nested_call_produced_alias_chain", "self.value"),
+        ("Main::call_produced_indexed_alias", "self.cells"),
+        (
+            "Main::call_produced_member_after_index_alias",
+            "self.cell_items",
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some([expected_path.to_owned()].as_slice()),
+            "{name} must substitute the transparent call result back to its argument origin"
+        );
+    }
+
     for name in [
         "Main::rebound_alias",
         "Main::alias_chain_upstream_rebind",
@@ -2871,9 +2913,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
-        "Main::call_produced_alias_chain",
-        "Main::call_produced_indexed_alias",
-        "Main::call_produced_member_after_index_alias",
+        "Main::projected_call_result_alias",
         "Main::computed_local_collection_origin",
         "Main::named_alias_cycle",
         "Main::named_indexed_alias_cycle",
