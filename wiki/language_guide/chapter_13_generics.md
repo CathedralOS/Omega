@@ -377,10 +377,13 @@ machine Metrics::sample<T, Counters: T satisfies CounterLike>(
 Common requirements:
 
 - Whole-trait evidence parameters: `Counters: T satisfies CounterLike`.
-- One-off machine requirements: `machine T::poll(&mut self) -> PollResult`.
 - Value/proof requirements: `N > 0`.
 - Reach requirements: a generic operation may be callable only when its
   service reach fits the caller's context.
+
+A required member operation belongs to a named trait and is supplied through
+an explicit conformance binder. Omega does not infer or carry an anonymous
+one-off requirement from a `machine T::member(...)` clause.
 
 `where` is one construct across the language: its facts hold at every
 observation of the declared thing. On a compile-time-known operand (a const
