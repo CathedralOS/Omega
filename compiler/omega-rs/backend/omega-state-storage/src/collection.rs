@@ -212,9 +212,25 @@ fn build_machine_state_storage_plan(
                     let target = plan
                         .expressions
                         .copy_from(&program.expression_table, assignment.target);
-                    let value = if program
-                        .expression_table
-                        .expression_is_literal(assignment.value)
+                    let preserve_checked_provider_expression =
+                        statement_has_selected_provider_plan(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                        ) && plan.locals.iter().any(|(_, local)| {
+                            local.source_key == source_key
+                                && expression_references_symbol(
+                                    &program.expression_table,
+                                    assignment.value,
+                                    local.symbol,
+                                    &local.name,
+                                )
+                        });
+                    let value = if preserve_checked_provider_expression
+                        || program
+                            .expression_table
+                            .expression_is_literal(assignment.value)
                         || (program
                             .expression_table
                             .expression_is_direct_place_path(assignment.value)
@@ -273,6 +289,50 @@ fn build_machine_state_storage_plan(
     }
 
     plan
+}
+
+/// A selected ProviderPlan is exact checked evidence for the authored
+/// operation tree. Replacing a materialized local with its initializer while
+/// collecting storage mutations can move nested operations across statement
+/// identity and discard that evidence before instruction selection. Preserve
+/// the complete authored assignment only when a migrated operator owns a
+/// nonzero plan and the assignment reads one of this state's planned locals.
+fn statement_has_selected_provider_plan(
+    program: &CheckedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+) -> bool {
+    program
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(_, operator_use)| (operator_use.origin, operator_use.provider_plan_identity))
+        .chain(
+            program
+                .facts
+                .operators
+                .named_uses
+                .iter()
+                .map(|(_, operator_use)| {
+                    (operator_use.origin, operator_use.provider_plan_identity)
+                }),
+        )
+        .any(|(origin, provider_plan_identity)| {
+            provider_plan_identity != 0
+                && matches!(
+                    origin,
+                    psi_checked_trees::CheckedValueOrigin::StateStatement {
+                        machine_symbol: candidate_machine,
+                        state_symbol: candidate_state,
+                        statement_index: candidate_statement,
+                        ..
+                    } if candidate_machine == machine_symbol
+                        && candidate_state == state_symbol
+                        && candidate_statement == statement_index
+                )
+        })
 }
 
 fn estimated_machine_storage_capacity(program: &CheckedTrees, machine: &Machine) -> (usize, usize) {
