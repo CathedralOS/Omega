@@ -212,7 +212,10 @@ Remaining:
   sibling fields inside one affine record now cross checking, terminal
   production, canonical identity, verification, interpretation, direct Unit
   transfer, and verifier-derived boundary settlement as one complete claim set.
-  Add deeper/indexed aggregate and result-bearing custody,
+  Nested relevant record fields now retain and independently validate the full
+  canonical path through the same closure; unknown inner segments,
+  caller/callee truncation, and ancestor/descendant overlap reject. Add indexed
+  aggregate and result-bearing custody,
   cleanup, returned transfer, loops, suspension, and scoped ordering as complete
   vertical slices. Ranked
   tail-recursive call graphs stay rejected until their tail-position and

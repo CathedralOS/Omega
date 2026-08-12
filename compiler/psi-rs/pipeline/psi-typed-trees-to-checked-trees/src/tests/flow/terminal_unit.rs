@@ -371,6 +371,71 @@ fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
 }
 
 #[test]
+fn retains_nested_record_field_custody_for_unit_call_closure() {
+    let checked = checked(
+        r#"
+        data Token [linear] { value: u64; }
+        data Pocket { #9 token: Token; }
+        data Envelope { #7 pocket: Pocket; }
+
+        domain Envelope::Pending;
+
+        boundary machine Envelope::settle(self)
+        reaches PortIo
+        requires
+            self in Envelope::Pending
+        ensures true;
+
+        data Helper {}
+
+        machine Helper::run(envelope: Envelope in Pending)
+        reaches PortIo
+        {
+            envelope.settle();
+        }
+
+        data Root {}
+
+        machine Root::enter(envelope: Envelope in Pending)
+        reaches PortIo
+        {
+            Helper::run(envelope);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("nested aggregate root plan");
+    let helper = plans
+        .for_machine(machine_named(&checked, "run"))
+        .expect("nested aggregate helper plan");
+    for machine in [root, helper] {
+        assert_eq!(
+            machine.structural_parameters[0].multiplicity,
+            Multiplicity::Affine
+        );
+        assert_eq!(machine.entry_claims.len(), 1);
+        assert_eq!(machine.entry_claims[0].field_path, ["#7", "#9"]);
+    }
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        claim_transfers, ..
+    } = &root.operations[0]
+    else {
+        panic!("root should transfer nested custody to helper")
+    };
+    assert_eq!(claim_transfers.len(), 1);
+    let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        claim_settlements, ..
+    } = &helper.operations[0]
+    else {
+        panic!("helper should settle nested custody at the boundary")
+    };
+    assert_eq!(claim_settlements.len(), 1);
+}
+
+#[test]
 fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
     let checked = checked(
         r#"

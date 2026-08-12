@@ -146,6 +146,14 @@ set of live claims attached to each argument, rather than assuming one claim per
 linear boundary parameter. Missing, duplicated, reordered, or path-mismatched
 sibling rows reject before execution.
 
+A stable record claim path may cross nested relevant record fields. Each
+segment is resolved against the structural type reached by the preceding
+segment, and the complete path remains canonical identity across production,
+encoding, direct Unit transfer, interpretation, and boundary settlement. An
+unknown inner field rejects, a caller/callee truncation is a custody-set
+mismatch, and an ancestor claim cannot coexist with one of its descendant
+claims.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and

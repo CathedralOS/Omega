@@ -130,6 +130,78 @@ fn unit_call_requires_exact_aggregate_claim_path() {
 }
 
 #[test]
+fn nested_record_claim_path_is_walked_and_matched_exactly() {
+    let mut module = hard_root_module();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(3),
+        identity: "Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+        identity: "#7".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(2)),
+    });
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+        identity: "#9".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(3)),
+    });
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims[0].field_path = vec!["#7".into(), "#9".into()];
+    }
+    validate_module(&module).expect("a complete nested record path should validate");
+
+    let mut unknown_inner = module.clone();
+    unknown_inner.machines[0].entry_claims[0].field_path[1] = "#8".into();
+    assert_eq!(
+        validate_module(&unknown_inner).unwrap_err(),
+        ModuleError::InvalidEntryClaimFieldPath(claim_id(1))
+    );
+
+    let mut truncated_at_call = module.clone();
+    truncated_at_call.machines[1].entry_claims[0]
+        .field_path
+        .pop();
+    assert_eq!(
+        validate_module(&truncated_at_call).unwrap_err(),
+        ModuleError::UnitCallClaimPresenceMismatch {
+            operation: operation_id(1),
+            argument_index: 0,
+        }
+    );
+
+    let mut overlapping = module;
+    let input = overlapping.machines[0].entry_claims[0].input;
+    overlapping.machines[0].entry_claims = vec![
+        EntryClaim {
+            claim: claim_id(1),
+            input,
+            field_path: vec!["#7".into()],
+        },
+        EntryClaim {
+            claim: claim_id(2),
+            input,
+            field_path: vec!["#7".into(), "#9".into()],
+        },
+    ];
+    assert_eq!(
+        validate_module(&overlapping).unwrap_err(),
+        ModuleError::OverlappingEntryClaimInput {
+            first: claim_id(1),
+            second: claim_id(2),
+        }
+    );
+}
+
+#[test]
 fn unit_call_transfers_complete_canonical_sibling_claim_set() {
     let mut module = hard_root_module();
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;

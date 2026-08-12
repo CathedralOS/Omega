@@ -131,6 +131,35 @@ fn numbered_entry_claim_path_round_trips_and_enters_semantic_identity() {
 }
 
 #[test]
+fn nested_record_claim_path_round_trips_and_enters_semantic_identity() {
+    let baseline = structural_effect_fixture();
+    let mut module = baseline.clone();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields[1].identity = "#7".to_owned();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(1),
+        identity: "#9".to_owned(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(3)),
+    });
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims[0].field_path = vec!["#7".to_owned(), "#9".to_owned()];
+    }
+
+    let bytes = encode_module(&module).expect("nested aggregate claim path should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_ne!(
+        semantic_fingerprint(&module).unwrap(),
+        semantic_fingerprint(&baseline).unwrap(),
+        "every nested path segment enters terminal semantic identity"
+    );
+}
+
+#[test]
 fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
     let baseline = structural_effect_fixture();
     let mut module = baseline.clone();
