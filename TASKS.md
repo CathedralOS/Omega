@@ -240,8 +240,9 @@ Remaining:
   and typed trees plus their snapshots. The executable slice supports
   non-generic transparent records, sums, and mixed common-field/case shapes,
   plus closed synthesized generic-record instances selected by explicitly typed
-  local initializers, direct exact assignments, unique exact call parameters,
-  or exact returns (including nested concrete record fields), and pure or mixed common-field/case generic sums with multiple
+  local initializers, direct exact assignments, exact returns, or agreeing
+  same-name free/direct-self call parameters (including nested concrete record
+  fields), and pure or mixed common-field/case generic sums with multiple
   exact closed instances per generic base (including nested concrete payload
   records and constructor/pattern uses selected by exact local, assignment,
   parameter, or self-field context), and
@@ -258,8 +259,12 @@ Remaining:
   renumbering variants; erased attached fields also create no runtime
   contained-machine topology. Ambiguous, absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
-  Expand this without compatibility scaffolding to ambiguous/overloaded or
-  attached-call generic record/sum construction contexts and attached machines
+  Result-domain free-call overloads and direct `self.method(...)` value or
+  statement calls now provide exact generic record/sum construction context
+  when every same-name candidate on the exact owner agrees on its non-receiver
+  parameter signature. Parameter-distinct overloads and non-direct or dynamic
+  receiver selection remain resolver-owned and fail closed. Expand this without
+  compatibility scaffolding to those remaining contexts and attached machines
   over generic
   or case-bearing data, non-checked supply modes, or unresolved machine
   parameters. Plan-laid values now omit erased bindings from physical Schema
@@ -282,9 +287,6 @@ Remaining:
   fail through their existing public ABI-shape limits rather than a relevance
   fence; this slice does not manufacture an ABI for shapes the calling-policy
   vocabulary cannot express.
-  Result-domain overload families with one identical closed parameter signature
-  now provide the same exact generic record/sum literal context as a unique free
-  call; parameter-distinct overloads remain resolver-owned and fail closed.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the

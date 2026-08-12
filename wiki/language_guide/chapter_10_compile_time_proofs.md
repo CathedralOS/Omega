@@ -290,11 +290,15 @@ evidence types, the executable slice elaborates an omitted erased initializer
 only when exactly one payloadless constructor with no common fields determines
 the term. Holders may also be closed synthesized generic records when the
 instance is selected by an explicitly typed local initializer, direct exact
-assignment, unique exact call parameter, or exact return; this contextual
-record elaboration does not infer type arguments from fields. Pure and mixed common-field/
+assignment, exact return, or one parameter signature shared by every
+same-name free-call candidate. A syntactically direct `self.method(...)` call
+uses the same rule over the exact enclosing attached-data owner; its implicit
+receiver is not a value argument. This contextual record elaboration does not
+infer type arguments from fields. Pure and mixed common-field/
 case generic sums admit multiple exact closed instances per generic base in the executable slice. A
-closed annotated local, direct assignment, unique free-call parameter, or
-return destination selects construction identity; an exact local, parameter, or attached-self-field subject selects
+closed annotated local, direct assignment, agreeing free/direct-self call
+parameter, or return destination selects construction identity; an exact local,
+parameter, or attached-self-field subject selects
 destructure identity. Other bare constructor contexts retain the unique-
 instance fallback and fail closed when more than one identity is possible.
 Nested concrete generic payload records reach the same synthesis fixpoint. The
@@ -311,8 +315,8 @@ contained-machine topology use the erased-stripped fields, while semantic
 ownership and proof obligations retain every field. Erased payloads do not
 change tags or case numbering; they remain visible to semantic exhaustiveness
 and obligation checking. The compiler fails closed for unresolved generic uses,
-ambiguous generic record/sum construction contexts, placed views, wire/codec
-and ABI faces, and attached
+ambiguous generic record/sum construction contexts, non-direct or dynamically
+selected receivers, placed views, wire/codec and ABI faces, and attached
 machines over generic or case-bearing data, non-checked supply modes, or
 unresolved machine parameters.
 
