@@ -225,10 +225,14 @@ Remaining:
   transfer, and verifier-derived boundary settlement as one complete claim set.
   Nested relevant record fields now retain and independently validate the full
   canonical path through the same closure; unknown inner segments,
-  caller/callee truncation, and ancestor/descendant overlap reject. Add indexed
-  aggregate and result-bearing custody,
-  cleanup, returned transfer, loops, suspension, and scoped ordering as complete
-  vertical slices. Ranked
+  caller/callee truncation, and ancestor/descendant overlap reject. Straight-line
+  Unit returns now retain exact reverse-declaration no-code cleanup for
+  claim-free affine structural parameters; verification reconstructs the list,
+  and interpretation performs it only after return-edge fuel succeeds. Add
+  indexed aggregate and result-bearing custody, affine locals, nominal and
+  partial-value cleanup, remaining edge kinds and conservation, returned
+  transfer, loops, suspension, and scoped ordering as complete vertical slices.
+  Ranked
   tail-recursive call graphs stay rejected until their tail-position and
   ranking evidence is terminal and verifier-owned. Retire checked/source-tree
   consumers as each slice moves. Nothing below terminal Psi may depend on

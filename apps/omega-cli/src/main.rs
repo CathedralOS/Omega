@@ -307,12 +307,19 @@ fn terminal_summary(
                 );
             }
             match &block.terminator {
-                Terminator::ReturnUnit { edge } => writeln!(
+                Terminator::ReturnUnit {
+                    edge,
+                    trivial_affine_discards,
+                } => writeln!(
                     output,
-                    "terminator machine=machine:{} block=block:{} kind=ReturnUnit edge=edge:{}",
+                    "terminator machine=machine:{} block=block:{} kind=ReturnUnit edge=edge:{} trivial_affine_discards={:?}",
                     machine.id.get(),
                     block.id.get(),
-                    edge.get()
+                    edge.get(),
+                    trivial_affine_discards
+                        .iter()
+                        .map(|place| place.get())
+                        .collect::<Vec<_>>()
                 ),
                 other => writeln!(
                     output,

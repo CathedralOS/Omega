@@ -74,6 +74,46 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
 }
 
 #[test]
+fn unit_return_performs_affine_discard_only_after_edge_charge() {
+    let mut module = effect_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.blocks[0].operations.clear();
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![place_id(2)];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    let semantic = encode_module(&module).expect("affine cleanup module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural_value(48)],
+    )
+    .expect("verified affine cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+}
+
+#[test]
 fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     let (semantic, proof) = effect_artifact_sections();
     let argument = structural_value(41);
@@ -488,7 +528,10 @@ fn effect_module() -> TerminalModule {
                             },
                         },
                     ],
-                    terminator: Terminator::ReturnUnit { edge: edge_id(1) },
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(1),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 }],
                 contract: empty_contract(contract_id(1)),
             },
@@ -529,7 +572,10 @@ fn effect_module() -> TerminalModule {
                             requirement_obligations: Vec::new(),
                         },
                     }],
-                    terminator: Terminator::ReturnUnit { edge: edge_id(2) },
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(2),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 }],
                 contract: empty_contract(contract_id(2)),
             },
@@ -613,7 +659,10 @@ fn unit_module() -> TerminalModule {
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: Vec::new(),
-                terminator: Terminator::ReturnUnit { edge: edge_id(1) },
+                terminator: Terminator::ReturnUnit {
+                    edge: edge_id(1),
+                    trivial_affine_discards: Vec::new(),
+                },
             }],
             contract: MachineContract {
                 id: contract_id(1),

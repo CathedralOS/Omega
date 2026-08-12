@@ -61,6 +61,36 @@ fn unit_result_and_return_have_a_canonical_value_less_encoding() {
 }
 
 #[test]
+fn unit_return_affine_discard_round_trips_canonically() {
+    let mut module = structural_effect_fixture();
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims.clear();
+    }
+    let OperationKind::CallUnit {
+        claim_transfers, ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    claim_transfers.clear();
+    module.machines[1].blocks[0].operations.clear();
+    let callee_place = module.machines[1].structural_parameters[0].place;
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[1].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![callee_place];
+
+    let bytes = encode_module(&module).expect("explicit affine discard should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
 fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
@@ -967,7 +997,10 @@ fn structural_effect_fixture() -> TerminalModule {
                             crash_continuations: Vec::new(),
                         },
                     }],
-                    terminator: Terminator::ReturnUnit { edge: edge_id(100) },
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(100),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 }],
                 contract: MachineContract {
                     id: contract_id(100),
@@ -1033,7 +1066,10 @@ fn structural_effect_fixture() -> TerminalModule {
                             },
                         },
                     ],
-                    terminator: Terminator::ReturnUnit { edge: edge_id(101) },
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(101),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 }],
                 contract: MachineContract {
                     id: contract_id(101),
@@ -1073,7 +1109,10 @@ fn unit_fixture() -> TerminalModule {
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: Vec::new(),
-                terminator: Terminator::ReturnUnit { edge: edge_id(900) },
+                terminator: Terminator::ReturnUnit {
+                    edge: edge_id(900),
+                    trivial_affine_discards: Vec::new(),
+                },
             }],
             contract: MachineContract {
                 id: contract_id(900),

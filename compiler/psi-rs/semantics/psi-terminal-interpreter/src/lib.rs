@@ -1192,7 +1192,10 @@ impl TerminalExecution {
                     self.result = Some(result);
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
-                Terminator::ReturnUnit { .. } => {
+                Terminator::ReturnUnit {
+                    trivial_affine_discards,
+                    ..
+                } => {
                     let machine = self.machines.get(&self.current_machine).ok_or(
                         TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
                     )?;
@@ -1203,6 +1206,13 @@ impl TerminalExecution {
                     }
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
+                    }
+                    for place in trivial_affine_discards {
+                        if self.structural_values.remove(place).is_none() {
+                            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                *place,
+                            ));
+                        }
                     }
                     if let Some(caller) = self.call_stack.pop() {
                         if !matches!(caller.result, SuspendedCallResult::Unit) {

@@ -51,7 +51,10 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
 fn scalar_call_cannot_target_a_unit_machine() {
     let mut module = call_module();
     module.machines[1].result = TerminalMachineResult::Unit;
-    module.machines[1].blocks[0].terminator = Terminator::ReturnUnit { edge: edge_id(2) };
+    module.machines[1].blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(2),
+        trivial_affine_discards: Vec::new(),
+    };
 
     assert_eq!(
         validate_module(&module).unwrap_err(),

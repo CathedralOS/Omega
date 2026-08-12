@@ -631,7 +631,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                     scalar_type: result.scalar_type,
                 });
             }
-            Terminator::ReturnUnit { edge } => {
+            Terminator::ReturnUnit { edge, .. } => {
                 if result.is_some() {
                     return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
                 }

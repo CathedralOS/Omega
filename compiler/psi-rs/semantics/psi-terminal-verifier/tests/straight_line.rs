@@ -3871,6 +3871,7 @@ fn unit_module() -> TerminalModule {
                 operations: Vec::new(),
                 terminator: Terminator::ReturnUnit {
                     edge: EdgeId::new(900).unwrap(),
+                    trivial_affine_discards: Vec::new(),
                 },
             }],
             contract: MachineContract {

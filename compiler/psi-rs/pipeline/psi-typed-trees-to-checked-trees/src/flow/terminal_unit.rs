@@ -199,6 +199,14 @@ fn build_checked_machine(
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
         statement_index: u32::try_from(statements.len()).ok()?,
+        trivial_affine_discards: return_unit_affine_discards(
+            facts,
+            machine.symbol,
+            state.symbol,
+            &structural_parameters,
+            program.state_parameters(state),
+            &operations,
+        )?,
     });
 
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
@@ -595,6 +603,9 @@ fn entry_claims(
             .filter(|event| event.root == expected_root)
             .collect::<Vec<_>>();
         if matching.is_empty() {
+            if parameter.multiplicity == Multiplicity::Affine {
+                continue;
+            }
             return None;
         }
         for event in matching {
@@ -639,6 +650,78 @@ fn entry_claims(
         (left.parameter_index, &left.field_path).cmp(&(right.parameter_index, &right.field_path))
     });
     (output.len() == events.len()).then_some(output)
+}
+
+fn return_unit_affine_discards(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    source_parameters: &[StateParameter],
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<Vec<u32>> {
+    let transferred_parameters = operations
+        .iter()
+        .flat_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+                structural_arguments,
+                ..
+            } => structural_arguments
+                .iter()
+                .map(|argument| argument.source_parameter_index)
+                .collect::<Vec<_>>(),
+            CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
+        })
+        .collect::<BTreeSet<_>>();
+    let events = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+                && event.access == PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Affine
+                && !event.obligation_live
+                && facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .is_empty()
+        })
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    let mut output = Vec::with_capacity(events.len());
+    for event in events {
+        let parameter_index = structural_parameters.iter().position(|parameter| {
+            source_parameters
+                .get(parameter.position as usize)
+                .is_some_and(|source| {
+                    event.root
+                        == psi_facts::PlaceRoot::Symbol(parameter_root_symbol(machine, source))
+                })
+        })?;
+        let parameter = &structural_parameters[parameter_index];
+        if parameter.multiplicity != Multiplicity::Affine
+            || output.contains(&(parameter_index as u32))
+        {
+            return None;
+        }
+        let parameter_index = u32::try_from(parameter_index).ok()?;
+        if !transferred_parameters.contains(&parameter_index) {
+            output.push(parameter_index);
+        }
+    }
+    Some(output)
 }
 
 fn terminal_field_identity(program: &TypedTrees, symbol: SymbolHandle) -> Option<String> {

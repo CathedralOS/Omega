@@ -712,6 +712,88 @@ fn structural_semantic_sets_have_one_canonical_order() {
 }
 
 #[test]
+fn unit_return_requires_exact_reverse_order_affine_discards() {
+    let mut module = hard_root_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.blocks[0].operations.clear();
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    let mut second_parameter = structural_parameter(place_id(4));
+    second_parameter.position = 1;
+    second_parameter.multiplicity = StructuralMultiplicity::Affine;
+    machine.structural_parameters.push(second_parameter);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![place_id(4), place_id(2)];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    validate_module(&module).expect("complete reverse-order affine cleanup should validate");
+
+    let mut missing = module.clone();
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut missing.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.pop();
+    assert_eq!(
+        validate_module(&missing).unwrap_err(),
+        ModuleError::UnitReturnAffineDiscardsMismatch {
+            machine: machine_id(2),
+            block: block_id(2),
+        }
+    );
+
+    let mut reordered = module.clone();
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.reverse();
+    assert_eq!(
+        validate_module(&reordered).unwrap_err(),
+        ModuleError::UnitReturnAffineDiscardsMismatch {
+            machine: machine_id(2),
+            block: block_id(2),
+        }
+    );
+
+    let mut unknown = module;
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut unknown.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards[0] = place_id(99);
+    assert_eq!(
+        validate_module(&unknown).unwrap_err(),
+        ModuleError::UnitReturnAffineDiscardsMismatch {
+            machine: machine_id(2),
+            block: block_id(2),
+        }
+    );
+}
+
+#[test]
 fn affine_structural_arguments_transfer_at_most_once() {
     let mut repeated = hard_root_module();
     for machine in &mut repeated.machines {
@@ -965,7 +1047,10 @@ fn hard_root_module() -> TerminalModule {
                     crash_continuations: Vec::new(),
                 },
             }],
-            terminator: Terminator::ReturnUnit { edge: edge_id(1) },
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(1),
+                trivial_affine_discards: Vec::new(),
+            },
         }],
         contract: empty_contract(contract_id(1)),
     };
@@ -1014,7 +1099,10 @@ fn hard_root_module() -> TerminalModule {
                     },
                 },
             ],
-            terminator: Terminator::ReturnUnit { edge: edge_id(2) },
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(2),
+                trivial_affine_discards: Vec::new(),
+            },
         }],
         contract: empty_contract(contract_id(2)),
     };
