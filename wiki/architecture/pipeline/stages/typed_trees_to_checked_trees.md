@@ -157,16 +157,16 @@ Current ownership is:
   aliases, including results of other structurally transparent helpers.
   Effect-free value-shaped assignments may
   write through those origins without changing the relation; their ordinary
-  exact frames remain published. A direct helper-local alias rebind updates
-  that local's origin while prior reborrows retain theirs; a structurally
-  transparent helper result may supply the replacement through the same origin
-  algebra. Other computed rebinding, statement calls, computed initializers,
-  and recursive helper relations remain opaque. For an attached helper, its
-  actual receiver supplies the
-  caller origin when the result is rooted in `self`. Other nontrivial results
-  remain opaque; signature lifetime elision alone is not relational frame
-  evidence. An unsummarized body falls back to its receiver plus every
-  potentially exclusive place argument.
+  exact frames remain published, and effect-free discarded expressions are
+  neutral. A direct helper-local alias rebind updates that local's origin while
+  prior reborrows retain theirs; a structurally transparent helper result may
+  supply the replacement through the same origin algebra. Other computed
+  rebinding, discarded/statement calls, computed initializers, and recursive
+  helper relations remain opaque. For an attached helper, its actual receiver
+  supplies the caller origin when the result is rooted in `self`. Other
+  nontrivial results remain opaque; signature lifetime elision alone is not
+  relational frame evidence. An unsummarized body falls back to its receiver
+  plus every potentially exclusive place argument.
   Frames whose places cannot be represented remain all-facts fences. Other
   writes into attached or machine-owned persistent storage remain fail-closed
   until

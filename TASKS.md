@@ -310,10 +310,11 @@ customer-shaped compiler concept is introduced.
   locals and direct immutable local `&mut` aliases, including results of other
   structurally transparent helpers.
   Effect-free value-shaped assignments may write through those origins without
-  changing the relation, while their ordinary frames remain published. A direct
-  helper-local alias rebind updates that name's origin without redirecting prior
-  reborrows; a structurally transparent helper result may supply the replacement
-  through the same origin algebra. Other computed rebinding, statement calls,
+  changing the relation, while their ordinary frames remain published;
+  effect-free discarded expressions are neutral. A direct helper-local alias
+  rebind updates that name's origin without redirecting prior reborrows; a
+  structurally transparent helper result may supply the replacement through the
+  same origin algebra. Other computed rebinding, discarded/statement calls,
   computed or recursive helper initializers, and nontrivial results remain
   opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
