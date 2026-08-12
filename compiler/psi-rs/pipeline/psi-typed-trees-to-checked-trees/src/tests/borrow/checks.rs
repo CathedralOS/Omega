@@ -3255,6 +3255,45 @@ fn accepts_static_persistent_copy_after_discarded_slice_view_expression() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_after_discarded_shared_slice_view_expression() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: u64;
+            cells: [u64; 2];
+        }
+
+        machine return_after_shared_slice_length<'value, 'cells>(
+            value: &'value mut u64,
+            cells: &'cells [u64; 2]
+        ) -> &'value mut u64 {
+            cells.as_slice().len;
+            value
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut u64 =
+                return_after_shared_slice_length(&mut self.code, self.cells);
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a discarded shared-slice length read does not obscure a disjoint exact frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_recast_local_frame() {
     let source = r#"
         data Message {

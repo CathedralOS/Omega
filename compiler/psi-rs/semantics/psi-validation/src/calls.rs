@@ -2345,7 +2345,7 @@ fn expression_is_effectful_for_transparent_result(
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(_) => true,
         ExpressionNode::Call(call) => {
-            !call_is_transparent_mutable_slice_view(program, call)
+            !call_is_effect_free_slice_view(program, call)
                 || expression_is_effectful_for_transparent_result(program, call.receiver)
         }
         ExpressionNode::Binary(binary) => {
@@ -2395,7 +2395,11 @@ fn call_is_transparent_mutable_slice_view(
     program: &TypedTrees,
     call: &TableCallExpression,
 ) -> bool {
-    call.target.as_str() == "as_mut_slice"
+    call.target.as_str() == "as_mut_slice" && call_is_effect_free_slice_view(program, call)
+}
+
+fn call_is_effect_free_slice_view(program: &TypedTrees, call: &TableCallExpression) -> bool {
+    matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
         && call.receiver.is_valid()
         && program
             .expression_table
