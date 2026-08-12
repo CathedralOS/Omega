@@ -358,9 +358,13 @@ customer-shaped compiler concept is introduced.
   alias-rebind replacements. The same bounded index expression is accepted on a
   value-shaped assignment target inside a transparent returned-place helper;
   its collection write and every index-call write remain published without
-  redirecting the returned origin. Deeper or recursive calls, binding reborrows,
-  opaque nodes, effectful sources, escaped aliases, non-bijective transport, and
-  writes outside isolated roots remain fences. Primitive-only concrete
+  redirecting the returned origin. A value-shaped assignment RHS may likewise
+  be a typed non-reference direct-call tree through depth two with complete
+  frames; nested writes publish without redirecting a separate returned origin.
+  Deeper or recursive calls, binding reborrows, reference-valued or opaque
+  nodes, other effectful sources, escaped aliases, non-bijective transport, and
+  writes outside isolated roots remain fences or use existing alias handling.
+  Primitive-only concrete
   record/sum locals remain caller-isolated
   through nested fixed arrays; generic, reference-bearing, and other computed
   roots do not. Continue with representable relational candidates without

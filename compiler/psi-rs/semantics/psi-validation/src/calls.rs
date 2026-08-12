@@ -2289,7 +2289,18 @@ fn transparent_callee_result_origin(
                     {
                         return None;
                     }
-                    if expression_may_rebind_mutable_alias(
+                    if value_call_assignment_preserves_transparent_result(
+                        program,
+                        callee_machine,
+                        assignment.value,
+                        symbols,
+                        active_states,
+                        parameters,
+                        &local_aliases,
+                    ) {
+                        // A non-reference call result can change only the
+                        // target's value, not an established alias origin.
+                    } else if expression_may_rebind_mutable_alias(
                         program,
                         callee_machine,
                         callee_state,
@@ -2471,6 +2482,52 @@ fn statement_call_preserves_transparent_result(
         )
     })
     .is_some()
+}
+
+/// A complete bounded call tree may supply an assignment value without
+/// perturbing a separately returned place only when its root result is proven
+/// non-reference. Reference results continue through the alias-rebinding path;
+/// unknown return types fail closed.
+fn value_call_assignment_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some((_, callee_state)) =
+        machine_state_by_symbol(program, call.target_symbol).or_else(|| {
+            (!call.receiver.is_valid())
+                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
+                .flatten()
+        })
+    else {
+        return false;
+    };
+    if !callee_state.return_type.is_valid()
+        || type_reference_is_reference(program, callee_state.return_type)
+    {
+        return false;
+    }
+    let mut diagnostics = Vec::new();
+    let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
+    diagnostics.is_empty()
+        && statement_call_argument_preserves_transparent_result(
+            program,
+            current_machine,
+            expression,
+            &machine_symbols,
+            symbols,
+            active_states,
+            parameters,
+            aliases,
+            2,
+        )
 }
 
 #[allow(clippy::too_many_arguments)]

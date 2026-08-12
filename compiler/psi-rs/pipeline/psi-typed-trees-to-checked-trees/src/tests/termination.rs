@@ -4275,6 +4275,166 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 }
 
 #[test]
+fn transparent_returned_place_accepts_bounded_value_call_assignments() {
+    let source = r#"
+    data Main {
+        value: u64;
+        other: u64;
+        cells: [u64; 2];
+    }
+
+    machine compute(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine identity(value: u64) -> u64 {
+        value
+    }
+
+    machine recursive_value() -> u64 {
+        recursive_value()
+    }
+
+    machine return_after_value_call<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = compute(value);
+        cells
+    }
+
+    machine return_after_nested_value_call<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = identity(compute(value));
+        cells
+    }
+
+    machine return_after_deep_value_call<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = identity(identity(compute(value)));
+        cells
+    }
+
+    machine return_after_binding_reborrow_value_call<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = identity(compute(&mut value));
+        cells
+    }
+
+    machine return_after_recursive_value_call(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        cells[0] = recursive_value();
+        cells
+    }
+
+    machine Main::value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_value_call(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::nested_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_nested_value_call(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::deep_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_deep_value_call(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::binding_reborrow_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_binding_reborrow_value_call(
+            &mut self.cells,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::recursive_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_recursive_value_call(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for (name, expected_paths) in [
+        (
+            "Main::value_call_assignment_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
+            "Main::nested_value_call_assignment_result",
+            vec!["self.cells", "self.value"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must distinguish value-call writes from reference rebinding"
+        );
+    }
+
+    for name in [
+        "Main::deep_value_call_assignment_result",
+        "Main::binding_reborrow_value_call_assignment_result",
+        "Main::recursive_value_call_assignment_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded value-call assignment rung"
+        );
+    }
+}
+
+#[test]
 fn mutable_slice_views_preserve_array_storage_origins() {
     let source = r#"
     data Main {
