@@ -199,10 +199,10 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
     let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].blocks[1].operations.push(Operation {
         id: OperationId::new(1).unwrap(),
-        result: ValueDeclaration {
+        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(7).unwrap(),
             scalar_type: ScalarType::Boolean,
-        },
+        }),
         kind: OperationKind::BooleanConstant { value: true },
     });
     let verified = verify_module(
@@ -731,10 +731,18 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
     TerminalModule {
         vocabulary_marker,
         entry: MachineId::new(1).unwrap(),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 declaration(1, ScalarType::Boolean),
                 declaration(2, integer),
@@ -804,10 +812,18 @@ fn conditional_shared_tail_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 declaration(1, ScalarType::Boolean),
                 declaration(2, integer),
@@ -843,7 +859,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     parameters: vec![declaration(4, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(1).unwrap(),
-                        result: declaration(6, integer),
+                        result: psi_terminal::OperationResult::Scalar(declaration(6, integer)),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: ValueId::new(4).unwrap(),
                             right: ValueId::new(4).unwrap(),
@@ -860,7 +876,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     parameters: vec![declaration(5, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(2).unwrap(),
-                        result: declaration(7, integer),
+                        result: psi_terminal::OperationResult::Scalar(declaration(7, integer)),
                         kind: OperationKind::WrappingIntegerMultiply {
                             left: ValueId::new(5).unwrap(),
                             right: ValueId::new(5).unwrap(),
@@ -877,7 +893,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     parameters: vec![declaration(8, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(3).unwrap(),
-                        result: declaration(9, integer),
+                        result: psi_terminal::OperationResult::Scalar(declaration(9, integer)),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: ValueId::new(8).unwrap(),
                             right: ValueId::new(8).unwrap(),
@@ -909,10 +925,18 @@ fn nested_constant_conditional_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 declaration(1, ScalarType::Boolean),
                 declaration(2, integer),
@@ -948,7 +972,10 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(4, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(1).unwrap(),
-                        result: declaration(5, ScalarType::Boolean),
+                        result: psi_terminal::OperationResult::Scalar(declaration(
+                            5,
+                            ScalarType::Boolean,
+                        )),
                         kind: OperationKind::BooleanConstant { value: true },
                     }],
                     terminator: Terminator::Conditional {
@@ -979,7 +1006,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(7, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(2).unwrap(),
-                        result: declaration(8, integer),
+                        result: psi_terminal::OperationResult::Scalar(declaration(8, integer)),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: ValueId::new(7).unwrap(),
                             right: ValueId::new(7).unwrap(),
@@ -995,7 +1022,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(9, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(3).unwrap(),
-                        result: declaration(12, integer),
+                        result: psi_terminal::OperationResult::Scalar(declaration(12, integer)),
                         kind: OperationKind::WrappingIntegerMultiply {
                             left: ValueId::new(9).unwrap(),
                             right: ValueId::new(9).unwrap(),
@@ -1025,10 +1052,18 @@ fn nested_boolean_conditional_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: (1..=5).map(declaration).collect(),
             result: TerminalMachineResult::Scalar(declaration(10)),
             structural_places: Vec::new(),

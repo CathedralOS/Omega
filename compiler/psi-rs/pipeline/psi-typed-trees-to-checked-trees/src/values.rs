@@ -99,6 +99,15 @@ impl ValueFactBuilder<'_, '_> {
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
     ) {
+        self.collect_expression_with_expected_primitive(expression, origin, None);
+    }
+
+    pub(super) fn collect_expression_with_expected_primitive(
+        &mut self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+        expected_primitive: Option<psi_typed_trees::types::PrimitiveType>,
+    ) {
         if !expression.is_valid() {
             return;
         }
@@ -109,13 +118,36 @@ impl ValueFactBuilder<'_, '_> {
             origin,
         )
         .unwrap_or_else(psi_typed_trees::types::TypeReferenceHandle::invalid);
-        let integer_range = match origin {
-            CheckedValueOrigin::StateStatement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                role: CheckedValueStatementRole::AssignmentValue,
-            } => psi_proof::checker::proved_assignment_integer_range(
+        let primitive_type = self
+            .program
+            .primitive_type_reference(type_reference)
+            .or(expected_primitive);
+        let integer_range = match (
+            origin,
+            self.program.expression_table.expression(expression),
+            expected_primitive,
+        ) {
+            (
+                CheckedValueOrigin::StateStatement {
+                    role: CheckedValueStatementRole::CallArgument,
+                    ..
+                },
+                psi_typed_trees::expression::ExpressionNode::Integer(literal),
+                Some(_),
+            ) => literal.value_bignum().map(|value| CheckedIntegerRange {
+                minimum: value.clone(),
+                maximum: value,
+            }),
+            (
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    role: CheckedValueStatementRole::AssignmentValue,
+                },
+                _,
+                _,
+            ) => psi_proof::checker::proved_assignment_integer_range(
                 self.proof_plan,
                 machine_symbol,
                 state_symbol,
@@ -131,6 +163,7 @@ impl ValueFactBuilder<'_, '_> {
             expression,
             origin,
             type_reference,
+            primitive_type,
             integer_range,
         });
 

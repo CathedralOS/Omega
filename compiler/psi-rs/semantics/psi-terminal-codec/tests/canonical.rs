@@ -1,18 +1,23 @@
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionId, ScalarTerm, ScalarType,
-    StructuralPlaceKind, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId,
+    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
+    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, MachineContract, Operation,
+    OperationKind, OperationResult, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -32,7 +37,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "25298380ca32ccc158ecb6178e2752d47df917d099708b883d1f7a775d2a98d3"
+        "b0acc1e2c3e67866962381d36dd2e61599c7f7ee40d3bfd8206577530a898947"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -56,11 +61,249 @@ fn unit_result_and_return_have_a_canonical_value_less_encoding() {
 }
 
 #[test]
+fn structural_effect_foundation_round_trips_and_has_stable_identity() {
+    let module = structural_effect_fixture();
+    let bytes = encode_module(&module).expect("structural/effect foundation should encode");
+
+    assert_eq!(&bytes[10..12], 2_u16.to_le_bytes());
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+
+    let baseline = semantic_fingerprint(&module).unwrap();
+    let mut changed = module.clone();
+    let OperationKind::PortWrite { value, .. } =
+        &mut changed.machines[1].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *value = 0x5b;
+    assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
+
+    let mut changed = module.clone();
+    changed.structural_types[0].identity.push_str("::changed");
+    assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
+
+    let mut changed = module.clone();
+    changed.machines[0].attachment = Some(structural_type_id(3));
+    assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
+}
+
+#[test]
+fn decoder_rejects_the_retired_vocabulary_marker() {
+    let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
+    bytes[10..12].copy_from_slice(&1_u16.to_le_bytes());
+
+    assert_eq!(
+        decode_module(&bytes),
+        Err(CodecError::UnsupportedVocabularyMarker(1))
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_noncanonical_rows() {
+    let mut module = structural_effect_fixture();
+    module.structural_types.swap(0, 1);
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::NonCanonicalOrder(
+            "structural types by StructuralTypeId"
+        ))
+    );
+
+    let mut module = structural_effect_fixture();
+    module.machines[0].entry_claims = vec![
+        EntryClaim {
+            claim: claim_id(2),
+            input: place_id(10),
+        },
+        EntryClaim {
+            claim: claim_id(1),
+            input: place_id(10),
+        },
+    ];
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::NonCanonicalOrder("entry claims by ClaimId"))
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_wrong_domain_carrier() {
+    let mut module = structural_effect_fixture();
+    module.structural_domains[0].carrier = structural_type_id(2);
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural parameter qualification has the wrong carrier"
+        ))
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_wrong_call_argument_type() {
+    let mut module = structural_effect_fixture();
+    module.machines[1].structural_parameters[0].structural_type = structural_type_id(3);
+    module.machines[1].structural_parameters[0]
+        .qualifications
+        .clear();
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural argument has the wrong concrete type"
+        ))
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_recursive_by_value_types() {
+    let mut module = unit_fixture();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: structural_type_id(1),
+            identity: "example::A".to_owned(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(1),
+                    identity: "b".to_owned(),
+                    field_type: StructuralFieldType::Structural(structural_type_id(2)),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(2),
+            identity: "example::B".to_owned(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(1),
+                    identity: "a".to_owned(),
+                    field_type: StructuralFieldType::Structural(structural_type_id(1)),
+                }],
+            },
+        },
+    ];
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural type graph contains a by-value cycle"
+        ))
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_cyclic_or_incomplete_service_closure() {
+    let mut cyclic = unit_fixture();
+    cyclic.services = vec![
+        ServiceDeclaration {
+            id: service_id(1),
+            identity: "example::A".to_owned(),
+            parents: vec![service_id(2)],
+        },
+        ServiceDeclaration {
+            id: service_id(2),
+            identity: "example::B".to_owned(),
+            parents: vec![service_id(1)],
+        },
+    ];
+    assert_eq!(
+        encode_module(&cyclic),
+        Err(CodecError::MalformedStructuralFoundation(
+            "service parent graph contains a cycle"
+        ))
+    );
+
+    let mut incomplete = unit_fixture();
+    incomplete.services = vec![
+        ServiceDeclaration {
+            id: service_id(1),
+            identity: "example::Leaf".to_owned(),
+            parents: vec![service_id(2)],
+        },
+        ServiceDeclaration {
+            id: service_id(2),
+            identity: "example::Middle".to_owned(),
+            parents: vec![service_id(3)],
+        },
+        ServiceDeclaration {
+            id: service_id(3),
+            identity: "example::Root".to_owned(),
+            parents: Vec::new(),
+        },
+    ];
+    assert_eq!(
+        encode_module(&incomplete),
+        Err(CodecError::MalformedStructuralFoundation(
+            "service parent closure is incomplete"
+        ))
+    );
+}
+
+#[test]
+fn structural_declarations_do_not_bypass_legacy_graph_validation() {
+    let mut module = fixture();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "example::Marker".to_owned(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let unknown = value_id(999);
+
+    let mut malformed = module.clone();
+    malformed.machines[0].blocks[1].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value: unknown,
+    };
+    assert_eq!(
+        encode_module(&malformed),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::ValueUsedBeforeDefinition(unknown)
+        ))
+    );
+
+    let mut bytes = encode_module(&module).expect("mixed foundation/legacy module should encode");
+    let mut return_encoding = vec![2_u8];
+    return_encoding.extend_from_slice(&2_u64.to_le_bytes());
+    return_encoding.extend_from_slice(&3_u64.to_le_bytes());
+    let offset = bytes
+        .windows(return_encoding.len())
+        .position(|window| window == return_encoding)
+        .expect("fixture has one scalar return encoding");
+    bytes[offset + 9..offset + 17].copy_from_slice(&unknown.get().to_le_bytes());
+    assert_eq!(
+        decode_module(&bytes),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::ValueUsedBeforeDefinition(unknown)
+        ))
+    );
+}
+
+#[test]
+fn structural_unit_calls_participate_in_call_graph_validation() {
+    let mut module = structural_effect_fixture();
+    let OperationKind::CallUnit { callee, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *callee = machine_id(100);
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::RecursiveCallSliceNotYetSupported(machine_id(100))
+        ))
+    );
+}
+
+#[test]
 fn decoder_rejects_an_unknown_machine_result_shape() {
     let mut bytes = encode_module(&unit_fixture()).expect("unit terminal module should encode");
-    // magic + format + vocabulary + entry + two empty proposition counts +
-    // machine count + machine id + empty parameter count
-    bytes[44] = 0xff;
+    // magic + format + vocabulary + entry + four empty foundation tables +
+    // two empty proposition counts + machine count + machine id + no attachment +
+    // empty scalar and structural parameter counts
+    bytes[65] = 0xff;
 
     assert_eq!(
         decode_module(&bytes),
@@ -438,14 +681,220 @@ fn scalar_term_nesting_has_a_total_bound() {
     );
 }
 
+fn structural_effect_fixture() -> TerminalModule {
+    let resource_type = structural_type_id(1);
+    let domain = structural_domain_id(1);
+    let service = service_id(1);
+    let caller_place = place_id(10);
+    let callee_place = place_id(20);
+    let structural_parameter =
+        |place, position, structural_type, is_self| StructuralParameterDeclaration {
+            place,
+            position,
+            is_self,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![domain],
+        };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(100),
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: resource_type,
+                identity: "example::OccurrenceToken".to_owned(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(1),
+                            identity: "sequence".to_owned(),
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            )),
+                        },
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(2),
+                            identity: "metadata".to_owned(),
+                            field_type: StructuralFieldType::Structural(structural_type_id(2)),
+                        },
+                    ],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: structural_type_id(2),
+                identity: "example::Root".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: structural_type_id(3),
+                identity: "example::Worker".to_owned(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: domain,
+            identity: "example::Occurrence::Pending".to_owned(),
+            carrier: resource_type,
+        }],
+        services: vec![ServiceDeclaration {
+            id: service,
+            identity: "example::DeviceIo".to_owned(),
+            parents: Vec::new(),
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_machine_id(1),
+            identity: "example::Occurrence::settle".to_owned(),
+            attachment: Some(resource_type),
+            structural_parameters: vec![structural_parameter(place_id(30), 0, resource_type, true)],
+            requires: vec![StructuralDomainRequirement {
+                argument_index: 0,
+                domain,
+            }],
+            published_service_ceiling: vec![service],
+        }],
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(100),
+                attachment: Some(structural_type_id(2)),
+                parameters: Vec::new(),
+                structural_parameters: vec![structural_parameter(
+                    caller_place,
+                    0,
+                    resource_type,
+                    false,
+                )],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: caller_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: vec![EntryClaim {
+                    claim: claim_id(1),
+                    input: caller_place,
+                }],
+                published_service_ceiling: vec![service],
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(100),
+                blocks: vec![Block {
+                    id: block_id(100),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: operation_id(1),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::CallUnit {
+                            callee: machine_id(101),
+                            structural_arguments: vec![StructuralArgument {
+                                place: caller_place,
+                            }],
+                            claim_transfers: vec![ClaimTransfer {
+                                claim: claim_id(1),
+                                argument_index: 0,
+                            }],
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnUnit { edge: edge_id(100) },
+                }],
+                contract: MachineContract {
+                    id: contract_id(100),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(101),
+                attachment: Some(structural_type_id(3)),
+                parameters: Vec::new(),
+                structural_parameters: vec![structural_parameter(
+                    callee_place,
+                    0,
+                    resource_type,
+                    false,
+                )],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: callee_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: vec![EntryClaim {
+                    claim: claim_id(2),
+                    input: callee_place,
+                }],
+                published_service_ceiling: vec![service],
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(101),
+                blocks: vec![Block {
+                    id: block_id(101),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: operation_id(2),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::PortWrite {
+                                service,
+                                port: 0x3f8,
+                                value: 0x5a,
+                            },
+                        },
+                        Operation {
+                            id: operation_id(3),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::BoundaryCallUnit {
+                                boundary: boundary_machine_id(1),
+                                structural_arguments: vec![StructuralArgument {
+                                    place: callee_place,
+                                }],
+                                claim_settlements: vec![ClaimSettlement {
+                                    claim: claim_id(2),
+                                    argument_index: 0,
+                                }],
+                                requirement_obligations: Vec::new(),
+                            },
+                        },
+                    ],
+                    terminator: Terminator::ReturnUnit { edge: edge_id(101) },
+                }],
+                contract: MachineContract {
+                    id: contract_id(101),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+        ],
+    }
+}
+
 fn unit_fixture() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
@@ -480,10 +929,18 @@ fn fixture() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: value_id(5),
                 scalar_type: ScalarType::Boolean,
@@ -503,10 +960,10 @@ fn fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: operation_id(1),
-                        result: ValueDeclaration {
+                        result: OperationResult::Scalar(ValueDeclaration {
                             id: value_id(1),
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Signed(-7),
                         },
@@ -525,10 +982,10 @@ fn fixture() -> TerminalModule {
                     }],
                     operations: vec![Operation {
                         id: operation_id(2),
-                        result: ValueDeclaration {
+                        result: OperationResult::Scalar(ValueDeclaration {
                             id: value_id(3),
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Signed(-7),
                         },
@@ -604,10 +1061,18 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
     TerminalModule {
         vocabulary_marker,
         entry: machine_id(80),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: value_id(80),
                 scalar_type: ScalarType::Boolean,
@@ -807,11 +1272,19 @@ fn call_fixture() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(100),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),
                 result: TerminalMachineResult::Scalar(boolean(102)),
                 structural_places: Vec::new(),
@@ -825,12 +1298,12 @@ fn call_fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             id: operation_id(100),
-                            result: boolean(100),
+                            result: OperationResult::Scalar(boolean(100)),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
                             id: operation_id(101),
-                            result: boolean(101),
+                            result: OperationResult::Scalar(boolean(101)),
                             kind: OperationKind::Call {
                                 callee: machine_id(101),
                                 arguments: vec![value_id(100)],
@@ -853,6 +1326,10 @@ fn call_fixture() -> TerminalModule {
             },
             TerminalMachine {
                 id: machine_id(101),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: vec![boolean(103)],
                 result: TerminalMachineResult::Scalar(boolean(104)),
                 structural_places: Vec::new(),
@@ -898,6 +1375,11 @@ id_constructor!(block_id, BlockId);
 id_constructor!(place_id, PlaceId);
 id_constructor!(claim_id, ClaimId);
 id_constructor!(operation_id, OperationId);
+id_constructor!(structural_type_id, StructuralTypeId);
+id_constructor!(structural_field_id, StructuralFieldId);
+id_constructor!(structural_domain_id, StructuralDomainId);
+id_constructor!(service_id, ServiceId);
+id_constructor!(boundary_machine_id, BoundaryMachineId);
 id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);

@@ -28,21 +28,27 @@ pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 use psi_core::{
     ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition,
-    PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
+    ContentTerm, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId, Proposition,
+    PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType, ServiceId,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
-    OperationKind, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
+    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
+    CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
-use psi_terminal_verifier::{ModuleError, validate_module};
+use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
 const FORMAT_MARKER: u16 = 1;
@@ -54,7 +60,8 @@ const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     validate_canonical_order(module)?;
-    validate_module(module).map_err(CodecError::InvalidModule)?;
+    validate_structural_foundation(module)?;
+    validate_module_representation(module).map_err(CodecError::InvalidModule)?;
     encode_raw(module)
 }
 
@@ -72,7 +79,8 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     validate_canonical_order(&module)?;
-    validate_module(&module).map_err(CodecError::InvalidModule)?;
+    validate_structural_foundation(&module)?;
+    validate_module_representation(&module).map_err(CodecError::InvalidModule)?;
     if encode_raw(&module)? != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }
@@ -102,6 +110,69 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 }
 
 fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
+    if !strictly_increasing(
+        module
+            .structural_types
+            .iter()
+            .map(|declaration| declaration.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "structural types by StructuralTypeId",
+        ));
+    }
+    for declaration in &module.structural_types {
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        if !strictly_increasing(fields.iter().map(|field| field.id)) {
+            return Err(CodecError::NonCanonicalOrder(
+                "structural fields by StructuralFieldId",
+            ));
+        }
+    }
+    if !strictly_increasing(
+        module
+            .structural_domains
+            .iter()
+            .map(|declaration| declaration.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "structural domains by StructuralDomainId",
+        ));
+    }
+    if !strictly_increasing(module.services.iter().map(|declaration| declaration.id)) {
+        return Err(CodecError::NonCanonicalOrder("services by ServiceId"));
+    }
+    if module
+        .services
+        .iter()
+        .any(|declaration| !strictly_increasing(declaration.parents.iter().copied()))
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "service parents by ServiceId",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .boundary_machines
+            .iter()
+            .map(|declaration| declaration.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "boundary machines by BoundaryMachineId",
+        ));
+    }
+    for declaration in &module.boundary_machines {
+        validate_parameter_order(&declaration.structural_parameters)?;
+        if !strictly_increasing(declaration.requires.iter().copied()) {
+            return Err(CodecError::NonCanonicalOrder(
+                "boundary requirements by argument index and domain",
+            ));
+        }
+        if !strictly_increasing(declaration.published_service_ceiling.iter().copied()) {
+            return Err(CodecError::NonCanonicalOrder(
+                "boundary published service ceiling by ServiceId",
+            ));
+        }
+    }
     if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
         |mut declaration| {
             declaration.id = PropositionId::new(1).expect("one is nonzero");
@@ -146,6 +217,15 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         return Err(CodecError::NonCanonicalOrder("machines by MachineId"));
     }
     for machine in &module.machines {
+        validate_parameter_order(&machine.structural_parameters)?;
+        if !strictly_increasing(machine.entry_claims.iter().map(|claim| claim.claim)) {
+            return Err(CodecError::NonCanonicalOrder("entry claims by ClaimId"));
+        }
+        if !strictly_increasing(machine.published_service_ceiling.iter().copied()) {
+            return Err(CodecError::NonCanonicalOrder(
+                "machine published service ceiling by ServiceId",
+            ));
+        }
         if !crash_routes_are_canonical(&machine.contract.crash_routes) {
             return Err(CodecError::NonCanonicalOrder("crash route buckets"));
         }
@@ -154,17 +234,41 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-            if let OperationKind::Call {
-                crash_continuations,
-                ..
-            } = &operation.kind
-            {
+            let crash_continuations = match &operation.kind {
+                OperationKind::Call {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallUnit {
+                    crash_continuations,
+                    ..
+                } => Some(crash_continuations),
+                _ => None,
+            };
+            if let Some(crash_continuations) = crash_continuations {
                 if !crash_routes_are_canonical(crash_continuations) {
                     return Err(CodecError::NonCanonicalOrder(
                         "call crash continuation buckets",
                     ));
                 }
                 validate_crash_route_predicates(crash_continuations)?;
+            }
+            match &operation.kind {
+                OperationKind::CallUnit {
+                    claim_transfers, ..
+                } if !strictly_increasing(claim_transfers.iter().copied()) => {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "unit-call claim transfers by claim and argument index",
+                    ));
+                }
+                OperationKind::BoundaryCallUnit {
+                    claim_settlements, ..
+                } if !strictly_increasing(claim_settlements.iter().copied()) => {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "boundary claim settlements by claim and argument index",
+                    ));
+                }
+                _ => {}
             }
         }
         for block in &machine.blocks {
@@ -268,6 +372,468 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         }
     }
     Ok(())
+}
+
+fn validate_parameter_order(
+    parameters: &[StructuralParameterDeclaration],
+) -> Result<(), CodecError> {
+    if parameters
+        .iter()
+        .enumerate()
+        .any(|(index, parameter)| parameter.position != index as u32)
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "structural parameters by dense position",
+        ));
+    }
+    if parameters
+        .iter()
+        .any(|parameter| !strictly_increasing(parameter.qualifications.iter().copied()))
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "structural parameter qualifications by StructuralDomainId",
+        ));
+    }
+    Ok(())
+}
+
+/// Validate the closed representation foundation needed before the independent
+/// semantic verifier learns these operations. This checks identities, exact
+/// carrier relationships, signatures, and operation/result shape; it does not
+/// prove qualifications, reach closure, or claim dataflow.
+fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    require_unique_nonempty_identities(
+        module
+            .structural_types
+            .iter()
+            .map(|declaration| declaration.identity.as_str()),
+        "structural type identity",
+    )?;
+    require_unique_nonempty_identities(
+        module
+            .structural_domains
+            .iter()
+            .map(|declaration| declaration.identity.as_str()),
+        "structural domain identity",
+    )?;
+    require_unique_nonempty_identities(
+        module
+            .services
+            .iter()
+            .map(|declaration| declaration.identity.as_str()),
+        "service identity",
+    )?;
+    require_unique_nonempty_identities(
+        module
+            .boundary_machines
+            .iter()
+            .map(|declaration| declaration.identity.as_str()),
+        "boundary machine identity",
+    )?;
+
+    for declaration in &module.structural_types {
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        require_unique_nonempty_identities(
+            fields.iter().map(|field| field.identity.as_str()),
+            "structural field identity",
+        )?;
+        for field in fields {
+            if let StructuralFieldType::Structural(field_type) = field.field_type
+                && !has_structural_type(module, field_type)
+            {
+                return malformed("structural field references an unknown structural type");
+            }
+        }
+    }
+    validate_structural_type_graph(module)?;
+    for domain in &module.structural_domains {
+        if !has_structural_type(module, domain.carrier) {
+            return malformed("structural domain references an unknown carrier type");
+        }
+    }
+    for service in &module.services {
+        if service
+            .parents
+            .iter()
+            .any(|parent| *parent == service.id || !has_service(module, *parent))
+        {
+            return malformed("service references itself or an unknown parent");
+        }
+    }
+    validate_service_parent_graph(module)?;
+    for boundary in &module.boundary_machines {
+        if boundary
+            .attachment
+            .is_some_and(|attachment| !has_structural_type(module, attachment))
+        {
+            return malformed("boundary machine has an unknown attachment type");
+        }
+        validate_structural_parameters(module, &boundary.structural_parameters)?;
+        for requirement in &boundary.requires {
+            let Some(parameter) = boundary
+                .structural_parameters
+                .get(requirement.argument_index as usize)
+            else {
+                return malformed("boundary requirement has an unknown argument index");
+            };
+            let Some(domain) = module
+                .structural_domains
+                .iter()
+                .find(|domain| domain.id == requirement.domain)
+            else {
+                return malformed("boundary requirement references an unknown domain");
+            };
+            if domain.carrier != parameter.structural_type {
+                return malformed("boundary requirement domain has the wrong carrier type");
+            }
+        }
+        require_known_services(module, &boundary.published_service_ceiling)?;
+    }
+
+    for machine in &module.machines {
+        if machine
+            .attachment
+            .is_some_and(|attachment| !has_structural_type(module, attachment))
+        {
+            return malformed("machine has an unknown attachment type");
+        }
+        validate_structural_parameters(module, &machine.structural_parameters)?;
+        require_known_services(module, &machine.published_service_ceiling)?;
+        for parameter in &machine.structural_parameters {
+            let Some(place) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == parameter.place)
+            else {
+                return malformed("structural parameter has no declared structural place");
+            };
+            if place.kind
+                != (StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                })
+            {
+                return malformed("structural parameter place kind disagrees with its signature");
+            }
+        }
+        for claim in &machine.entry_claims {
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == claim.input)
+            else {
+                return malformed("entry claim is not bound to a structural parameter");
+            };
+            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+                return malformed("entry claim cannot bind an unrestricted parameter");
+            }
+        }
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            validate_operation_foundation(module, machine, operation)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_structural_parameters(
+    module: &TerminalModule,
+    parameters: &[StructuralParameterDeclaration],
+) -> Result<(), CodecError> {
+    let mut places = BTreeSet::new();
+    let mut self_count = 0_u32;
+    for parameter in parameters {
+        if !places.insert(parameter.place) {
+            return malformed("structural parameters reuse a place identity");
+        }
+        self_count += u32::from(parameter.is_self);
+        if self_count > 1 {
+            return malformed("structural signature declares more than one self parameter");
+        }
+        if !has_structural_type(module, parameter.structural_type) {
+            return malformed("structural parameter references an unknown type");
+        }
+        for qualification in &parameter.qualifications {
+            let Some(domain) = module
+                .structural_domains
+                .iter()
+                .find(|domain| domain.id == *qualification)
+            else {
+                return malformed("structural parameter references an unknown qualification");
+            };
+            if domain.carrier != parameter.structural_type {
+                return malformed("structural parameter qualification has the wrong carrier");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_operation_foundation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    match &operation.kind {
+        OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("unit call declares a scalar result");
+            }
+            let Some(callee) = module
+                .machines
+                .iter()
+                .find(|candidate| candidate.id == *callee)
+            else {
+                return malformed("unit call references an unknown callee");
+            };
+            if callee.result != TerminalMachineResult::Unit
+                || structural_arguments.len() != callee.structural_parameters.len()
+            {
+                return malformed("unit call has the wrong callee result or structural arity");
+            }
+            validate_structural_arguments(
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+            )?;
+            validate_claim_indices(
+                machine,
+                structural_arguments,
+                claim_transfers
+                    .iter()
+                    .map(|transfer| (transfer.claim, transfer.argument_index)),
+            )?;
+        }
+        OperationKind::BoundaryCallUnit {
+            boundary,
+            structural_arguments,
+            claim_settlements,
+            ..
+        } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("boundary Unit call declares a scalar result");
+            }
+            let Some(boundary) = module
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == *boundary)
+            else {
+                return malformed("boundary Unit call references an unknown boundary");
+            };
+            if structural_arguments.len() != boundary.structural_parameters.len() {
+                return malformed("boundary Unit call has the wrong structural arity");
+            }
+            validate_structural_arguments(
+                machine,
+                structural_arguments,
+                &boundary.structural_parameters,
+            )?;
+            validate_claim_indices(
+                machine,
+                structural_arguments,
+                claim_settlements
+                    .iter()
+                    .map(|settlement| (settlement.claim, settlement.argument_index)),
+            )?;
+        }
+        OperationKind::PortWrite { service, .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("port write declares a scalar result");
+            }
+            if !has_service(module, *service) {
+                return malformed("port write references an unknown service");
+            }
+        }
+        OperationKind::Call { .. } => {
+            if !matches!(operation.result, OperationResult::Scalar(_)) {
+                return malformed("scalar call declares a Unit result");
+            }
+        }
+        _ => {
+            if !matches!(operation.result, OperationResult::Scalar(_)) {
+                return malformed("scalar operation declares a Unit result");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_structural_arguments(
+    machine: &TerminalMachine,
+    arguments: &[StructuralArgument],
+    expected: &[StructuralParameterDeclaration],
+) -> Result<(), CodecError> {
+    for (argument, expected) in arguments.iter().zip(expected) {
+        let Some(actual) = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place)
+        else {
+            return malformed("structural argument references an unknown parameter place");
+        };
+        if actual.structural_type != expected.structural_type {
+            return malformed("structural argument has the wrong concrete type");
+        }
+    }
+    Ok(())
+}
+
+fn validate_claim_indices(
+    machine: &TerminalMachine,
+    arguments: &[StructuralArgument],
+    claims: impl Iterator<Item = (ClaimId, u32)>,
+) -> Result<(), CodecError> {
+    for (claim, argument_index) in claims {
+        let Some(argument) = arguments.get(argument_index as usize) else {
+            return malformed("claim action has an unknown structural argument index");
+        };
+        let Some(entry_claim) = machine
+            .entry_claims
+            .iter()
+            .find(|entry_claim| entry_claim.claim == claim)
+        else {
+            return malformed("claim action references an unknown entry claim");
+        };
+        if entry_claim.input != argument.place {
+            return malformed("claim action does not match its structural argument place");
+        }
+    }
+    Ok(())
+}
+
+fn has_structural_type(module: &TerminalModule, id: StructuralTypeId) -> bool {
+    module
+        .structural_types
+        .iter()
+        .any(|declaration| declaration.id == id)
+}
+
+fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecError> {
+    fn visit(
+        module: &TerminalModule,
+        id: StructuralTypeId,
+        active: &mut BTreeSet<StructuralTypeId>,
+        complete: &mut BTreeSet<StructuralTypeId>,
+    ) -> Result<(), CodecError> {
+        if complete.contains(&id) {
+            return Ok(());
+        }
+        if !active.insert(id) {
+            return malformed("structural type graph contains a by-value cycle");
+        }
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == id)
+            .expect("structural field targets were validated before graph traversal");
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        for field_type in fields.iter().map(|field| field.field_type) {
+            if let StructuralFieldType::Structural(target) = field_type {
+                visit(module, target, active, complete)?;
+            }
+        }
+        active.remove(&id);
+        complete.insert(id);
+        Ok(())
+    }
+
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    for declaration in &module.structural_types {
+        visit(module, declaration.id, &mut active, &mut complete)?;
+    }
+    Ok(())
+}
+
+fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecError> {
+    fn visit(
+        module: &TerminalModule,
+        id: ServiceId,
+        active: &mut BTreeSet<ServiceId>,
+        complete: &mut BTreeSet<ServiceId>,
+    ) -> Result<(), CodecError> {
+        if complete.contains(&id) {
+            return Ok(());
+        }
+        if !active.insert(id) {
+            return malformed("service parent graph contains a cycle");
+        }
+        let declaration = module
+            .services
+            .iter()
+            .find(|declaration| declaration.id == id)
+            .expect("service parent targets were validated before graph traversal");
+        for parent in &declaration.parents {
+            visit(module, *parent, active, complete)?;
+        }
+        active.remove(&id);
+        complete.insert(id);
+        Ok(())
+    }
+
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    for declaration in &module.services {
+        visit(module, declaration.id, &mut active, &mut complete)?;
+    }
+    for declaration in &module.services {
+        for parent in &declaration.parents {
+            let parent = module
+                .services
+                .iter()
+                .find(|candidate| candidate.id == *parent)
+                .expect("service parent targets were validated before closure validation");
+            if parent
+                .parents
+                .iter()
+                .any(|ancestor| !declaration.parents.contains(ancestor))
+            {
+                return malformed("service parent closure is incomplete");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn has_service(module: &TerminalModule, id: ServiceId) -> bool {
+    module
+        .services
+        .iter()
+        .any(|declaration| declaration.id == id)
+}
+
+fn require_known_services(
+    module: &TerminalModule,
+    services: &[ServiceId],
+) -> Result<(), CodecError> {
+    if services
+        .iter()
+        .any(|service| !has_service(module, *service))
+    {
+        return malformed("published service ceiling references an unknown service");
+    }
+    Ok(())
+}
+
+fn require_unique_nonempty_identities<'a>(
+    identities: impl Iterator<Item = &'a str>,
+    label: &'static str,
+) -> Result<(), CodecError> {
+    let mut seen = BTreeSet::new();
+    for identity in identities {
+        if identity.is_empty() || !seen.insert(identity) {
+            return Err(CodecError::MalformedStructuralFoundation(label));
+        }
+    }
+    Ok(())
+}
+
+fn malformed<T>(message: &'static str) -> Result<T, CodecError> {
+    Err(CodecError::MalformedStructuralFoundation(message))
 }
 
 fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
@@ -453,6 +1019,29 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     writer.u16(FORMAT_MARKER);
     writer.u16(module.vocabulary_marker.get());
     writer.id(module.entry);
+    writer.len("structural types", module.structural_types.len())?;
+    for declaration in &module.structural_types {
+        encode_structural_type(&mut writer, declaration)?;
+    }
+    writer.len("structural domains", module.structural_domains.len())?;
+    for declaration in &module.structural_domains {
+        writer.id(declaration.id);
+        writer.string("structural domain identity", &declaration.identity)?;
+        writer.id(declaration.carrier);
+    }
+    writer.len("services", module.services.len())?;
+    for declaration in &module.services {
+        writer.id(declaration.id);
+        writer.string("service identity", &declaration.identity)?;
+        writer.len("service parents", declaration.parents.len())?;
+        for parent in &declaration.parents {
+            writer.id(*parent);
+        }
+    }
+    writer.len("boundary machines", module.boundary_machines.len())?;
+    for declaration in &module.boundary_machines {
+        encode_boundary_machine(&mut writer, declaration)?;
+    }
     writer.len(
         "proposition declarations",
         module.proposition_declarations.len(),
@@ -472,6 +1061,98 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
         encode_machine(&mut writer, machine)?;
     }
     Ok(writer.finish())
+}
+
+fn encode_structural_type(
+    writer: &mut Writer,
+    declaration: &StructuralTypeDeclaration,
+) -> Result<(), CodecError> {
+    writer.id(declaration.id);
+    writer.string("structural type identity", &declaration.identity)?;
+    match &declaration.shape {
+        StructuralTypeShape::Record { fields } => {
+            writer.u8(1);
+            writer.len("structural fields", fields.len())?;
+            for field in fields {
+                writer.id(field.id);
+                writer.string("structural field identity", &field.identity)?;
+                match field.field_type {
+                    StructuralFieldType::Scalar(scalar_type) => {
+                        writer.u8(1);
+                        encode_scalar_type(writer, scalar_type);
+                    }
+                    StructuralFieldType::Structural(structural_type) => {
+                        writer.u8(2);
+                        writer.id(structural_type);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn encode_boundary_machine(
+    writer: &mut Writer,
+    declaration: &BoundaryMachineDeclaration,
+) -> Result<(), CodecError> {
+    writer.id(declaration.id);
+    writer.string("boundary machine identity", &declaration.identity)?;
+    encode_optional_id(writer, declaration.attachment);
+    encode_structural_parameters(writer, &declaration.structural_parameters)?;
+    writer.len(
+        "boundary structural requirements",
+        declaration.requires.len(),
+    )?;
+    for requirement in &declaration.requires {
+        writer.u32(requirement.argument_index);
+        writer.id(requirement.domain);
+    }
+    encode_service_ceiling(writer, &declaration.published_service_ceiling)
+}
+
+fn encode_structural_parameters(
+    writer: &mut Writer,
+    parameters: &[StructuralParameterDeclaration],
+) -> Result<(), CodecError> {
+    writer.len("structural parameters", parameters.len())?;
+    for parameter in parameters {
+        writer.id(parameter.place);
+        writer.u32(parameter.position);
+        writer.u8(u8::from(parameter.is_self));
+        writer.id(parameter.structural_type);
+        writer.u8(match parameter.multiplicity {
+            StructuralMultiplicity::Unrestricted => 1,
+            StructuralMultiplicity::Affine => 2,
+            StructuralMultiplicity::Linear => 3,
+        });
+        writer.len(
+            "structural parameter qualifications",
+            parameter.qualifications.len(),
+        )?;
+        for qualification in &parameter.qualifications {
+            writer.id(*qualification);
+        }
+    }
+    Ok(())
+}
+
+fn encode_service_ceiling(writer: &mut Writer, services: &[ServiceId]) -> Result<(), CodecError> {
+    writer.len("published service ceiling", services.len())?;
+    for service in services {
+        writer.id(*service);
+    }
+    Ok(())
+}
+
+fn encode_optional_id<I: PsiSemanticId>(writer: &mut Writer, id: Option<I>) {
+    match id {
+        None => writer.u8(0),
+        Some(id) => {
+            writer.u8(1);
+            writer.id(id);
+        }
+    }
 }
 
 fn encode_proposition_declaration(
@@ -536,7 +1217,9 @@ fn encode_proposition_application(
 
 fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), CodecError> {
     writer.id(machine.id);
+    encode_optional_id(writer, machine.attachment);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
+    encode_structural_parameters(writer, &machine.structural_parameters)?;
     match machine.result {
         TerminalMachineResult::Unit => writer.u8(0),
         TerminalMachineResult::Scalar(result) => {
@@ -549,6 +1232,12 @@ fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), 
         writer.id(place.id);
         encode_structural_place_kind(writer, place.kind);
     }
+    writer.len("entry claims", machine.entry_claims.len())?;
+    for claim in &machine.entry_claims {
+        writer.id(claim.claim);
+        writer.id(claim.input);
+    }
+    encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     writer.len("content entry claims", machine.content_entry_claims.len())?;
     for binding in &machine.content_entry_claims {
         encode_content_entry_claim(writer, binding)?;
@@ -668,7 +1357,13 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
         writer.id(operation.id);
-        encode_declaration(writer, operation.result);
+        match operation.result {
+            OperationResult::Unit => writer.u8(0),
+            OperationResult::Scalar(result) => {
+                writer.u8(1);
+                encode_declaration(writer, result);
+            }
+        }
         match operation.kind.clone() {
             OperationKind::Call {
                 callee,
@@ -690,6 +1385,50 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                     writer.id(obligation);
                 }
                 encode_crash_routes(writer, &crash_continuations)?;
+            }
+            OperationKind::CallUnit {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(34);
+                writer.id(callee);
+                encode_structural_arguments(writer, &structural_arguments)?;
+                writer.len("unit-call claim transfers", claim_transfers.len())?;
+                for transfer in claim_transfers {
+                    writer.id(transfer.claim);
+                    writer.u32(transfer.argument_index);
+                }
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
+            OperationKind::BoundaryCallUnit {
+                boundary,
+                structural_arguments,
+                claim_settlements,
+                requirement_obligations,
+            } => {
+                writer.u8(35);
+                writer.id(boundary);
+                encode_structural_arguments(writer, &structural_arguments)?;
+                writer.len("boundary claim settlements", claim_settlements.len())?;
+                for settlement in claim_settlements {
+                    writer.id(settlement.claim);
+                    writer.u32(settlement.argument_index);
+                }
+                encode_obligation_ids(writer, &requirement_obligations)?;
+            }
+            OperationKind::PortWrite {
+                service,
+                port,
+                value,
+            } => {
+                writer.u8(36);
+                writer.id(service);
+                writer.u16(port);
+                writer.u8(value);
             }
             OperationKind::IntegerConstant { value } => {
                 writer.u8(1);
@@ -960,6 +1699,28 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(*claim);
             }
         }
+    }
+    Ok(())
+}
+
+fn encode_structural_arguments(
+    writer: &mut Writer,
+    arguments: &[StructuralArgument],
+) -> Result<(), CodecError> {
+    writer.len("structural arguments", arguments.len())?;
+    for argument in arguments {
+        writer.id(argument.place);
+    }
+    Ok(())
+}
+
+fn encode_obligation_ids(
+    writer: &mut Writer,
+    obligations: &[ObligationId],
+) -> Result<(), CodecError> {
+    writer.len("requirement obligations", obligations.len())?;
+    for obligation in obligations {
+        writer.id(*obligation);
     }
     Ok(())
 }
@@ -1515,6 +2276,22 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         CodecError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
     )?;
     let entry = reader.id("MachineId")?;
+    let structural_types = decode_counted(reader, decode_structural_type)?;
+    let structural_domains = decode_counted(reader, |reader| {
+        Ok(StructuralDomainDeclaration {
+            id: reader.id("StructuralDomainId")?,
+            identity: reader.string("structural domain identity")?,
+            carrier: reader.id("StructuralTypeId")?,
+        })
+    })?;
+    let services = decode_counted(reader, |reader| {
+        Ok(ServiceDeclaration {
+            id: reader.id("ServiceId")?,
+            identity: reader.string("service identity")?,
+            parents: decode_ids(reader, "ServiceId")?,
+        })
+    })?;
+    let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let count = reader.count()?;
     let mut proposition_declarations = Vec::with_capacity(count as usize);
     for _ in 0..count {
@@ -1533,10 +2310,118 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     Ok(TerminalModule {
         vocabulary_marker,
         entry,
+        structural_types,
+        structural_domains,
+        services,
+        boundary_machines,
         proposition_declarations,
         proposition_applications,
         machines,
     })
+}
+
+fn decode_structural_type(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralTypeDeclaration, CodecError> {
+    let id = reader.id("StructuralTypeId")?;
+    let identity = reader.string("structural type identity")?;
+    let shape = match reader.u8()? {
+        1 => StructuralTypeShape::Record {
+            fields: decode_counted(reader, |reader| {
+                let id = reader.id("StructuralFieldId")?;
+                let identity = reader.string("structural field identity")?;
+                let field_type = match reader.u8()? {
+                    1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
+                    2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
+                    tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
+                };
+                Ok(StructuralFieldDeclaration {
+                    id,
+                    identity,
+                    field_type,
+                })
+            })?,
+        },
+        tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
+    };
+    Ok(StructuralTypeDeclaration {
+        id,
+        identity,
+        shape,
+    })
+}
+
+fn decode_boundary_machine(
+    reader: &mut Reader<'_>,
+) -> Result<BoundaryMachineDeclaration, CodecError> {
+    Ok(BoundaryMachineDeclaration {
+        id: reader.id("BoundaryMachineId")?,
+        identity: reader.string("boundary machine identity")?,
+        attachment: decode_optional_id(reader, "StructuralTypeId")?,
+        structural_parameters: decode_structural_parameters(reader)?,
+        requires: decode_counted(reader, |reader| {
+            Ok(StructuralDomainRequirement {
+                argument_index: reader.u32()?,
+                domain: reader.id("StructuralDomainId")?,
+            })
+        })?,
+        published_service_ceiling: decode_ids(reader, "ServiceId")?,
+    })
+}
+
+fn decode_structural_parameters(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralParameterDeclaration>, CodecError> {
+    decode_counted(reader, |reader| {
+        let place = reader.id("PlaceId")?;
+        let position = reader.u32()?;
+        let is_self = reader.boolean()?;
+        let structural_type = reader.id("StructuralTypeId")?;
+        let multiplicity = match reader.u8()? {
+            1 => StructuralMultiplicity::Unrestricted,
+            2 => StructuralMultiplicity::Affine,
+            3 => StructuralMultiplicity::Linear,
+            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
+        };
+        Ok(StructuralParameterDeclaration {
+            place,
+            position,
+            is_self,
+            structural_type,
+            multiplicity,
+            qualifications: decode_ids(reader, "StructuralDomainId")?,
+        })
+    })
+}
+
+fn decode_counted<T>(
+    reader: &mut Reader<'_>,
+    mut decode: impl FnMut(&mut Reader<'_>) -> Result<T, CodecError>,
+) -> Result<Vec<T>, CodecError> {
+    let count = reader.count()?;
+    let mut values = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        values.push(decode(reader)?);
+    }
+    Ok(values)
+}
+
+fn decode_ids<I: PsiSemanticId>(
+    reader: &mut Reader<'_>,
+    label: &'static str,
+) -> Result<Vec<I>, CodecError> {
+    decode_counted(reader, |reader| reader.id(label))
+}
+
+fn decode_optional_id<I: PsiSemanticId>(
+    reader: &mut Reader<'_>,
+    label: &'static str,
+) -> Result<Option<I>, CodecError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        1 => Ok(Some(reader.id(label)?)),
+        tag => Err(CodecError::InvalidTag("OptionalSemanticId", tag)),
+    }
 }
 
 fn decode_proposition_declaration(
@@ -1615,7 +2500,9 @@ fn decode_proposition_application(
 
 fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
+    let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
+    let structural_parameters = decode_structural_parameters(reader)?;
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
@@ -1629,6 +2516,13 @@ fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError
             kind: decode_structural_place_kind(reader)?,
         });
     }
+    let entry_claims = decode_counted(reader, |reader| {
+        Ok(EntryClaim {
+            claim: reader.id("ClaimId")?,
+            input: reader.id("PlaceId")?,
+        })
+    })?;
+    let published_service_ceiling = decode_ids(reader, "ServiceId")?;
     let count = reader.count()?;
     let mut content_entry_claims = Vec::new();
     for _ in 0..count {
@@ -1653,9 +2547,13 @@ fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
         id,
+        attachment,
         parameters,
+        structural_parameters,
         result,
         structural_places,
+        entry_claims,
+        published_service_ceiling,
         content_entry_claims,
         content_identity_reshuffles,
         content_partition_compositions,
@@ -1773,7 +2671,11 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
     let mut operations = Vec::new();
     for _ in 0..operation_count {
         let operation_id = reader.id("OperationId")?;
-        let result = decode_declaration(reader)?;
+        let result = match reader.u8()? {
+            0 => OperationResult::Unit,
+            1 => OperationResult::Scalar(decode_declaration(reader)?),
+            tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
+        };
         let kind = match reader.u8()? {
             1 => OperationKind::IntegerConstant {
                 value: decode_integer_value(reader)?,
@@ -1933,6 +2835,34 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                     crash_continuations,
                 }
             }
+            34 => OperationKind::CallUnit {
+                callee: reader.id("MachineId")?,
+                structural_arguments: decode_structural_arguments(reader)?,
+                claim_transfers: decode_counted(reader, |reader| {
+                    Ok(ClaimTransfer {
+                        claim: reader.id("ClaimId")?,
+                        argument_index: reader.u32()?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
+            },
+            35 => OperationKind::BoundaryCallUnit {
+                boundary: reader.id("BoundaryMachineId")?,
+                structural_arguments: decode_structural_arguments(reader)?,
+                claim_settlements: decode_counted(reader, |reader| {
+                    Ok(ClaimSettlement {
+                        claim: reader.id("ClaimId")?,
+                        argument_index: reader.u32()?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+            },
+            36 => OperationKind::PortWrite {
+                service: reader.id("ServiceId")?,
+                port: reader.u16()?,
+                value: reader.u8()?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -1999,6 +2929,16 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         parameters,
         operations,
         terminator,
+    })
+}
+
+fn decode_structural_arguments(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralArgument>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(StructuralArgument {
+            place: reader.id("PlaceId")?,
+        })
     })
 }
 
@@ -2587,6 +3527,7 @@ pub enum CodecError {
     ContentTermNestingTooDeep,
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
+    MalformedStructuralFoundation(&'static str),
     MalformedProposition(PropositionError),
     InvalidModule(ModuleError),
 }

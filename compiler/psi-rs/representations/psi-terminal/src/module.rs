@@ -1,7 +1,9 @@
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentConservation, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, Proposition, ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarType,
+    ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 
 /// Marker for the single unstable terminal-Psi semantic vocabulary.
@@ -23,7 +25,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        1
+        2
     }
 }
 
@@ -70,12 +72,107 @@ impl TerminalMachineResult {
 pub struct TerminalModule {
     pub vocabulary_marker: VocabularyMarker,
     pub entry: MachineId,
+    /// Concrete target-neutral instantiated type shapes, ordered by `id`.
+    /// Native layout is deliberately absent and is selected by Omega.
+    pub structural_types: Vec<StructuralTypeDeclaration>,
+    /// Structural qualification domains, ordered by `id`.
+    pub structural_domains: Vec<StructuralDomainDeclaration>,
+    /// Boundary-service declarations and their normalized parent closure.
+    pub services: Vec<ServiceDeclaration>,
+    /// Bodyless target-neutral Unit machines callable from terminal Psi.
+    pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     /// Nominal proof-formula vocabulary, strictly ordered by `id`.
     /// Transparent aliases never receive a declaration row.
     pub proposition_declarations: Vec<PropositionDeclaration>,
     /// Normalized applications retained without frontend arena handles.
     pub proposition_applications: Vec<PropositionApplicationIdentity>,
     pub machines: Vec<TerminalMachine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralTypeDeclaration {
+    pub id: StructuralTypeId,
+    pub identity: String,
+    pub shape: StructuralTypeShape,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralTypeShape {
+    Record {
+        /// Declaration order is semantic. Field IDs must nevertheless be
+        /// strictly increasing so the same record has one canonical spelling.
+        fields: Vec<StructuralFieldDeclaration>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralFieldDeclaration {
+    pub id: StructuralFieldId,
+    pub identity: String,
+    pub field_type: StructuralFieldType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralFieldType {
+    Scalar(ScalarType),
+    Structural(StructuralTypeId),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralDomainDeclaration {
+    pub id: StructuralDomainId,
+    pub identity: String,
+    /// Exact carrier accepted by this domain. Qualification never changes the
+    /// runtime carrier and never authorizes its own establishment.
+    pub carrier: StructuralTypeId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ServiceDeclaration {
+    pub id: ServiceId,
+    pub identity: String,
+    /// Strictly ordered canonical parent closure.
+    pub parents: Vec<ServiceId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralMultiplicity {
+    Unrestricted,
+    Affine,
+    Linear,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralParameterDeclaration {
+    pub place: PlaceId,
+    pub position: u32,
+    pub is_self: bool,
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: StructuralMultiplicity,
+    /// Strictly ordered exact signature preconditions. A parameter does not
+    /// establish these facts by declaration: its caller or root installation
+    /// must discharge them at invocation.
+    pub qualifications: Vec<StructuralDomainId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralDomainRequirement {
+    pub argument_index: u32,
+    pub domain: StructuralDomainId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryMachineDeclaration {
+    pub id: BoundaryMachineId,
+    pub identity: String,
+    pub attachment: Option<StructuralTypeId>,
+    /// This first boundary slice is structurally parameterized and returns
+    /// Unit. It therefore declares no scalar parameters or result value.
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    /// Strictly ordered by `(argument_index, domain)`.
+    pub requires: Vec<StructuralDomainRequirement>,
+    /// Strictly ordered normalized published ceiling.
+    pub published_service_ceiling: Vec<ServiceId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -130,13 +227,23 @@ pub enum PropositionBinderArgumentKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachine {
     pub id: MachineId,
+    /// Nominal type to which this machine is attached. An attached static
+    /// machine need not have a runtime `self` parameter.
+    pub attachment: Option<StructuralTypeId>,
     pub parameters: Vec<ValueDeclaration>,
+    /// Ordered runtime structural parameters, separate from scalar values.
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
     /// Unit carries no value; scalar results have a stable pseudo-value bound
     /// by every scalar return edge and available to `ensures`.
     pub result: TerminalMachineResult,
     /// Proof-visible roots for structural-place propositions. Runtime scalar
     /// parameters remain independently declared above.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
+    /// Generic machine-local claims present at entry, independent of content
+    /// projections. Content claims below refine these identities when present.
+    pub entry_claims: Vec<EntryClaim>,
+    /// Strictly ordered normalized published boundary-service ceiling.
+    pub published_service_ceiling: Vec<ServiceId>,
     /// Canonical machine-local identities for claims present at entry. These
     /// rows name content independently of any later output equality.
     pub content_entry_claims: Vec<ContentEntryClaim>,
@@ -151,6 +258,12 @@ pub struct TerminalMachine {
     pub entry: BlockId,
     pub blocks: Vec<Block>,
     pub contract: MachineContract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EntryClaim {
+    pub claim: ClaimId,
+    pub input: PlaceId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -284,8 +397,68 @@ pub struct Block {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Operation {
     pub id: OperationId,
-    pub result: ValueDeclaration,
+    pub result: OperationResult,
     pub kind: OperationKind,
+}
+
+/// Runtime result of one operation. Unit creates no `ValueId`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OperationResult {
+    Unit,
+    Scalar(ValueDeclaration),
+}
+
+impl OperationResult {
+    pub const fn scalar(self) -> Option<ValueDeclaration> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(value) => Some(value),
+        }
+    }
+
+    pub const fn scalar_ref(&self) -> Option<&ValueDeclaration> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(value) => Some(value),
+        }
+    }
+
+    pub fn scalar_mut(&mut self) -> Option<&mut ValueDeclaration> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(value) => Some(value),
+        }
+    }
+
+    /// Transitional scalar-consumer helper. Callers must reject Unit-capable
+    /// operations before using this accessor.
+    pub const fn expect_scalar(self) -> ValueDeclaration {
+        match self {
+            Self::Scalar(value) => value,
+            Self::Unit => panic!("Unit operation has no scalar result"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralArgument {
+    pub place: PlaceId,
+}
+
+/// Transfer one caller-local live claim through the structural argument at
+/// `argument_index`. The callee reconstructs its own entry claim from that
+/// parameter; callers cannot author callee-local claim identities.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClaimTransfer {
+    pub claim: ClaimId,
+    pub argument_index: u32,
+}
+
+/// Settle one caller-local live claim through the named boundary argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClaimSettlement {
+    pub claim: ClaimId,
+    pub argument_index: u32,
 }
 
 /// Closed operation vocabulary for the current pre-release compiler.
@@ -343,6 +516,31 @@ pub enum OperationKind {
         arguments: Vec<ValueId>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one in-module Unit machine with positional structural arguments.
+    CallUnit {
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one exact bodyless boundary Unit machine. Settlements name the
+    /// live caller claims consumed by exact structural argument position.
+    BoundaryCallUnit {
+        boundary: BoundaryMachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_settlements: Vec<ClaimSettlement>,
+        requirement_obligations: Vec<ObligationId>,
+    },
+    /// Immediate x86 port-space byte output. This first closed variant retains
+    /// exactly a `u16` port and `u8` value; runtime operands are a later slice.
+    /// The exact service identity is carried by the operation rather than
+    /// rediscovered from a declaration name by downstream consumers.
+    PortWrite {
+        service: ServiceId,
+        port: u16,
+        value: u8,
     },
     IntegerConstant {
         value: IntegerValue,

@@ -3,11 +3,17 @@
 //! Target-selected operations derived from source-independent terminal Omega
 //! requirements.
 
+use std::num::NonZeroU64;
+
+use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
-    ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
+    ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
-use psi_terminal::{CrashCause, CrashPredicateTerm, TerminalPsiIdentity};
+use psi_terminal::{
+    ClaimSettlement, ClaimTransfer, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
+};
 
 pub use omega_calling_conventions::MachineRegister;
 
@@ -33,8 +39,150 @@ pub struct TerminalPsiProvenance {
     pub edges: Vec<EdgeId>,
 }
 
+/// Installation-selected provider-plan identity for one bodyless boundary.
+/// This is realization metadata, not executable authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalProviderPlanIdentity(NonZeroU64);
+
+impl TerminalProviderPlanIdentity {
+    pub const fn new(raw: u64) -> Option<Self> {
+        match NonZeroU64::new(raw) {
+            Some(identity) => Some(Self(identity)),
+            None => None,
+        }
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+/// Exact admitted provider execution selected for this terminal realization.
+/// The execution fingerprint covers the normalized root, selected plan,
+/// entry/boundary contract, resource realizations, and exit assurance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalProviderExecutionBinding {
+    provider_plan: TerminalProviderPlanIdentity,
+    provider_execution_identity: NonZeroU64,
+    provider_execution_fingerprint: NonZeroU64,
+    normalized_root_identity: NonZeroU64,
+    boundary_contract_fingerprint: NonZeroU64,
+}
+
+impl TerminalProviderExecutionBinding {
+    pub fn from_admitted_execution(
+        provider_plan: TerminalProviderPlanIdentity,
+        provider_execution_identity: u64,
+        provider_execution_fingerprint: u64,
+        normalized_root_identity: u64,
+        boundary_contract_fingerprint: u64,
+    ) -> Option<Self> {
+        Some(Self {
+            provider_plan,
+            provider_execution_identity: NonZeroU64::new(provider_execution_identity)?,
+            provider_execution_fingerprint: NonZeroU64::new(provider_execution_fingerprint)?,
+            normalized_root_identity: NonZeroU64::new(normalized_root_identity)?,
+            boundary_contract_fingerprint: NonZeroU64::new(boundary_contract_fingerprint)?,
+        })
+    }
+
+    pub const fn provider_plan(self) -> TerminalProviderPlanIdentity {
+        self.provider_plan
+    }
+
+    pub const fn provider_execution_identity(self) -> u64 {
+        self.provider_execution_identity.get()
+    }
+
+    pub const fn provider_execution_fingerprint(self) -> u64 {
+        self.provider_execution_fingerprint.get()
+    }
+
+    pub const fn normalized_root_identity(self) -> u64 {
+        self.normalized_root_identity.get()
+    }
+
+    pub const fn boundary_contract_fingerprint(self) -> u64 {
+        self.boundary_contract_fingerprint.get()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalMetadataOnlyPortRealization {
+    pub effect_operation: OperationId,
+    pub service: ServiceId,
+    pub port: u16,
+    pub value: u8,
+}
+
+/// The first boundary realization is metadata-only: an exact selected
+/// provider execution settles the claim, while the preceding semantic effect
+/// (for example `PortWrite`) performs the hardware operation. No code is
+/// silently erased; this row must survive installation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalBoundarySettlementBinding {
+    pub boundary: BoundaryMachineId,
+    pub provider_execution: TerminalProviderExecutionBinding,
+    pub realization: TerminalMetadataOnlyPortRealization,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTargetUnitBody {
+    pub call_plan: CallPlan,
+    pub parameters: Vec<TerminalTargetStructuralParameter>,
+    pub operations: Vec<TerminalTargetUnitOperation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTargetStructuralParameter {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub placement: ValuePlacement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTargetStructuralArgument {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub source: ValuePlacement,
+    pub destination: ValuePlacement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalTargetUnitOperation {
+    Call {
+        psi_operation: OperationId,
+        callee: MachineId,
+        arguments: Vec<TerminalTargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+    },
+    PortWrite {
+        psi_operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+    },
+    BoundarySettlement {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider_execution: TerminalProviderExecutionBinding,
+        realization: TerminalMetadataOnlyPortRealization,
+        argument_places: Vec<PlaceId>,
+        claim_settlements: Vec<ClaimSettlement>,
+    },
+    Return {
+        psi_edge: EdgeId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTargetOperation {
+    /// Ordered straight-line Unit/effect body. Scalar expression trees remain
+    /// a separate representation so value-less execution cannot fabricate a
+    /// pseudo-result.
+    UnitBody(TerminalTargetUnitBody),
     /// End the execution domain at one verified terminal-Psi crash edge.
     Crash {
         psi_edge: EdgeId,

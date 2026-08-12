@@ -392,14 +392,22 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         TerminalAbstractOperationPlan {
             terminal_psi: original_identity,
             entry: MachineId::new(1).expect("machine"),
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine: MachineId::new(1).expect("machine"),
+                attachment: None,
                 entry: BlockId::new(1).expect("entry block"),
                 parameters: Vec::new(),
-                result: omega_terminal_abstract_operations::TerminalAbstractResult {
-                    value: ValueId::new(4).expect("machine result"),
-                    scalar_type: ScalarType::Integer(i32_type),
-                },
+                structural_parameters: Vec::new(),
+                result: omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Scalar(
+                    omega_terminal_abstract_operations::TerminalAbstractResult {
+                        value: ValueId::new(4).expect("machine result"),
+                        scalar_type: ScalarType::Integer(i32_type),
+                    },
+                ),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     TerminalAbstractBlockEntry {
                         block: BlockId::new(1).expect("entry block"),
@@ -2142,7 +2150,7 @@ fn checked_source_exact_literal_narrowing_relands_before_terminal_psi() {
         }
     ));
     assert_eq!(
-        operations[0].result.scalar_type,
+        operations[0].result.expect_scalar().scalar_type,
         ScalarType::Integer(u8_type)
     );
 

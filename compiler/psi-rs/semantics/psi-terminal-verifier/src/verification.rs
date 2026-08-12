@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    IntegerSign, IntegerValue, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    ContentConservation, ContentStructuralPlace, ContentTerm, IntegerSign, IntegerValue,
+    ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
@@ -160,6 +161,7 @@ fn reconstruct_machine_semantics(
             matches!(
                 &operation.kind,
                 OperationKind::Call { .. }
+                    | OperationKind::CallUnit { .. }
                     | OperationKind::IntegerExactCast { .. }
                     | OperationKind::ExactIntegerShiftLeft { .. }
                     | OperationKind::ExactIntegerShiftRight { .. }
@@ -185,12 +187,12 @@ fn reconstruct_machine_semantics(
                 .iter()
                 .flat_map(|block| block.parameters.iter()),
         )
-        .chain(
-            machine
-                .blocks
+        .chain(machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
                 .iter()
-                .flat_map(|block| block.operations.iter().map(|operation| &operation.result)),
-        )
+                .filter_map(|operation| operation.result.scalar_ref())
+        }))
         .map(|declaration| (declaration.id, declaration.scalar_type))
         .collect::<BTreeMap<_, _>>();
     let blocks = machine
@@ -278,6 +280,45 @@ fn reconstruct_machine_semantics(
         }
         for operation in &block.operations {
             match operation.kind.clone() {
+                OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    requirement_obligations,
+                    ..
+                } => {
+                    let callee = machines
+                        .get(&callee)
+                        .copied()
+                        .expect("validated unit-call target exists");
+                    let substitutions = callee
+                        .structural_parameters
+                        .iter()
+                        .zip(&structural_arguments)
+                        .map(|(parameter, argument)| (parameter.place, argument.place))
+                        .collect::<BTreeMap<_, _>>();
+                    for (required, obligation) in
+                        callee.contract.requires.iter().zip(requirement_obligations)
+                    {
+                        operation_obligations.push(ReconstructedOperationObligation {
+                            obligation: Obligation {
+                                id: obligation,
+                                proposition: substitute_proposition_places(
+                                    required,
+                                    &substitutions,
+                                ),
+                                class: ObligationClass::Derivable,
+                            },
+                            semantic_axioms: axioms.clone(),
+                        });
+                    }
+                    for guarantee in &callee.contract.ensures {
+                        push_unique(
+                            &mut axioms,
+                            substitute_proposition_places(&guarantee.proposition, &substitutions),
+                        );
+                    }
+                }
+                OperationKind::BoundaryCallUnit { .. } | OperationKind::PortWrite { .. } => {}
                 OperationKind::Call {
                     callee,
                     arguments,
@@ -300,7 +341,7 @@ fn reconstruct_machine_semantics(
                             .scalar()
                             .expect("validated call target has a scalar result")
                             .id,
-                        value_term(operation.result.id),
+                        value_term(operation.result.expect_scalar().id),
                     );
                     for (required, obligation) in
                         callee.contract.requires.iter().zip(requirement_obligations)
@@ -325,28 +366,39 @@ fn reconstruct_machine_semantics(
                     }
                 }
                 OperationKind::IntegerConstant { value } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires integer constant result type");
                     };
                     let literal = ScalarTerm::integer(integer_type, value)
                         .expect("validator requires representable integer constant");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), literal));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        literal,
+                    ));
                 }
                 OperationKind::BooleanConstant { value } => {
                     axioms.push(Proposition::Equal(
-                        value_term(operation.result.id),
+                        value_term(operation.result.expect_scalar().id),
                         ScalarTerm::boolean(value),
                     ));
                 }
                 OperationKind::BooleanNot { operand } => {
                     let negated = ScalarTerm::boolean_not(value_term(operand))
                         .expect("validator requires a Boolean logical-not operand");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), negated));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        negated,
+                    ));
                 }
                 OperationKind::BooleanEqual { left, right } => {
                     let equal = ScalarTerm::boolean_equal(value_term(left), value_term(right))
                         .expect("validator requires Boolean equality operands");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), equal));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        equal,
+                    ));
                 }
                 OperationKind::IntegerEqual { left, right } => {
                     let ScalarType::Integer(integer_type) = value_term(left).scalar_type() else {
@@ -358,7 +410,10 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact integer equality operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), equal));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        equal,
+                    ));
                 }
                 OperationKind::IntegerLessThan { left, right } => {
                     let ScalarType::Integer(integer_type) = value_term(left).scalar_type() else {
@@ -370,7 +425,10 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact integer ordering operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), ordered));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        ordered,
+                    ));
                 }
                 OperationKind::IntegerLessOrEqual { left, right } => {
                     let ScalarType::Integer(integer_type) = value_term(left).scalar_type() else {
@@ -382,27 +440,40 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact integer ordering operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), ordered));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        ordered,
+                    ));
                 }
                 OperationKind::IntegerBitwiseNot { operand } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires bitwise-not integer result type")
                     };
                     let result = ScalarTerm::integer_bitwise_not(integer_type, value_term(operand))
                         .expect("validator requires exact bitwise-not operand type");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::IntegerWiden { operand } => {
                     let ScalarType::Integer(source_type) = value_term(operand).scalar_type() else {
                         unreachable!("validator requires an integer widening operand")
                     };
-                    let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(target_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires an integer widening result")
                     };
                     let result =
                         ScalarTerm::integer_widen(source_type, target_type, value_term(operand))
                             .expect("validator requires a universally total integer widening");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::IntegerExactCast {
                     operand,
@@ -411,7 +482,9 @@ fn reconstruct_machine_semantics(
                     let ScalarType::Integer(source_type) = value_term(operand).scalar_type() else {
                         unreachable!("validator requires an integer exact-cast operand")
                     };
-                    let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(target_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires an integer exact-cast result")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -432,12 +505,17 @@ fn reconstruct_machine_semantics(
                         value_term(operand),
                     )
                     .expect("validator requires a fixed-carrier exact integer cast");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::IntegerBitwiseAnd { left, right }
                 | OperationKind::IntegerBitwiseOr { left, right }
                 | OperationKind::IntegerBitwiseXor { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires bitwise integer result type")
                     };
                     let result = match operation.kind.clone() {
@@ -459,11 +537,16 @@ fn reconstruct_machine_semantics(
                         _ => unreachable!(),
                     }
                     .expect("validator requires exact bitwise operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::WrappingIntegerShiftLeft { value, count }
                 | OperationKind::WrappingIntegerShiftRight { value, count } => {
-                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(value_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires wrapping-shift integer result type")
                     };
                     let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
@@ -489,14 +572,19 @@ fn reconstruct_machine_semantics(
                         _ => unreachable!(),
                     }
                     .expect("validator requires exact wrapping-shift operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerShiftRight {
                     value,
                     count,
                     obligation,
                 } => {
-                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(value_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-shift integer result type")
                     };
                     let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
@@ -521,14 +609,19 @@ fn reconstruct_machine_semantics(
                         value_term(count),
                     )
                     .expect("validator requires exact exact-shift operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerShiftLeft {
                     value,
                     count,
                     obligation,
                 } => {
-                    let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(value_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-shift integer result type")
                     };
                     let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
@@ -555,14 +648,19 @@ fn reconstruct_machine_semantics(
                         value_term(count),
                     )
                     .expect("validator requires exact exact-shift operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerAdd {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-add integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -584,14 +682,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact exact-add operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerSubtract {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-subtract integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -613,14 +716,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact exact-subtract operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerMultiply {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-multiply integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -642,14 +750,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact exact-multiply operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerDivide {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-divide integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -671,14 +784,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact exact-divide operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::ExactIntegerRemainder {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires exact-remainder integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -700,14 +818,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact exact-remainder operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::WrappingIntegerDivide {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires wrapping-divide integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -729,14 +852,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact wrapping-divide operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::WrappingIntegerRemainder {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires wrapping-remainder integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -758,14 +886,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires matching wrapping-remainder operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::SaturatingIntegerDivide {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires saturating-divide integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -787,14 +920,19 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires matching saturating-divide operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::SaturatingIntegerRemainder {
                     left,
                     right,
                     obligation,
                 } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires saturating-remainder integer result type")
                     };
                     operation_obligations.push(ReconstructedOperationObligation {
@@ -816,10 +954,15 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires matching saturating-remainder operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), result));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        result,
+                    ));
                 }
                 OperationKind::WrappingIntegerAdd { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires wrapping-add integer result type")
                     };
                     let sum = ScalarTerm::wrapping_integer_add(
@@ -828,10 +971,15 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact wrapping-add operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), sum));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        sum,
+                    ));
                 }
                 OperationKind::SaturatingIntegerAdd { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires saturating-add integer result type")
                     };
                     let sum = ScalarTerm::saturating_integer_add(
@@ -840,10 +988,15 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact saturating-add operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), sum));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        sum,
+                    ));
                 }
                 OperationKind::WrappingIntegerSubtract { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires wrapping-subtract integer result type")
                     };
                     let difference = ScalarTerm::wrapping_integer_subtract(
@@ -853,12 +1006,14 @@ fn reconstruct_machine_semantics(
                     )
                     .expect("validator requires exact wrapping-subtract operand types");
                     axioms.push(Proposition::Equal(
-                        value_term(operation.result.id),
+                        value_term(operation.result.expect_scalar().id),
                         difference,
                     ));
                 }
                 OperationKind::SaturatingIntegerSubtract { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires saturating-subtract integer result type")
                     };
                     let difference = ScalarTerm::saturating_integer_subtract(
@@ -868,12 +1023,14 @@ fn reconstruct_machine_semantics(
                     )
                     .expect("validator requires exact saturating-subtract operand types");
                     axioms.push(Proposition::Equal(
-                        value_term(operation.result.id),
+                        value_term(operation.result.expect_scalar().id),
                         difference,
                     ));
                 }
                 OperationKind::WrappingIntegerMultiply { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires wrapping-multiply integer result type")
                     };
                     let product = ScalarTerm::wrapping_integer_multiply(
@@ -882,10 +1039,15 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact wrapping-multiply operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), product));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        product,
+                    ));
                 }
                 OperationKind::SaturatingIntegerMultiply { left, right } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         unreachable!("validator requires saturating-multiply integer result type")
                     };
                     let product = ScalarTerm::saturating_integer_multiply(
@@ -894,7 +1056,10 @@ fn reconstruct_machine_semantics(
                         value_term(right),
                     )
                     .expect("validator requires exact saturating-multiply operand types");
-                    axioms.push(Proposition::Equal(value_term(operation.result.id), product));
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.expect_scalar().id),
+                        product,
+                    ));
                 }
             }
         }
@@ -2178,6 +2343,70 @@ pub(crate) fn substitute_proposition_values(
         Proposition::ContentConservation(conservation) => {
             Proposition::ContentConservation(conservation.clone())
         }
+    }
+}
+
+pub(crate) fn substitute_proposition_places(
+    proposition: &Proposition,
+    substitutions: &BTreeMap<PlaceId, PlaceId>,
+) -> Proposition {
+    match proposition {
+        Proposition::Truth => Proposition::Truth,
+        Proposition::Falsehood => Proposition::Falsehood,
+        Proposition::Atom(atom) => Proposition::Atom(*atom),
+        Proposition::Equal(left, right) => Proposition::Equal(left.clone(), right.clone()),
+        Proposition::LessThan(left, right) => Proposition::LessThan(left.clone(), right.clone()),
+        Proposition::LessOrEqual(left, right) => {
+            Proposition::LessOrEqual(left.clone(), right.clone())
+        }
+        Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
+            conjuncts
+                .iter()
+                .map(|conjunct| substitute_proposition_places(conjunct, substitutions))
+                .collect(),
+        ),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Proposition::Implication {
+            premise: Box::new(substitute_proposition_places(premise, substitutions)),
+            conclusion: Box::new(substitute_proposition_places(conclusion, substitutions)),
+        },
+        Proposition::ContentConservation(conservation) => {
+            Proposition::ContentConservation(ContentConservation::new(
+                conservation.algebra().clone(),
+                substitute_content_term_places(conservation.left(), substitutions),
+                substitute_content_term_places(conservation.right(), substitutions),
+            ))
+        }
+    }
+}
+
+fn substitute_content_term_places(
+    term: &ContentTerm,
+    substitutions: &BTreeMap<PlaceId, PlaceId>,
+) -> ContentTerm {
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => ContentTerm::Projection {
+            projection: *projection,
+            subject: ContentStructuralPlace {
+                version: subject.version,
+                root: substitutions
+                    .get(&subject.root)
+                    .copied()
+                    .unwrap_or(subject.root),
+                segments: subject.segments.clone(),
+            },
+        },
+        ContentTerm::Separate(terms) => ContentTerm::Separate(
+            terms
+                .iter()
+                .map(|term| substitute_content_term_places(term, substitutions))
+                .collect(),
+        ),
     }
 }
 

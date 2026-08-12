@@ -37,6 +37,9 @@ impl TerminalFuelSchedule {
     pub const fn operation_units(self, kind: &OperationKind) -> u64 {
         match kind {
             OperationKind::Call { .. }
+            | OperationKind::CallUnit { .. }
+            | OperationKind::BoundaryCallUnit { .. }
+            | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanNot { .. }

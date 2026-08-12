@@ -3,17 +3,23 @@
 //! Machine-code emission for the first source-independent terminal-Psi target
 //! operation slice.
 
+use omega_calling_conventions::{
+    IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
+};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
-    TerminalAssignedCallArgument, TerminalAssignedCallDestination,
-    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
-    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
-    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
-    TerminalAssignedScalarLocation, TerminalExpressionFrame,
+    TerminalAssignedAggregateCopy, TerminalAssignedBooleanControl,
+    TerminalAssignedBooleanExpression, TerminalAssignedCallArgument,
+    TerminalAssignedCallDestination, TerminalAssignedConditionalBooleanArm,
+    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
+    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
+    TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
+    TerminalAssignedScalarLocation, TerminalAssignedUnitBody, TerminalAssignedUnitOperation,
+    TerminalExpressionFrame,
 };
 use omega_terminal_machine_code::{
-    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+    TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
+    TerminalMachineCodePlan, TerminalPortEffectRecord,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -46,7 +52,16 @@ fn emit_function(
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
+    let mut port_effects = Vec::new();
+    let mut boundary_settlements = Vec::new();
     let bytes = match &function.operation {
+        TerminalAssignedOperation::UnitBody(body) => {
+            let emitted = emit_unit_body(body, target)?;
+            internal_calls = emitted.internal_calls;
+            port_effects = emitted.port_effects;
+            boundary_settlements = emitted.boundary_settlements;
+            emitted.bytes
+        }
         // The verified cause remains in the assigned operation and terminal
         // artifact identity. Both closed causes realize as the target's
         // unconditional synchronous fault until a platform crash dispatcher
@@ -277,7 +292,428 @@ fn emit_function(
         provenance: function.provenance.clone(),
         bytes,
         internal_calls,
+        port_effects,
+        boundary_settlements,
     })
+}
+
+struct UnitEmission {
+    bytes: Vec<u8>,
+    internal_calls: Vec<TerminalInternalCallRelocation>,
+    port_effects: Vec<TerminalPortEffectRecord>,
+    boundary_settlements: Vec<TerminalBoundarySettlementRecord>,
+}
+
+#[derive(Debug, Clone)]
+struct X86UnitParameterHome {
+    place: psi_core::PlaceId,
+    shape: ValueShape,
+    source: ValuePlacement,
+    byte_offset: u32,
+    indirect: bool,
+}
+
+fn emit_unit_body(
+    body: &TerminalAssignedUnitBody,
+    target: NativeTarget,
+) -> Result<UnitEmission, EmissionError> {
+    let mut bytes = Vec::new();
+    let mut internal_calls = Vec::new();
+    let mut port_effects = Vec::new();
+    let mut boundary_settlements = Vec::new();
+    let (x86_homes, x86_frame_bytes) = if target.architecture == Architecture::X86_64 {
+        let (homes, frame_bytes) = x86_unit_parameter_homes(body)?;
+        if frame_bytes != 0 {
+            emit_x86_64_adjust_sp(&mut bytes, frame_bytes, false);
+            emit_x86_64_stage_unit_parameters(&mut bytes, &homes, frame_bytes)?;
+        }
+        (homes, frame_bytes)
+    } else {
+        (Vec::new(), 0)
+    };
+    let mut returned = false;
+    for (operation_ordinal, operation) in body.operations.iter().enumerate() {
+        if returned {
+            return Err(EmissionError::UnitOperationAfterReturn);
+        }
+        match operation {
+            TerminalAssignedUnitOperation::Call {
+                psi_operation,
+                callee,
+                copies,
+                ..
+            } => match target.architecture {
+                Architecture::X86_64 => emit_x86_64_unit_call(
+                    &mut bytes,
+                    *psi_operation,
+                    *callee,
+                    copies,
+                    target,
+                    &x86_homes,
+                    &mut internal_calls,
+                )?,
+                Architecture::Aarch64 => {
+                    return Err(EmissionError::UnsupportedAarch64AggregateCall);
+                }
+            },
+            TerminalAssignedUnitOperation::PortWrite {
+                psi_operation,
+                service,
+                port,
+                value,
+            } => {
+                if target.architecture != Architecture::X86_64 {
+                    return Err(EmissionError::PortWriteUnsupportedOnArchitecture(
+                        target.architecture,
+                    ));
+                }
+                let code_offset = bytes.len();
+                bytes.extend_from_slice(&omega_x86_encoding::encode_immediate_port_write(
+                    *port, *value,
+                ));
+                port_effects.push(TerminalPortEffectRecord {
+                    psi_operation: *psi_operation,
+                    service: *service,
+                    port: *port,
+                    value: *value,
+                    operation_ordinal,
+                    code_offset,
+                    byte_count: bytes.len() - code_offset,
+                });
+            }
+            TerminalAssignedUnitOperation::BoundarySettlement {
+                psi_operation,
+                boundary,
+                provider_execution,
+                realization,
+                argument_places,
+                claim_settlements,
+            } => boundary_settlements.push(TerminalBoundarySettlementRecord {
+                psi_operation: *psi_operation,
+                boundary: *boundary,
+                provider_execution: *provider_execution,
+                realization: *realization,
+                argument_places: argument_places.clone(),
+                claim_settlements: claim_settlements.clone(),
+                operation_ordinal,
+                code_offset: bytes.len(),
+            }),
+            TerminalAssignedUnitOperation::Return { .. } => {
+                match target.architecture {
+                    Architecture::X86_64 => {
+                        if x86_frame_bytes != 0 {
+                            emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, true);
+                        }
+                        bytes.push(0xc3)
+                    }
+                    Architecture::Aarch64 => {
+                        bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes())
+                    }
+                }
+                returned = true;
+            }
+        }
+    }
+    if !returned {
+        return Err(EmissionError::UnitFunctionHasNoReturn);
+    }
+    Ok(UnitEmission {
+        bytes,
+        internal_calls,
+        port_effects,
+        boundary_settlements,
+    })
+}
+
+fn emit_x86_64_unit_call(
+    bytes: &mut Vec<u8>,
+    psi_operation: psi_core::OperationId,
+    callee: MachineId,
+    copies: &[TerminalAssignedAggregateCopy],
+    target: NativeTarget,
+    homes: &[X86UnitParameterHome],
+    internal_calls: &mut Vec<TerminalInternalCallRelocation>,
+) -> Result<(), EmissionError> {
+    let outgoing_bytes = copies
+        .iter()
+        .map(|copy| outgoing_placement_extent(&copy.destination))
+        .try_fold(0_u32, |extent, candidate| {
+            candidate.map(|value| extent.max(value))
+        })?
+        .max(if target.object_format == ObjectFormat::Coff {
+            32
+        } else {
+            0
+        });
+    // Function-entry RSP is 8 mod 16. Before CALL it must be 0 mod 16.
+    let padding = (8 + 16 - (outgoing_bytes % 16)) % 16;
+    let call_stack_bytes = outgoing_bytes
+        .checked_add(padding)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    if call_stack_bytes != 0 {
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+    }
+    for copy in copies {
+        let home = homes
+            .iter()
+            .find(|home| home.place == copy.place)
+            .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+        if home.shape != copy.shape || home.source != copy.source {
+            return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
+        }
+        emit_x86_64_aggregate_copy_from_home(bytes, copy, home, call_stack_bytes)?;
+    }
+    bytes.push(0xe8);
+    let offset = bytes.len();
+    bytes.extend_from_slice(&0_i32.to_le_bytes());
+    internal_calls.push(TerminalInternalCallRelocation {
+        psi_operation,
+        target: callee,
+        offset,
+    });
+    if call_stack_bytes != 0 {
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
+    }
+    Ok(())
+}
+
+fn x86_unit_parameter_homes(
+    body: &TerminalAssignedUnitBody,
+) -> Result<(Vec<X86UnitParameterHome>, u32), EmissionError> {
+    let mut homes = Vec::with_capacity(body.parameters.len());
+    let mut cursor = 0_u32;
+    for parameter in &body.parameters {
+        cursor = align_u32(cursor, 8)?;
+        let indirect = matches!(
+            parameter.placement.locations.as_slice(),
+            [ValueLocation::Indirect { .. }]
+        );
+        if parameter
+            .placement
+            .locations
+            .iter()
+            .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+            && !indirect
+        {
+            return Err(EmissionError::UnsupportedAggregatePlacement);
+        }
+        let byte_size = if indirect {
+            8
+        } else {
+            u32::from(parameter.shape.byte_size)
+        };
+        homes.push(X86UnitParameterHome {
+            place: parameter.place,
+            shape: parameter.shape,
+            source: parameter.placement.clone(),
+            byte_offset: cursor,
+            indirect,
+        });
+        cursor = cursor
+            .checked_add(byte_size)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    }
+    Ok((homes, align_u32(cursor, 16)?))
+}
+
+fn align_u32(value: u32, alignment: u32) -> Result<u32, EmissionError> {
+    let remainder = value % alignment;
+    if remainder == 0 {
+        return Ok(value);
+    }
+    value
+        .checked_add(alignment - remainder)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)
+}
+
+fn emit_x86_64_stage_unit_parameters(
+    bytes: &mut Vec<u8>,
+    homes: &[X86UnitParameterHome],
+    frame_bytes: u32,
+) -> Result<(), EmissionError> {
+    for home in homes {
+        if home.indirect {
+            let [ValueLocation::Indirect { pointer, .. }] = home.source.locations.as_slice() else {
+                return Err(EmissionError::UnsupportedAggregatePlacement);
+            };
+            match *pointer {
+                IndirectPointerLocation::Register(register) => emit_x86_64_stack_store_width(
+                    bytes,
+                    x86_unit_register(register)?,
+                    home.byte_offset,
+                    8,
+                )?,
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                } => {
+                    let incoming = frame_bytes
+                        .checked_add(8)
+                        .and_then(|offset| offset.checked_add(stack_byte_offset))
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    emit_x86_64_stack_load_width(bytes, 0, incoming, 8)?;
+                    emit_x86_64_stack_store_width(bytes, 0, home.byte_offset, 8)?;
+                }
+            }
+            continue;
+        }
+        for source in &home.source.locations {
+            let (value_offset, byte_size) = placement_fragment(source)?;
+            let destination = home
+                .byte_offset
+                .checked_add(u32::from(value_offset))
+                .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+            match *source {
+                ValueLocation::Register { register, .. } => emit_x86_64_stack_store_width(
+                    bytes,
+                    x86_unit_register(register)?,
+                    destination,
+                    byte_size,
+                )?,
+                ValueLocation::Stack {
+                    stack_byte_offset, ..
+                } => {
+                    let incoming = frame_bytes
+                        .checked_add(8)
+                        .and_then(|offset| offset.checked_add(stack_byte_offset))
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    emit_x86_64_stack_load_width(bytes, 0, incoming, byte_size)?;
+                    emit_x86_64_stack_store_width(bytes, 0, destination, byte_size)?;
+                }
+                ValueLocation::Indirect { .. } => unreachable!(),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn outgoing_placement_extent(placement: &ValuePlacement) -> Result<u32, EmissionError> {
+    placement
+        .locations
+        .iter()
+        .try_fold(0_u32, |extent, location| {
+            let end = match *location {
+                ValueLocation::Register { .. } => 0,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    byte_size,
+                    ..
+                } => stack_byte_offset
+                    .checked_add(u32::from(byte_size.max(8)))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
+                // Forwarding a by-value structural argument may reuse the exact
+                // caller-owned copy. Only a stack-resident pointer needs outgoing
+                // space; no second aggregate copy is fabricated.
+                ValueLocation::Indirect { pointer, .. } => match pointer {
+                    IndirectPointerLocation::Register(_) => 0,
+                    IndirectPointerLocation::Stack {
+                        stack_byte_offset, ..
+                    } => stack_byte_offset
+                        .checked_add(8)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
+                },
+            };
+            Ok(extent.max(end))
+        })
+}
+
+fn emit_x86_64_aggregate_copy_from_home(
+    bytes: &mut Vec<u8>,
+    copy: &TerminalAssignedAggregateCopy,
+    home: &X86UnitParameterHome,
+    call_stack_bytes: u32,
+) -> Result<(), EmissionError> {
+    if home.indirect {
+        let [ValueLocation::Indirect { pointer, .. }] = copy.destination.locations.as_slice()
+        else {
+            return Err(EmissionError::UnsupportedAggregatePlacement);
+        };
+        let source_offset = call_stack_bytes
+            .checked_add(home.byte_offset)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        return match *pointer {
+            IndirectPointerLocation::Register(register) => {
+                emit_x86_64_stack_load_width(bytes, x86_unit_register(register)?, source_offset, 8)
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                emit_x86_64_stack_load_width(bytes, 0, source_offset, 8)?;
+                emit_x86_64_stack_store_width(bytes, 0, stack_byte_offset, 8)
+            }
+        };
+    }
+    if copy
+        .destination
+        .locations
+        .iter()
+        .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+    {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    }
+    for destination in &copy.destination.locations {
+        let (destination_offset, destination_size) = placement_fragment(destination)?;
+        let source_offset = call_stack_bytes
+            .checked_add(home.byte_offset)
+            .and_then(|offset| offset.checked_add(u32::from(destination_offset)))
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        match *destination {
+            ValueLocation::Register { register, .. } => {
+                let destination_register = x86_unit_register(register)?;
+                emit_x86_64_stack_load_width(
+                    bytes,
+                    destination_register,
+                    source_offset,
+                    destination_size,
+                )?;
+            }
+            ValueLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                emit_x86_64_stack_load_width(bytes, 0, source_offset, destination_size)?;
+                emit_x86_64_stack_store_width(bytes, 0, stack_byte_offset, destination_size)?;
+            }
+            ValueLocation::Indirect { .. } => unreachable!(),
+        }
+    }
+    Ok(())
+}
+
+fn placement_fragment(location: &ValueLocation) -> Result<(u16, u16), EmissionError> {
+    match *location {
+        ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        }
+        | ValueLocation::Stack {
+            value_byte_offset,
+            byte_size,
+            ..
+        } => Ok((value_byte_offset, byte_size)),
+        ValueLocation::Indirect { .. } => Err(EmissionError::UnsupportedAggregatePlacement),
+    }
+}
+
+fn x86_unit_register(register: MachineRegister) -> Result<u8, EmissionError> {
+    match register {
+        MachineRegister::X86Rax => Ok(0),
+        MachineRegister::X86Rcx => Ok(1),
+        MachineRegister::X86Rdx => Ok(2),
+        MachineRegister::X86Rbx => Ok(3),
+        MachineRegister::X86Rsp => Ok(4),
+        MachineRegister::X86Rbp => Ok(5),
+        MachineRegister::X86Rsi => Ok(6),
+        MachineRegister::X86Rdi => Ok(7),
+        MachineRegister::X86R8 => Ok(8),
+        MachineRegister::X86R9 => Ok(9),
+        MachineRegister::X86R10 => Ok(10),
+        MachineRegister::X86R11 => Ok(11),
+        MachineRegister::X86R12 => Ok(12),
+        MachineRegister::X86R13 => Ok(13),
+        MachineRegister::X86R14 => Ok(14),
+        MachineRegister::X86R15 => Ok(15),
+        _ => Err(EmissionError::UnsupportedUnitRegister(register)),
+    }
 }
 
 fn emit_native_crash(architecture: Architecture) -> Vec<u8> {
@@ -1420,6 +1856,66 @@ fn emit_x86_64_stack_store(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) 
 fn emit_x86_64_stack_load(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
     bytes.push(0x48 | (((register >> 3) & 1) << 2));
     bytes.push(0x8b); // mov selected register, [rsp + displacement]
+    if byte_offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+    }
+}
+
+fn emit_x86_64_stack_store_width(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    byte_offset: u32,
+    byte_size: u16,
+) -> Result<(), EmissionError> {
+    match byte_size {
+        1 => bytes.push(0x40 | (((register >> 3) & 1) << 2)),
+        2 => {
+            bytes.push(0x66);
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
+        }
+        4 => bytes.push(0x40 | (((register >> 3) & 1) << 2)),
+        8 => bytes.push(0x48 | (((register >> 3) & 1) << 2)),
+        width => return Err(EmissionError::UnsupportedAggregateFragmentWidth(width)),
+    }
+    bytes.push(if byte_size == 1 { 0x88 } else { 0x89 });
+    emit_x86_64_rsp_modrm(bytes, register, byte_offset);
+    Ok(())
+}
+
+fn emit_x86_64_stack_load_width(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    byte_offset: u32,
+    byte_size: u16,
+) -> Result<(), EmissionError> {
+    match byte_size {
+        1 => {
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
+            bytes.extend_from_slice(&[0x0f, 0xb6]);
+        }
+        2 => {
+            bytes.push(0x66);
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
+            bytes.extend_from_slice(&[0x0f, 0xb7]);
+        }
+        4 => {
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
+            bytes.push(0x8b);
+        }
+        8 => {
+            bytes.push(0x48 | (((register >> 3) & 1) << 2));
+            bytes.push(0x8b);
+        }
+        width => return Err(EmissionError::UnsupportedAggregateFragmentWidth(width)),
+    }
+    emit_x86_64_rsp_modrm(bytes, register, byte_offset);
+    Ok(())
+}
+
+fn emit_x86_64_rsp_modrm(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
     if byte_offset <= i8::MAX as u32 {
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
     } else {
@@ -3463,6 +3959,17 @@ fn native_integer_bounds(scalar_type: IntegerType) -> (u64, u64) {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmissionError {
+    UnitOperationAfterReturn,
+    UnitFunctionHasNoReturn,
+    UnitCallStackAreaNotEncodable,
+    UnsupportedAggregatePlacement,
+    AggregatePlacementCoverageMismatch,
+    UnsupportedAggregateFragmentWidth(u16),
+    MissingUnitParameterHome(psi_core::PlaceId),
+    UnitParameterHomeMismatch(psi_core::PlaceId),
+    UnsupportedUnitRegister(MachineRegister),
+    UnsupportedAarch64AggregateCall,
+    PortWriteUnsupportedOnArchitecture(Architecture),
     IntegerWidthNotNativelySupported {
         value: ValueId,
         bits: u16,
@@ -3521,16 +4028,22 @@ impl std::error::Error for EmissionError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-        TerminalTargetBooleanExpression, TerminalTargetCallArgument,
+        TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+        TerminalProviderPlanIdentity, TerminalPsiProvenance, TerminalScalarParameterLocation,
+        TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
         TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
         TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
         TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
+        TerminalTargetStructuralArgument, TerminalTargetStructuralParameter,
+        TerminalTargetUnitBody, TerminalTargetUnitOperation,
     };
     use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
-    use psi_core::{EdgeId, MachineId, OperationId};
+    use psi_core::{
+        BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
+    };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     fn emit_machine_code(
@@ -3538,6 +4051,394 @@ mod tests {
     ) -> Result<TerminalMachineCodePlan, EmissionError> {
         let assigned = assign_registers(plan).expect("test target operations must assign");
         super::emit_machine_code(&assigned)
+    }
+
+    #[test]
+    fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
+        let target = NativeTarget::linux_x64();
+        let empty_call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature::default(),
+        )
+        .expect("empty Unit ABI");
+        let call_operation = OperationId::new(1).expect("call");
+        let port_operation = OperationId::new(2).expect("port");
+        let settlement_operation = OperationId::new(3).expect("settlement");
+        let root_return = EdgeId::new(1).expect("root return");
+        let leaf_return = EdgeId::new(2).expect("leaf return");
+        let boundary = BoundaryMachineId::new(1).expect("boundary");
+        let provider_plan = TerminalProviderPlanIdentity::new(7).expect("provider");
+        let provider_execution =
+            TerminalProviderExecutionBinding::from_admitted_execution(provider_plan, 8, 9, 10, 11)
+                .expect("provider execution");
+        let realization = TerminalMetadataOnlyPortRealization {
+            effect_operation: port_operation,
+            service: ServiceId::new(1).expect("PortIo"),
+            port: 0x20,
+            value: 0x20,
+        };
+        let plan = TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("root"),
+            functions: vec![
+                TerminalTargetFunction {
+                    machine: MachineId::new(1).expect("root"),
+                    provenance: TerminalPsiProvenance {
+                        operations: vec![call_operation],
+                        edges: vec![root_return],
+                    },
+                    operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        call_plan: empty_call_plan.clone(),
+                        parameters: Vec::new(),
+                        operations: vec![
+                            TerminalTargetUnitOperation::Call {
+                                psi_operation: call_operation,
+                                callee: MachineId::new(2).expect("leaf"),
+                                arguments: Vec::new(),
+                                claim_transfers: Vec::new(),
+                            },
+                            TerminalTargetUnitOperation::Return {
+                                psi_edge: root_return,
+                            },
+                        ],
+                    }),
+                },
+                TerminalTargetFunction {
+                    machine: MachineId::new(2).expect("leaf"),
+                    provenance: TerminalPsiProvenance {
+                        operations: vec![port_operation, settlement_operation],
+                        edges: vec![leaf_return],
+                    },
+                    operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        call_plan: empty_call_plan,
+                        parameters: Vec::new(),
+                        operations: vec![
+                            TerminalTargetUnitOperation::PortWrite {
+                                psi_operation: port_operation,
+                                service: ServiceId::new(1).expect("PortIo"),
+                                port: 0x20,
+                                value: 0x20,
+                            },
+                            TerminalTargetUnitOperation::BoundarySettlement {
+                                psi_operation: settlement_operation,
+                                boundary,
+                                provider_execution,
+                                realization,
+                                argument_places: Vec::new(),
+                                claim_settlements: Vec::new(),
+                            },
+                            TerminalTargetUnitOperation::Return {
+                                psi_edge: leaf_return,
+                            },
+                        ],
+                    }),
+                },
+            ],
+        };
+
+        let emitted = emit_machine_code(&plan).expect("Unit/effect emission");
+        let root = &emitted.functions[0];
+        assert_eq!(
+            root.bytes,
+            [
+                0x48, 0x83, 0xec, 0x08, 0xe8, 0, 0, 0, 0, 0x48, 0x83, 0xc4, 0x08, 0xc3,
+            ]
+        );
+        assert_eq!(root.internal_calls[0].offset, 5);
+        assert_eq!(root.internal_calls[0].target, MachineId::new(2).unwrap());
+
+        let leaf = &emitted.functions[1];
+        let mut expected = omega_x86_encoding::encode_immediate_port_write(0x20, 0x20).to_vec();
+        expected.push(0xc3);
+        assert_eq!(leaf.bytes, expected);
+        assert_eq!(leaf.bytes.iter().filter(|byte| **byte == 0xee).count(), 1);
+        assert_eq!(leaf.boundary_settlements.len(), 1);
+        assert_eq!(leaf.boundary_settlements[0].code_offset, 27);
+        assert_eq!(leaf.boundary_settlements[0].boundary, boundary);
+        assert_eq!(
+            leaf.boundary_settlements[0].provider_execution,
+            provider_execution
+        );
+        assert_eq!(leaf.boundary_settlements[0].realization, realization);
+        assert_eq!(leaf.port_effects.len(), 1);
+        assert_eq!(leaf.port_effects[0].service, realization.service);
+    }
+
+    #[test]
+    fn aarch64_rejects_port_write_before_emitting_a_partial_body() {
+        let target = NativeTarget::linux_arm64();
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature::default(),
+        )
+        .expect("empty Unit ABI");
+        let plan = TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).unwrap(),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).unwrap(),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                    call_plan,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        TerminalTargetUnitOperation::PortWrite {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            service: ServiceId::new(1).unwrap(),
+                            port: 0x20,
+                            value: 0x20,
+                        },
+                        TerminalTargetUnitOperation::Return {
+                            psi_edge: EdgeId::new(1).unwrap(),
+                        },
+                    ],
+                }),
+            }],
+        };
+        assert_eq!(
+            emit_machine_code(&plan),
+            Err(EmissionError::PortWriteUnsupportedOnArchitecture(
+                Architecture::Aarch64
+            ))
+        );
+    }
+
+    #[test]
+    fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_for_win64() {
+        for (target, expected_length, expected_relocation) in [
+            (NativeTarget::linux_x64(), 122, 109),
+            (NativeTarget::windows_x64(), 32, 19),
+        ] {
+            let shape = omega_calling_conventions::ValueShape::integer(40, 8);
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![shape],
+                    result: None,
+                },
+            )
+            .unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            let argument = TerminalTargetStructuralArgument {
+                place,
+                structural_type,
+                shape,
+                source: call_plan.parameters[0].clone(),
+                destination: call_plan.parameters[0].clone(),
+            };
+            let parameter = TerminalTargetStructuralParameter {
+                place,
+                structural_type,
+                shape,
+                placement: call_plan.parameters[0].clone(),
+            };
+            let plan = TerminalTargetOperationPlan {
+                terminal_psi: identity(),
+                target,
+                entry: MachineId::new(1).unwrap(),
+                functions: vec![
+                    TerminalTargetFunction {
+                        machine: MachineId::new(1).unwrap(),
+                        provenance: TerminalPsiProvenance::default(),
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan: call_plan.clone(),
+                            parameters: vec![parameter.clone()],
+                            operations: vec![
+                                TerminalTargetUnitOperation::Call {
+                                    psi_operation: OperationId::new(1).unwrap(),
+                                    callee: MachineId::new(2).unwrap(),
+                                    arguments: vec![argument],
+                                    claim_transfers: Vec::new(),
+                                },
+                                TerminalTargetUnitOperation::Return {
+                                    psi_edge: EdgeId::new(1).unwrap(),
+                                },
+                            ],
+                        }),
+                    },
+                    TerminalTargetFunction {
+                        machine: MachineId::new(2).unwrap(),
+                        provenance: TerminalPsiProvenance::default(),
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan,
+                            parameters: vec![parameter],
+                            operations: vec![TerminalTargetUnitOperation::Return {
+                                psi_edge: EdgeId::new(2).unwrap(),
+                            }],
+                        }),
+                    },
+                ],
+            };
+            let emitted = emit_machine_code(&plan).unwrap();
+            assert_eq!(emitted.functions[0].bytes.len(), expected_length);
+            assert_eq!(
+                emitted.functions[0].internal_calls[0].offset,
+                expected_relocation
+            );
+        }
+    }
+
+    #[test]
+    fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
+        let target = NativeTarget::linux_x64();
+        let shape = omega_calling_conventions::ValueShape::integer(8, 8);
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![shape, shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        let first = PlaceId::new(1).unwrap();
+        let second = PlaceId::new(2).unwrap();
+        let ty = StructuralTypeId::new(1).unwrap();
+        let parameter = |place: PlaceId, index: usize| TerminalTargetStructuralParameter {
+            place,
+            structural_type: ty,
+            shape,
+            placement: call_plan.parameters[index].clone(),
+        };
+        let argument =
+            |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
+                place,
+                structural_type: ty,
+                shape,
+                source: call_plan.parameters[source].clone(),
+                destination: call_plan.parameters[destination].clone(),
+            };
+        let plan = TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).unwrap(),
+            functions: vec![
+                TerminalTargetFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        call_plan: call_plan.clone(),
+                        parameters: vec![parameter(first, 0), parameter(second, 1)],
+                        operations: vec![
+                            TerminalTargetUnitOperation::PortWrite {
+                                psi_operation: OperationId::new(1).unwrap(),
+                                service: ServiceId::new(1).unwrap(),
+                                port: 0x20,
+                                value: 0x20,
+                            },
+                            TerminalTargetUnitOperation::Call {
+                                psi_operation: OperationId::new(2).unwrap(),
+                                callee: MachineId::new(2).unwrap(),
+                                arguments: vec![argument(second, 1, 0), argument(first, 0, 1)],
+                                claim_transfers: Vec::new(),
+                            },
+                            TerminalTargetUnitOperation::Return {
+                                psi_edge: EdgeId::new(1).unwrap(),
+                            },
+                        ],
+                    }),
+                },
+                TerminalTargetFunction {
+                    machine: MachineId::new(2).unwrap(),
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        call_plan: call_plan.clone(),
+                        parameters: vec![parameter(first, 0), parameter(second, 1)],
+                        operations: vec![TerminalTargetUnitOperation::Return {
+                            psi_edge: EdgeId::new(2).unwrap(),
+                        }],
+                    }),
+                },
+            ],
+        };
+        let emitted = emit_machine_code(&plan).unwrap();
+        let bytes = &emitted.functions[0].bytes;
+        let out = bytes.iter().position(|byte| *byte == 0xee).unwrap();
+        let load_second_into_first = bytes
+            .windows(5)
+            .position(|window| window == [0x48, 0x8b, 0x7c, 0x24, 0x10])
+            .unwrap();
+        let load_first_into_second = bytes
+            .windows(5)
+            .position(|window| window == [0x48, 0x8b, 0x74, 0x24, 0x08])
+            .unwrap();
+        assert!(out < load_second_into_first);
+        assert!(out < load_first_into_second);
+    }
+
+    #[test]
+    fn x86_unit_argument_fragments_cover_native_scalar_widths() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            for byte_size in [1_u16, 2, 4, 8, 12, 16] {
+                let alignment = byte_size.min(8);
+                let shape = omega_calling_conventions::ValueShape::integer(byte_size, alignment);
+                let call_plan = evaluate_call_plan(
+                    CallingPolicy::native_for_target(target),
+                    &CallSignature {
+                        parameters: vec![shape],
+                        result: None,
+                    },
+                )
+                .unwrap();
+                let place = PlaceId::new(1).unwrap();
+                let ty = StructuralTypeId::new(1).unwrap();
+                let parameter = TerminalTargetStructuralParameter {
+                    place,
+                    structural_type: ty,
+                    shape,
+                    placement: call_plan.parameters[0].clone(),
+                };
+                let argument = TerminalTargetStructuralArgument {
+                    place,
+                    structural_type: ty,
+                    shape,
+                    source: call_plan.parameters[0].clone(),
+                    destination: call_plan.parameters[0].clone(),
+                };
+                let plan = TerminalTargetOperationPlan {
+                    terminal_psi: identity(),
+                    target,
+                    entry: MachineId::new(1).unwrap(),
+                    functions: vec![
+                        TerminalTargetFunction {
+                            machine: MachineId::new(1).unwrap(),
+                            provenance: TerminalPsiProvenance::default(),
+                            operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                                call_plan: call_plan.clone(),
+                                parameters: vec![parameter.clone()],
+                                operations: vec![
+                                    TerminalTargetUnitOperation::Call {
+                                        psi_operation: OperationId::new(1).unwrap(),
+                                        callee: MachineId::new(2).unwrap(),
+                                        arguments: vec![argument],
+                                        claim_transfers: Vec::new(),
+                                    },
+                                    TerminalTargetUnitOperation::Return {
+                                        psi_edge: EdgeId::new(1).unwrap(),
+                                    },
+                                ],
+                            }),
+                        },
+                        TerminalTargetFunction {
+                            machine: MachineId::new(2).unwrap(),
+                            provenance: TerminalPsiProvenance::default(),
+                            operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                                call_plan,
+                                parameters: vec![parameter],
+                                operations: vec![TerminalTargetUnitOperation::Return {
+                                    psi_edge: EdgeId::new(2).unwrap(),
+                                }],
+                            }),
+                        },
+                    ],
+                };
+                emit_machine_code(&plan).unwrap_or_else(|error| {
+                    panic!("{target:?} {byte_size}-byte Unit argument failed: {error:?}")
+                });
+            }
+        }
     }
 
     fn plan(target: NativeTarget) -> TerminalTargetOperationPlan {

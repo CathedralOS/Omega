@@ -202,10 +202,18 @@ fn fixture() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: value_id(1),
                 scalar_type,

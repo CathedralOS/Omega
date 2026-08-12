@@ -438,6 +438,16 @@ pub fn encode_port_write(
     port: RuntimeValueOperandHandle,
     value: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if let (Some(port), Some(value)) = (
+        source
+            .immediate_integer(port)
+            .and_then(|value| u16::try_from(value).ok()),
+        source
+            .immediate_integer(value)
+            .and_then(|value| u8::try_from(value).ok()),
+    ) {
+        return Ok(omega_x86_encoding::encode_immediate_port_write(port, value).to_vec());
+    }
     let mut bytes = Vec::with_capacity(port_write_width(source, port, value));
     append_runtime_value_operand(source, &mut bytes, Reg64::R10, port)?;
     bytes.extend([0x44, 0x89, 0xd2]); // mov edx, r10d  -> DX = port

@@ -227,7 +227,9 @@ pub fn derive_fixed_safe_point_segments(
             .ok_or(FixedFuelError::UnknownBlock(current))?;
         let mut terminator_reachable = true;
         for operation in &block.operations {
-            if let OperationKind::Call { callee, .. } = &operation.kind {
+            if let OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } =
+                &operation.kind
+            {
                 let callee_bounds = maximum_machine_outcomes(
                     *callee,
                     &machines,
@@ -422,7 +424,9 @@ fn outcome_bounds_from(
     for operation in &block.operations {
         normal_units =
             checked_optional_add(normal_units, schedule.operation_units(&operation.kind))?;
-        if let OperationKind::Call { callee, .. } = &operation.kind {
+        if let OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } =
+            &operation.kind
+        {
             let callee_bounds = maximum_machine_outcomes(
                 *callee,
                 machines,
@@ -555,7 +559,9 @@ fn derive_segment_bound(
             units = units
                 .checked_add(schedule.operation_units(&operation.kind))
                 .ok_or(FixedFuelError::BoundOverflow)?;
-            if let OperationKind::Call { callee, .. } = &operation.kind {
+            if let OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } =
+                &operation.kind
+            {
                 let callee_bounds = maximum_machine_outcomes(
                     *callee,
                     &machines,

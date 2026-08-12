@@ -3,10 +3,19 @@
 //! Concrete register and stack homes assigned to the clean terminal-Psi target
 //! operation lane.
 
+use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
-use omega_terminal_target_operations::{MachineRegister, TerminalPsiProvenance};
-use psi_core::{ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
-use psi_terminal::{CrashCause, CrashPredicateTerm, TerminalPsiIdentity};
+use omega_terminal_target_operations::{
+    MachineRegister, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalPsiProvenance, TerminalTargetStructuralParameter,
+};
+use psi_core::{
+    BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
+    ServiceId, StructuralTypeId, ValueId,
+};
+use psi_terminal::{
+    ClaimSettlement, ClaimTransfer, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAssignedOperationPlan {
@@ -25,6 +34,7 @@ pub struct TerminalAssignedFunction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedOperation {
+    UnitBody(TerminalAssignedUnitBody),
     Crash {
         psi_edge: EdgeId,
         cause: CrashCause,
@@ -103,6 +113,49 @@ pub enum TerminalAssignedOperation {
         condition: TerminalAssignedBooleanExpression,
         when_true: TerminalAssignedConditionalBooleanArm,
         when_false: TerminalAssignedConditionalBooleanArm,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAssignedUnitBody {
+    pub call_plan: CallPlan,
+    pub parameters: Vec<TerminalTargetStructuralParameter>,
+    pub operations: Vec<TerminalAssignedUnitOperation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAssignedAggregateCopy {
+    pub place: PlaceId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub source: ValuePlacement,
+    pub destination: ValuePlacement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalAssignedUnitOperation {
+    Call {
+        psi_operation: OperationId,
+        callee: MachineId,
+        copies: Vec<TerminalAssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
+    },
+    PortWrite {
+        psi_operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+    },
+    BoundarySettlement {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider_execution: TerminalProviderExecutionBinding,
+        realization: TerminalMetadataOnlyPortRealization,
+        argument_places: Vec<PlaceId>,
+        claim_settlements: Vec<ClaimSettlement>,
+    },
+    Return {
+        psi_edge: EdgeId,
     },
 }
 

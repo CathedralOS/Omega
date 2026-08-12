@@ -12,8 +12,9 @@ use psi_proof_kernel::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause,
-    MachineContract, Operation, OperationKind, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    MachineContract, Operation, OperationKind, OperationResult, StructuralPlaceDeclaration,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -60,6 +61,22 @@ fn verifier_rejects_mismatched_unit_and_scalar_return_shapes() {
             machine: MachineId::new(900).unwrap(),
             block: BlockId::new(900).unwrap(),
         }
+    );
+}
+
+#[test]
+fn verifier_rejects_a_scalar_operation_with_a_unit_result_without_panicking() {
+    let mut module = unit_module();
+    let operation = OperationId::new(901).unwrap();
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: operation,
+        result: OperationResult::Unit,
+        kind: OperationKind::BooleanConstant { value: true },
+    });
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::ScalarOperationHasUnitResult(operation)
     );
 }
 
@@ -121,10 +138,18 @@ fn boolean_constant_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(10).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(10).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
@@ -140,10 +165,10 @@ fn boolean_constant_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(10).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: constant,
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::BooleanConstant { value: true },
                 }],
                 terminator: Terminator::Return {
@@ -202,10 +227,18 @@ fn boolean_not_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(20).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(20).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: parameter,
                 scalar_type: ScalarType::Boolean,
@@ -224,10 +257,10 @@ fn boolean_not_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(20).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: negated,
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::BooleanNot { operand: parameter },
                 }],
                 terminator: Terminator::Return {
@@ -295,6 +328,8 @@ fn boolean_not_axiom_proves_the_return_contract() {
         .scalar_type = integer;
     wrong_result.machines[0].blocks[0].operations[0]
         .result
+        .scalar_mut()
+        .unwrap()
         .scalar_type = integer;
     assert_eq!(
         validate_module(&wrong_result).expect_err("Boolean not requires a Boolean result"),
@@ -315,10 +350,18 @@ fn boolean_equality_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(30).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(30).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -343,10 +386,10 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(30).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: compared,
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::BooleanEqual { left, right },
                 }],
                 terminator: Terminator::Return {
@@ -409,6 +452,8 @@ fn boolean_equality_axiom_proves_the_return_contract() {
     wrong_result.machines[0].contract.ensures.clear();
     wrong_result.machines[0].blocks[0].operations[0]
         .result
+        .scalar_mut()
+        .unwrap()
         .scalar_type = integer;
     assert_eq!(
         validate_module(&wrong_result).expect_err("Boolean equality requires a Boolean result"),
@@ -437,10 +482,18 @@ fn integer_equality_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(40).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(40).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -465,10 +518,10 @@ fn integer_equality_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(40).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: compared,
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::IntegerEqual { left, right },
                 }],
                 terminator: Terminator::Return {
@@ -538,6 +591,8 @@ fn integer_equality_axiom_proves_the_return_contract() {
     wrong_result.machines[0].contract.ensures.clear();
     wrong_result.machines[0].blocks[0].operations[0]
         .result
+        .scalar_mut()
+        .unwrap()
         .scalar_type = integer_scalar;
     assert_eq!(
         validate_module(&wrong_result).expect_err("integer equality requires a Boolean result"),
@@ -581,10 +636,18 @@ fn integer_ordering_axioms_prove_return_contracts() {
         let module = TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(50).expect("machine"),
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(50).expect("machine"),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: vec![
                     ValueDeclaration {
                         id: left,
@@ -609,10 +672,10 @@ fn integer_ordering_axioms_prove_return_contracts() {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(50).expect("operation"),
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: compared,
                             scalar_type: ScalarType::Boolean,
-                        },
+                        }),
                         kind: operation,
                     }],
                     terminator: Terminator::Return {
@@ -675,6 +738,8 @@ fn integer_ordering_axioms_prove_return_contracts() {
         wrong_result.machines[0].contract.ensures.clear();
         wrong_result.machines[0].blocks[0].operations[0]
             .result
+            .scalar_mut()
+            .unwrap()
             .scalar_type = integer_scalar;
         assert_eq!(
             validate_module(&wrong_result).expect_err("integer ordering requires a Boolean result"),
@@ -714,10 +779,18 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
         let module = TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(60).expect("machine"),
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(60).expect("machine"),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: vec![
                     ValueDeclaration {
                         id: left,
@@ -742,10 +815,10 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(60).expect("operation"),
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: computed,
                             scalar_type,
-                        },
+                        }),
                         kind: operation,
                     }],
                     terminator: Terminator::Return {
@@ -802,6 +875,8 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
         wrong_result.machines[0].contract.ensures.clear();
         wrong_result.machines[0].blocks[0].operations[0]
             .result
+            .scalar_mut()
+            .unwrap()
             .scalar_type = ScalarType::Boolean;
         assert_eq!(
             validate_module(&wrong_result).expect_err("integer bitwise requires an integer result"),
@@ -826,10 +901,18 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(65).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(65).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: operand,
                 scalar_type,
@@ -848,10 +931,10 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(65).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: computed,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::IntegerBitwiseNot { operand },
                 }],
                 terminator: Terminator::Return {
@@ -920,10 +1003,18 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(68).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(68).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: operand,
                 scalar_type: source_scalar,
@@ -942,10 +1033,10 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(68).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: computed,
                         scalar_type: target_scalar,
-                    },
+                    }),
                     kind: OperationKind::IntegerWiden { operand },
                 }],
                 terminator: Terminator::Return {
@@ -1000,6 +1091,8 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     narrowing.machines[0].parameters[0].scalar_type = target_scalar;
     narrowing.machines[0].blocks[0].operations[0]
         .result
+        .scalar_mut()
+        .unwrap()
         .scalar_type = source_scalar;
     narrowing.machines[0]
         .result
@@ -1018,6 +1111,8 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     );
     cross_signedness.machines[0].blocks[0].operations[0]
         .result
+        .scalar_mut()
+        .unwrap()
         .scalar_type = unsigned_target;
     cross_signedness.machines[0]
         .result
@@ -1038,10 +1133,18 @@ fn preserves_address_carrier_identity() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(168).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(168).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: parameter,
                 scalar_type: address,
@@ -1089,10 +1192,18 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(170).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(170).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: operand,
                 scalar_type: source,
@@ -1111,10 +1222,10 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(170).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: computed,
                         scalar_type: target,
-                    },
+                    }),
                     kind: OperationKind::IntegerExactCast {
                         operand,
                         obligation: cast_obligation,
@@ -1138,6 +1249,8 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
     let mut redundant = module.clone();
     redundant.machines[0].blocks[0].operations[0]
         .result
+        .scalar_mut()
+        .unwrap()
         .scalar_type = source;
     redundant.machines[0]
         .result
@@ -1170,10 +1283,18 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(180).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(180).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: value,
@@ -1198,10 +1319,10 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(180).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: computed,
                         scalar_type: value_type,
-                    },
+                    }),
                     kind: OperationKind::ExactIntegerShiftRight {
                         value,
                         count,
@@ -1243,10 +1364,18 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(190).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(190).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: value,
@@ -1271,10 +1400,10 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(190).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: computed,
                         scalar_type: value_type,
-                    },
+                    }),
                     kind: OperationKind::ExactIntegerShiftLeft {
                         value,
                         count,
@@ -1315,10 +1444,18 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(194).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(194).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1331,7 +1468,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(194).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerAdd {
                         left,
                         right,
@@ -1372,10 +1509,18 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(198).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(198).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1388,7 +1533,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(198).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerSubtract {
                         left,
                         right,
@@ -1429,10 +1574,18 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(202).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(202).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1445,7 +1598,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(202).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerMultiply {
                         left,
                         right,
@@ -1486,10 +1639,18 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(212).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(212).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1502,7 +1663,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(212).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerDivide {
                         left,
                         right,
@@ -1543,10 +1704,18 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(222).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(222).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1559,7 +1728,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(222).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerRemainder {
                         left,
                         right,
@@ -1599,10 +1768,18 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(232).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(232).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1615,7 +1792,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(232).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::WrappingIntegerDivide {
                         left,
                         right,
@@ -1655,10 +1832,18 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(242).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(242).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1671,7 +1856,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(242).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::WrappingIntegerRemainder {
                         left,
                         right,
@@ -1711,10 +1896,18 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(252).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(252).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1727,7 +1920,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(252).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::SaturatingIntegerDivide {
                         left,
                         right,
@@ -1767,10 +1960,18 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
     let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(256).expect("machine"),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(256).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
@@ -1783,7 +1984,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(256).expect("operation"),
-                    result: declaration(computed),
+                    result: psi_terminal::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::SaturatingIntegerRemainder {
                         left,
                         right,
@@ -1852,10 +2053,18 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
         let module = TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(70).expect("machine"),
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(70).expect("machine"),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: vec![
                     ValueDeclaration {
                         id: value,
@@ -1880,10 +2089,10 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(70).expect("operation"),
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: computed,
                             scalar_type: value_scalar,
-                        },
+                        }),
                         kind: operation,
                     }],
                     terminator: Terminator::Return {
@@ -1943,6 +2152,8 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             wrong_result.machines[0].contract.ensures.clear();
             wrong_result.machines[0].blocks[0].operations[0]
                 .result
+                .scalar_mut()
+                .unwrap()
                 .scalar_type = ScalarType::Boolean;
             assert_eq!(
                 validate_module(&wrong_result)
@@ -2377,6 +2588,10 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     let obligation = ObligationId::new(90).expect("obligation");
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![ValueDeclaration {
             id: parameter,
             scalar_type: ScalarType::Boolean,
@@ -2429,6 +2644,10 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -2604,6 +2823,10 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
     let obligation = ObligationId::new(80).expect("obligation");
     let machine = TerminalMachine {
         id: MachineId::new(80).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![ValueDeclaration {
             id: parameter,
             scalar_type: ScalarType::Boolean,
@@ -2646,6 +2869,10 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3080,6 +3307,10 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let machine = TerminalMachine {
         id: MachineId::new(20).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
                 id: left,
@@ -3104,10 +3335,10 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: OperationId::new(20).expect("add operation"),
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id: sum,
                     scalar_type,
-                },
+                }),
                 kind: OperationKind::WrappingIntegerAdd { left, right },
             }],
             terminator: Terminator::Return {
@@ -3129,6 +3360,10 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3153,6 +3388,10 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let machine = TerminalMachine {
         id: MachineId::new(30).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
                 id: left,
@@ -3177,10 +3416,10 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: OperationId::new(30).expect("add operation"),
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id: sum,
                     scalar_type,
-                },
+                }),
                 kind: OperationKind::SaturatingIntegerAdd { left, right },
             }],
             terminator: Terminator::Return {
@@ -3202,6 +3441,10 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3226,6 +3469,10 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let machine = TerminalMachine {
         id: MachineId::new(40).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
                 id: left,
@@ -3250,10 +3497,10 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: OperationId::new(40).expect("subtract operation"),
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id: difference,
                     scalar_type,
-                },
+                }),
                 kind: OperationKind::WrappingIntegerSubtract { left, right },
             }],
             terminator: Terminator::Return {
@@ -3275,6 +3522,10 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3299,6 +3550,10 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let machine = TerminalMachine {
         id: MachineId::new(50).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
                 id: left,
@@ -3323,10 +3578,10 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: OperationId::new(50).expect("subtract operation"),
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id: difference,
                     scalar_type,
-                },
+                }),
                 kind: OperationKind::SaturatingIntegerSubtract { left, right },
             }],
             terminator: Terminator::Return {
@@ -3348,6 +3603,10 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3372,6 +3631,10 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let machine = TerminalMachine {
         id: MachineId::new(60).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
                 id: left,
@@ -3396,10 +3659,10 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: OperationId::new(60).expect("multiply operation"),
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id: product,
                     scalar_type,
-                },
+                }),
                 kind: OperationKind::WrappingIntegerMultiply { left, right },
             }],
             terminator: Terminator::Return {
@@ -3421,6 +3684,10 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3445,6 +3712,10 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let machine = TerminalMachine {
         id: MachineId::new(70).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![
             ValueDeclaration {
                 id: left,
@@ -3469,10 +3740,10 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: OperationId::new(70).expect("multiply operation"),
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id: product,
                     scalar_type,
-                },
+                }),
                 kind: OperationKind::SaturatingIntegerMultiply { left, right },
             }],
             terminator: Terminator::Return {
@@ -3494,6 +3765,10 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![machine],
@@ -3507,10 +3782,18 @@ fn unit_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(900).unwrap(),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(900).unwrap(),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
@@ -3558,6 +3841,10 @@ impl Fixture {
 
         let machine = TerminalMachine {
             id: MachineId::new(1).expect("machine"),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
@@ -3574,10 +3861,10 @@ impl Fixture {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(1).expect("constant operation"),
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: constant,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Signed(7),
                         },
@@ -3615,6 +3902,10 @@ impl Fixture {
             module: TerminalModule {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 entry: machine.id,
+                structural_types: Vec::new(),
+                structural_domains: Vec::new(),
+                services: Vec::new(),
+                boundary_machines: Vec::new(),
                 proposition_declarations: Vec::new(),
                 proposition_applications: Vec::new(),
                 machines: vec![machine],

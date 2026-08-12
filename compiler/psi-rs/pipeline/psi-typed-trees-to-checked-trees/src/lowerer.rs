@@ -57,5 +57,11 @@ pub(crate) fn lower_typed_trees(
 
     checks::check_checked_facts_recording(&program, &mut facts)?;
 
+    // This plan must be assembled only after multiplicity and carry checking:
+    // their ownership events and claim policies are the authority for the
+    // structural/Unit terminal slice.
+    facts.flow.terminal_unit_effects =
+        crate::flow::build_checked_unit_effect_plans(&program, &facts);
+
     Ok(CheckedTrees::with_roots(program, facts))
 }

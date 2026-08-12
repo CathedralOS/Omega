@@ -2,13 +2,23 @@ use std::num::NonZeroU64;
 
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use psi_core::ProfileDecisionId;
-use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use omega_terminal_machine_code::{TerminalBoundarySettlementRecord, TerminalPortEffectRecord};
+use omega_terminal_target_operations::{
+    TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalProviderPlanIdentity,
+};
+use psi_core::{
+    BoundaryMachineId, ClaimId, MachineId, OperationId, PlaceId, ProfileDecisionId, ServiceId,
+};
+use psi_terminal::{ClaimSettlement, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use sha2::{Digest, Sha256};
 
-use crate::{TerminalExecutableImage, can_emit_terminal_executable_image};
+use crate::{
+    TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectPortEffect,
+    can_emit_terminal_executable_image,
+};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 1;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 2;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -88,6 +98,9 @@ pub struct TerminalInstallationRecord {
     subsystem: Option<u16>,
     profile_decision: ProfileDecisionId,
     selected_provider_plans: Vec<SelectedProviderPlanIdentity>,
+    functions: Vec<TerminalInstalledFunction>,
+    port_effects: Vec<TerminalObjectPortEffect>,
+    boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
     image: TerminalImageFingerprint,
     compiler_text_validation: CompilerTextValidationEvidence,
 }
@@ -113,6 +126,18 @@ impl TerminalInstallationRecord {
         &self.selected_provider_plans
     }
 
+    pub fn boundary_settlements(&self) -> &[TerminalObjectBoundarySettlement] {
+        &self.boundary_settlements
+    }
+
+    pub fn functions(&self) -> &[TerminalInstalledFunction] {
+        &self.functions
+    }
+
+    pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
+        &self.port_effects
+    }
+
     pub const fn image(&self) -> TerminalImageFingerprint {
         self.image
     }
@@ -120,6 +145,13 @@ impl TerminalInstallationRecord {
     pub const fn compiler_text_validation(&self) -> CompilerTextValidationEvidence {
         self.compiler_text_validation
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalInstalledFunction {
+    pub machine: MachineId,
+    pub text_offset: usize,
+    pub byte_count: usize,
 }
 
 /// Build the canonical installation record for an emitted image.
@@ -151,6 +183,17 @@ pub fn build_terminal_installation_record(
         subsystem: image.subsystem(),
         profile_decision,
         selected_provider_plans,
+        functions: image
+            .functions()
+            .iter()
+            .map(|function| TerminalInstalledFunction {
+                machine: function.machine,
+                text_offset: function.text_offset,
+                byte_count: function.byte_count,
+            })
+            .collect(),
+        port_effects: image.port_effects().to_vec(),
+        boundary_settlements: image.boundary_settlements().to_vec(),
         image: fingerprint_image(&image.output().bytes),
         compiler_text_validation,
     };
@@ -164,6 +207,12 @@ pub fn encode_terminal_installation_record(
     validate_record_shape(record)?;
     let provider_count = u32::try_from(record.selected_provider_plans.len())
         .map_err(|_| TerminalInstallationError::TooManyProviderPlans)?;
+    let settlement_count = u32::try_from(record.boundary_settlements.len())
+        .map_err(|_| TerminalInstallationError::TooManyBoundarySettlements)?;
+    let function_count = u32::try_from(record.functions.len())
+        .map_err(|_| TerminalInstallationError::TooManyInstalledFunctions)?;
+    let port_effect_count = u32::try_from(record.port_effects.len())
+        .map_err(|_| TerminalInstallationError::TooManyPortEffects)?;
     let text_relocation_count =
         u64::try_from(record.compiler_text_validation.text_relocation_count)
             .map_err(|_| TerminalInstallationError::CountNotRepresentable("text relocations"))?;
@@ -234,6 +283,100 @@ pub fn encode_terminal_installation_record(
     push_u32(&mut bytes, provider_count);
     for provider in &record.selected_provider_plans {
         push_u64(&mut bytes, provider.get());
+    }
+    push_u32(&mut bytes, function_count);
+    for function in &record.functions {
+        push_u64(&mut bytes, function.machine.get());
+        push_u64(
+            &mut bytes,
+            u64::try_from(function.text_offset)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(function.byte_count)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+        );
+    }
+    push_u32(&mut bytes, port_effect_count);
+    for installed in &record.port_effects {
+        let effect = &installed.effect;
+        push_u64(&mut bytes, installed.machine.get());
+        push_u64(&mut bytes, effect.psi_operation.get());
+        push_u64(&mut bytes, effect.service.get());
+        push_u16(&mut bytes, effect.port);
+        bytes.push(effect.value);
+        bytes.push(0);
+        push_u64(
+            &mut bytes,
+            u64::try_from(effect.operation_ordinal)
+                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(installed.text_offset)
+                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(effect.code_offset)
+                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(effect.byte_count)
+                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
+        );
+    }
+    push_u32(&mut bytes, settlement_count);
+    for installed in &record.boundary_settlements {
+        let settlement = &installed.settlement;
+        push_u64(&mut bytes, installed.machine.get());
+        push_u64(&mut bytes, settlement.psi_operation.get());
+        push_u64(&mut bytes, settlement.boundary.get());
+        let execution = settlement.provider_execution;
+        push_u64(&mut bytes, execution.provider_plan().get());
+        push_u64(&mut bytes, execution.provider_execution_identity());
+        push_u64(&mut bytes, execution.provider_execution_fingerprint());
+        push_u64(&mut bytes, execution.normalized_root_identity());
+        push_u64(&mut bytes, execution.boundary_contract_fingerprint());
+        push_u64(&mut bytes, settlement.realization.effect_operation.get());
+        push_u64(&mut bytes, settlement.realization.service.get());
+        push_u16(&mut bytes, settlement.realization.port);
+        bytes.push(settlement.realization.value);
+        bytes.push(0);
+        push_u64(
+            &mut bytes,
+            u64::try_from(settlement.operation_ordinal)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(installed.text_offset)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(settlement.code_offset)
+                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
+        );
+        push_u32(
+            &mut bytes,
+            u32::try_from(settlement.argument_places.len())
+                .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?,
+        );
+        for place in &settlement.argument_places {
+            push_u64(&mut bytes, place.get());
+        }
+        push_u32(
+            &mut bytes,
+            u32::try_from(settlement.claim_settlements.len())
+                .map_err(|_| TerminalInstallationError::TooManyClaimSettlements)?,
+        );
+        for claim in &settlement.claim_settlements {
+            push_u64(&mut bytes, claim.claim.get());
+            push_u32(&mut bytes, claim.argument_index);
+        }
     }
     Ok(bytes)
 }
@@ -307,6 +450,148 @@ pub fn decode_terminal_installation_record(
         }
         selected_provider_plans.push(provider);
     }
+    let function_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInstalledFunctions)?;
+    if function_count > reader.remaining() / 24 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut functions = Vec::with_capacity(function_count);
+    for _ in 0..function_count {
+        functions.push(TerminalInstalledFunction {
+            machine: MachineId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroFunctionIdentity)?,
+            text_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+            byte_count: usize::try_from(reader.u64()?)
+                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+        });
+    }
+    let port_effect_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyPortEffects)?;
+    if port_effect_count > reader.remaining() / 60 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut port_effects = Vec::with_capacity(port_effect_count);
+    for _ in 0..port_effect_count {
+        let machine = MachineId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroPortEffectIdentity("MachineId"),
+        )?;
+        let psi_operation = OperationId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroPortEffectIdentity("OperationId"),
+        )?;
+        let service = ServiceId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroPortEffectIdentity("ServiceId"),
+        )?;
+        let port = reader.u16()?;
+        let value = reader.u8()?;
+        if reader.u8()? != 0 {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let operation_ordinal = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
+        let text_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
+        let code_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
+        let byte_count = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
+        port_effects.push(TerminalObjectPortEffect {
+            machine,
+            effect: TerminalPortEffectRecord {
+                psi_operation,
+                service,
+                port,
+                value,
+                operation_ordinal,
+                code_offset,
+                byte_count,
+            },
+            text_offset,
+        });
+    }
+    let settlement_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyBoundarySettlements)?;
+    let mut boundary_settlements = Vec::with_capacity(settlement_count);
+    for _ in 0..settlement_count {
+        let machine = MachineId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroSettlementIdentity("MachineId"),
+        )?;
+        let psi_operation = OperationId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroSettlementIdentity("OperationId"),
+        )?;
+        let boundary = BoundaryMachineId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroSettlementIdentity("BoundaryMachineId"),
+        )?;
+        let provider_plan_raw = reader.u64()?;
+        let provider_plan = TerminalProviderPlanIdentity::new(provider_plan_raw)
+            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
+        let provider_execution = TerminalProviderExecutionBinding::from_admitted_execution(
+            provider_plan,
+            reader.u64()?,
+            reader.u64()?,
+            reader.u64()?,
+            reader.u64()?,
+        )
+        .ok_or(TerminalInstallationError::ZeroProviderExecutionEvidence)?;
+        let realization = TerminalMetadataOnlyPortRealization {
+            effect_operation: OperationId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroSettlementIdentity("realization OperationId"),
+            )?,
+            service: ServiceId::new(reader.u64()?).ok_or(
+                TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
+            )?,
+            port: reader.u16()?,
+            value: reader.u8()?,
+        };
+        if reader.u8()? != 0 {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let operation_ordinal = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+        let text_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+        let code_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+        let argument_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?;
+        if argument_count > reader.remaining() / 8 {
+            return Err(TerminalInstallationError::UnexpectedEnd);
+        }
+        let mut argument_places = Vec::with_capacity(argument_count);
+        for _ in 0..argument_count {
+            argument_places.push(
+                PlaceId::new(reader.u64()?)
+                    .ok_or(TerminalInstallationError::ZeroSettlementIdentity("PlaceId"))?,
+            );
+        }
+        let claim_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManyClaimSettlements)?;
+        if claim_count > reader.remaining() / 12 {
+            return Err(TerminalInstallationError::UnexpectedEnd);
+        }
+        let mut claim_settlements = Vec::with_capacity(claim_count);
+        for _ in 0..claim_count {
+            claim_settlements.push(ClaimSettlement {
+                claim: ClaimId::new(reader.u64()?)
+                    .ok_or(TerminalInstallationError::ZeroSettlementIdentity("ClaimId"))?,
+                argument_index: reader.u32()?,
+            });
+        }
+        boundary_settlements.push(TerminalObjectBoundarySettlement {
+            machine,
+            settlement: TerminalBoundarySettlementRecord {
+                psi_operation,
+                boundary,
+                provider_execution,
+                realization,
+                argument_places,
+                claim_settlements,
+                operation_ordinal,
+                code_offset,
+            },
+            text_offset,
+        });
+    }
     if reader.remaining() != 0 {
         return Err(TerminalInstallationError::TrailingBytes(reader.remaining()));
     }
@@ -325,6 +610,9 @@ pub fn decode_terminal_installation_record(
         subsystem,
         profile_decision,
         selected_provider_plans,
+        functions,
+        port_effects,
+        boundary_settlements,
         image,
         compiler_text_validation: CompilerTextValidationEvidence {
             encoded_text_fingerprint,
@@ -354,6 +642,18 @@ pub fn validate_terminal_installation_record(
         || record.subsystem != image.subsystem()
         || record.image != fingerprint_image(&image.output().bytes)
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
+        || record.port_effects != image.port_effects()
+        || record.boundary_settlements != image.boundary_settlements()
+        || record.functions.len() != image.functions().len()
+        || record
+            .functions
+            .iter()
+            .zip(image.functions())
+            .any(|(installed, emitted)| {
+                installed.machine != emitted.machine
+                    || installed.text_offset != emitted.text_offset
+                    || installed.byte_count != emitted.byte_count
+            })
     {
         return Err(TerminalInstallationError::ImageBindingMismatch);
     }
@@ -388,6 +688,160 @@ fn validate_record_shape(
         .any(|pair| pair[0] >= pair[1])
     {
         return Err(TerminalInstallationError::NonCanonicalProviderPlanOrder);
+    }
+    let selected = record
+        .selected_provider_plans
+        .iter()
+        .map(|provider| provider.get())
+        .collect::<std::collections::BTreeSet<_>>();
+    let required = record
+        .boundary_settlements
+        .iter()
+        .map(|settlement| {
+            settlement
+                .settlement
+                .provider_execution
+                .provider_plan()
+                .get()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    if !required.is_subset(&selected) {
+        return Err(TerminalInstallationError::ProviderSettlementClosureMismatch);
+    }
+    if record.functions.is_empty() {
+        return Err(TerminalInstallationError::NoInstalledFunctions);
+    }
+    let mut expected_text_offset = 0_usize;
+    let mut previous_function = None;
+    for function in &record.functions {
+        if function.byte_count == 0
+            || function.text_offset != expected_text_offset
+            || previous_function.is_some_and(|previous| previous >= function.machine)
+        {
+            return Err(TerminalInstallationError::NonCanonicalInstalledFunctions);
+        }
+        expected_text_offset = expected_text_offset
+            .checked_add(function.byte_count)
+            .ok_or(TerminalInstallationError::FunctionOffsetNotRepresentable)?;
+        previous_function = Some(function.machine);
+    }
+    let function_by_machine = record
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut previous_port = None;
+    let mut port_operations = std::collections::BTreeSet::new();
+    for installed in &record.port_effects {
+        let function = function_by_machine.get(&installed.machine).ok_or(
+            TerminalInstallationError::EffectMachineMissing(installed.machine),
+        )?;
+        let expected = function
+            .text_offset
+            .checked_add(installed.effect.code_offset)
+            .ok_or(TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
+        let end = installed
+            .effect
+            .code_offset
+            .checked_add(installed.effect.byte_count)
+            .ok_or(TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
+        if installed.text_offset != expected
+            || end > function.byte_count
+            || installed.effect.byte_count
+                != omega_x86_encoding::encode_immediate_port_write(
+                    installed.effect.port,
+                    installed.effect.value,
+                )
+                .len()
+        {
+            return Err(TerminalInstallationError::InvalidPortEffectOffset {
+                machine: installed.machine,
+                operation: installed.effect.psi_operation,
+            });
+        }
+        let key = (
+            installed.machine,
+            installed.text_offset,
+            installed.effect.operation_ordinal,
+        );
+        if previous_port.is_some_and(|previous| previous >= key) {
+            return Err(TerminalInstallationError::NonCanonicalPortEffectOrder);
+        }
+        if !port_operations.insert((installed.machine, installed.effect.psi_operation)) {
+            return Err(TerminalInstallationError::DuplicatePortEffectOperation {
+                machine: installed.machine,
+                operation: installed.effect.psi_operation,
+            });
+        }
+        previous_port = Some(key);
+    }
+    let mut previous_machine = None;
+    let mut previous_text_offset = 0;
+    let mut previous_operation_ordinal = 0;
+    let mut operations = std::collections::BTreeSet::new();
+    for installed in &record.boundary_settlements {
+        if let Some(machine) = previous_machine {
+            if installed.machine < machine
+                || (installed.machine == machine
+                    && (
+                        installed.text_offset,
+                        installed.settlement.operation_ordinal,
+                    ) <= (previous_text_offset, previous_operation_ordinal))
+            {
+                return Err(TerminalInstallationError::NonCanonicalBoundarySettlementOrder);
+            }
+        }
+        if !operations.insert((installed.machine, installed.settlement.psi_operation)) {
+            return Err(
+                TerminalInstallationError::DuplicateBoundarySettlementOperation {
+                    machine: installed.machine,
+                    operation: installed.settlement.psi_operation,
+                },
+            );
+        }
+        let function = function_by_machine.get(&installed.machine).ok_or(
+            TerminalInstallationError::EffectMachineMissing(installed.machine),
+        )?;
+        let expected = function
+            .text_offset
+            .checked_add(installed.settlement.code_offset)
+            .ok_or(TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+        if installed.text_offset != expected
+            || installed.settlement.code_offset > function.byte_count
+        {
+            return Err(TerminalInstallationError::InvalidBoundarySettlementOffset {
+                machine: installed.machine,
+                operation: installed.settlement.psi_operation,
+            });
+        }
+        let realization = installed.settlement.realization;
+        let matching_effects = record
+            .port_effects
+            .iter()
+            .filter(|effect| {
+                effect.machine == installed.machine
+                    && effect.effect.psi_operation == realization.effect_operation
+                    && effect.effect.service == realization.service
+                    && effect.effect.port == realization.port
+                    && effect.effect.value == realization.value
+                    && effect.effect.operation_ordinal.checked_add(1)
+                        == Some(installed.settlement.operation_ordinal)
+                    && effect
+                        .effect
+                        .code_offset
+                        .checked_add(effect.effect.byte_count)
+                        == Some(installed.settlement.code_offset)
+            })
+            .count();
+        if matching_effects != 1 {
+            return Err(TerminalInstallationError::BoundaryRealizationMismatch {
+                machine: installed.machine,
+                operation: installed.settlement.psi_operation,
+            });
+        }
+        previous_machine = Some(installed.machine);
+        previous_text_offset = installed.text_offset;
+        previous_operation_ordinal = installed.settlement.operation_ordinal;
     }
     Ok(())
 }
@@ -539,6 +993,44 @@ pub enum TerminalInstallationError {
     DuplicateProviderPlan(SelectedProviderPlanIdentity),
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
+    TooManyInstalledFunctions,
+    TooManyPortEffects,
+    TooManyBoundarySettlements,
+    TooManySettlementArguments,
+    TooManyClaimSettlements,
+    SettlementOffsetNotRepresentable,
+    FunctionOffsetNotRepresentable,
+    PortEffectOffsetNotRepresentable,
+    ZeroFunctionIdentity,
+    ZeroPortEffectIdentity(&'static str),
+    ZeroSettlementIdentity(&'static str),
+    ZeroProviderExecutionEvidence,
+    NoInstalledFunctions,
+    NonCanonicalInstalledFunctions,
+    EffectMachineMissing(MachineId),
+    NonCanonicalPortEffectOrder,
+    DuplicatePortEffectOperation {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    InvalidPortEffectOffset {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    ProviderSettlementClosureMismatch,
+    NonCanonicalBoundarySettlementOrder,
+    DuplicateBoundarySettlementOperation {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    InvalidBoundarySettlementOffset {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    BoundaryRealizationMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     CountNotRepresentable(&'static str),
     MissingCompilerTextValidation,
     ImageBindingMismatch,

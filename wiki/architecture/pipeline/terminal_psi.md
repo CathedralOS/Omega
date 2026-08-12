@@ -394,6 +394,16 @@ installation still consumes separate admission and placement authority. Debug
 maps are replaceable presentation metadata bound to the exact semantic identity
 and never participate in semantic meaning.
 
+For effectful Unit roots, the payload also retains the canonical function map,
+each privileged port effect's exact service/operation/byte range, and each
+bodyless settlement's exact admitted provider-execution binding and immediately
+preceding effect realization. A settlement emits no duplicate hardware effect;
+object and installation validation reject missing, reordered, byte-drifted, or
+raw-number-only realizations. The current x86-64 lane stages structural
+parameters into owned entry homes before effects or calls. AAPCS64 Unit calls
+remain rejected until their full aggregate, stack, link-register, and alignment
+path lands.
+
 ## Logical fuel
 
 `psi-terminal-fuel` owns accounting identity independently from terminal

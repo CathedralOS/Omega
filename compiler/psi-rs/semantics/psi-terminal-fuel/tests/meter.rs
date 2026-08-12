@@ -1,4 +1,7 @@
-use psi_core::{EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use psi_core::{
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
+    ScalarType, ServiceId, ValueId,
+};
 use psi_terminal::{CrashCause, Operation, OperationKind, Terminator, ValueDeclaration};
 use psi_terminal_fuel::{
     FuelChargeSite, FuelExhaustion, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter,
@@ -72,6 +75,32 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             TerminalFuelSchedule::CURRENT.operation_units(&kind),
             1,
             "each integer comparison, bitwise operation, or wrapping shift has one explicit schedule unit"
+        );
+    }
+    for kind in [
+        OperationKind::CallUnit {
+            callee: MachineId::new(1).unwrap(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        OperationKind::BoundaryCallUnit {
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            structural_arguments: Vec::new(),
+            claim_settlements: Vec::new(),
+            requirement_obligations: Vec::new(),
+        },
+        OperationKind::PortWrite {
+            service: ServiceId::new(1).unwrap(),
+            port: 0x3f8,
+            value: 0x5a,
+        },
+    ] {
+        assert_eq!(
+            TerminalFuelSchedule::CURRENT.operation_units(&kind),
+            1,
+            "every represented operation has the schedule's uniform one-unit cost"
         );
     }
     let operation = operation();
@@ -165,10 +194,10 @@ fn operation() -> Operation {
     );
     Operation {
         id: operation_id(1),
-        result: ValueDeclaration {
+        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
             id: value_id(1),
             scalar_type,
-        },
+        }),
         kind: OperationKind::IntegerConstant {
             value: IntegerValue::Signed(7),
         },

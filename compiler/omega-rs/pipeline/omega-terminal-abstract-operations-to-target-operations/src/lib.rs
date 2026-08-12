@@ -11,23 +11,35 @@ use omega_calling_conventions::{
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
-    TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
-    TerminalAbstractParameter,
+    TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
+    TerminalAbstractOperationPlan, TerminalAbstractParameter, TerminalAbstractResult,
 };
 use omega_terminal_target_operations::{
-    TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
-    TerminalTargetBooleanExpression, TerminalTargetCallArgument,
+    TerminalBoundarySettlementBinding, TerminalPsiProvenance, TerminalScalarParameterLocation,
+    TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
     TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
     TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
     TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
+    TerminalTargetStructuralArgument, TerminalTargetStructuralParameter, TerminalTargetUnitBody,
+    TerminalTargetUnitOperation,
 };
 use psi_core::{
-    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
+    ScalarType, StructuralTypeId, ValueId,
 };
+use psi_terminal::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 pub fn lower_to_target_operations(
     plan: &TerminalAbstractOperationPlan,
     target: NativeTarget,
+) -> Result<TerminalTargetOperationPlan, LoweringError> {
+    lower_to_target_operations_with_settlements(plan, target, &[])
+}
+
+pub fn lower_to_target_operations_with_settlements(
+    plan: &TerminalAbstractOperationPlan,
+    target: NativeTarget,
+    settlement_bindings: &[TerminalBoundarySettlementBinding],
 ) -> Result<TerminalTargetOperationPlan, LoweringError> {
     if !plan
         .functions
@@ -41,6 +53,47 @@ pub fn lower_to_target_operations(
         .iter()
         .map(|function| (function.machine, function))
         .collect::<BTreeMap<_, _>>();
+    let structural_types = plan
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    let mut settlements_by_boundary = BTreeMap::new();
+    for binding in settlement_bindings {
+        if settlements_by_boundary
+            .insert(binding.boundary, *binding)
+            .is_some()
+        {
+            return Err(LoweringError::DuplicateBoundarySettlement(binding.boundary));
+        }
+        if !plan
+            .boundary_machines
+            .iter()
+            .any(|boundary| boundary.id == binding.boundary)
+        {
+            return Err(LoweringError::UnknownBoundarySettlement(binding.boundary));
+        }
+    }
+    let required_settlements = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .filter_map(|operation| match operation {
+            TerminalAbstractOperation::BoundaryCallUnit { boundary, .. } => Some(*boundary),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    for boundary in &required_settlements {
+        if !settlements_by_boundary.contains_key(boundary) {
+            return Err(LoweringError::MissingBoundarySettlement(*boundary));
+        }
+    }
+    if let Some(extra) = settlements_by_boundary
+        .keys()
+        .find(|boundary| !required_settlements.contains(boundary))
+    {
+        return Err(LoweringError::UnusedBoundarySettlement(*extra));
+    }
     Ok(TerminalTargetOperationPlan {
         terminal_psi: plan.terminal_psi,
         target,
@@ -48,7 +101,15 @@ pub fn lower_to_target_operations(
         functions: plan
             .functions
             .iter()
-            .map(|function| lower_function(function, target, &functions_by_machine))
+            .map(|function| {
+                lower_function(
+                    function,
+                    target,
+                    &functions_by_machine,
+                    &structural_types,
+                    &settlements_by_boundary,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
@@ -57,7 +118,12 @@ fn lower_function(
     function: &TerminalAbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
+    let Some(function_result) = function.result.scalar() else {
+        return lower_unit_function(function, target, functions, structural_types, settlements);
+    };
     let mut values = BTreeMap::new();
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = None;
@@ -68,8 +134,8 @@ fn lower_function(
             .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
             .collect::<Result<Vec<_>, _>>()?,
         result: Some(scalar_shape(
-            function.result.value,
-            function.result.scalar_type,
+            function_result.value,
+            function_result.scalar_type,
             false,
         )?),
     };
@@ -113,7 +179,7 @@ fn lower_function(
         .iter()
         .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
     {
-        return match function.result.scalar_type {
+        return match function_result.scalar_type {
             ScalarType::Integer(_) => {
                 lower_integer_conditional(function, &values, target, functions)
             }
@@ -126,6 +192,14 @@ fn lower_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::CallUnit { psi_operation, .. }
+            | TerminalAbstractOperation::BoundaryCallUnit { psi_operation, .. }
+            | TerminalAbstractOperation::PortWrite { psi_operation, .. } => {
+                return Err(LoweringError::UnitOperationInScalarFunction {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             TerminalAbstractOperation::Call {
                 psi_operation,
                 result,
@@ -1113,7 +1187,7 @@ fn lower_function(
                 value,
                 scalar_type,
             } => {
-                if *result != function.result.value || *scalar_type != function.result.scalar_type {
+                if *result != function_result.value || *scalar_type != function_result.scalar_type {
                     return Err(LoweringError::FunctionResultMismatch(function.machine));
                 }
                 let returned_value = values
@@ -1203,6 +1277,9 @@ fn lower_function(
                     }
                 });
             }
+            TerminalAbstractOperation::ReturnUnit { .. } => {
+                return Err(LoweringError::FunctionResultKindMismatch(function.machine));
+            }
         }
     }
 
@@ -1211,6 +1288,328 @@ fn lower_function(
         provenance,
         operation: returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?,
     })
+}
+
+fn lower_unit_function(
+    function: &TerminalAbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
+) -> Result<TerminalTargetFunction, LoweringError> {
+    if !function.parameters.is_empty() {
+        return Err(LoweringError::UnitFunctionHasScalarParameters(
+            function.machine,
+        ));
+    }
+    if function.block_entries.len() != 1 || function.block_entries[0].block != function.entry {
+        return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
+    }
+
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let parameter_shapes = function
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            structural_shape(
+                parameter.structural_type,
+                structural_types,
+                &mut shape_cache,
+                &mut active,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let signature = CallSignature {
+        parameters: parameter_shapes.clone(),
+        result: None,
+    };
+    let call_plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
+        .map_err(LoweringError::AbiPlan)?;
+    if call_plan.parameters.len() != function.structural_parameters.len() {
+        return Err(LoweringError::AbiParameterCountMismatch {
+            expected: function.structural_parameters.len(),
+            actual: call_plan.parameters.len(),
+        });
+    }
+    let parameters = function
+        .structural_parameters
+        .iter()
+        .zip(parameter_shapes)
+        .zip(&call_plan.parameters)
+        .map(
+            |((parameter, shape), placement)| TerminalTargetStructuralParameter {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                shape,
+                placement: placement.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
+    let parameters_by_place = parameters
+        .iter()
+        .map(|parameter| (parameter.place, parameter))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut operations = Vec::with_capacity(function.operations.len());
+    let mut provenance = TerminalPsiProvenance::default();
+    let mut returned = false;
+    for operation in &function.operations {
+        if returned {
+            return Err(LoweringError::OperationAfterReturn(function.machine));
+        }
+        match operation {
+            TerminalAbstractOperation::CallUnit {
+                psi_operation,
+                callee,
+                structural_arguments,
+                claim_transfers,
+            } => {
+                let callee_function = functions
+                    .get(callee)
+                    .copied()
+                    .ok_or(LoweringError::UnknownCallTarget(*callee))?;
+                if callee_function.result != TerminalAbstractFunctionResult::Unit
+                    || !callee_function.parameters.is_empty()
+                {
+                    return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+                }
+                if structural_arguments.len() != callee_function.structural_parameters.len() {
+                    return Err(LoweringError::StructuralCallArgumentCountMismatch {
+                        callee: *callee,
+                        expected: callee_function.structural_parameters.len(),
+                        actual: structural_arguments.len(),
+                    });
+                }
+                let callee_shapes = callee_function
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| {
+                        structural_shape(
+                            parameter.structural_type,
+                            structural_types,
+                            &mut shape_cache,
+                            &mut active,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let callee_plan = evaluate_call_plan(
+                    CallingPolicy::native_for_target(target),
+                    &CallSignature {
+                        parameters: callee_shapes.clone(),
+                        result: None,
+                    },
+                )
+                .map_err(LoweringError::AbiPlan)?;
+                let arguments = structural_arguments
+                    .iter()
+                    .zip(&callee_function.structural_parameters)
+                    .zip(callee_shapes)
+                    .zip(&callee_plan.parameters)
+                    .map(|(((argument, callee_parameter), shape), destination)| {
+                        let source = parameters_by_place.get(&argument.place).copied().ok_or(
+                            LoweringError::UnknownStructuralArgumentPlace {
+                                machine: function.machine,
+                                place: argument.place,
+                            },
+                        )?;
+                        if source.structural_type != callee_parameter.structural_type
+                            || source.shape != shape
+                        {
+                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                                callee: *callee,
+                                place: argument.place,
+                            });
+                        }
+                        Ok(TerminalTargetStructuralArgument {
+                            place: argument.place,
+                            structural_type: source.structural_type,
+                            shape,
+                            source: source.placement.clone(),
+                            destination: destination.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                operations.push(TerminalTargetUnitOperation::Call {
+                    psi_operation: *psi_operation,
+                    callee: *callee,
+                    arguments,
+                    claim_transfers: claim_transfers.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+            }
+            TerminalAbstractOperation::PortWrite {
+                psi_operation,
+                service,
+                port,
+                value,
+            } => {
+                operations.push(TerminalTargetUnitOperation::PortWrite {
+                    psi_operation: *psi_operation,
+                    service: *service,
+                    port: *port,
+                    value: *value,
+                });
+                provenance.operations.push(*psi_operation);
+            }
+            TerminalAbstractOperation::BoundaryCallUnit {
+                psi_operation,
+                boundary,
+                structural_arguments,
+                claim_settlements,
+            } => {
+                let binding = settlements
+                    .get(boundary)
+                    .copied()
+                    .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
+                let realization = binding.realization;
+                if !matches!(
+                    operations.last(),
+                    Some(TerminalTargetUnitOperation::PortWrite {
+                        psi_operation,
+                        service,
+                        port,
+                        value,
+                    }) if *psi_operation == realization.effect_operation
+                        && *service == realization.service
+                        && *port == realization.port
+                        && *value == realization.value
+                ) {
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                }
+                for argument in structural_arguments {
+                    if !parameters_by_place.contains_key(&argument.place) {
+                        return Err(LoweringError::UnknownStructuralArgumentPlace {
+                            machine: function.machine,
+                            place: argument.place,
+                        });
+                    }
+                }
+                operations.push(TerminalTargetUnitOperation::BoundarySettlement {
+                    psi_operation: *psi_operation,
+                    boundary: *boundary,
+                    provider_execution: binding.provider_execution,
+                    realization,
+                    argument_places: structural_arguments
+                        .iter()
+                        .map(|argument| argument.place)
+                        .collect(),
+                    claim_settlements: claim_settlements.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+            }
+            TerminalAbstractOperation::ReturnUnit { psi_edge } => {
+                operations.push(TerminalTargetUnitOperation::Return {
+                    psi_edge: *psi_edge,
+                });
+                provenance.edges.push(*psi_edge);
+                returned = true;
+            }
+            TerminalAbstractOperation::Crash { .. }
+            | TerminalAbstractOperation::Call { .. }
+            | TerminalAbstractOperation::IntegerConstant { .. }
+            | TerminalAbstractOperation::BooleanConstant { .. }
+            | TerminalAbstractOperation::BooleanNot { .. }
+            | TerminalAbstractOperation::BooleanEqual { .. }
+            | TerminalAbstractOperation::IntegerEqual { .. }
+            | TerminalAbstractOperation::IntegerLessThan { .. }
+            | TerminalAbstractOperation::IntegerLessOrEqual { .. }
+            | TerminalAbstractOperation::IntegerBitwiseNot { .. }
+            | TerminalAbstractOperation::IntegerWiden { .. }
+            | TerminalAbstractOperation::IntegerExactCast { .. }
+            | TerminalAbstractOperation::IntegerBitwiseAnd { .. }
+            | TerminalAbstractOperation::IntegerBitwiseOr { .. }
+            | TerminalAbstractOperation::IntegerBitwiseXor { .. }
+            | TerminalAbstractOperation::WrappingIntegerShiftLeft { .. }
+            | TerminalAbstractOperation::WrappingIntegerShiftRight { .. }
+            | TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
+            | TerminalAbstractOperation::ExactIntegerShiftRight { .. }
+            | TerminalAbstractOperation::WrappingIntegerAdd { .. }
+            | TerminalAbstractOperation::SaturatingIntegerAdd { .. }
+            | TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+            | TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
+            | TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+            | TerminalAbstractOperation::SaturatingIntegerMultiply { .. }
+            | TerminalAbstractOperation::ExactIntegerDivide { .. }
+            | TerminalAbstractOperation::ExactIntegerRemainder { .. }
+            | TerminalAbstractOperation::WrappingIntegerDivide { .. }
+            | TerminalAbstractOperation::WrappingIntegerRemainder { .. }
+            | TerminalAbstractOperation::SaturatingIntegerDivide { .. }
+            | TerminalAbstractOperation::SaturatingIntegerRemainder { .. }
+            | TerminalAbstractOperation::Jump { .. }
+            | TerminalAbstractOperation::Conditional { .. }
+            | TerminalAbstractOperation::Return { .. } => {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+        }
+    }
+    if !returned {
+        return Err(LoweringError::FunctionHasNoReturn(function.machine));
+    }
+    Ok(TerminalTargetFunction {
+        machine: function.machine,
+        provenance,
+        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+            call_plan,
+            parameters,
+            operations,
+        }),
+    })
+}
+
+fn structural_shape(
+    structural_type: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<ValueShape, LoweringError> {
+    if let Some(shape) = cache.get(&structural_type) {
+        return Ok(*shape);
+    }
+    if !active.insert(structural_type) {
+        return Err(LoweringError::RecursiveStructuralType(structural_type));
+    }
+    let declaration = declarations
+        .get(&structural_type)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape;
+    if fields.is_empty() {
+        return Err(LoweringError::EmptyStructuralType(structural_type));
+    }
+    let mut byte_size = 0_u32;
+    let mut alignment = 1_u16;
+    for field in fields {
+        let field_shape = match field.field_type {
+            StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
+            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                let size = integer.bits().div_ceil(8);
+                let field_alignment = size.next_power_of_two().min(16);
+                ValueShape::integer(size, field_alignment)
+            }
+            StructuralFieldType::Structural(nested) => {
+                structural_shape(nested, declarations, cache, active)?
+            }
+        };
+        alignment = alignment.max(field_shape.alignment);
+        byte_size = align_up_u32(byte_size, u32::from(field_shape.alignment));
+        byte_size = byte_size
+            .checked_add(u32::from(field_shape.byte_size))
+            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+    }
+    byte_size = align_up_u32(byte_size, u32::from(alignment));
+    let byte_size = u16::try_from(byte_size)
+        .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?;
+    let shape = ValueShape::integer(byte_size, alignment);
+    active.remove(&structural_type);
+    cache.insert(structural_type, shape);
+    Ok(shape)
+}
+
+fn align_up_u32(value: u32, alignment: u32) -> u32 {
+    value.next_multiple_of(alignment)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1228,6 +1627,7 @@ fn lower_call(
         .get(&callee)
         .copied()
         .ok_or(LoweringError::UnknownCallTarget(callee))?;
+    let callee_result = scalar_function_result(callee_function)?;
     let callee_signature = CallSignature {
         parameters: callee_function
             .parameters
@@ -1235,8 +1635,8 @@ fn lower_call(
             .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
             .collect::<Result<Vec<_>, _>>()?,
         result: Some(scalar_shape(
-            callee_function.result.value,
-            callee_function.result.scalar_type,
+            callee_result.value,
+            callee_result.scalar_type,
             false,
         )?),
     };
@@ -1300,7 +1700,8 @@ fn lower_integer_conditional(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
-    let ScalarType::Integer(result_type) = function.result.scalar_type else {
+    let function_result = scalar_function_result(function)?;
+    let ScalarType::Integer(result_type) = function_result.scalar_type else {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
             function.machine,
         ));
@@ -1541,7 +1942,9 @@ fn lower_boolean_block(
             value,
             scalar_type,
         } => {
-            if *result != function.result.value || *scalar_type != ScalarType::Boolean {
+            if *result != scalar_function_result(function)?.value
+                || *scalar_type != ScalarType::Boolean
+            {
                 return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                     function.machine,
                 ));
@@ -1911,7 +2314,8 @@ fn lower_conditional_block(
             value,
             scalar_type,
         } => {
-            if *result != function.result.value || *scalar_type != function.result.scalar_type {
+            let function_result = scalar_function_result(function)?;
+            if *result != function_result.value || *scalar_type != function_result.scalar_type {
                 return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                     function.machine,
                 ));
@@ -3029,6 +3433,15 @@ impl IntegerBinaryKind {
     }
 }
 
+fn scalar_function_result(
+    function: &TerminalAbstractFunction,
+) -> Result<TerminalAbstractResult, LoweringError> {
+    function
+        .result
+        .scalar()
+        .ok_or(LoweringError::FunctionResultKindMismatch(function.machine))
+}
+
 fn scalar_shape(
     value: ValueId,
     scalar_type: ScalarType,
@@ -3354,7 +3767,10 @@ fn conditional_provenance(
     let mut provenance = TerminalPsiProvenance::default();
     for operation in &function.operations {
         let psi_operation = match operation {
-            TerminalAbstractOperation::Call { psi_operation, .. }
+            TerminalAbstractOperation::CallUnit { psi_operation, .. }
+            | TerminalAbstractOperation::BoundaryCallUnit { psi_operation, .. }
+            | TerminalAbstractOperation::PortWrite { psi_operation, .. }
+            | TerminalAbstractOperation::Call { psi_operation, .. }
             | TerminalAbstractOperation::IntegerConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
             | TerminalAbstractOperation::BooleanNot { psi_operation, .. }
@@ -3401,6 +3817,7 @@ fn conditional_provenance(
             TerminalAbstractOperation::Jump { .. }
             | TerminalAbstractOperation::Conditional { .. }
             | TerminalAbstractOperation::Return { .. }
+            | TerminalAbstractOperation::ReturnUnit { .. }
             | TerminalAbstractOperation::Crash { .. } => None,
         };
         if let Some(psi_operation) = psi_operation
@@ -3411,6 +3828,7 @@ fn conditional_provenance(
         match operation {
             TerminalAbstractOperation::Jump { psi_edge, .. }
             | TerminalAbstractOperation::Return { psi_edge, .. }
+            | TerminalAbstractOperation::ReturnUnit { psi_edge }
             | TerminalAbstractOperation::Crash { psi_edge, .. } => {
                 if edges.remove(psi_edge) {
                     provenance.edges.push(*psi_edge);
@@ -3438,9 +3856,40 @@ fn conditional_provenance(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     EntryFunctionMissing(MachineId),
+    DuplicateBoundarySettlement(BoundaryMachineId),
+    UnknownBoundarySettlement(BoundaryMachineId),
+    MissingBoundarySettlement(BoundaryMachineId),
+    UnusedBoundarySettlement(BoundaryMachineId),
+    BoundaryRealizationMismatch(BoundaryMachineId),
     OperationAfterReturn(MachineId),
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
+    FunctionResultKindMismatch(MachineId),
+    UnitFunctionHasScalarParameters(MachineId),
+    UnitFunctionNotStraightLine(MachineId),
+    UnitOperationInScalarFunction {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    UnsupportedOperationInUnitFunction(MachineId),
+    UnitCallTargetKindMismatch(MachineId),
+    StructuralCallArgumentCountMismatch {
+        callee: MachineId,
+        expected: usize,
+        actual: usize,
+    },
+    UnknownStructuralArgumentPlace {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    StructuralCallArgumentTypeMismatch {
+        callee: MachineId,
+        place: PlaceId,
+    },
+    UnknownStructuralType(StructuralTypeId),
+    RecursiveStructuralType(StructuralTypeId),
+    EmptyStructuralType(StructuralTypeId),
+    StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeBoolean(ValueId),
     ConditionalArmBindingTypeMismatch(psi_core::EdgeId),
@@ -3506,8 +3955,12 @@ mod tests {
         TerminalValueBinding,
     };
     use omega_terminal_target_operations::MachineRegister;
-    use psi_core::{BlockId, EdgeId};
-    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use psi_core::{BlockId, EdgeId, PlaceId, StructuralFieldId, StructuralTypeId};
+    use psi_terminal::{
+        BoundaryMachineDeclaration, SemanticFingerprint, StructuralFieldDeclaration,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+    };
 
     #[test]
     fn refuses_a_return_whose_value_was_never_materialized() {
@@ -3518,14 +3971,20 @@ mod tests {
         let plan = TerminalAbstractOperationPlan {
             terminal_psi: identity(),
             entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
+                attachment: None,
                 entry: BlockId::new(1).expect("block"),
                 parameters: Vec::new(),
-                result: TerminalAbstractResult {
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
                     value: result,
                     scalar_type: ScalarType::Integer(i32_type),
-                },
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 block_entries: Vec::new(),
                 operations: vec![TerminalAbstractOperation::Return {
                     psi_edge: EdgeId::new(1).expect("edge"),
@@ -3539,6 +3998,245 @@ mod tests {
         assert_eq!(
             lower_to_target_operations(&plan, NativeTarget::linux_x64()),
             Err(LoweringError::UnknownValue(unknown))
+        );
+    }
+
+    #[test]
+    fn unit_structural_call_selects_exact_forty_byte_native_placements() {
+        let root = MachineId::new(1).unwrap();
+        let callee = MachineId::new(2).unwrap();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let root_place = PlaceId::new(1).unwrap();
+        let callee_place = PlaceId::new(2).unwrap();
+        let u64_type =
+            ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
+        let structural_types = vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Acknowledgement".into(),
+            shape: StructuralTypeShape::Record {
+                fields: (1..=5)
+                    .map(|id| StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(id).unwrap(),
+                        identity: format!("field_{id}"),
+                        field_type: StructuralFieldType::Scalar(u64_type),
+                    })
+                    .collect(),
+            },
+        }];
+        let parameter = |place| StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: Vec::new(),
+        };
+        let unit_function = |machine, place, operations| TerminalAbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(machine.get()).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![parameter(place)],
+            result: TerminalAbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![
+                omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                    block: BlockId::new(machine.get()).unwrap(),
+                    operation_offset: 0,
+                },
+            ],
+            operations,
+        };
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: root,
+            structural_types,
+            boundary_machines: Vec::new(),
+            functions: vec![
+                unit_function(
+                    root,
+                    root_place,
+                    vec![
+                        TerminalAbstractOperation::CallUnit {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            callee,
+                            structural_arguments: vec![psi_terminal::StructuralArgument {
+                                place: root_place,
+                            }],
+                            claim_transfers: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: EdgeId::new(1).unwrap(),
+                        },
+                    ],
+                ),
+                unit_function(
+                    callee,
+                    callee_place,
+                    vec![TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(2).unwrap(),
+                    }],
+                ),
+            ],
+        };
+
+        let linux = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        let TerminalTargetOperation::UnitBody(linux_root) = &linux.functions[0].operation else {
+            panic!("root must remain Unit")
+        };
+        assert_eq!(linux_root.parameters[0].shape, ValueShape::integer(40, 8));
+        assert_eq!(linux_root.parameters[0].placement.locations.len(), 5);
+        assert!(
+            linux_root.parameters[0]
+                .placement
+                .locations
+                .iter()
+                .enumerate()
+                .all(|(index, location)| matches!(
+                    location,
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset,
+                        byte_size: 8,
+                        alignment: 8,
+                    } if *stack_byte_offset == index as u32 * 8
+                        && *value_byte_offset == index as u16 * 8
+                ))
+        );
+        let TerminalTargetUnitOperation::Call { arguments, .. } = &linux_root.operations[0] else {
+            panic!("root must call helper")
+        };
+        assert_eq!(arguments[0].source, arguments[0].destination);
+
+        let windows = lower_to_target_operations(&plan, NativeTarget::windows_x64()).unwrap();
+        let TerminalTargetOperation::UnitBody(windows_root) = &windows.functions[0].operation
+        else {
+            panic!("root must remain Unit")
+        };
+        assert!(matches!(
+            windows_root.parameters[0].placement.locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                    MachineRegister::X86Rcx
+                ),
+                byte_size: 40,
+                alignment: 8,
+                ..
+            }]
+        ));
+        let TerminalTargetUnitOperation::Call { arguments, .. } = &windows_root.operations[0]
+        else {
+            panic!("root must call helper")
+        };
+        assert_eq!(arguments[0].source, arguments[0].destination);
+    }
+
+    #[test]
+    fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
+        use omega_terminal_target_operations::{
+            TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+            TerminalProviderPlanIdentity,
+        };
+
+        let machine = MachineId::new(1).unwrap();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let port_operation = OperationId::new(1).unwrap();
+        let settlement_operation = OperationId::new(2).unwrap();
+        let service = psi_core::ServiceId::new(1).unwrap();
+        let provider_execution = TerminalProviderExecutionBinding::from_admitted_execution(
+            TerminalProviderPlanIdentity::new(7).unwrap(),
+            8,
+            9,
+            10,
+            11,
+        )
+        .unwrap();
+        let realization = TerminalMetadataOnlyPortRealization {
+            effect_operation: port_operation,
+            service,
+            port: 0x20,
+            value: 0x20,
+        };
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
+            entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: vec![BoundaryMachineDeclaration {
+                id: boundary,
+                identity: "InterruptAcknowledgement::complete".into(),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                requires: Vec::new(),
+                published_service_ceiling: vec![service],
+            }],
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                attachment: None,
+                entry: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
+                published_service_ceiling: vec![service],
+                block_entries: vec![
+                    omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                        block: BlockId::new(1).unwrap(),
+                        operation_offset: 0,
+                    },
+                ],
+                operations: vec![
+                    TerminalAbstractOperation::PortWrite {
+                        psi_operation: port_operation,
+                        service,
+                        port: 0x20,
+                        value: 0x20,
+                    },
+                    TerminalAbstractOperation::BoundaryCallUnit {
+                        psi_operation: settlement_operation,
+                        boundary,
+                        structural_arguments: Vec::new(),
+                        claim_settlements: Vec::new(),
+                    },
+                    TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(1).unwrap(),
+                    },
+                ],
+            }],
+        };
+        let binding = TerminalBoundarySettlementBinding {
+            boundary,
+            provider_execution,
+            realization,
+        };
+        let lowered = lower_to_target_operations_with_settlements(
+            &plan,
+            NativeTarget::linux_x64(),
+            &[binding],
+        )
+        .expect("exact effect evidence");
+        let TerminalTargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+            panic!("Unit body")
+        };
+        assert!(matches!(
+            body.operations[1],
+            TerminalTargetUnitOperation::BoundarySettlement {
+                provider_execution: actual,
+                realization: actual_realization,
+                ..
+            } if actual == provider_execution && actual_realization == realization
+        ));
+
+        let wrong = TerminalBoundarySettlementBinding {
+            realization: TerminalMetadataOnlyPortRealization {
+                value: 0x21,
+                ..realization
+            },
+            ..binding
+        };
+        assert_eq!(
+            lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[wrong],),
+            Err(LoweringError::BoundaryRealizationMismatch(boundary))
         );
     }
 
@@ -3632,7 +4330,7 @@ mod tests {
         let mut plan = parameter_return_plan(2);
         let function = &mut plan.functions[0];
         let sum = ValueId::new(50).expect("sum");
-        let scalar_type = match function.result.scalar_type {
+        let scalar_type = match scalar_result(function).scalar_type {
             ScalarType::Integer(integer) => integer,
             ScalarType::Boolean => unreachable!("fixture is integer"),
         };
@@ -3690,7 +4388,7 @@ mod tests {
         let left = ValueId::new(50).expect("left");
         let right = ValueId::new(51).expect("right");
         let difference = ValueId::new(52).expect("difference");
-        let scalar_type = match function.result.scalar_type {
+        let scalar_type = match scalar_result(function).scalar_type {
             ScalarType::Integer(integer) => integer,
             ScalarType::Boolean => unreachable!("fixture is integer"),
         };
@@ -3744,7 +4442,7 @@ mod tests {
         let left = ValueId::new(50).expect("left");
         let right = ValueId::new(51).expect("right");
         let difference = ValueId::new(52).expect("difference");
-        let scalar_type = match function.result.scalar_type {
+        let scalar_type = match scalar_result(function).scalar_type {
             ScalarType::Integer(integer) => integer,
             ScalarType::Boolean => unreachable!("fixture is integer"),
         };
@@ -3798,7 +4496,7 @@ mod tests {
         let left = ValueId::new(50).expect("left");
         let right = ValueId::new(51).expect("right");
         let product = ValueId::new(52).expect("product");
-        let scalar_type = match function.result.scalar_type {
+        let scalar_type = match scalar_result(function).scalar_type {
             ScalarType::Integer(integer) => integer,
             ScalarType::Boolean => unreachable!("fixture is integer"),
         };
@@ -3852,7 +4550,7 @@ mod tests {
         let left = ValueId::new(50).expect("left");
         let right = ValueId::new(51).expect("right");
         let product = ValueId::new(52).expect("product");
-        let scalar_type = match function.result.scalar_type {
+        let scalar_type = match scalar_result(function).scalar_type {
             ScalarType::Integer(integer) => integer,
             ScalarType::Boolean => unreachable!("fixture is integer"),
         };
@@ -3904,7 +4602,7 @@ mod tests {
         let mut plan = parameter_return_plan(1);
         let function = &mut plan.functions[0];
         function.parameters[0].scalar_type = ScalarType::Boolean;
-        function.result.scalar_type = ScalarType::Boolean;
+        scalar_result_mut(function).scalar_type = ScalarType::Boolean;
         let TerminalAbstractOperation::Return { scalar_type, .. } = &mut function.operations[0]
         else {
             unreachable!("fixture ends in return")
@@ -3929,7 +4627,7 @@ mod tests {
         for parameter in &mut function.parameters {
             parameter.scalar_type = ScalarType::Boolean;
         }
-        function.result.scalar_type = ScalarType::Boolean;
+        scalar_result_mut(function).scalar_type = ScalarType::Boolean;
         let result = ValueId::new(50).expect("equality result");
         function.operations.insert(
             0,
@@ -3981,7 +4679,7 @@ mod tests {
             ScalarType::Integer(integer_type) => integer_type,
             ScalarType::Boolean => unreachable!("fixture has integer parameters"),
         };
-        function.result.scalar_type = ScalarType::Boolean;
+        scalar_result_mut(function).scalar_type = ScalarType::Boolean;
         let result = ValueId::new(51).expect("integer-equality result");
         function.operations.insert(
             0,
@@ -4093,17 +4791,23 @@ mod tests {
         TerminalAbstractOperationPlan {
             terminal_psi: identity(),
             entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
+                attachment: None,
                 entry: BlockId::new(1).expect("entry block"),
                 parameters: vec![TerminalAbstractParameter {
                     value: argument,
                     scalar_type,
                 }],
-                result: TerminalAbstractResult {
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
                     value: result,
                     scalar_type,
-                },
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                         block: BlockId::new(1).expect("entry block"),
@@ -4191,14 +4895,20 @@ mod tests {
         TerminalAbstractOperationPlan {
             terminal_psi: identity(),
             entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
             functions: vec![TerminalAbstractFunction {
                 machine,
+                attachment: None,
                 entry: BlockId::new(10).expect("block"),
                 parameters,
-                result: TerminalAbstractResult {
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
                     value: result,
                     scalar_type,
-                },
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 block_entries: Vec::new(),
                 operations: vec![TerminalAbstractOperation::Return {
                     psi_edge: EdgeId::new(10).expect("edge"),
@@ -4232,15 +4942,21 @@ mod tests {
         TerminalAbstractOperationPlan {
             terminal_psi: identity(),
             entry: caller,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
             functions: vec![
                 TerminalAbstractFunction {
                     machine: caller,
+                    attachment: None,
                     entry: BlockId::new(1).expect("caller block"),
                     parameters: caller_parameters.clone(),
-                    result: TerminalAbstractResult {
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
                         value: caller_result,
                         scalar_type,
-                    },
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
                     block_entries: Vec::new(),
                     operations: vec![
                         TerminalAbstractOperation::Call {
@@ -4263,12 +4979,16 @@ mod tests {
                 },
                 TerminalAbstractFunction {
                     machine: callee,
+                    attachment: None,
                     entry: BlockId::new(2).expect("callee block"),
                     parameters: callee_parameters.clone(),
-                    result: TerminalAbstractResult {
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
                         value: callee_result,
                         scalar_type,
-                    },
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
                     block_entries: Vec::new(),
                     operations: vec![TerminalAbstractOperation::Return {
                         psi_edge: EdgeId::new(2).expect("callee return"),
@@ -4286,5 +5006,16 @@ mod tests {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
         }
+    }
+
+    fn scalar_result(function: &TerminalAbstractFunction) -> TerminalAbstractResult {
+        function.result.scalar().expect("fixture is scalar")
+    }
+
+    fn scalar_result_mut(function: &mut TerminalAbstractFunction) -> &mut TerminalAbstractResult {
+        let TerminalAbstractFunctionResult::Scalar(result) = &mut function.result else {
+            panic!("fixture is scalar")
+        };
+        result
     }
 }

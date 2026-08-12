@@ -1,18 +1,21 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentConservation, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId, ObligationId, OperationId,
-    PlaceId, Proposition, PropositionContext, PropositionError, PropositionId, ScalarTerm,
-    ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ContentPartitionComposition, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-    OperationKind, PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, ContentPartitionComposition,
+    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, OperationKind,
+    PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
 };
 
-use crate::verification::substitute_proposition_values;
+use crate::verification::{substitute_proposition_places, substitute_proposition_values};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {
@@ -46,10 +49,33 @@ impl<'module> ValidatedTerminalModule<'module> {
 pub fn validate_module(
     module: &TerminalModule,
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
+    validate_module_with_policy(module, ValidationPolicy::Execution)?;
+    Ok(ValidatedTerminalModule { module })
+}
+
+/// Validate the representation-wide invariants needed by canonical codecs.
+///
+/// This remains a distinct entry point so canonical representation checks do
+/// not themselves confer an execution-grade `ValidatedTerminalModule`.
+pub fn validate_module_representation(module: &TerminalModule) -> Result<(), ModuleError> {
+    validate_module_with_policy(module, ValidationPolicy::Representation)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ValidationPolicy {
+    Execution,
+    Representation,
+}
+
+fn validate_module_with_policy(
+    module: &TerminalModule,
+    policy: ValidationPolicy,
+) -> Result<(), ModuleError> {
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
     validate_proposition_vocabulary(module)?;
+    validate_structural_foundation(module)?;
 
     let mut registry = IdRegistry::default();
     for machine in &module.machines {
@@ -70,14 +96,14 @@ pub fn validate_module(
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
     for machine in &module.machines {
-        validate_machine(machine, &machines, &mut registry)?;
+        validate_machine(module, machine, &machines, &mut registry, policy)?;
     }
     validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));
     }
 
-    Ok(ValidatedTerminalModule { module })
+    Ok(())
 }
 
 fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
@@ -90,7 +116,9 @@ fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
                 .iter()
                 .flat_map(|block| &block.operations)
                 .filter_map(|operation| match &operation.kind {
-                    OperationKind::Call { callee, .. } => Some(*callee),
+                    OperationKind::Call { callee, .. } | OperationKind::CallUnit { callee, .. } => {
+                        Some(*callee)
+                    }
                     _ => None,
                 })
                 .collect::<BTreeSet<_>>();
@@ -249,6 +277,441 @@ fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), Module
     Ok(())
 }
 
+fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleError> {
+    let mut types = BTreeMap::new();
+    let mut type_names = BTreeSet::new();
+    for declaration in &module.structural_types {
+        if types.insert(declaration.id, declaration).is_some() {
+            return Err(ModuleError::DuplicateStructuralType(declaration.id));
+        }
+        if declaration.identity.is_empty() || !type_names.insert(declaration.identity.as_str()) {
+            return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
+        }
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        let mut field_ids = BTreeSet::new();
+        let mut field_names = BTreeSet::new();
+        for field in fields {
+            if !field_ids.insert(field.id)
+                || field.identity.is_empty()
+                || !field_names.insert(field.identity.as_str())
+            {
+                return Err(ModuleError::InvalidStructuralFieldIdentity {
+                    structural_type: declaration.id,
+                    field: field.id,
+                });
+            }
+        }
+    }
+    for declaration in &module.structural_types {
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        for field in fields {
+            if let StructuralFieldType::Structural(target) = field.field_type
+                && !types.contains_key(&target)
+            {
+                return Err(ModuleError::UnknownStructuralType(target));
+            }
+        }
+    }
+    validate_structural_type_graph(&types)?;
+
+    let mut domains = BTreeMap::new();
+    let mut domain_names = BTreeSet::new();
+    for declaration in &module.structural_domains {
+        if domains.insert(declaration.id, declaration).is_some() {
+            return Err(ModuleError::DuplicateStructuralDomain(declaration.id));
+        }
+        if declaration.identity.is_empty() || !domain_names.insert(declaration.identity.as_str()) {
+            return Err(ModuleError::InvalidStructuralDomainIdentity(declaration.id));
+        }
+        if !types.contains_key(&declaration.carrier) {
+            return Err(ModuleError::UnknownStructuralType(declaration.carrier));
+        }
+    }
+
+    let mut services = BTreeMap::new();
+    let mut service_names = BTreeSet::new();
+    for declaration in &module.services {
+        if services.insert(declaration.id, declaration).is_some() {
+            return Err(ModuleError::DuplicateService(declaration.id));
+        }
+        if declaration.identity.is_empty() || !service_names.insert(declaration.identity.as_str()) {
+            return Err(ModuleError::InvalidServiceIdentity(declaration.id));
+        }
+    }
+    for declaration in &module.services {
+        let mut parents = BTreeSet::new();
+        for parent in &declaration.parents {
+            if *parent == declaration.id
+                || !parents.insert(*parent)
+                || !services.contains_key(parent)
+            {
+                return Err(ModuleError::InvalidServiceParent {
+                    service: declaration.id,
+                    parent: *parent,
+                });
+            }
+        }
+    }
+    validate_service_graph(&services)?;
+
+    let mut boundary_ids = BTreeSet::new();
+    let mut boundary_names = BTreeSet::new();
+    for boundary in &module.boundary_machines {
+        if !boundary_ids.insert(boundary.id) {
+            return Err(ModuleError::DuplicateBoundaryMachine(boundary.id));
+        }
+        if boundary.identity.is_empty() || !boundary_names.insert(boundary.identity.as_str()) {
+            return Err(ModuleError::InvalidBoundaryMachineIdentity(boundary.id));
+        }
+        validate_attachment(boundary.id, boundary.attachment, &types)?;
+        validate_structural_signature(
+            &boundary.structural_parameters,
+            boundary.attachment,
+            &types,
+            &domains,
+            StructuralSignatureOwner::Boundary(boundary.id),
+        )?;
+        validate_service_ceiling(
+            &boundary.published_service_ceiling,
+            &services,
+            ServiceCeilingOwner::Boundary(boundary.id),
+        )?;
+        let mut requirements = BTreeSet::new();
+        for requirement in &boundary.requires {
+            if !requirements.insert(*requirement) {
+                return Err(ModuleError::DuplicateBoundaryRequirement {
+                    boundary: boundary.id,
+                    argument_index: requirement.argument_index,
+                    domain: requirement.domain,
+                });
+            }
+            let Some(parameter) = boundary
+                .structural_parameters
+                .get(requirement.argument_index as usize)
+            else {
+                return Err(ModuleError::BoundaryRequirementArgumentOutOfRange {
+                    boundary: boundary.id,
+                    argument_index: requirement.argument_index,
+                });
+            };
+            let Some(domain) = domains.get(&requirement.domain) else {
+                return Err(ModuleError::UnknownStructuralDomain(requirement.domain));
+            };
+            if domain.carrier != parameter.structural_type {
+                return Err(ModuleError::StructuralDomainCarrierMismatch {
+                    domain: domain.id,
+                    expected: parameter.structural_type,
+                    actual: domain.carrier,
+                });
+            }
+        }
+    }
+
+    for machine in &module.machines {
+        validate_attachment(machine.id, machine.attachment, &types)?;
+        validate_structural_signature(
+            &machine.structural_parameters,
+            machine.attachment,
+            &types,
+            &domains,
+            StructuralSignatureOwner::Machine(machine.id),
+        )?;
+        if !machine.structural_parameters.is_empty() {
+            for parameter in &machine.structural_parameters {
+                let expected = StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                };
+                if !machine
+                    .structural_places
+                    .iter()
+                    .any(|place| place.id == parameter.place && place.kind == expected)
+                {
+                    return Err(ModuleError::StructuralParameterPlaceMismatch {
+                        machine: machine.id,
+                        place: parameter.place,
+                    });
+                }
+            }
+            for place in &machine.structural_places {
+                if matches!(place.kind, StructuralPlaceKind::Parameter { .. })
+                    && !machine
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == place.id)
+                {
+                    return Err(ModuleError::StructuralPlaceHasNoParameter {
+                        machine: machine.id,
+                        place: place.id,
+                    });
+                }
+            }
+        }
+        validate_service_ceiling(
+            &machine.published_service_ceiling,
+            &services,
+            ServiceCeilingOwner::Machine(machine.id),
+        )?;
+        validate_machine_entry_claims(machine)?;
+    }
+    Ok(())
+}
+
+fn validate_structural_type_graph(
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), ModuleError> {
+    fn visit(
+        id: StructuralTypeId,
+        types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+        active: &mut BTreeSet<StructuralTypeId>,
+        complete: &mut BTreeSet<StructuralTypeId>,
+    ) -> Result<(), ModuleError> {
+        if complete.contains(&id) {
+            return Ok(());
+        }
+        if !active.insert(id) {
+            return Err(ModuleError::RecursiveStructuralType(id));
+        }
+        let declaration = types[&id];
+        let StructuralTypeShape::Record { fields } = &declaration.shape;
+        for field in fields {
+            if let StructuralFieldType::Structural(target) = field.field_type {
+                visit(target, types, active, complete)?;
+            }
+        }
+        active.remove(&id);
+        complete.insert(id);
+        Ok(())
+    }
+
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    for id in types.keys().copied() {
+        visit(id, types, &mut active, &mut complete)?;
+    }
+    Ok(())
+}
+
+fn validate_service_graph(
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+) -> Result<(), ModuleError> {
+    fn visit(
+        id: ServiceId,
+        services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+        active: &mut BTreeSet<ServiceId>,
+        complete: &mut BTreeSet<ServiceId>,
+    ) -> Result<(), ModuleError> {
+        if complete.contains(&id) {
+            return Ok(());
+        }
+        if !active.insert(id) {
+            return Err(ModuleError::RecursiveServiceHierarchy(id));
+        }
+        for parent in &services[&id].parents {
+            visit(*parent, services, active, complete)?;
+        }
+        active.remove(&id);
+        complete.insert(id);
+        Ok(())
+    }
+
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    for id in services.keys().copied() {
+        visit(id, services, &mut active, &mut complete)?;
+    }
+    for declaration in services.values() {
+        for parent in &declaration.parents {
+            if let Some(ancestor) = services[parent]
+                .parents
+                .iter()
+                .find(|ancestor| !declaration.parents.contains(ancestor))
+            {
+                return Err(ModuleError::IncompleteServiceParentClosure {
+                    service: declaration.id,
+                    ancestor: *ancestor,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructuralSignatureOwner {
+    Machine(MachineId),
+    Boundary(BoundaryMachineId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceCeilingOwner {
+    Machine(MachineId),
+    Boundary(BoundaryMachineId),
+}
+
+trait AttachmentIdentity: Copy {
+    fn unknown_attachment(self, attachment: StructuralTypeId) -> ModuleError;
+}
+
+impl AttachmentIdentity for MachineId {
+    fn unknown_attachment(self, attachment: StructuralTypeId) -> ModuleError {
+        ModuleError::UnknownMachineAttachment {
+            machine: self,
+            attachment,
+        }
+    }
+}
+
+impl AttachmentIdentity for BoundaryMachineId {
+    fn unknown_attachment(self, attachment: StructuralTypeId) -> ModuleError {
+        ModuleError::UnknownBoundaryAttachment {
+            boundary: self,
+            attachment,
+        }
+    }
+}
+
+fn validate_attachment<Id: AttachmentIdentity>(
+    owner: Id,
+    attachment: Option<StructuralTypeId>,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), ModuleError> {
+    if let Some(attachment) = attachment
+        && !types.contains_key(&attachment)
+    {
+        return Err(owner.unknown_attachment(attachment));
+    }
+    Ok(())
+}
+
+fn validate_structural_signature(
+    parameters: &[StructuralParameterDeclaration],
+    attachment: Option<StructuralTypeId>,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
+    owner: StructuralSignatureOwner,
+) -> Result<(), ModuleError> {
+    let mut places = BTreeSet::new();
+    let mut saw_self = false;
+    for (index, parameter) in parameters.iter().enumerate() {
+        if parameter.position != index as u32 {
+            return Err(ModuleError::NonDenseStructuralParameter {
+                owner,
+                expected: index as u32,
+                actual: parameter.position,
+            });
+        }
+        if !places.insert(parameter.place) {
+            return Err(ModuleError::DuplicateStructuralParameterPlace(
+                parameter.place,
+            ));
+        }
+        if !types.contains_key(&parameter.structural_type) {
+            return Err(ModuleError::UnknownStructuralType(
+                parameter.structural_type,
+            ));
+        }
+        if parameter.is_self {
+            if saw_self || attachment != Some(parameter.structural_type) {
+                return Err(ModuleError::InvalidStructuralSelfParameter { owner });
+            }
+            saw_self = true;
+        }
+        let mut qualifications = BTreeSet::new();
+        for qualification in &parameter.qualifications {
+            if !qualifications.insert(*qualification) {
+                return Err(ModuleError::DuplicateStructuralQualification {
+                    place: parameter.place,
+                    domain: *qualification,
+                });
+            }
+            let Some(domain) = domains.get(qualification) else {
+                return Err(ModuleError::UnknownStructuralDomain(*qualification));
+            };
+            if domain.carrier != parameter.structural_type {
+                return Err(ModuleError::StructuralDomainCarrierMismatch {
+                    domain: domain.id,
+                    expected: parameter.structural_type,
+                    actual: domain.carrier,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_service_ceiling(
+    ceiling: &[ServiceId],
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+    owner: ServiceCeilingOwner,
+) -> Result<(), ModuleError> {
+    let mut seen = BTreeSet::new();
+    for service in ceiling {
+        if !seen.insert(*service) {
+            return Err(ModuleError::DuplicatePublishedService {
+                owner,
+                service: *service,
+            });
+        }
+        let Some(declaration) = services.get(service) else {
+            return Err(ModuleError::UnknownPublishedService {
+                owner,
+                service: *service,
+            });
+        };
+        if declaration
+            .parents
+            .iter()
+            .any(|parent| !ceiling.contains(parent))
+        {
+            return Err(ModuleError::IncompletePublishedServiceClosure {
+                owner,
+                service: *service,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_machine_entry_claims(machine: &TerminalMachine) -> Result<(), ModuleError> {
+    let mut claims = BTreeSet::new();
+    let mut inputs = BTreeSet::new();
+    for claim in &machine.entry_claims {
+        if !claims.insert(claim.claim) {
+            return Err(ModuleError::DuplicateClaim(claim.claim));
+        }
+        if !inputs.insert(claim.input) {
+            return Err(ModuleError::DuplicateEntryClaimInput(claim.input));
+        }
+        let Some(parameter) = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == claim.input)
+        else {
+            return Err(ModuleError::EntryClaimRequiresStructuralParameter(
+                claim.claim,
+            ));
+        };
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+            return Err(ModuleError::EntryClaimRequiresOwnedParameter(claim.claim));
+        }
+    }
+    for parameter in &machine.structural_parameters {
+        if parameter.multiplicity == StructuralMultiplicity::Linear
+            && !machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == parameter.place)
+        {
+            return Err(ModuleError::LinearParameterHasNoEntryClaim {
+                machine: machine.id,
+                place: parameter.place,
+            });
+        }
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 struct IdRegistry {
     machines: BTreeSet<MachineId>,
@@ -269,9 +732,11 @@ enum StructuralRootKey {
 }
 
 fn validate_machine(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     registry: &mut IdRegistry,
+    _policy: ValidationPolicy,
 ) -> Result<(), ModuleError> {
     if machine.blocks.is_empty() {
         return Err(ModuleError::MachineHasNoBlocks(machine.id));
@@ -332,13 +797,46 @@ fn validate_machine(
                 operation.id,
                 ModuleError::DuplicateOperation,
             )?;
+            if matches!(
+                operation.kind,
+                OperationKind::CallUnit { .. }
+                    | OperationKind::BoundaryCallUnit { .. }
+                    | OperationKind::PortWrite { .. }
+            ) {
+                if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
+                    return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
+                }
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                if let OperationKind::CallUnit {
+                    requirement_obligations,
+                    ..
+                } = &operation.kind
+                {
+                    for obligation in requirement_obligations {
+                        insert_unique(
+                            &mut registry.obligations,
+                            *obligation,
+                            ModuleError::DuplicateObligation,
+                        )?;
+                    }
+                }
+                continue;
+            }
+            let Some(result) = operation.result.scalar() else {
+                return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
+            };
             insert_value(
                 &mut value_types,
                 &mut registry.values,
-                operation.result.id,
-                operation.result.scalar_type,
+                result.id,
+                result.scalar_type,
             )?;
             match operation.kind.clone() {
+                OperationKind::CallUnit { .. }
+                | OperationKind::BoundaryCallUnit { .. }
+                | OperationKind::PortWrite { .. } => {
+                    unreachable!("structural/effect operations were validated above")
+                }
                 OperationKind::Call {
                     callee,
                     arguments,
@@ -424,11 +922,11 @@ fn validate_machine(
                             callee: callee.id,
                         });
                     };
-                    if operation.result.scalar_type != callee_result.scalar_type {
+                    if operation.result.expect_scalar().scalar_type != callee_result.scalar_type {
                         return Err(ModuleError::CallResultTypeMismatch {
                             operation: operation.id,
                             expected: callee_result.scalar_type,
-                            actual: operation.result.scalar_type,
+                            actual: operation.result.expect_scalar().scalar_type,
                         });
                     }
                     if requirement_obligations.len() != callee.contract.requires.len() {
@@ -447,7 +945,9 @@ fn validate_machine(
                     }
                 }
                 OperationKind::IntegerConstant { value } => {
-                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
                         return Err(ModuleError::IntegerConstantRequiresIntegerResult(
                             operation.id,
                         ));
@@ -457,30 +957,30 @@ fn validate_machine(
                     }
                 }
                 OperationKind::BooleanConstant { .. } => {
-                    if operation.result.scalar_type != ScalarType::Boolean {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanConstantRequiresBooleanResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::BooleanNot { .. } => {
-                    if operation.result.scalar_type != ScalarType::Boolean {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanNotRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::BooleanEqual { .. } => {
-                    if operation.result.scalar_type != ScalarType::Boolean {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanEqualRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::IntegerEqual { .. } => {
-                    if operation.result.scalar_type != ScalarType::Boolean {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::IntegerEqualRequiresBooleanResult(operation.id));
                     }
                 }
                 OperationKind::IntegerLessThan { .. }
                 | OperationKind::IntegerLessOrEqual { .. } => {
-                    if operation.result.scalar_type != ScalarType::Boolean {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::IntegerOrderingRequiresBooleanResult(
                             operation.id,
                         ));
@@ -489,26 +989,38 @@ fn validate_machine(
                 OperationKind::IntegerBitwiseAnd { .. }
                 | OperationKind::IntegerBitwiseOr { .. }
                 | OperationKind::IntegerBitwiseXor { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::IntegerBitwiseNot { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::IntegerWiden { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::IntegerWidenRequiresIntegerResult(operation.id));
                     }
                 }
                 OperationKind::IntegerExactCast { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::IntegerExactCastRequiresIntegerResult(
                             operation.id,
                         ));
@@ -521,14 +1033,20 @@ fn validate_machine(
                 }
                 OperationKind::WrappingIntegerShiftLeft { .. }
                 | OperationKind::WrappingIntegerShiftRight { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::WrappingIntegerShiftRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::ExactIntegerShiftRight { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
                             operation.id,
                         ));
@@ -540,7 +1058,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerShiftLeft { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
                             operation.id,
                         ));
@@ -552,7 +1073,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerAdd { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerAddRequiresIntegerResult(
                             operation.id,
                         ));
@@ -564,7 +1088,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerSubtract { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerSubtractRequiresIntegerResult(
                             operation.id,
                         ));
@@ -576,7 +1103,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerMultiply { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerMultiplyRequiresIntegerResult(
                             operation.id,
                         ));
@@ -588,7 +1118,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerDivide { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerDivideRequiresIntegerResult(
                             operation.id,
                         ));
@@ -600,7 +1133,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::ExactIntegerRemainder { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::ExactIntegerRemainderRequiresIntegerResult(
                             operation.id,
                         ));
@@ -612,7 +1148,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::WrappingIntegerDivide { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::WrappingIntegerDivideRequiresIntegerResult(
                             operation.id,
                         ));
@@ -624,7 +1163,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::WrappingIntegerRemainder { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::WrappingIntegerRemainderRequiresIntegerResult(
                             operation.id,
                         ));
@@ -636,7 +1178,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::SaturatingIntegerDivide { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::SaturatingIntegerDivideRequiresIntegerResult(
                             operation.id,
                         ));
@@ -648,7 +1193,10 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::SaturatingIntegerRemainder { obligation, .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(
                             ModuleError::SaturatingIntegerRemainderRequiresIntegerResult(
                                 operation.id,
@@ -662,42 +1210,60 @@ fn validate_machine(
                     )?;
                 }
                 OperationKind::WrappingIntegerAdd { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::WrappingIntegerAddRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::SaturatingIntegerAdd { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::SaturatingIntegerAddRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::WrappingIntegerSubtract { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::WrappingIntegerSubtractRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::SaturatingIntegerSubtract { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::SaturatingIntegerSubtractRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::WrappingIntegerMultiply { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::WrappingIntegerMultiplyRequiresIntegerResult(
                             operation.id,
                         ));
                     }
                 }
                 OperationKind::SaturatingIntegerMultiply { .. } => {
-                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
                         return Err(ModuleError::SaturatingIntegerMultiplyRequiresIntegerResult(
                             operation.id,
                         ));
@@ -779,7 +1345,410 @@ fn validate_machine(
         )?;
     }
 
-    validate_control_flow(machine, machines, &blocks, &value_types)
+    validate_control_flow(machine, machines, &blocks, &value_types)?;
+    validate_structural_frontier(module, machine, machines, &blocks)
+}
+
+fn validate_unit_operation_static(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    operation: &psi_terminal::Operation,
+) -> Result<(), ModuleError> {
+    match &operation.kind {
+        OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .ok_or(ModuleError::UnknownCallTarget {
+                    operation: operation.id,
+                    callee: *callee,
+                })?;
+            if callee.result != TerminalMachineResult::Unit || !callee.parameters.is_empty() {
+                return Err(ModuleError::UnitCallTargetHasScalarSignature {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            }
+            validate_structural_arguments(
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+                operation.id,
+            )?;
+            validate_service_reach(
+                operation.id,
+                &machine.published_service_ceiling,
+                &callee.published_service_ceiling,
+            )?;
+            if requirement_obligations.len() != callee.contract.requires.len() {
+                return Err(ModuleError::CallRequirementArityMismatch {
+                    operation: operation.id,
+                    expected: callee.contract.requires.len(),
+                    actual: requirement_obligations.len(),
+                });
+            }
+            validate_unit_call_claim_transfers(
+                machine,
+                callee,
+                structural_arguments,
+                claim_transfers,
+                operation.id,
+            )?;
+            validate_unit_call_crash_continuations(
+                machine,
+                callee,
+                structural_arguments,
+                crash_continuations,
+                operation.id,
+            )?;
+        }
+        OperationKind::BoundaryCallUnit {
+            boundary,
+            structural_arguments,
+            claim_settlements,
+            requirement_obligations,
+        } => {
+            let boundary = module
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == *boundary)
+                .ok_or(ModuleError::UnknownBoundaryCallTarget {
+                    operation: operation.id,
+                    boundary: *boundary,
+                })?;
+            if !requirement_obligations.is_empty() {
+                return Err(ModuleError::BoundaryStructuralRequirementsMintObligations(
+                    operation.id,
+                ));
+            }
+            validate_structural_arguments(
+                machine,
+                structural_arguments,
+                &boundary.structural_parameters,
+                operation.id,
+            )?;
+            validate_service_reach(
+                operation.id,
+                &machine.published_service_ceiling,
+                &boundary.published_service_ceiling,
+            )?;
+            validate_boundary_requirements(machine, boundary, structural_arguments, operation.id)?;
+            validate_boundary_settlements(
+                machine,
+                boundary,
+                structural_arguments,
+                claim_settlements,
+                operation.id,
+            )?;
+        }
+        OperationKind::PortWrite { service, .. } => {
+            if !module
+                .services
+                .iter()
+                .any(|candidate| candidate.id == *service)
+            {
+                return Err(ModuleError::UnknownOperationService {
+                    operation: operation.id,
+                    service: *service,
+                });
+            }
+            if !machine.published_service_ceiling.contains(service) {
+                return Err(ModuleError::OperationServiceOutsidePublishedCeiling {
+                    operation: operation.id,
+                    service: *service,
+                });
+            }
+        }
+        _ => unreachable!("caller selects only structural/effect operations"),
+    }
+    Ok(())
+}
+
+fn validate_structural_arguments(
+    caller: &TerminalMachine,
+    arguments: &[StructuralArgument],
+    expected: &[StructuralParameterDeclaration],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    if arguments.len() != expected.len() {
+        return Err(ModuleError::StructuralArgumentArityMismatch {
+            operation,
+            expected: expected.len(),
+            actual: arguments.len(),
+        });
+    }
+    for (index, (argument, expected)) in arguments.iter().zip(expected).enumerate() {
+        let Some(actual) = caller
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place)
+        else {
+            return Err(ModuleError::UnknownStructuralArgument {
+                operation,
+                argument_index: index as u32,
+                place: argument.place,
+            });
+        };
+        if actual.structural_type != expected.structural_type {
+            return Err(ModuleError::StructuralArgumentTypeMismatch {
+                operation,
+                argument_index: index as u32,
+                expected: expected.structural_type,
+                actual: actual.structural_type,
+            });
+        }
+        if actual.multiplicity != expected.multiplicity {
+            return Err(ModuleError::StructuralArgumentMultiplicityMismatch {
+                operation,
+                argument_index: index as u32,
+                expected: expected.multiplicity,
+                actual: actual.multiplicity,
+            });
+        }
+        for qualification in &expected.qualifications {
+            if !actual.qualifications.contains(qualification) {
+                return Err(ModuleError::StructuralArgumentMissingQualification {
+                    operation,
+                    argument_index: index as u32,
+                    domain: *qualification,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_service_reach(
+    operation: OperationId,
+    caller: &[ServiceId],
+    reached: &[ServiceId],
+) -> Result<(), ModuleError> {
+    if let Some(service) = reached.iter().find(|service| !caller.contains(service)) {
+        return Err(ModuleError::OperationServiceOutsidePublishedCeiling {
+            operation,
+            service: *service,
+        });
+    }
+    Ok(())
+}
+
+fn validate_unit_call_claim_transfers(
+    caller: &TerminalMachine,
+    callee: &TerminalMachine,
+    arguments: &[StructuralArgument],
+    transfers: &[ClaimTransfer],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    if transfers.len() != callee.entry_claims.len() {
+        return Err(ModuleError::UnitCallClaimTransferCountMismatch {
+            operation,
+            expected: callee.entry_claims.len(),
+            actual: transfers.len(),
+        });
+    }
+    let mut caller_claims = BTreeSet::new();
+    let mut argument_indices = BTreeSet::new();
+    for transfer in transfers {
+        if !caller_claims.insert(transfer.claim)
+            || !argument_indices.insert(transfer.argument_index)
+        {
+            return Err(ModuleError::DuplicateUnitCallClaimTransfer(operation));
+        }
+        let Some(argument) = arguments.get(transfer.argument_index as usize) else {
+            return Err(ModuleError::ClaimActionArgumentOutOfRange {
+                operation,
+                argument_index: transfer.argument_index,
+            });
+        };
+        let Some(claim) = caller
+            .entry_claims
+            .iter()
+            .find(|claim| claim.claim == transfer.claim)
+        else {
+            return Err(ModuleError::UnknownClaimAtOperation {
+                operation,
+                claim: transfer.claim,
+            });
+        };
+        if claim.input != argument.place {
+            return Err(ModuleError::ClaimActionPlaceMismatch {
+                operation,
+                claim: transfer.claim,
+                argument_index: transfer.argument_index,
+            });
+        }
+    }
+    for callee_claim in &callee.entry_claims {
+        let argument_index = callee
+            .structural_parameters
+            .iter()
+            .position(|parameter| parameter.place == callee_claim.input)
+            .expect("callee entry claims were validated against its signature")
+            as u32;
+        if !transfers
+            .iter()
+            .any(|transfer| transfer.argument_index == argument_index)
+        {
+            return Err(ModuleError::MissingUnitCallClaimTransfer {
+                operation,
+                argument_index,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_unit_call_crash_continuations(
+    caller: &TerminalMachine,
+    callee: &TerminalMachine,
+    arguments: &[StructuralArgument],
+    continuations: &[CrashRouteBucket],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    let substitutions = callee
+        .structural_parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| (parameter.place, argument.place))
+        .collect::<BTreeMap<_, _>>();
+    let expected = substitute_crash_route_places(&callee.contract.crash_routes, &substitutions);
+    if continuations != expected {
+        return Err(ModuleError::CallCrashContinuationsMismatch {
+            operation,
+            callee: callee.id,
+        });
+    }
+    for continuation in continuations {
+        let covered = caller.contract.crash_routes.iter().any(|published| {
+            published.cause == continuation.cause
+                && (published.alternatives == [CrashRouteGuard::Truth]
+                    || continuation
+                        .alternatives
+                        .iter()
+                        .all(|route| published.alternatives.contains(route)))
+        });
+        if !covered {
+            return Err(ModuleError::CallCrashContinuationUncovered {
+                operation,
+                cause: continuation.cause,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn substitute_crash_route_places(
+    routes: &[CrashRouteBucket],
+    substitutions: &BTreeMap<PlaceId, PlaceId>,
+) -> Vec<CrashRouteBucket> {
+    routes
+        .iter()
+        .map(|bucket| {
+            let mut alternatives = bucket
+                .alternatives
+                .iter()
+                .map(|guard| match guard {
+                    CrashRouteGuard::Truth => CrashRouteGuard::Truth,
+                    CrashRouteGuard::Predicate(predicate) => {
+                        CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                            substitute_proposition_places(predicate.proposition(), substitutions),
+                        ))
+                    }
+                })
+                .collect::<Vec<_>>();
+            alternatives.sort();
+            alternatives.dedup();
+            if alternatives.contains(&CrashRouteGuard::Truth) {
+                alternatives = vec![CrashRouteGuard::Truth];
+            }
+            CrashRouteBucket {
+                cause: bucket.cause,
+                alternatives,
+            }
+        })
+        .collect()
+}
+
+fn validate_boundary_requirements(
+    caller: &TerminalMachine,
+    boundary: &BoundaryMachineDeclaration,
+    arguments: &[StructuralArgument],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    for requirement in &boundary.requires {
+        let argument = &arguments[requirement.argument_index as usize];
+        let actual = caller
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place)
+            .expect("structural arguments were validated before requirements");
+        if !actual.qualifications.contains(&requirement.domain) {
+            return Err(ModuleError::BoundaryArgumentMissingQualification {
+                operation,
+                argument_index: requirement.argument_index,
+                domain: requirement.domain,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_boundary_settlements(
+    caller: &TerminalMachine,
+    boundary: &BoundaryMachineDeclaration,
+    arguments: &[StructuralArgument],
+    settlements: &[ClaimSettlement],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    let expected = boundary
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .filter_map(|(index, parameter)| {
+            (parameter.multiplicity == StructuralMultiplicity::Linear).then_some(index as u32)
+        })
+        .collect::<BTreeSet<_>>();
+    let mut actual = BTreeSet::new();
+    let mut claims = BTreeSet::new();
+    for settlement in settlements {
+        if !actual.insert(settlement.argument_index) || !claims.insert(settlement.claim) {
+            return Err(ModuleError::DuplicateBoundaryClaimSettlement(operation));
+        }
+        let Some(argument) = arguments.get(settlement.argument_index as usize) else {
+            return Err(ModuleError::ClaimActionArgumentOutOfRange {
+                operation,
+                argument_index: settlement.argument_index,
+            });
+        };
+        let Some(claim) = caller
+            .entry_claims
+            .iter()
+            .find(|claim| claim.claim == settlement.claim)
+        else {
+            return Err(ModuleError::UnknownClaimAtOperation {
+                operation,
+                claim: settlement.claim,
+            });
+        };
+        if claim.input != argument.place {
+            return Err(ModuleError::ClaimActionPlaceMismatch {
+                operation,
+                claim: settlement.claim,
+                argument_index: settlement.argument_index,
+            });
+        }
+    }
+    if actual != expected {
+        return Err(ModuleError::BoundaryClaimSettlementMismatch(operation));
+    }
+    Ok(())
 }
 
 fn substitute_crash_routes(
@@ -875,11 +1844,6 @@ fn validate_crash_frontiers(
             )?;
         }
     }
-    let expected = machine
-        .content_entry_claims
-        .iter()
-        .map(|binding| binding.claim)
-        .collect::<Vec<_>>();
     for block in &machine.blocks {
         let Terminator::Crash {
             cause,
@@ -926,14 +1890,6 @@ fn validate_crash_frontiers(
             .any(|pair| pair[0] >= pair[1])
         {
             return Err(ModuleError::NonCanonicalCrashFrontier(block.id));
-        }
-        // Terminal Psi has no claim-consuming operation yet, so every entry
-        // claim is still live at every reachable crash. Requiring exact
-        // equality now prevents a producer from laundering an omitted claim
-        // as cleanup. Later claim-transfer operations refine the reconstructed
-        // live set; the row remains the explicit local lower bound.
-        if frontier_lower_bound != &expected {
-            return Err(ModuleError::CrashFrontierMismatch { block: block.id });
         }
     }
     Ok(())
@@ -1536,6 +2492,169 @@ fn validate_term_scope(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LiveClaim {
+    input: Option<PlaceId>,
+    multiplicity: Option<StructuralMultiplicity>,
+}
+
+fn validate_structural_frontier(
+    _module: &TerminalModule,
+    machine: &TerminalMachine,
+    _machines: &BTreeMap<MachineId, &TerminalMachine>,
+    blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
+) -> Result<(), ModuleError> {
+    let mut entry = BTreeMap::<ClaimId, LiveClaim>::new();
+    for claim in &machine.entry_claims {
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == claim.input)
+            .expect("entry claims were validated against structural parameters");
+        entry.insert(
+            claim.claim,
+            LiveClaim {
+                input: Some(claim.input),
+                multiplicity: Some(parameter.multiplicity),
+            },
+        );
+    }
+    for claim in &machine.content_entry_claims {
+        entry.entry(claim.claim).or_insert(LiveClaim {
+            input: None,
+            multiplicity: None,
+        });
+    }
+
+    let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
+    let mut predecessors = blocks
+        .keys()
+        .map(|block| (*block, 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    for block in blocks.values() {
+        let targets = match &block.terminator {
+            Terminator::Jump { target, .. } => vec![*target],
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target, when_false.target],
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::Crash { .. } => Vec::new(),
+        };
+        for target in &targets {
+            *predecessors
+                .get_mut(target)
+                .expect("control validation established every target") += 1;
+        }
+        successors.insert(block.id, targets);
+    }
+    let mut ready = predecessors
+        .iter()
+        .filter_map(|(block, count)| (*count == 0).then_some(*block))
+        .collect::<BTreeSet<_>>();
+    let mut order = Vec::with_capacity(blocks.len());
+    while let Some(block) = ready.pop_first() {
+        order.push(block);
+        for target in &successors[&block] {
+            let count = predecessors
+                .get_mut(target)
+                .expect("control validation established every target");
+            *count -= 1;
+            if *count == 0 {
+                ready.insert(*target);
+            }
+        }
+    }
+
+    let mut incoming = BTreeMap::<BlockId, Vec<BTreeMap<ClaimId, LiveClaim>>>::new();
+    incoming.insert(machine.entry, vec![entry]);
+    for block_id in order {
+        let frontiers = incoming
+            .remove(&block_id)
+            .expect("control validation established reachability");
+        let frontier = frontiers
+            .first()
+            .expect("a reachable block has an incoming frontier")
+            .clone();
+        if frontiers.iter().any(|candidate| candidate != &frontier) {
+            return Err(ModuleError::ClaimFrontierJoinMismatch(block_id));
+        }
+        let block = blocks
+            .get(&block_id)
+            .expect("topological order contains known blocks");
+        let mut frontier = frontier;
+        for operation in &block.operations {
+            let claims = match &operation.kind {
+                OperationKind::CallUnit {
+                    claim_transfers, ..
+                } => claim_transfers
+                    .iter()
+                    .map(|transfer| transfer.claim)
+                    .collect::<Vec<_>>(),
+                OperationKind::BoundaryCallUnit {
+                    claim_settlements, ..
+                } => claim_settlements
+                    .iter()
+                    .map(|settlement| settlement.claim)
+                    .collect::<Vec<_>>(),
+                _ => Vec::new(),
+            };
+            for claim in claims {
+                if frontier.remove(&claim).is_none() {
+                    return Err(ModuleError::ClaimNotLiveAtOperation {
+                        operation: operation.id,
+                        claim,
+                    });
+                }
+            }
+        }
+        match &block.terminator {
+            Terminator::Jump { target, .. } => {
+                incoming.entry(*target).or_default().push(frontier);
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                incoming
+                    .entry(when_true.target)
+                    .or_default()
+                    .push(frontier.clone());
+                incoming
+                    .entry(when_false.target)
+                    .or_default()
+                    .push(frontier);
+            }
+            Terminator::ReturnUnit { .. } => {
+                if let Some((claim, _)) = frontier
+                    .iter()
+                    .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
+                {
+                    return Err(ModuleError::LiveLinearClaimAtUnitReturn {
+                        machine: machine.id,
+                        block: block.id,
+                        claim: *claim,
+                    });
+                }
+            }
+            Terminator::Crash {
+                frontier_lower_bound,
+                ..
+            } => {
+                let expected = frontier.keys().copied().collect::<Vec<_>>();
+                if frontier_lower_bound != &expected {
+                    return Err(ModuleError::CrashFrontierMismatch { block: block.id });
+                }
+            }
+            Terminator::Return { .. } => {}
+        }
+    }
+    Ok(())
+}
+
 fn validate_control_flow(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -1553,7 +2672,9 @@ fn validate_control_flow(
             definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
-            definition_blocks.insert(operation.result.id, block.id);
+            if let Some(result) = operation.result.scalar() {
+                definition_blocks.insert(result.id, block.id);
+            }
         }
     }
 
@@ -1684,7 +2805,9 @@ fn validate_control_flow(
         }));
         for operation in &block.operations {
             validate_operation_operands(operation, machines, value_types, &defined)?;
-            defined.insert(operation.result.id);
+            if let Some(result) = operation.result.scalar() {
+                defined.insert(result.id);
+            }
         }
         match &block.terminator {
             Terminator::Jump {
@@ -1802,7 +2925,7 @@ fn validate_operation_operands(
     if let OperationKind::IntegerExactCast { operand, .. } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let (ScalarType::Integer(source), ScalarType::Integer(target)) = (actual, expected) else {
             return Err(ModuleError::IntegerExactCastOperandTypeMismatch {
                 operation: operation.id,
@@ -1822,7 +2945,7 @@ fn validate_operation_operands(
     if let OperationKind::IntegerWiden { operand } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
         let actual = value_types[&operand];
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let (ScalarType::Integer(source), ScalarType::Integer(target)) = (actual, expected) else {
             return Err(ModuleError::IntegerWidenOperandTypeMismatch {
                 operation: operation.id,
@@ -1841,7 +2964,7 @@ fn validate_operation_operands(
     }
     if let OperationKind::IntegerBitwiseNot { operand } = operation.kind.clone() {
         require_defined(operand, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual = value_types[&operand];
         if !matches!(expected, ScalarType::Integer(_)) || actual != expected {
             return Err(ModuleError::IntegerBitwiseNotOperandTypeMismatch {
@@ -1914,7 +3037,7 @@ fn validate_operation_operands(
     {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let left_type = value_types[&left];
         let right_type = value_types[&right];
         if !matches!(expected, ScalarType::Integer(_))
@@ -1935,7 +3058,7 @@ fn validate_operation_operands(
     {
         require_defined(value, value_types, defined)?;
         require_defined(count, value_types, defined)?;
-        let expected_value = operation.result.scalar_type;
+        let expected_value = operation.result.expect_scalar().scalar_type;
         let actual_value = value_types[&value];
         let actual_count = value_types[&count];
         if !matches!(expected_value, ScalarType::Integer(_))
@@ -1956,7 +3079,7 @@ fn validate_operation_operands(
     {
         require_defined(value, value_types, defined)?;
         require_defined(count, value_types, defined)?;
-        let expected_value = operation.result.scalar_type;
+        let expected_value = operation.result.expect_scalar().scalar_type;
         let actual_value = value_types[&value];
         let actual_count = value_types[&count];
         if !matches!(expected_value, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -1975,7 +3098,7 @@ fn validate_operation_operands(
     if let OperationKind::ExactIntegerAdd { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -1994,7 +3117,7 @@ fn validate_operation_operands(
     if let OperationKind::ExactIntegerSubtract { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2013,7 +3136,7 @@ fn validate_operation_operands(
     if let OperationKind::ExactIntegerMultiply { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2032,7 +3155,7 @@ fn validate_operation_operands(
     if let OperationKind::ExactIntegerDivide { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2051,7 +3174,7 @@ fn validate_operation_operands(
     if let OperationKind::ExactIntegerRemainder { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2070,7 +3193,7 @@ fn validate_operation_operands(
     if let OperationKind::WrappingIntegerDivide { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2089,7 +3212,7 @@ fn validate_operation_operands(
     if let OperationKind::WrappingIntegerRemainder { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2108,7 +3231,7 @@ fn validate_operation_operands(
     if let OperationKind::SaturatingIntegerDivide { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2127,7 +3250,7 @@ fn validate_operation_operands(
     if let OperationKind::SaturatingIntegerRemainder { left, right, .. } = operation.kind.clone() {
         require_defined(left, value_types, defined)?;
         require_defined(right, value_types, defined)?;
-        let expected = operation.result.scalar_type;
+        let expected = operation.result.expect_scalar().scalar_type;
         let actual_left = value_types[&left];
         let actual_right = value_types[&right];
         if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == psi_core::IntegerCarrier::Fixed)
@@ -2188,11 +3311,14 @@ fn validate_operation_operands(
         OperationKind::WrappingIntegerRemainder { .. } => None,
         OperationKind::SaturatingIntegerDivide { .. } => None,
         OperationKind::SaturatingIntegerRemainder { .. } => None,
-        OperationKind::Call { .. } => None,
+        OperationKind::Call { .. }
+        | OperationKind::CallUnit { .. }
+        | OperationKind::BoundaryCallUnit { .. }
+        | OperationKind::PortWrite { .. } => None,
     }) else {
         return Ok(());
     };
-    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+    let ScalarType::Integer(integer_type) = operation.result.expect_scalar().scalar_type else {
         unreachable!("operation shape validation requires an integer result")
     };
     for operand in [left, right] {
@@ -2341,12 +3467,12 @@ pub(crate) fn machine_value_types(
                 .iter()
                 .flat_map(|block| block.parameters.iter()),
         )
-        .chain(
-            machine
-                .blocks
+        .chain(machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
                 .iter()
-                .flat_map(|block| block.operations.iter().map(|operation| &operation.result)),
-        )
+                .filter_map(|operation| operation.result.scalar_ref())
+        }))
         .map(|declaration| (declaration.id, declaration.scalar_type))
 }
 
@@ -2400,9 +3526,181 @@ pub enum ModuleError {
     PropositionApplicationBinderMismatch(PropositionId),
     EmptyPropositionIdentity,
     DuplicateMachine(MachineId),
+    DuplicateStructuralType(StructuralTypeId),
+    InvalidStructuralTypeIdentity(StructuralTypeId),
+    InvalidStructuralFieldIdentity {
+        structural_type: StructuralTypeId,
+        field: psi_core::StructuralFieldId,
+    },
+    UnknownStructuralType(StructuralTypeId),
+    RecursiveStructuralType(StructuralTypeId),
+    DuplicateStructuralDomain(StructuralDomainId),
+    InvalidStructuralDomainIdentity(StructuralDomainId),
+    UnknownStructuralDomain(StructuralDomainId),
+    StructuralDomainCarrierMismatch {
+        domain: StructuralDomainId,
+        expected: StructuralTypeId,
+        actual: StructuralTypeId,
+    },
+    DuplicateService(ServiceId),
+    InvalidServiceIdentity(ServiceId),
+    InvalidServiceParent {
+        service: ServiceId,
+        parent: ServiceId,
+    },
+    RecursiveServiceHierarchy(ServiceId),
+    IncompleteServiceParentClosure {
+        service: ServiceId,
+        ancestor: ServiceId,
+    },
+    DuplicateBoundaryMachine(BoundaryMachineId),
+    InvalidBoundaryMachineIdentity(BoundaryMachineId),
+    UnknownMachineAttachment {
+        machine: MachineId,
+        attachment: StructuralTypeId,
+    },
+    UnknownBoundaryAttachment {
+        boundary: BoundaryMachineId,
+        attachment: StructuralTypeId,
+    },
+    NonDenseStructuralParameter {
+        owner: StructuralSignatureOwner,
+        expected: u32,
+        actual: u32,
+    },
+    DuplicateStructuralParameterPlace(PlaceId),
+    InvalidStructuralSelfParameter {
+        owner: StructuralSignatureOwner,
+    },
+    DuplicateStructuralQualification {
+        place: PlaceId,
+        domain: StructuralDomainId,
+    },
+    DuplicatePublishedService {
+        owner: ServiceCeilingOwner,
+        service: ServiceId,
+    },
+    UnknownPublishedService {
+        owner: ServiceCeilingOwner,
+        service: ServiceId,
+    },
+    IncompletePublishedServiceClosure {
+        owner: ServiceCeilingOwner,
+        service: ServiceId,
+    },
+    BoundaryRequirementArgumentOutOfRange {
+        boundary: BoundaryMachineId,
+        argument_index: u32,
+    },
+    DuplicateBoundaryRequirement {
+        boundary: BoundaryMachineId,
+        argument_index: u32,
+        domain: StructuralDomainId,
+    },
+    StructuralParameterPlaceMismatch {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    StructuralPlaceHasNoParameter {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    DuplicateEntryClaimInput(PlaceId),
+    EntryClaimRequiresStructuralParameter(ClaimId),
+    EntryClaimRequiresOwnedParameter(ClaimId),
+    LinearParameterHasNoEntryClaim {
+        machine: MachineId,
+        place: PlaceId,
+    },
     DuplicateBlock(BlockId),
     DuplicateContract(ContractId),
     DuplicateOperation(OperationId),
+    ScalarOperationHasUnitResult(OperationId),
+    UnitOperationHasScalarResult(OperationId),
+    UnitCallTargetHasScalarSignature {
+        operation: OperationId,
+        callee: MachineId,
+    },
+    UnknownBoundaryCallTarget {
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    BoundaryStructuralRequirementsMintObligations(OperationId),
+    StructuralArgumentArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    UnknownStructuralArgument {
+        operation: OperationId,
+        argument_index: u32,
+        place: PlaceId,
+    },
+    StructuralArgumentTypeMismatch {
+        operation: OperationId,
+        argument_index: u32,
+        expected: StructuralTypeId,
+        actual: StructuralTypeId,
+    },
+    StructuralArgumentMultiplicityMismatch {
+        operation: OperationId,
+        argument_index: u32,
+        expected: StructuralMultiplicity,
+        actual: StructuralMultiplicity,
+    },
+    StructuralArgumentMissingQualification {
+        operation: OperationId,
+        argument_index: u32,
+        domain: StructuralDomainId,
+    },
+    UnknownOperationService {
+        operation: OperationId,
+        service: ServiceId,
+    },
+    OperationServiceOutsidePublishedCeiling {
+        operation: OperationId,
+        service: ServiceId,
+    },
+    UnitCallClaimTransferCountMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    DuplicateUnitCallClaimTransfer(OperationId),
+    MissingUnitCallClaimTransfer {
+        operation: OperationId,
+        argument_index: u32,
+    },
+    ClaimActionArgumentOutOfRange {
+        operation: OperationId,
+        argument_index: u32,
+    },
+    UnknownClaimAtOperation {
+        operation: OperationId,
+        claim: ClaimId,
+    },
+    ClaimActionPlaceMismatch {
+        operation: OperationId,
+        claim: ClaimId,
+        argument_index: u32,
+    },
+    BoundaryArgumentMissingQualification {
+        operation: OperationId,
+        argument_index: u32,
+        domain: StructuralDomainId,
+    },
+    DuplicateBoundaryClaimSettlement(OperationId),
+    BoundaryClaimSettlementMismatch(OperationId),
+    ClaimNotLiveAtOperation {
+        operation: OperationId,
+        claim: ClaimId,
+    },
+    ClaimFrontierJoinMismatch(BlockId),
+    LiveLinearClaimAtUnitReturn {
+        machine: MachineId,
+        block: BlockId,
+        claim: ClaimId,
+    },
     DuplicateEdge(EdgeId),
     DuplicateObligation(ObligationId),
     DuplicateValue(ValueId),

@@ -65,6 +65,10 @@ pub struct CheckedValueFact {
     /// Later lowering may consume validated declaration facts through this
     /// handle; it must never reconstruct a stronger type from storage shape.
     pub type_reference: TypeReferenceHandle,
+    /// Exact scalar carrier selected at this use site. This remains available
+    /// when a context-typed literal has no standalone type-reference handle
+    /// (notably validated builtin operands).
+    pub primitive_type: Option<psi_typed_trees::types::PrimitiveType>,
     /// The range discharged by Psi for this value in its origin context,
     /// including stable flow guards and retained boundary witnesses.
     pub integer_range: Option<CheckedIntegerRange>,

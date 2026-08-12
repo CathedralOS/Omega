@@ -27,7 +27,9 @@ use omega_object_file::{
     SymbolPlan, SymbolSection, emit_omega_object_container, entry_symbol_name,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use omega_terminal_machine_code::TerminalMachineCodePlan;
+use omega_terminal_machine_code::{
+    TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalPortEffectRecord,
+};
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
 use psi_diagnostics::Diagnostic;
@@ -42,6 +44,8 @@ pub struct TerminalObjectArtifact {
     relocations: RelocationPlan,
     text_bytes: Vec<u8>,
     functions: Vec<TerminalObjectFunction>,
+    port_effects: Vec<TerminalObjectPortEffect>,
+    boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
 }
 
 impl TerminalObjectArtifact {
@@ -79,6 +83,14 @@ impl TerminalObjectArtifact {
             .find(|function| function.machine == self.entry)
             .expect("artifact construction requires one entry function")
     }
+
+    pub fn boundary_settlements(&self) -> &[TerminalObjectBoundarySettlement] {
+        &self.boundary_settlements
+    }
+
+    pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
+        &self.port_effects
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +106,22 @@ impl TerminalObjectFunction {
     pub fn bytes<'artifact>(&self, artifact: &'artifact TerminalObjectArtifact) -> &'artifact [u8] {
         &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalObjectBoundarySettlement {
+    pub machine: MachineId,
+    pub settlement: TerminalBoundarySettlementRecord,
+    /// Absolute offset in the object `.text` section.
+    pub text_offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalObjectPortEffect {
+    pub machine: MachineId,
+    pub effect: TerminalPortEffectRecord,
+    /// Absolute offset in the object `.text` section.
+    pub text_offset: usize,
 }
 
 /// Construct a self-contained object plan and exact text carrier.
@@ -147,6 +175,111 @@ pub fn build_terminal_object_artifact(
                 });
             }
         }
+        if function.port_effects.windows(2).any(|pair| {
+            (pair[0].code_offset, pair[0].operation_ordinal)
+                >= (pair[1].code_offset, pair[1].operation_ordinal)
+        }) {
+            return Err(TerminalObjectError::NonCanonicalPortEffectOrder(
+                function.machine,
+            ));
+        }
+        let mut port_operations = std::collections::BTreeSet::new();
+        for effect in &function.port_effects {
+            let end = effect.code_offset.checked_add(effect.byte_count).ok_or(
+                TerminalObjectError::PortEffectOutsideFunction {
+                    machine: function.machine,
+                    operation: effect.psi_operation,
+                },
+            )?;
+            if end > function.bytes.len() || effect.byte_count == 0 {
+                return Err(TerminalObjectError::PortEffectOutsideFunction {
+                    machine: function.machine,
+                    operation: effect.psi_operation,
+                });
+            }
+            if !function
+                .provenance
+                .operations
+                .contains(&effect.psi_operation)
+            {
+                return Err(TerminalObjectError::PortEffectOperationNotInProvenance {
+                    machine: function.machine,
+                    operation: effect.psi_operation,
+                });
+            }
+            if !port_operations.insert(effect.psi_operation) {
+                return Err(TerminalObjectError::DuplicatePortEffectOperation {
+                    machine: function.machine,
+                    operation: effect.psi_operation,
+                });
+            }
+            if plan.target.architecture != Architecture::X86_64
+                || function.bytes[effect.code_offset..end]
+                    != omega_x86_encoding::encode_immediate_port_write(effect.port, effect.value)
+            {
+                return Err(TerminalObjectError::PortEffectBytesMismatch {
+                    machine: function.machine,
+                    operation: effect.psi_operation,
+                });
+            }
+        }
+        if function.boundary_settlements.windows(2).any(|pair| {
+            (pair[0].code_offset, pair[0].operation_ordinal)
+                >= (pair[1].code_offset, pair[1].operation_ordinal)
+        }) {
+            return Err(TerminalObjectError::NonCanonicalBoundarySettlementOrder(
+                function.machine,
+            ));
+        }
+        let mut settlement_operations = std::collections::BTreeSet::new();
+        for settlement in &function.boundary_settlements {
+            if settlement.code_offset > function.bytes.len() {
+                return Err(TerminalObjectError::BoundarySettlementOutsideFunction {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
+            if !function
+                .provenance
+                .operations
+                .contains(&settlement.psi_operation)
+            {
+                return Err(
+                    TerminalObjectError::BoundarySettlementOperationNotInProvenance {
+                        machine: function.machine,
+                        operation: settlement.psi_operation,
+                    },
+                );
+            }
+            if !settlement_operations.insert(settlement.psi_operation) {
+                return Err(TerminalObjectError::DuplicateBoundarySettlementOperation {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
+            let realization = settlement.realization;
+            if function
+                .port_effects
+                .iter()
+                .filter(|effect| {
+                    effect.psi_operation == realization.effect_operation
+                        && effect.service == realization.service
+                        && effect.port == realization.port
+                        && effect.value == realization.value
+                        && effect.operation_ordinal.checked_add(1)
+                            == Some(settlement.operation_ordinal)
+                        && effect.code_offset.checked_add(effect.byte_count)
+                            == Some(settlement.code_offset)
+                })
+                .count()
+                != 1
+            {
+                return Err(TerminalObjectError::BoundaryRealizationMismatch {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
+        }
         previous = Some(function.machine);
         saw_entry |= function.machine == plan.entry;
         text_size = text_size
@@ -166,6 +299,8 @@ pub fn build_terminal_object_artifact(
 
     let mut text_bytes = Vec::with_capacity(text_size);
     let mut functions = Vec::with_capacity(plan.functions.len());
+    let mut port_effects = Vec::new();
+    let mut boundary_settlements = Vec::new();
     let mut symbols_by_machine = std::collections::BTreeMap::new();
     for function in &plan.functions {
         let text_offset = text_bytes.len();
@@ -187,6 +322,24 @@ pub fn build_terminal_object_artifact(
             object.layout.entry_symbol = symbol;
         }
         symbols_by_machine.insert(function.machine, symbol);
+        for effect in &function.port_effects {
+            port_effects.push(TerminalObjectPortEffect {
+                machine: function.machine,
+                effect: effect.clone(),
+                text_offset: text_offset
+                    .checked_add(effect.code_offset)
+                    .ok_or(TerminalObjectError::TextSizeOverflow)?,
+            });
+        }
+        for settlement in &function.boundary_settlements {
+            boundary_settlements.push(TerminalObjectBoundarySettlement {
+                machine: function.machine,
+                settlement: settlement.clone(),
+                text_offset: text_offset
+                    .checked_add(settlement.code_offset)
+                    .ok_or(TerminalObjectError::TextSizeOverflow)?,
+            });
+        }
         functions.push(TerminalObjectFunction {
             machine: function.machine,
             provenance: function.provenance.clone(),
@@ -244,6 +397,8 @@ pub fn build_terminal_object_artifact(
         relocations,
         text_bytes,
         functions,
+        port_effects,
+        boundary_settlements,
     })
 }
 
@@ -360,6 +515,9 @@ pub fn emit_terminal_executable_image(
         terminal_psi: artifact.terminal_psi,
         target: artifact.target,
         subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
+        functions: artifact.functions.clone(),
+        port_effects: artifact.port_effects.clone(),
+        boundary_settlements: artifact.boundary_settlements.clone(),
         output,
     })
 }
@@ -369,6 +527,9 @@ pub struct TerminalExecutableImage {
     terminal_psi: TerminalPsiIdentity,
     target: NativeTarget,
     subsystem: Option<u16>,
+    functions: Vec<TerminalObjectFunction>,
+    port_effects: Vec<TerminalObjectPortEffect>,
+    boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
     output: EmittedImageOutput,
 }
 
@@ -389,6 +550,18 @@ impl TerminalExecutableImage {
 
     pub const fn output(&self) -> &EmittedImageOutput {
         &self.output
+    }
+
+    pub fn boundary_settlements(&self) -> &[TerminalObjectBoundarySettlement] {
+        &self.boundary_settlements
+    }
+
+    pub fn functions(&self) -> &[TerminalObjectFunction] {
+        &self.functions
+    }
+
+    pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
+        &self.port_effects
     }
 }
 
@@ -460,6 +633,8 @@ pub enum TerminalObjectError {
     },
     EmptyFunction(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
+    NonCanonicalPortEffectOrder(MachineId),
+    NonCanonicalBoundarySettlementOrder(MachineId),
     UnknownInternalCallTarget {
         caller: MachineId,
         target: MachineId,
@@ -475,6 +650,38 @@ pub enum TerminalObjectError {
     },
     DuplicateInternalCallOperation {
         caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    PortEffectOutsideFunction {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    PortEffectOperationNotInProvenance {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    DuplicatePortEffectOperation {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    PortEffectBytesMismatch {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    BoundarySettlementOutsideFunction {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    BoundarySettlementOperationNotInProvenance {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    DuplicateBoundarySettlementOperation {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    BoundaryRealizationMismatch {
+        machine: MachineId,
         operation: psi_core::OperationId,
     },
     EntryFunctionMissing(MachineId),

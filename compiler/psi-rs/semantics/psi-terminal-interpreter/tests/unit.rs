@@ -1,14 +1,23 @@
-use psi_core::{BlockId, ContractId, EdgeId, MachineId};
+use psi_core::{
+    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
+    ServiceId, StructuralDomainId, StructuralTypeId,
+};
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, EntryClaim, MachineContract,
+    Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    interpret_terminal_artifact_measured,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
+    interpret_terminal_artifact_with_effect_handler_measured,
 };
 use psi_terminal_verifier::ProofBundle;
 
@@ -63,6 +72,329 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
     assert_eq!(meter.usage().total_units(), 1);
 }
 
+#[test]
+fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
+    let (semantic, proof) = effect_artifact_sections();
+    let argument = structural_value(41);
+    let mut handler = RecordingHandler::default();
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument.clone()],
+        &mut handler,
+    )
+    .expect("verified Unit/effect artifact should execute");
+
+    let expected = vec![
+        TerminalEffect::BoundaryCallUnit {
+            operation: operation_id(3),
+            boundary: boundary_id(1),
+            structural_arguments: vec![argument],
+            claim_settlements: vec![ClaimSettlement {
+                claim: claim_id(2),
+                argument_index: 0,
+            }],
+        },
+        TerminalEffect::PortWrite {
+            operation: operation_id(2),
+            service: service_id(1),
+            port: 0x20,
+            value: 0x20,
+        },
+    ];
+    assert_eq!(handler.effects, expected);
+    assert_eq!(measured.effects(), expected);
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), 5);
+}
+
+#[test]
+fn sponsor_exhaustion_does_not_replay_unit_calls_or_accepted_effects() {
+    let (semantic, proof) = effect_artifact_sections();
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural_value(42)],
+    )
+    .unwrap();
+    let mut meter = TerminalFuelMeter::with_allowance(3);
+    let mut handler = RecordingHandler::default();
+
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut handler)
+            .unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Operation(operation_id(2)),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    assert_eq!(handler.effects.len(), 1);
+    assert!(matches!(
+        handler.effects[0],
+        TerminalEffect::BoundaryCallUnit { .. }
+    ));
+
+    meter.replenish(2).unwrap();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut handler)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(handler.effects.len(), 2);
+    assert_eq!(execution.effects(), handler.effects);
+    assert_eq!(meter.usage().total_units(), 5);
+}
+
+#[test]
+fn structural_runtime_mismatches_and_effect_rejection_fail_closed() {
+    let (semantic, proof) = effect_artifact_sections();
+    let missing_qualification = TerminalStructuralValue {
+        opaque_identity: 43,
+        structural_type: structural_type_id(1),
+        qualifications: Vec::new(),
+    };
+    assert!(matches!(
+        TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[missing_qualification],
+        ),
+        Err(
+            psi_terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralQualificationMissing(_)
+            )
+        )
+    ));
+
+    let mut rejecting = RejectingHandler;
+    assert!(matches!(
+        interpret_terminal_artifact_with_effect_handler_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[structural_value(44)],
+            &mut rejecting,
+        ),
+        Err(psi_terminal_interpreter::TerminalArtifactInterpretError::Execution(
+            TerminalInterpretError::EffectRejected { operation, .. }
+        )) if operation == operation_id(3)
+    ));
+}
+
+#[derive(Default)]
+struct RecordingHandler {
+    effects: Vec<TerminalEffect>,
+}
+
+impl TerminalEffectHandler for RecordingHandler {
+    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        self.effects.push(effect.clone());
+        Ok(())
+    }
+}
+
+struct RejectingHandler;
+
+impl TerminalEffectHandler for RejectingHandler {
+    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        Err(TerminalEffectRejection::new("mock rejection"))
+    }
+}
+
+fn effect_artifact_sections() -> (Vec<u8>, Vec<u8>) {
+    (
+        encode_module(&effect_module()).expect("effect semantics encode"),
+        encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
+    )
+}
+
+fn effect_module() -> TerminalModule {
+    let structural_type = structural_type_id(1);
+    let domain = structural_domain_id(1);
+    let service = service_id(1);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::Device".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: domain,
+            identity: "test::Ready".into(),
+            carrier: structural_type,
+        }],
+        services: vec![ServiceDeclaration {
+            id: service,
+            identity: "test::PortIo".into(),
+            parents: Vec::new(),
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_id(1),
+            identity: "test::acknowledge".into(),
+            attachment: Some(structural_type),
+            structural_parameters: vec![structural_parameter(place_id(3), structural_type, domain)],
+            requires: vec![StructuralDomainRequirement {
+                argument_index: 0,
+                domain,
+            }],
+            published_service_ceiling: Vec::new(),
+        }],
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                attachment: Some(structural_type),
+                parameters: Vec::new(),
+                structural_parameters: vec![structural_parameter(
+                    place_id(1),
+                    structural_type,
+                    domain,
+                )],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![structural_place(place_id(1))],
+                entry_claims: vec![EntryClaim {
+                    claim: claim_id(1),
+                    input: place_id(1),
+                }],
+                published_service_ceiling: vec![service],
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: operation_id(1),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::CallUnit {
+                                callee: machine_id(2),
+                                structural_arguments: vec![StructuralArgument {
+                                    place: place_id(1),
+                                }],
+                                claim_transfers: vec![ClaimTransfer {
+                                    claim: claim_id(1),
+                                    argument_index: 0,
+                                }],
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
+                            },
+                        },
+                        Operation {
+                            id: operation_id(2),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::PortWrite {
+                                service,
+                                port: 0x20,
+                                value: 0x20,
+                            },
+                        },
+                    ],
+                    terminator: Terminator::ReturnUnit { edge: edge_id(1) },
+                }],
+                contract: empty_contract(contract_id(1)),
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                attachment: Some(structural_type),
+                parameters: Vec::new(),
+                structural_parameters: vec![structural_parameter(
+                    place_id(2),
+                    structural_type,
+                    domain,
+                )],
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![structural_place(place_id(2))],
+                entry_claims: vec![EntryClaim {
+                    claim: claim_id(2),
+                    input: place_id(2),
+                }],
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: operation_id(3),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::BoundaryCallUnit {
+                            boundary: boundary_id(1),
+                            structural_arguments: vec![StructuralArgument { place: place_id(2) }],
+                            claim_settlements: vec![ClaimSettlement {
+                                claim: claim_id(2),
+                                argument_index: 0,
+                            }],
+                            requirement_obligations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnUnit { edge: edge_id(2) },
+                }],
+                contract: empty_contract(contract_id(2)),
+            },
+        ],
+    }
+}
+
+fn structural_parameter(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    domain: StructuralDomainId,
+) -> StructuralParameterDeclaration {
+    StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: true,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: vec![domain],
+    }
+}
+
+fn structural_place(id: PlaceId) -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id,
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: true,
+        },
+    }
+}
+
+fn structural_value(opaque_identity: u64) -> TerminalStructuralValue {
+    TerminalStructuralValue {
+        opaque_identity,
+        structural_type: structural_type_id(1),
+        qualifications: vec![structural_domain_id(1)],
+    }
+}
+
+fn empty_contract(id: ContractId) -> MachineContract {
+    MachineContract {
+        id,
+        crash_routes: Vec::new(),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+    }
+}
+
 fn artifact_sections() -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(&unit_module()).expect("unit semantics encode"),
@@ -74,10 +406,18 @@ fn unit_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
@@ -115,4 +455,32 @@ fn edge_id(raw: u64) -> EdgeId {
 
 fn contract_id(raw: u64) -> ContractId {
     ContractId::new(raw).unwrap()
+}
+
+fn boundary_id(raw: u64) -> BoundaryMachineId {
+    BoundaryMachineId::new(raw).unwrap()
+}
+
+fn operation_id(raw: u64) -> OperationId {
+    OperationId::new(raw).unwrap()
+}
+
+fn place_id(raw: u64) -> PlaceId {
+    PlaceId::new(raw).unwrap()
+}
+
+fn claim_id(raw: u64) -> ClaimId {
+    ClaimId::new(raw).unwrap()
+}
+
+fn structural_type_id(raw: u64) -> StructuralTypeId {
+    StructuralTypeId::new(raw).unwrap()
+}
+
+fn structural_domain_id(raw: u64) -> StructuralDomainId {
+    StructuralDomainId::new(raw).unwrap()
+}
+
+fn service_id(raw: u64) -> ServiceId {
+    ServiceId::new(raw).unwrap()
 }
