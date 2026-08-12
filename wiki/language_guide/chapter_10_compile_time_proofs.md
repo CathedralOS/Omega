@@ -296,12 +296,16 @@ term before proof and multiplicity checking. Ambiguous, absent, generic, or
 otherwise ineligible evidence constructors still require an explicit term;
 omission never invokes a default or general inhabitance search. Native erasure
 admits non-generic transparent records, sums, mixed common-field/case shapes,
-and those closed generic-record instances. Erased payloads do not change tags or
-case numbering; they remain visible to semantic exhaustiveness and obligation
-checking. The compiler fails closed for unresolved generic uses, generic-sum
-construction or runtime use, plan-laid and placed views, wire/codec and ABI
-faces, and data with attached machines until each consumer has an
-erased-stripped representation.
+and those closed generic-record instances. Closed, non-generic plain records may
+also have attached machines when every attachment is an ordinary checked body
+with no unresolved machine parameters. Their machine storage and runtime
+contained-machine topology use the erased-stripped fields, while semantic
+ownership and proof obligations retain every field. Erased payloads do not
+change tags or case numbering; they remain visible to semantic exhaustiveness
+and obligation checking. The compiler fails closed for unresolved generic uses,
+generic-sum construction or runtime use, plan-laid and placed views, wire/codec
+and ABI faces, and attached machines over generic or case-bearing data,
+non-checked supply modes, or unresolved machine parameters.
 
 Runtime layout, ABI classification, codec shape, and placement offsets use the
 erased-stripped form. Nominal type identity and semantic fingerprints retain

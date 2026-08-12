@@ -3,16 +3,17 @@
 //!
 //! The executable slice supports transparent records and sums, plus closed
 //! synthesized generic-record instances at explicitly typed local
-//! initializers. The full semantic tree remains intact for proofs and
+//! initializers, and closed plain records whose attached machines are ordinary
+//! checked bodies. The full semantic tree remains intact for proofs and
 //! ownership; native lowering later strips erased literal fields from its
-//! private runtime expression graph.
+//! private runtime expression graph and attached-machine storage/topology.
 
 use psi_diagnostics::Diagnostic;
 use psi_language_core::BindingRelevance;
 use psi_language_semantics::{DataSupplyMode, MachineSupplyMode};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::data::{DataDefinition, DataField, DataMember};
+use psi_typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
@@ -185,11 +186,11 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
         {
             diagnostics.push(unsupported(definition, &field_names, "wire data"));
         }
-        if program
+        let has_attached_machines = program
             .machines()
             .iter()
-            .any(|machine| machine.attached_data.as_ref() == Some(&definition.name))
-        {
+            .any(|machine| machine.attached_data.as_ref() == Some(&definition.name));
+        if has_attached_machines && !supports_erased_attached_machine_record(program, definition) {
             diagnostics.push(unsupported(
                 definition,
                 &field_names,
@@ -233,6 +234,52 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             }
         }
     }
+}
+
+/// The first attached-machine relevance slice is deliberately narrower than
+/// ordinary erased data.  A plain, closed record can share the same
+/// erased-stripped field sequence between its value layout and each checked
+/// attached machine.  Case-bearing self storage, generic templates, and
+/// admitted/boundary providers need additional representation or evidence
+/// rules and therefore remain behind the existing fail-closed fence.
+fn supports_erased_attached_machine_record(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+) -> bool {
+    if definition.supply_mode != DataSupplyMode::CheckedShape
+        || !program.data_type_parameters(definition).is_empty()
+        || DataDefinition::shape_kind_from_members(program.data_members(definition))
+            != DataShapeKind::Record
+        || program
+            .plan_laid_layouts
+            .iter()
+            .any(|plan| plan.data_name == definition.name.as_str())
+        || program
+            .placed_view_plans
+            .iter()
+            .any(|plan| plan.data_name == definition.name.as_str())
+        || program
+            .wire_schemas()
+            .iter()
+            .any(|schema| schema.name == definition.name)
+    {
+        return false;
+    }
+
+    let attached = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.attached_data.as_ref() == Some(&definition.name));
+    let mut found = false;
+    for machine in attached {
+        found = true;
+        if !machine.supply_mode.is_checked_body()
+            || !program.machine_type_parameters(machine).is_empty()
+        {
+            return false;
+        }
+    }
+    found
 }
 
 fn validate_unresolved_erased_generic_uses(
@@ -340,15 +387,26 @@ fn validate_expression(
         ExpressionNode::Member(member) => {
             if context == Context::Runtime {
                 if !report_runtime_erased_field(program, member.member_symbol, diagnostics) {
-                    report_runtime_erased_member_by_receiver(
-                        program,
-                        machine,
-                        state,
-                        member.receiver,
-                        member.member.as_str(),
-                        member.case_variant.as_ref().map(|variant| variant.as_str()),
-                        diagnostics,
-                    );
+                    if crate::places::direct_self_field_member(program, expression)
+                        == Some(member.member.as_str())
+                    {
+                        report_runtime_erased_attached_field(
+                            program,
+                            machine,
+                            member.member.as_str(),
+                            diagnostics,
+                        );
+                    } else {
+                        report_runtime_erased_member_by_receiver(
+                            program,
+                            machine,
+                            state,
+                            member.receiver,
+                            member.member.as_str(),
+                            member.case_variant.as_ref().map(|variant| variant.as_str()),
+                            diagnostics,
+                        );
+                    }
                 }
             }
             validate_expression(
