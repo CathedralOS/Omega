@@ -16,12 +16,10 @@ data Main {
     tail_bytes: [u8; 8];
     pair_bytes: [u8; 12];
     k: u32 [0..=4];
-    exact: u32 [4..=4];
 }
 
 machine Main::main(&mut self) {
     self.k = 3;
-    self.exact = 4;
     let tail: &mut [u8] = &mut self.tail_bytes[self.k] as &mut [u8];
     transition tail.len > 4 {
         true -> write_tail(tail)
@@ -38,7 +36,7 @@ machine Main::main(&mut self) {
 
     state pair_view(&mut self) {
     let pairs: &mut [Pair] =
-        &mut self.pair_bytes[self.exact] as &mut [Pair];
+        &mut self.pair_bytes[4] as &mut [Pair];
     transition pairs.len > 1 {
         true -> write_pairs(pairs)
         _ -> bad_pair_length()
