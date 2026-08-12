@@ -615,6 +615,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, row.machine_symbol)
+                .expect("content partition composition must name an exact owning machine"),
+        );
         json.push_str(",\n      \"state\": ");
         push_json_string(
             &mut json,
@@ -622,6 +628,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         );
         json.push_str(",\n      \"source_callable\": ");
         push_json_string(&mut json, &symbol_label(program, row.source_callable));
+        json.push_str(",\n      \"source_callable_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &callable_overload_identity(program, row.source_plan.owner, row.source_callable)
+                .expect("content partition composition must name an exact source callable"),
+        );
         json.push_str(",\n      \"source_fingerprint\": ");
         push_json_string(&mut json, &format!("0x{:016x}", row.source_fingerprint));
         json.push_str(",\n      \"source_derivation_depth\": ");
@@ -3210,8 +3222,8 @@ mod tests {
         let fingerprint = conservation_fingerprint(&algebra, &equation);
         let plan = ContentConservationPlan {
             owner_kind: ContentConservationOwnerKind::Machine,
-            owner: SymbolHandle::invalid(),
-            callable: SymbolHandle::invalid(),
+            owner: machine_symbol,
+            callable: state_symbol,
             algebra,
             equation,
             fingerprint,
@@ -3241,9 +3253,9 @@ mod tests {
             .content
             .partition_compositions
             .push(ContentPartitionCompositionFact {
-                machine_symbol: SymbolHandle::invalid(),
-                state_symbol: SymbolHandle::invalid(),
-                source_callable: SymbolHandle::invalid(),
+                machine_symbol,
+                state_symbol,
+                source_callable: state_symbol,
                 source_fingerprint: plan.fingerprint,
                 source_derivation_depth: 0,
                 source_plan: plan.clone(),
@@ -3282,6 +3294,11 @@ mod tests {
             .find("\"content_partition_compositions\"")
             .expect("partition composition section");
         let reshuffles = &json[reshuffles_start..reshuffles_end];
+        let compositions_start = reshuffles_end;
+        let compositions_end = json
+            .find("\"content_conservation\"")
+            .expect("content conservation section");
+        let compositions = &json[compositions_start..compositions_end];
 
         assert!(json.contains("\"claim_outcome_maps\""));
         assert!(
@@ -3305,6 +3322,14 @@ mod tests {
             )
         );
         assert!(json.contains("\"content_partition_compositions\": [\n    {"));
+        assert!(
+            compositions.contains(
+                "\"machine_overload_identity\": \"named-callable(path(Region::partition)"
+            )
+        );
+        assert!(compositions.contains(
+            "\"source_callable_overload_identity\": \"named-callable(path(Region::partition)"
+        ));
         assert!(json.contains("\"source_derivation_depth\": 0"));
         assert!(json.contains("\"source_equation\": {\"left\":"));
         assert!(json.contains("\"substitutions\": [{\"source\": {\"version\": \"entry\""));
