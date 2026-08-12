@@ -67,9 +67,10 @@ Remaining:
   termination/ranking proof, const-evaluation rejection, parser rejection,
   predicate-domain declaration/contract-flow, domain alias/import, generic
   declaration/bound/rejection, borrow/lifetime, scalar-constraint, and
-  structural data-shape, control-flow rejection, operator-overload identity,
-  and recast representation checking, plus pure ownership-checker fixtures now use explicit checked-only
-  harnesses; ownership fixtures with dedicated backend permission-realization
+  structural data-shape, control-flow rejection, expression type/operator,
+  operator-overload identity, and recast representation checking, plus pure
+  ownership-checker fixtures now use explicit checked-only harnesses;
+  ownership fixtures with dedicated backend permission-realization
   assertions remain deployable. The rest of the semantic corpus still needs
   classification away from deployable compilation.
   Production/dev checked-tree interpreter callers now receive
