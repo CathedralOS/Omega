@@ -406,8 +406,7 @@ The compiler never adopts the ISA's silent count-masking under Exact —
 
 ### Float-to-integer conversion
 
-A float-to-integer conversion is also proof-or-policy (settled and implemented
-2026-07-18):
+A float-to-integer conversion is also proof-or-policy:
 
 - The unqualified named conversion truncates toward zero and must prove that
   the operand is finite and its truncated result lies inside the target
@@ -779,8 +778,7 @@ its IEEE partial order independently.
 - `fma(a, b, c)` is the single-rounding spelling.
 - There is no fast-math mode, flag, or build option, and none is planned.
   Optimization permissions, where they ever exist, are per-operation
-  spellings — never ambient. (This settles the two-layer question this
-  section used to carry: the permission layer is spelled ops.)
+  spellings — never ambient.
 
 ### Literals and compile-time arithmetic
 

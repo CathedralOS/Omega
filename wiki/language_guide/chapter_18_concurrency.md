@@ -116,19 +116,19 @@ responsible for eventual settlement.
 
 ## Suspension, Blocking, And Direct Calls
 
-Suspension is an operational property of an ordinary machine. Decision 22's
-split amendment supplies independent `suspends` and `blocks` clauses; absence
+Suspension is an operational property of an ordinary machine. Independent
+`suspends` and `blocks` clauses publish the two ceilings; absence
 of each is the corresponding negative guarantee. A suspended activation retains
 its fixed nonmoving stack. The remaining suspension work concerns lowering and
 the conservative loan subset that may remain live while that stack is parked.
 
-Decision 23 keeps positive progress separate. Pinned operations/providers may
+Positive progress remains separate. Pinned operations/providers may
 carry sealed opaque progress profiles authorized through boundary grants. A
 termination guarantee records the actual required profiles; the presence of
 `suspends` or `blocks` says only that such an event is possible and cannot name
 what will wake it. General trace entailment remains deferred.
 
-The constraints that *are* settled are:
+The constraints are:
 
 - suspension is an operational part of the ordinary machine contract, not a
   `Future` return type or a separate `async machine` species;

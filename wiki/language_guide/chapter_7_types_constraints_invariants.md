@@ -398,11 +398,11 @@ The spelling leaves room for trait bounds without collision
 (`T [copy] satisfies Equatable`).[^property-open]
 
 [^property-open]: Open: the initial core property set beyond
-copy/linear/carry; whether evolution-contract facts join the same surface
-(`[open]` was ruled OUT for sums -- unknown-case handling is a wire decode
-policy, frozen decision 10; `must_use` was ruled out by strict result use,
-frozen decision 9). A `[max_size = N]` property is a candidate for this
-surface: an opt-in hard bound on a type's total in-memory size, checked
+copy/linear/carry and whether evolution-contract facts join the same surface.
+Unknown-case handling remains a wire decode policy, not an `[open]` sum
+property, and strict result use needs no `must_use` property. A
+`[max_size = N]` property is a candidate for this surface: an opt-in hard bound
+on a type's total in-memory size, checked
 against the layout report (chapter 20). The language does not impose it --
 sizing a sum's cases is the author's call (a fat case can be shrunk with an
 out-of-line handle if they choose) -- but the property lets an author pin a

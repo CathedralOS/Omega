@@ -9,7 +9,7 @@ Last pruned: 2026-08-11.
 
 ## Reach, resources, and progress
 
-- Extend decision 23's opaque, sealed progress profiles into a general trace
+- Extend opaque, sealed progress profiles into a general trace
   logic only when a concrete customer needs machine-side fairness, deadlines,
   starvation freedom, or profile entailment. `terminates`, service reach,
   operational clauses,
@@ -20,7 +20,7 @@ Last pruned: 2026-08-11.
 - Defer additional operational clauses and service-row polymorphism
   until a concrete customer forces their declaration, coherence, and
   separate-compilation rules.
-- Define scheduler operation contracts in terms of decision 23's sealed
+- Define scheduler operation contracts in terms of sealed progress
   profiles, including wake-one/wake-all and timed-wait placement.
 
 ## Concurrency and hardware
@@ -37,7 +37,7 @@ Last pruned: 2026-08-11.
 
 ## Domains, proofs, and arithmetic
 
-- Settle the source spelling for decision 23's one joint ranking across a
+- Settle the source spelling for one joint ranking across a
   mutually cyclic SCC whose participants expose differently shaped subjects.
   The every-cyclic-edge-decreases semantics and private-witness identity are
   already fixed.
