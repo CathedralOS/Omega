@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-11.
+Last pruned: 2026-08-12.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -57,42 +57,26 @@ Remaining:
   receiver reservation, zeroes it, and carries its one exclusive activation
   loan without releasing receiver-bound roots through an unchecked path. Bind
   that handoff and the installer to the selected physical provider and generated
-  native bridge. Migrate the remaining
-  `Main::main` corpus to exact target-owned `ProgramEntry` bindings and delete
-  that last naming fallback; three single-target hosted canaries now exercise
-  explicit Windows x86-64, Linux x86-64, and Linux AArch64 bindings. The bulk
-  multi-target corpus still needs target-scoped build engineering. Curated
-  Rat/metric, ring, proposition/quotient, higher-order-machine-schema,
-  static-machine-indexed-data, nonrecursive L0–L6 proof-ladder, module/package
-  declaration/import, pure parameter/range and data/property declarations,
-  trait declaration/conformance, ordinary version/migration declarations,
-  termination/ranking proof, const-evaluation rejection, parser rejection,
-  predicate-domain declaration/contract-flow, domain alias/import, generic
-  declaration/bound/rejection, borrow/lifetime, scalar-constraint, and
-  structural data-shape/pattern and wire-schema declaration, control-flow
-  rejection, expression type/operator, basic call/result/recursion,
-  suspension/carry, cleanup contract, returned-failure/control-outcome,
-  numeric conversion, value construction, Exact arithmetic
-  proof/theorem/runtime-use, dependent-contract/frame, domain
-  qualification/operator, trait and effect-contract requirement,
-  invariant-window, slice/collection bounds, overlap, and range-flow validation,
-  operator-overload identity, and recast representation checking, plus pure
-  ownership-checker fixtures now use explicit checked-only harnesses;
-  ownership fixtures with dedicated backend permission-realization
-  assertions remain deployable. The rest of the semantic corpus still needs
-  classification away from deployable compilation.
-  Production/dev checked-tree interpreter callers now receive
-  Omega's exact entry choice, and Psi's implicit `Main::main` interpreter
-  wrappers are retired. `Main::run` discovery is retired. No ambient `static`
-  storage. Final
-  composition of firmware `ImageHandle`/`SystemTable` inputs with the semantic
-  roots is design-blocked on owner Q2; the other bridge and migration work is
-  not.
+  native bridge. Classify the remaining semantic canaries out of deployable
+  compilation unless they assert provider, artifact, ABI, layout, or native
+  behavior; pure language/checker fixtures use the checked-only harness. Migrate
+  the remaining `Main::main` corpus to exact target-owned `ProgramEntry`
+  bindings and delete the naming fallback. Three single-target hosted canaries
+  cover Windows x86-64, Linux x86-64, and Linux AArch64; the bulk multi-target
+  corpus still needs target-scoped build engineering. Production and development
+  interpreter callers already receive Omega's exact entry choice; implicit Psi
+  entry discovery and `Main::run` are retired. Final composition of firmware
+  `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
+  owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
   boundaries, and admit only provider custody. Infer identity-preserving
-  reshuffles; partition changes require an authored theorem.
+  reshuffles; partition changes require an authored theorem. Before emitting an
+  introduction or exit, checked facts must bind the exact content subject and
+  geometry to the selected provider plan, invocation receipt, backing/root
+  lineage, installed occurrence, and route; a generic established-claim identity
+  is insufficient.
 - **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
   and compiler-provisioned origins must preserve complete evidence and reject
   cross-origin composition and replay. Once the sealed local-capacity source
@@ -179,9 +163,10 @@ Remaining:
   consumers as each slice moves. Nothing below terminal Psi may depend on
   typed/source trees, `ExpressionHandle`, source rendering, or an Omega-to-Psi
   bridge. Canonical partition-composition rows remain replay evidence, not
-  semantic axioms: bind them to an exact operation and verifier-selected callee
-  guarantee before making the reconstructed theorem available on success.
-  Fingerprints are identity, never authority.
+  semantic axioms. Their source fingerprint is independently reconstructed;
+  bind each row to an exact operation and verifier-selected callee guarantee
+  before making the theorem available on success. Fingerprints are identity,
+  never authority.
 - **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
   scalar slice. Source-produced direct calls now consume checked
   invocation-specific rows, preserve parameter and computed direct-local
