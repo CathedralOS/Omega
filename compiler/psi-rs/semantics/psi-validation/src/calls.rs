@@ -1529,10 +1529,11 @@ struct FramePlaceOrigin {
 }
 
 /// Recover the caller-visible origin of the deliberately narrow stable local-
-/// alias shapes handled by the ordinary frame summarizer. A terminal indexed
-/// origin is represented by its whole collection; once coarse, later member
-/// suffixes may never narrow that collection again. Everything less direct
-/// stays opaque: call-produced references, projections through a local alias,
+/// alias shapes handled by the ordinary frame summarizer. A reborrow through
+/// an already-known alias composes an exact member suffix onto that alias's
+/// origin. An indexed reborrow is represented by its whole collection; once
+/// coarse, later member suffixes may never narrow that collection again.
+/// Everything less direct stays opaque: call-produced references, direct
 /// member-after-index origins, and computed collections need richer evidence.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
@@ -1561,12 +1562,19 @@ fn stable_local_mutable_alias_origin(
     {
         return Some(origin);
     }
-    if origin.precision == FramePathPrecision::Exact && suffix.is_empty() {
-        return aliases
-            .iter()
-            .find_map(|(alias, origin)| (alias == root).then(|| origin.clone()));
-    }
-    None
+    let parent = aliases
+        .iter()
+        .find_map(|(alias, parent)| (alias == root).then_some(parent))?;
+    Some(match (parent.precision, origin.precision) {
+        (FramePathPrecision::Exact, FramePathPrecision::Exact) => FramePlaceOrigin {
+            path: append_place_suffix(&parent.path, suffix),
+            precision: FramePathPrecision::Exact,
+        },
+        _ => FramePlaceOrigin {
+            path: parent.path.clone(),
+            precision: FramePathPrecision::CollectionCoarse,
+        },
+    })
 }
 
 fn rebase_local_alias_path(relative: &str, aliases: &[(String, FramePlaceOrigin)]) -> String {
