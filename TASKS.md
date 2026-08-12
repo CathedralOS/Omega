@@ -73,7 +73,9 @@ Remaining:
   one checked-only filesystem-conversion fixture now use an explicitly named
   legacy test entry; the trust-report/lock cohort is entry-agnostic checked-only
   compilation, while the hosted build-evaluation/native staging cohort selects
-  an exact host-owned entry root. Backend `Main::main` discovery is deleted.
+  an exact host-owned entry root. The native runtime-END/domained-subslice
+  cohort selects exact roots across the four hosted targets too. Backend
+  `Main::main` discovery is deleted.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
