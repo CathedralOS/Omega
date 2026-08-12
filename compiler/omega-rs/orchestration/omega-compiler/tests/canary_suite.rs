@@ -5418,20 +5418,23 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
         assert!(
             boundary.lines().any(|line| line.contains(" at statement ")
                 && line.contains(" call ")
+                && line.contains("[named-callable(path(")
                 && line.ends_with(" direct")),
-            "boundary report for {canary_name} should retain direct checked flow sites\n{boundary}"
+            "boundary report for {canary_name} should retain direct checked flow sites with exact owner overload identity\n{boundary}"
         );
         for (state, authority_flow, via_state) in propagated_routes {
-            let site_prefix = format!("`{state}` {authority_flow} at statement ");
-            let route_suffix = format!(" via `{via_state}`");
+            let site_prefix = format!("`{state}` [named-callable(path({state})");
+            let route = format!(" {authority_flow} at statement ");
+            let route_suffix = format!(" via `{via_state}` [named-callable(path({via_state})");
             assert!(
                 boundary.lines().any(|line| {
                     line.contains(&site_prefix)
+                        && line.contains(&route)
                         && line.contains(" call ")
-                        && line.ends_with(&route_suffix)
+                        && line.contains(&route_suffix)
                 }),
                 "boundary report for {canary_name} should retain exact propagated site \
-                 `{site_prefix}…{route_suffix}`\n{boundary}"
+                 `{site_prefix}…{route_suffix}…`\n{boundary}"
             );
         }
 

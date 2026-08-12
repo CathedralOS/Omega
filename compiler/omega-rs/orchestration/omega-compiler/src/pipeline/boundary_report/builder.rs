@@ -1,6 +1,6 @@
 use omega_artifacts::{
     BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
-    CapabilityBlastRadiusFlow, UncheckedBoundaryPolicy,
+    CapabilityBlastRadiusFlow, CapabilityBlastRadiusRoute, UncheckedBoundaryPolicy,
 };
 use omega_effects::build_boundary_provider_approval_registry;
 use psi_arena::HandleSpan;
@@ -88,14 +88,48 @@ fn capability_flow_rows(
         .filter(|flow| flow.capability_symbol == capability_symbol)
         .map(|flow| CapabilityBlastRadiusFlow {
             state: state_path(checked, flow.state_symbol),
+            machine_overload_identity: machine_overload_identity(checked, flow.machine_symbol),
             authority_flow: flow.kind.as_str().to_owned(),
             statement_index: flow.statement_index,
             call_ordinal: flow.call_ordinal,
-            via_state: flow
-                .is_propagated()
-                .then(|| state_path(checked, flow.via_state_symbol)),
+            via: flow.is_propagated().then(|| CapabilityBlastRadiusRoute {
+                state: state_path(checked, flow.via_state_symbol),
+                machine_overload_identity: state_owner_overload_identity(
+                    checked,
+                    flow.via_state_symbol,
+                ),
+            }),
         })
         .collect()
+}
+
+fn machine_overload_identity(checked: &CheckedTrees, machine_symbol: SymbolHandle) -> String {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .expect("checked capability flow must name an owning machine");
+    checked
+        .normalized_machine_overload_identity(machine)
+        .expect("checked capability-flow machine must have an entry state")
+        .identity()
+}
+
+fn state_owner_overload_identity(checked: &CheckedTrees, state_symbol: SymbolHandle) -> String {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == state_symbol)
+        })
+        .expect("checked propagated capability flow must name a helper state");
+    checked
+        .normalized_machine_overload_identity(machine)
+        .expect("checked propagated capability-flow machine must have an entry state")
+        .identity()
 }
 
 /// Renders the `Machine::state` path that owns `state_symbol`. Machine names
