@@ -3079,8 +3079,12 @@ fn accepts_static_persistent_copy_across_value_write_helper_result_frame() {
             code: i32;
         }
 
+        machine identity(value: &mut i32) -> &mut i32 {
+            value
+        }
+
         machine write_then_return(value: &mut i32) -> &mut i32 {
-            value = 7;
+            identity(value) = 7;
             value
         }
 
@@ -3096,9 +3100,8 @@ fn accepts_static_persistent_copy_across_value_write_helper_result_frame() {
         }
     "#;
 
-    check_program(source).expect(
-        "a call-free value write preserves its helper result origin and disjoint caller facts",
-    );
+    check_program(source)
+        .expect("a transparent call-produced assignment target preserves the helper result origin");
 }
 
 #[test]
