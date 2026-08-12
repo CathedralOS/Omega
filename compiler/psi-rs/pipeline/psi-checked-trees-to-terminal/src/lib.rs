@@ -7674,6 +7674,69 @@ mod tests {
     }
 
     #[test]
+    fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
+        let mut checked = hard_root_checked_fixture();
+        let plans = &mut checked.facts.flow.terminal_unit_effects;
+        plans.structural_types.extend([
+            psi_checked_trees::CheckedUnitStructuralTypePlan {
+                identity: "example::Pocket".to_owned(),
+                fields: vec![psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                    identity: "#9".to_owned(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: CheckedUnitStructuralFieldType::Structural {
+                        type_identity: "example::Token".to_owned(),
+                    },
+                }],
+            },
+            psi_checked_trees::CheckedUnitStructuralTypePlan {
+                identity: "example::Token".to_owned(),
+                fields: Vec::new(),
+            },
+        ]);
+        let acknowledgement = plans
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == "example::Acknowledgement")
+            .expect("acknowledgement shape");
+        acknowledgement.fields[0].identity = "#7".to_owned();
+        acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
+            type_identity: "example::Pocket".to_owned(),
+        };
+        for boundary in &mut plans.boundary_machines {
+            boundary.structural_parameters[0].multiplicity = Multiplicity::Affine;
+        }
+        for machine in &mut plans.machines {
+            machine.structural_parameters[0].multiplicity = Multiplicity::Affine;
+            machine.entry_claims[0].field_path = vec!["#7".to_owned(), "#9".to_owned()];
+        }
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("nested record custody should cross the complete Unit closure");
+        for machine in &lowered.semantic_module.machines {
+            assert_eq!(
+                machine.structural_parameters[0].multiplicity,
+                StructuralMultiplicity::Affine
+            );
+            assert_eq!(machine.entry_claims.len(), 1);
+            assert_eq!(machine.entry_claims[0].field_path, ["#7", "#9"]);
+        }
+        let acknowledgement = lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|shape| shape.identity == "example::Acknowledgement")
+            .expect("lowered acknowledgement shape");
+        let StructuralTypeShape::Record { fields } = &acknowledgement.shape;
+        assert!(matches!(
+            &fields[0].field_type,
+            StructuralFieldType::Structural(structural_type)
+                if lowered.semantic_module.structural_types.iter().any(|shape| {
+                    shape.id == *structural_type && shape.identity == "example::Pocket"
+                })
+        ));
+    }
+
+    #[test]
     fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         let mut checked = hard_root_checked_fixture();
         let plans = &mut checked.facts.flow.terminal_unit_effects;

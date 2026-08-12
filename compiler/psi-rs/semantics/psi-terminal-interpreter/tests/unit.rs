@@ -147,6 +147,69 @@ fn unit_calls_transfer_numbered_record_field_claims() {
 }
 
 #[test]
+fn unit_calls_transfer_and_settle_nested_record_field_claims() {
+    let mut module = effect_module();
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: structural_type_id(2),
+            identity: "test::Pocket".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+                    identity: "#9".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(structural_type_id(3)),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(3),
+            identity: "test::Token".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ]);
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.push(StructuralFieldDeclaration {
+        id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+        identity: "#7".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(2)),
+    });
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims[0].field_path = vec!["#7".into(), "#9".into()];
+    }
+
+    let semantic = encode_module(&module).expect("nested field-custody module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = structural_value(47);
+    let mut handler = RecordingHandler::default();
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument.clone()],
+        &mut handler,
+    )
+    .expect("verified nested field custody should execute");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert!(matches!(
+        &handler.effects[0],
+        TerminalEffect::BoundaryCallUnit {
+            structural_arguments,
+            claim_settlements,
+            ..
+        } if structural_arguments == &[argument]
+            && claim_settlements == &[
+                ClaimSettlement { claim: claim_id(1), argument_index: 0 },
+            ]
+    ));
+}
+
+#[test]
 fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
     let mut module = effect_module();
     module.structural_types.push(StructuralTypeDeclaration {
