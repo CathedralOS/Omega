@@ -261,9 +261,7 @@ fn selected_source_boundary_entry_plan(
         .find(|plan| plan.name == provider_plan_name)
         .and_then(|plan| {
             plan.schema.methods.iter().find(|method| {
-                method.name == method_name
-                    && (requirement_identity.is_empty()
-                        || method.requirement_identity == requirement_identity)
+                method.name == method_name && method.requirement_identity == requirement_identity
             })
         })?
         .calling_plan_fingerprint?;
@@ -288,13 +286,12 @@ fn selected_source_boundary_entry_plan(
                         .any(|signature| {
                             signature.symbol == realization.requirement_machine
                                 && signature.name.as_str() == method_name
-                                && (requirement_identity.is_empty()
-                                    || typed
-                                        .normalized_trait_requirement_overload_identity(
-                                            definition, signature,
-                                        )
-                                        .identity()
-                                        == requirement_identity)
+                                && typed
+                                    .normalized_trait_requirement_overload_identity(
+                                        definition, signature,
+                                    )
+                                    .identity()
+                                    == requirement_identity
                         })
                 })
         })

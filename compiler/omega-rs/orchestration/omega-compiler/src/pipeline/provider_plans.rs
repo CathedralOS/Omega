@@ -1478,7 +1478,7 @@ fn derive_boundary_operator_plans(
                 });
             plans[position].rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
-                requirement_identity: String::new(),
+                requirement_identity: schema.methods[0].requirement_identity.clone(),
                 binding,
             });
         }
@@ -1516,9 +1516,7 @@ pub(crate) fn satisfied_requirement_identity(
         .filter(|signature| signature.name.as_str() == requirement_name)
         .collect::<Vec<_>>();
     let selected = match named.as_slice() {
-        // A unique human name remains the executable compatibility key. Its
-        // full normalized identity is carried independently by ServiceMethod.
-        [_single] => return String::new(),
+        [single] => Some(*single),
         many => {
             let implementation_dispatch = typed
                 .machine_states(machine)
@@ -1560,21 +1558,12 @@ fn exact_satisfied_requirement_identity(
         .iter()
         .filter(|signature| signature.name.as_str() == requirement_name)
         .collect::<Vec<_>>();
-    let signature = match named.as_slice() {
-        [single] => Some(*single),
-        _ => {
-            let selected =
-                satisfied_requirement_identity(typed, machine_name, trait_name, requirement_name);
-            return selected;
-        }
-    };
-    signature
-        .map(|signature| {
-            typed
-                .normalized_trait_requirement_overload_identity(definition, signature)
-                .identity()
-        })
-        .unwrap_or_default()
+    match named.as_slice() {
+        [single] => typed
+            .normalized_trait_requirement_overload_identity(definition, single)
+            .identity(),
+        _ => satisfied_requirement_identity(typed, machine_name, trait_name, requirement_name),
+    }
 }
 
 fn external_provider_binding(
@@ -2231,7 +2220,7 @@ mod tests {
                     .map(|method| omega_effects::provider_plan::ServiceMethod {
                         name: (*method).to_owned(),
                         requirement_owner: "Pair".to_owned(),
-                        requirement_identity: String::new(),
+                        requirement_identity: format!("Pair::{method}"),
                         parameter_count: 0,
                         parameter_type_identities: Vec::new(),
                         entry_claims: Vec::new(),
@@ -2250,7 +2239,7 @@ mod tests {
                 .iter()
                 .map(|method| ProviderPlanRow {
                     method: (*method).to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: format!("Pair::{method}"),
                     binding: ProviderBinding::VtableSlot { index: 0 },
                 })
                 .collect(),
@@ -2654,7 +2643,7 @@ mod tests {
         plan.provider_type.clear();
         plan.rows.push(ProviderPlanRow {
             method: "first".to_owned(),
-            requirement_identity: String::new(),
+            requirement_identity: "Pair::first".to_owned(),
             binding: ProviderBinding::VtableField {
                 table: String::new(),
                 field: "first".to_owned(),
@@ -2677,7 +2666,7 @@ mod tests {
         plan.provider_type.clear();
         plan.rows.push(ProviderPlanRow {
             method: "first".to_owned(),
-            requirement_identity: String::new(),
+            requirement_identity: "Pair::first".to_owned(),
             binding: ProviderBinding::CheckedAdapter {
                 machine: "first_adapter".to_owned(),
             },

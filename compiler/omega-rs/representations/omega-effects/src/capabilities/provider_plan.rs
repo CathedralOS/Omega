@@ -30,7 +30,7 @@ pub struct ServiceMethod {
     /// and refines only its calling plan.
     pub requirement_owner: String,
     /// Stable named-callable identity of the exact requirement overload.
-    /// Empty only on legacy/compiler-constructed singleton schemas.
+    /// Provider schemas are never name-only, including singleton schemas.
     pub requirement_identity: String,
     /// Declared parameter count (excluding any receiver) -- the same count
     /// the vtable-field encoder compares against call operands.
@@ -147,8 +147,8 @@ pub enum ProviderBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRow {
     pub method: String,
-    /// Exact requirement overload supplied by this row. Empty is accepted
-    /// only when `method` names a unique schema method.
+    /// Exact requirement overload supplied by this row. It is always nonempty;
+    /// a method spelling is display/debug data, not dispatch identity.
     pub requirement_identity: String,
     pub binding: ProviderBinding,
 }
@@ -232,7 +232,10 @@ impl ServiceSchema {
                     psi_typed_trees::operator::boundary_operator_requirement_identity(
                         program, operator,
                     ),
-                requirement_identity: String::new(),
+                requirement_identity:
+                    psi_typed_trees::operator::boundary_operator_requirement_identity(
+                        program, operator,
+                    ),
                 parameter_count: program.operator_parameters(operator).len(),
                 parameter_type_identities: program
                     .operator_parameters(operator)
@@ -706,6 +709,22 @@ impl ProviderPlan {
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
         for method in &self.schema.methods {
+            if method.requirement_identity.is_empty() {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` has no exact requirement identity",
+                    self.name, self.schema.trait_name, method.name
+                ));
+            }
+        }
+        for row in &self.rows {
+            if row.requirement_identity.is_empty() {
+                errors.push(format!(
+                    "plan `{}` row `{}` has no exact requirement identity",
+                    self.name, row.method
+                ));
+            }
+        }
+        for method in &self.schema.methods {
             let count = self
                 .rows
                 .iter()
@@ -754,20 +773,13 @@ impl ProviderPlan {
 }
 
 impl ServiceSchema {
-    /// Match a provider row to one exact requirement. Name-only rows remain a
-    /// compatibility form for singleton schemas but can never cover an
-    /// overloaded name.
+    /// Match a provider row to one exact requirement. The readable method name
+    /// must agree as a drift check, but only the canonical overload identity
+    /// selects the requirement.
     pub fn row_binds_method(&self, row: &ProviderPlanRow, method: &ServiceMethod) -> bool {
-        if !row.requirement_identity.is_empty() {
-            return row.requirement_identity == method.requirement_identity;
-        }
-        row.method == method.name
-            && self
-                .methods
-                .iter()
-                .filter(|candidate| candidate.name == method.name)
-                .count()
-                == 1
+        !row.requirement_identity.is_empty()
+            && row.method == method.name
+            && row.requirement_identity == method.requirement_identity
     }
 
     pub fn method_for_row(&self, row: &ProviderPlanRow) -> Option<&ServiceMethod> {
@@ -791,7 +803,7 @@ mod tests {
                 ServiceMethod {
                     name: "write_line".to_owned(),
                     requirement_owner: "Console".to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Console::write_line".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["String".to_owned()],
                     entry_claims: Vec::new(),
@@ -807,7 +819,7 @@ mod tests {
                 ServiceMethod {
                     name: "read_byte".to_owned(),
                     requirement_owner: "Console".to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Console::read_byte".to_owned(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
                     entry_claims: Vec::new(),
@@ -823,7 +835,7 @@ mod tests {
                 ServiceMethod {
                     name: "exit_process".to_owned(),
                     requirement_owner: "Console".to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Console::exit_process".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["i32".to_owned()],
                     entry_claims: Vec::new(),
@@ -846,7 +858,7 @@ mod tests {
             rows: vec![
                 ProviderPlanRow {
                     method: "write_line".to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Console::write_line".to_owned(),
                     binding: ProviderBinding::Import {
                         library: "kernel32.dll".to_owned(),
                         symbol: "WriteFile".to_owned(),
@@ -854,7 +866,7 @@ mod tests {
                 },
                 ProviderPlanRow {
                     method: "read_byte".to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Console::read_byte".to_owned(),
                     binding: ProviderBinding::Import {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ReadFile".to_owned(),
@@ -862,7 +874,7 @@ mod tests {
                 },
                 ProviderPlanRow {
                     method: "exit_process".to_owned(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Console::exit_process".to_owned(),
                     binding: ProviderBinding::Import {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ExitProcess".to_owned(),
@@ -979,12 +991,12 @@ mod tests {
         plan.rows.remove(0);
         plan.rows.push(ProviderPlanRow {
             method: "not_a_method".to_owned(),
-            requirement_identity: String::new(),
+            requirement_identity: "Console::not_a_method".to_owned(),
             binding: ProviderBinding::Syscall { number: 1 },
         });
         plan.rows.push(ProviderPlanRow {
             method: "exit_process".to_owned(),
-            requirement_identity: String::new(),
+            requirement_identity: "Console::exit_process".to_owned(),
             binding: ProviderBinding::Syscall { number: 0 },
         });
         let errors = plan.validate_against_schema();
@@ -1025,7 +1037,7 @@ mod tests {
         let mut plan = windows_console_plan();
         plan.rows.push(ProviderPlanRow {
             method: "not_in_schema".to_owned(),
-            requirement_identity: String::new(),
+            requirement_identity: "Console::not_in_schema".to_owned(),
             binding: ProviderBinding::VtableSlot { index: 0 },
         });
         assert!(

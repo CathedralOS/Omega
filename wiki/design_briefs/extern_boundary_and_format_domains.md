@@ -117,6 +117,9 @@ domain, carry policy, predicate-discharge requirement, and grant provenance.
 Checked-adapter dispatch consumes that retained carrier as well. Only an exact
 `CheckedAdapter` row in the selected plan may rewrite the corresponding
 boundary call; an unrelated or unselected adapter cannot overlay the selection.
+Every selected schema method and row carries a nonempty canonical overload
+identity. Name-only singleton matching is not a compatibility form: the
+readable method name is only a drift check beside exact identity.
 Every checked adapter belongs to a nominal provider type. The rewrite retains
 the selected entry-state symbol and complete nominal machine name for both
 statement and value calls. Standard Console publishes one complete nominal

@@ -394,7 +394,7 @@ mod tests {
                 methods: vec![ServiceMethod {
                     name: "read".into(),
                     requirement_owner: "Storage".into(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Storage::read".into(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
                     entry_claims: Vec::new(),
@@ -410,7 +410,7 @@ mod tests {
             },
             rows: vec![ProviderPlanRow {
                 method: "read".into(),
-                requirement_identity: String::new(),
+                requirement_identity: "Storage::read".into(),
                 binding,
             }],
             origin_package: "test".into(),
@@ -445,7 +445,7 @@ mod tests {
                 omega_effects::OpaqueExecutableAdmissionCandidate {
                     provider_plan_identity: plan_identity,
                     method: "read".into(),
-                    requirement_identity: String::new(),
+                    requirement_identity: "Storage::read".into(),
                     binding: OpaqueInProcessBinding::Import {
                         library: "platform".into(),
                         symbol: "read".into(),
