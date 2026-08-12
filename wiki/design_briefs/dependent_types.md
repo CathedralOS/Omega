@@ -325,11 +325,12 @@ reborrow (`let child: &mut T = &mut parent`) or exact member reborrow
 origin such as `&mut self.cells[i]` or `&mut parent.group.cells[i]` is known only
 at collection precision: an exact parent retains the nearest intermediate
 collection (`parent.group.cells`), while an already-coarse parent absorbs every
-later suffix. That coarsening remains absorbing through later alias projections,
-member writes, calls, and transitions. Potential rebinding, local or computed
-collection origins, direct member-after-index origins, call-produced chains,
-and transport through a named state SCC remain opaque. Non-bijective, computed,
-or otherwise unrepresentable
+later suffix. A direct origin such as `&mut self.cells[i].value` likewise
+publishes `self.cells`; the member after the index cannot narrow the collection.
+That coarsening remains absorbing through later alias projections, member
+writes, calls, and transitions. Potential rebinding, local or computed
+collection origins, call-produced chains, and transport through a named state
+SCC remain opaque. Non-bijective, computed, or otherwise unrepresentable
 cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns
 further relational candidates.
 
