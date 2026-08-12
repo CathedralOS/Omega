@@ -7760,7 +7760,7 @@ fn authorized_route_establishment_canaries() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-bodyless-owner-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    production_compile(CompileOptions {
         root_path: pass.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -7877,7 +7877,7 @@ fn extent_root_provider_adapter_compiles() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-extent-root-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    production_compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -7951,7 +7951,7 @@ fn content_conservation_contract_is_normalized_and_reported() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-content-conservation-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    production_compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -7974,7 +7974,7 @@ fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
     let canary = pass_canary("core/carry_permission_provider_adapter");
     let build_dir = std::env::temp_dir().join(format!("omega-carry-claim-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    production_compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -8042,7 +8042,7 @@ fn boundary_qualification_evidence_names_exact_requirement() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    production_compile(CompileOptions {
         root_path: pass.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -48340,7 +48340,7 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     // `pass_canaries_compile` vs `capability_pass_canaries_compile_in_isolation`
     // full-suite flake. Give every no-output compile its own temp dir instead.
     let build_dir = unique_no_output_build_dir();
-    let result = compile(CompileOptions {
+    let result = production_compile(CompileOptions {
         root_path: canary_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
