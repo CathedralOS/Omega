@@ -873,23 +873,57 @@ pub fn place_value_compare_additional_machine_state() -> MachineStateSet {
 }
 
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the
-/// place pair itself -- shared-base when both places root in the SAME region
-/// and a side derefs (the shape every retired same-region indexed/pointee
-/// encoder hand-spelled), two-base otherwise (including same-region direct
-/// pairs, which the retired plain copy materialized as two identical
-/// patched bases). Returns the bytes AND the base relocation sites recorded
-/// by the same walk; the relocation walker patches each site from the
-/// corresponding place's own region.
+/// place pair itself -- shared-base only when both places root in the SAME
+/// region and the pair satisfies that walk's structural constraints (the
+/// shape every retired same-region indexed/pointee encoder hand-spelled),
+/// two-base otherwise. Same-region direct/indexed pairs still materialize two
+/// independently patched bases, just as the retired plain copy did. Returns
+/// the bytes AND the base relocation sites recorded by the same walk; the
+/// relocation walker patches each site from the corresponding place's own
+/// region.
 pub fn encode_copy_places(
     source: &Place,
     target: &Place,
     byte_count: usize,
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
-    if source.region == target.region && (place_derefs(source) || place_derefs(target)) {
+    if place_pair_can_share_base(source, target) {
         encode_place_copy_shared_base_with_sites(source, target, byte_count)
     } else {
         encode_place_copy_with_sites(source, target, byte_count)
     }
+}
+
+fn place_pair_can_share_base(source: &Place, target: &Place) -> bool {
+    if source.region != target.region {
+        return false;
+    }
+    let source_derefs = place_derefs(source);
+    let target_derefs = place_derefs(target);
+    if !source_derefs && !target_derefs {
+        return false;
+    }
+    let source_indexed = place_has_index(source);
+    let target_indexed = place_has_index(target);
+    if (source_indexed && target_indexed)
+        || (source_indexed && !source_derefs)
+        || (target_indexed && !target_derefs)
+    {
+        return false;
+    }
+
+    // The source is the hopping side whenever it dereferences; otherwise the
+    // target hops. An index before that first deref would mutate the shared
+    // register before the hop has preserved the original base.
+    let hopping_side = if source_derefs { source } else { target };
+    hopping_side
+        .steps()
+        .iter()
+        .position(|step| matches!(step, PlaceStep::Deref))
+        .is_some_and(|first_deref| {
+            !hopping_side.steps()[..first_deref]
+                .iter()
+                .any(|step| matches!(step, PlaceStep::ScaledIndex { .. }))
+        })
 }
 
 /// Exact scratch footprint of the generic `CopyPlaces` materializer for any
@@ -1771,6 +1805,53 @@ mod tests {
             })
             .unwrap();
         assert!(encode_place_copy_shared_base(&direct_indexed, &indexed(32), 4).is_err());
+    }
+
+    /// `CopyPlaces` must not confuse a common region with an encodable
+    /// one-base shape. Two runtime-indexed sides need independent bases and
+    /// retain one relocation site per side even when both patch to the frame.
+    #[test]
+    fn same_region_indexed_pair_routes_through_two_bases() {
+        let indexed = |offset: usize, index_offset: usize| {
+            Place::at(RuntimeStorageRegion::RuntimeFrame, offset)
+                .with_step(PlaceStep::Deref)
+                .unwrap()
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::RuntimeFrame,
+                    index_offset,
+                    index_byte_size: 4,
+                    element_byte_size: 4,
+                })
+                .unwrap()
+        };
+        let (bytes, sites) =
+            encode_copy_places(&indexed(0, 8), &indexed(32, 40), 4).expect("encodes");
+
+        assert_eq!(&bytes[..2], &[0x49, 0xbe], "source base starts in r14");
+        let sides = sites.iter().map(|(_, side)| side).collect::<Vec<_>>();
+        assert_eq!(sides, vec![PlaceCopySide::Source, PlaceCopySide::Target]);
+    }
+
+    /// A runtime index before the hopping deref cannot use the shared base,
+    /// but the generic materializer can preserve the pair with two bases.
+    #[test]
+    fn same_region_pre_deref_index_routes_through_two_bases() {
+        let source = Place::at(RuntimeStorageRegion::RuntimeFrame, 0)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: 8,
+                index_byte_size: 4,
+                element_byte_size: 16,
+            })
+            .unwrap()
+            .with_step(PlaceStep::Deref)
+            .unwrap();
+        let target = Place::at(RuntimeStorageRegion::RuntimeFrame, 32);
+
+        assert!(encode_place_copy_shared_base(&source, &target, 4).is_err());
+        let (_, sites) = encode_copy_places(&source, &target, 4).expect("encodes");
+        let sides = sites.iter().map(|(_, side)| side).collect::<Vec<_>>();
+        assert_eq!(sides, vec![PlaceCopySide::Source, PlaceCopySide::Target]);
     }
 
     /// The double-index rung: a machine-style no-deref place with TWO
