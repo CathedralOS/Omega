@@ -431,8 +431,8 @@ impl OperationResult {
         }
     }
 
-    /// Transitional scalar-consumer helper. Callers must reject Unit-capable
-    /// operations before using this accessor.
+    /// Scalar-only consumer helper. Callers must reject Unit-capable operations
+    /// before using this accessor.
     pub const fn expect_scalar(self) -> ValueDeclaration {
         match self {
             Self::Scalar(value) => value,
