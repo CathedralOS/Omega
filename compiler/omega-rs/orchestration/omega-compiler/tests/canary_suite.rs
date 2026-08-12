@@ -42890,6 +42890,14 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/slice_domain_validator",
     "domains/utf8_slice_ops",
     "domains/utf8_literal_arg",
+    "proofs/real_boundary_package_compile",
+    "proofs/integer_measured_nat_induction_compile",
+    "proofs/citation_requires_discharged",
+    "proofs/polynomial_expand_core_nat",
+    "proofs/proof_inductive_gauss_sum",
+    "proofs/proof_inductive_climbing_sum",
+    "proofs/proof_nat_structural_lemmas",
+    "proofs/recursive_machine_with_requires_compiles",
     "capabilities/uses_caller_folder",
     "capabilities/uses_caller_capability_requires",
     "core/float_meaning_core_surface",
@@ -46145,8 +46153,6 @@ fn default_domain_symbolic_correlation_canaries() {
 #[test]
 fn commutative_semiring_core_canaries() {
     for name in [
-        "proofs/polynomial_expand_core_nat",
-        "proofs/proof_nat_structural_lemmas",
         "proofs/ring_rearrange_core_nat",
         "traits/ring_requirement_satisfies_exit",
     ] {
@@ -46154,6 +46160,24 @@ fn commutative_semiring_core_canaries() {
         compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
             panic!(
                 "{} failed:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+
+    for name in [
+        "proofs/polynomial_expand_core_nat",
+        "proofs/proof_nat_structural_lemmas",
+    ] {
+        let canary = pass_canary(name);
+        check_canary(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{} failed to reach checked semantics:\n{}",
                 canary.display(),
                 diagnostics
                     .iter()
@@ -46184,9 +46208,9 @@ fn ring_identity_slot_bridge_canary_compiles() {
 #[test]
 fn integer_measured_nat_induction_canary_compiles() {
     let canary = pass_canary("proofs/integer_measured_nat_induction_compile");
-    compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
         panic!(
-            "{} failed:\n{}",
+            "{} failed to reach checked semantics:\n{}",
             canary.display(),
             diagnostics
                 .iter()
@@ -48631,9 +48655,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_core_rat_declared_exit",
     "proofs/accepted_axiom_cited_exit",
-    "proofs/real_boundary_package_compile",
     "proofs/runtime_nat_structural_recursion_exit",
-    "proofs/integer_measured_nat_induction_compile",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
     "build/static_machine_parameter_config_compile",
@@ -48664,7 +48686,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/semantic_cast_literal_mint",
     "domains/semantic_cast_range_mint",
     "domains/semantic_cast_guard_chain_mint",
-    "proofs/citation_requires_discharged",
     "data/record_pattern_let_exit",
     "data/record_pattern_double_underscore_field",
     "data/record_pattern_bind_all_exit",
@@ -48699,7 +48720,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/data_where_multistate_callee",
     "dependent/data_where_chained_hypothesis",
     "dependent/data_where_window_transport",
-    "proofs/polynomial_expand_core_nat",
     "dependent/data_where_gated_literal_proves",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
@@ -48803,10 +48823,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",
     "capabilities/transitive_effect_inference",
-    "proofs/proof_inductive_gauss_sum",
-    "proofs/proof_inductive_climbing_sum",
-    "proofs/proof_nat_structural_lemmas",
-    "proofs/recursive_machine_with_requires_compiles",
     "control_flow/runtime_integer_literal_dispatch_exit",
     "control_flow/runtime_string_literal_dispatch_exit",
     "core/numeric_conversion_surface",
