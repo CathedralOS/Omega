@@ -76,8 +76,9 @@ Remaining:
   an exact host-owned entry root. The native runtime-END/domained-subslice and
   positive recast/layout cohorts select exact roots across the four hosted
   targets too; negative recast diagnostics and the entry-agnostic checked/
-  artifact canary cohort use production checked-only compilation. Backend
-  `Main::main` discovery is deleted.
+  artifact canary cohort plus the broad sample source-compatibility sweep use
+  production checked-only compilation. Backend `Main::main` discovery is
+  deleted.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
