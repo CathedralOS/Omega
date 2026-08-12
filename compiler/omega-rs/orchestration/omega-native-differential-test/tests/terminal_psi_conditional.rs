@@ -227,6 +227,32 @@ fn bounded_two_return_conditional_derives_native_stack_by_arm_maximum() {
 }
 
 #[test]
+fn bounded_conditional_call_arm_composes_native_stack_closure() {
+    let module = conditional_call_arm_module();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("conditional call-arm module verifies");
+    let abstract_plan = lower_verified_artifact(&verified).expect("conditional call arm lowers");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = lower_to_target_operations(&abstract_plan, target)
+            .expect("conditional call arm selects target operations");
+        let assigned = assign_registers(&target_plan).expect("conditional call arm assigns");
+        let machine_code = emit_machine_code(&assigned).expect("conditional call arm emits");
+        assert!(machine_code.functions[0].scalar_stack.is_some());
+        assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
+        let artifact = build_terminal_object_artifact(&machine_code)
+            .expect("conditional call arm object validates");
+        let demand = derive_terminal_stack_demand(&artifact, MachineId::new(1).unwrap())
+            .expect("conditional call arm closure composes");
+        assert!(demand.ceiling_bytes() >= 16);
+        assert_eq!(demand.contributing_machines().len(), 2);
+    }
+}
+
+#[test]
 fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
     let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].blocks[1].operations.push(Operation {
@@ -832,6 +858,64 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
             },
         }],
     }
+}
+
+fn conditional_call_arm_module() -> TerminalModule {
+    let mut module = conditional_module(VocabularyMarker::CURRENT);
+    let integer = module.machines[0].parameters[1].scalar_type;
+    module.machines[0].blocks[1].operations.push(Operation {
+        id: OperationId::new(1).unwrap(),
+        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(7).unwrap(),
+            scalar_type: integer,
+        }),
+        kind: OperationKind::Call {
+            callee: MachineId::new(2).unwrap(),
+            arguments: vec![ValueId::new(5).unwrap()],
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let Terminator::Return { value, .. } = &mut module.machines[0].blocks[1].terminator else {
+        unreachable!()
+    };
+    *value = ValueId::new(7).unwrap();
+    module.machines.push(TerminalMachine {
+        id: MachineId::new(2).unwrap(),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        parameters: vec![ValueDeclaration {
+            id: ValueId::new(8).unwrap(),
+            scalar_type: integer,
+        }],
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: ValueId::new(9).unwrap(),
+            scalar_type: integer,
+        }),
+        structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(4).unwrap(),
+        blocks: vec![Block {
+            id: BlockId::new(4).unwrap(),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: EdgeId::new(5).unwrap(),
+                value: ValueId::new(8).unwrap(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(2).unwrap(),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    });
+    module
 }
 
 fn conditional_shared_tail_module() -> TerminalModule {

@@ -1043,11 +1043,6 @@ fn validate_top_level_two_return_scalar_stack(
     ),
     TerminalObjectError,
 > {
-    if !calls.is_empty() {
-        return Err(TerminalObjectError::ScalarConditionalCallNotSupported(
-            machine,
-        ));
-    }
     if evidence
         .mutations
         .windows(2)
@@ -1067,6 +1062,16 @@ fn validate_top_level_two_return_scalar_stack(
             machine,
         ));
     }
+    let mut call_sites = std::collections::BTreeMap::new();
+    for call in calls {
+        validate_internal_call_site(architecture, machine, bytes, *call)?;
+        let call_start = match architecture {
+            Architecture::X86_64 => call.offset - 1,
+            Architecture::Aarch64 => call.offset,
+        };
+        call_sites.insert(call_start, *call);
+    }
+    let mut validated_calls = Vec::with_capacity(calls.len());
     let true_arm_offset = branch_offset.checked_add(branch_byte_count).ok_or(
         TerminalObjectError::InvalidScalarConditionalEvidence {
             machine,
@@ -1087,7 +1092,7 @@ fn validate_top_level_two_return_scalar_stack(
         branch_byte_count,
         false_arm_offset,
     )?;
-    let prefix_peak = replay_call_free_scalar_region(
+    let prefix_peak = replay_scalar_conditional_region(
         architecture,
         machine,
         bytes,
@@ -1095,6 +1100,10 @@ fn validate_top_level_two_return_scalar_stack(
         branch_offset,
         false,
         &mut claimed,
+        &mut call_sites,
+        false,
+        evidence,
+        &mut validated_calls,
     )?;
     if prefix_peak != 0 {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -1102,7 +1111,7 @@ fn validate_top_level_two_return_scalar_stack(
             offset: branch_offset,
         });
     }
-    let true_peak = replay_call_free_scalar_region(
+    let true_peak = replay_scalar_conditional_region(
         architecture,
         machine,
         bytes,
@@ -1110,8 +1119,12 @@ fn validate_top_level_two_return_scalar_stack(
         false_arm_offset,
         true,
         &mut claimed,
+        &mut call_sites,
+        true,
+        evidence,
+        &mut validated_calls,
     )?;
-    let false_peak = replay_call_free_scalar_region(
+    let false_peak = replay_scalar_conditional_region(
         architecture,
         machine,
         bytes,
@@ -1119,16 +1132,27 @@ fn validate_top_level_two_return_scalar_stack(
         bytes.len(),
         true,
         &mut claimed,
+        &mut call_sites,
+        true,
+        evidence,
+        &mut validated_calls,
     )?;
     if let Some((&offset, _)) = claimed.first_key_value() {
         return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    if let Some((&offset, call)) = call_sites.first_key_value() {
+        return Err(TerminalObjectError::InvalidInternalCallSite {
+            caller: machine,
+            operation: call.psi_operation,
+            offset,
+        });
     }
     Ok((
         TerminalObjectScalarStack {
             local_peak_bytes: true_peak.max(false_peak),
             stack_alignment: evidence.stack_alignment,
         },
-        Vec::new(),
+        validated_calls,
     ))
 }
 
@@ -1189,7 +1213,7 @@ fn validate_scalar_conditional_branch(
     Ok(())
 }
 
-fn replay_call_free_scalar_region(
+fn replay_scalar_conditional_region(
     architecture: Architecture,
     machine: MachineId,
     bytes: &[u8],
@@ -1197,6 +1221,13 @@ fn replay_call_free_scalar_region(
     end: usize,
     require_return: bool,
     claimed: &mut std::collections::BTreeMap<usize, TerminalScalarStackMutation>,
+    call_sites: &mut std::collections::BTreeMap<
+        usize,
+        omega_terminal_machine_code::TerminalInternalCallRelocation,
+    >,
+    allow_calls: bool,
+    evidence: &TerminalScalarStackEvidence,
+    validated_calls: &mut Vec<TerminalObjectScalarCallStack>,
 ) -> Result<u32, TerminalObjectError> {
     if start > end || end > bytes.len() {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
@@ -1236,6 +1267,36 @@ fn replay_call_free_scalar_region(
                         });
                     }
                     saw_return = true;
+                    continue;
+                }
+                if instruction.mnemonic() == iced_x86::Mnemonic::Call {
+                    let call = call_sites.remove(&offset).ok_or(
+                        TerminalObjectError::UntypedScalarInternalCall { machine, offset },
+                    )?;
+                    if !allow_calls {
+                        return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
+                            machine,
+                            operation: call.psi_operation,
+                            offset,
+                        });
+                    }
+                    let call_evidence = call.scalar_stack.ok_or(
+                        TerminalObjectError::MissingScalarCallStackEvidence {
+                            caller: machine,
+                            operation: call.psi_operation,
+                        },
+                    )?;
+                    let validated = validate_scalar_call_stack(
+                        architecture,
+                        machine,
+                        bytes,
+                        call,
+                        call_evidence,
+                        evidence,
+                        depth,
+                    )?;
+                    peak = peak.max(validated.caller_live_bytes);
+                    validated_calls.push(validated);
                     continue;
                 }
                 if instruction.flow_control() != iced_x86::FlowControl::Next {
@@ -1304,6 +1365,36 @@ fn replay_call_free_scalar_region(
                         });
                     }
                     saw_return = true;
+                    continue;
+                }
+                if encoded == 0x9400_0000 {
+                    let call = call_sites.remove(&offset).ok_or(
+                        TerminalObjectError::UntypedScalarInternalCall { machine, offset },
+                    )?;
+                    if !allow_calls {
+                        return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
+                            machine,
+                            operation: call.psi_operation,
+                            offset,
+                        });
+                    }
+                    let call_evidence = call.scalar_stack.ok_or(
+                        TerminalObjectError::MissingScalarCallStackEvidence {
+                            caller: machine,
+                            operation: call.psi_operation,
+                        },
+                    )?;
+                    let validated = validate_scalar_call_stack(
+                        architecture,
+                        machine,
+                        bytes,
+                        call,
+                        call_evidence,
+                        evidence,
+                        depth,
+                    )?;
+                    peak = peak.max(validated.caller_live_bytes);
+                    validated_calls.push(validated);
                     continue;
                 }
                 if aarch64_control_flow_instruction(encoded) {
@@ -2288,7 +2379,11 @@ pub enum TerminalObjectError {
         machine: MachineId,
         offset: usize,
     },
-    ScalarConditionalCallNotSupported(MachineId),
+    ScalarConditionalCallOutsideArm {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+        offset: usize,
+    },
     UntypedScalarInternalCall {
         machine: MachineId,
         offset: usize,

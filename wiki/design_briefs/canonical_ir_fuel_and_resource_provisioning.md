@@ -188,11 +188,12 @@ replays the instructions, derives caller-live bytes even with pending
 temporaries, and composes the same acyclic closure. It rejects missing, forged,
 untyped, cyclic, or unaccounted evidence. Conditional control-flow joins remain
 outside this scalar slice. The one admitted conditional shape is not a join: a
-top-level Boolean-parameter branch into two direct, call-free linear integer
-return arms. Object construction validates the exact branch target, replays
-each arm from zero depth through its own return, and takes the maximum arm peak.
-Expression conditions, nesting, calls or crashes in arms, and reconvergence
-remain excluded.
+top-level Boolean-parameter branch into two direct linear integer return arms.
+Object construction validates the exact branch target, replays each arm from
+zero depth through its own return, and takes the maximum arm peak. Typed scalar
+calls inside an arm reuse exact outbound/link validation and closure
+composition. Expression conditions, nesting, crashes in arms, and
+reconvergence remain excluded.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 
