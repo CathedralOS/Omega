@@ -5,7 +5,7 @@ use psi_core::{
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
     PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    StructuralTypeId, ValueId, content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, ContentPartitionComposition,
@@ -676,7 +676,21 @@ fn validate_service_ceiling(
 fn validate_machine_entry_claims(machine: &TerminalMachine) -> Result<(), ModuleError> {
     let mut claims = BTreeSet::new();
     let mut inputs = BTreeSet::new();
-    for claim in &machine.entry_claims {
+    for (index, claim) in machine.entry_claims.iter().enumerate() {
+        let expected = ClaimId::new(
+            u64::try_from(index)
+                .expect("an in-memory claim count fits u64")
+                .checked_add(1)
+                .expect("an in-memory claim count cannot exhaust u64"),
+        )
+        .expect("dense claim identities begin at one");
+        if claim.claim != expected {
+            return Err(ModuleError::NonDenseStructuralEntryClaim {
+                machine: machine.id,
+                expected,
+                actual: claim.claim,
+            });
+        }
         if !claims.insert(claim.claim) {
             return Err(ModuleError::DuplicateClaim(claim.claim));
         }
@@ -2143,6 +2157,14 @@ fn validate_content_partition_compositions(
                 composition.source.clone(),
             ))
             .map_err(ModuleError::MalformedProposition)?;
+        let reconstructed_fingerprint =
+            content_conservation_fingerprint(&composition.source, &source_kinds);
+        if reconstructed_fingerprint != Some(composition.source_fingerprint) {
+            return Err(ModuleError::ContentPartitionSourceFingerprintMismatch {
+                recorded: composition.source_fingerprint,
+                reconstructed: reconstructed_fingerprint,
+            });
+        }
         context
             .validate(&composition.inferred_proposition())
             .map_err(ModuleError::MalformedProposition)?;
@@ -3782,6 +3804,11 @@ pub enum ModuleError {
     DuplicateValue(ValueId),
     DuplicatePlace(PlaceId),
     DuplicateClaim(ClaimId),
+    NonDenseStructuralEntryClaim {
+        machine: MachineId,
+        expected: ClaimId,
+        actual: ClaimId,
+    },
     DuplicateStructuralPlaceRoot {
         machine: MachineId,
         kind: psi_core::StructuralPlaceKind,
@@ -3856,6 +3883,10 @@ pub enum ModuleError {
     DuplicateContentPartitionSubstitutionTarget,
     ContentPartitionAlgebraMismatch,
     ContentPartitionSourceHasNoSeparation,
+    ContentPartitionSourceFingerprintMismatch {
+        recorded: u64,
+        reconstructed: Option<u64>,
+    },
     DuplicateContentPartitionSourcePlace(PlaceId),
     DuplicateContentPartitionSourceRoot(StructuralPlaceKind),
     InvalidContentPartitionSubstitutionShape,

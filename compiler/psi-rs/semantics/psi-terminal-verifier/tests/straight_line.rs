@@ -3,7 +3,7 @@ use psi_core::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm,
-    ScalarType, StructuralPlaceKind, ValueId,
+    ScalarType, StructuralPlaceKind, ValueId, content_conservation_fingerprint,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
@@ -2498,6 +2498,19 @@ fn crash_frontier_must_name_every_still_live_entry_claim() {
 
 #[test]
 fn partition_composition_rejects_theorem_drift() {
+    let (mut fingerprint_drift, _, _) = partition_composition_module();
+    let composition = &mut fingerprint_drift.machines[0].content_partition_compositions[0];
+    let reconstructed = composition.source_fingerprint;
+    composition.source_fingerprint ^= 1;
+    assert_eq!(
+        validate_module(&fingerprint_drift)
+            .expect_err("the source theorem fingerprint must be independently reconstructed"),
+        ModuleError::ContentPartitionSourceFingerprintMismatch {
+            recorded: reconstructed ^ 1,
+            reconstructed: Some(reconstructed),
+        }
+    );
+
     let (mut drifted, _, _) = partition_composition_module();
     let composition = &mut drifted.machines[0].content_partition_compositions[0];
     let ContentTerm::Separate(children) = composition.derived.right().clone() else {
@@ -2728,21 +2741,28 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         },
     ];
     substitutions.sort();
+    let source_structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: source_input_root,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: source_result_root,
+            kind: StructuralPlaceKind::Result,
+        },
+    ];
+    let source_place_kinds = source_structural_places
+        .iter()
+        .map(|place| (place.id, place.kind))
+        .collect();
+    let source_fingerprint = content_conservation_fingerprint(&source, &source_place_kinds)
+        .expect("the fixture source theorem has a checked fingerprint preimage");
     machine.content_partition_compositions = vec![ContentPartitionComposition {
-        source_fingerprint: 0xfeed_face_dead_beef,
-        source_structural_places: vec![
-            StructuralPlaceDeclaration {
-                id: source_input_root,
-                kind: StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            },
-            StructuralPlaceDeclaration {
-                id: source_result_root,
-                kind: StructuralPlaceKind::Result,
-            },
-        ],
+        source_fingerprint,
+        source_structural_places,
         source,
         input_claims: vec![machine.content_identity_reshuffles[0].claim],
         substitutions,

@@ -239,8 +239,9 @@ pub struct TerminalMachine {
     /// Proof-visible roots for structural-place propositions. Runtime scalar
     /// parameters remain independently declared above.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
-    /// Generic machine-local claims present at entry, independent of content
-    /// projections. Content claims below refine these identities when present.
+    /// Dense one-based machine-local claims present at entry, independent of
+    /// content projections. Content claims below refine these identities when
+    /// present.
     pub entry_claims: Vec<EntryClaim>,
     /// Strictly ordered normalized published boundary-service ceiling.
     pub published_service_ceiling: Vec<ServiceId>,

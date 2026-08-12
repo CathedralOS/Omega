@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{ContentDomainId, PlaceId, PropositionError};
 
 /// One compiler-owned closed content algebra and its normalized parameter
@@ -135,6 +137,97 @@ impl ContentConservation {
         validate_term(&self.left, 0)?;
         validate_term(&self.right, 0)
     }
+}
+
+/// Reconstruct the checked-language identity fingerprint of one terminal
+/// content equation. Structural root ids are machine-local representation;
+/// the semantic preimage uses their declared parameter/result roles.
+///
+/// `None` means the terminal row cannot have originated in the checked
+/// fingerprint vocabulary (currently only a content-domain id wider than the
+/// checked `u32` identity space, or an undeclared structural root).
+pub fn content_conservation_fingerprint(
+    conservation: &ContentConservation,
+    structural_places: &BTreeMap<PlaceId, StructuralPlaceKind>,
+) -> Option<u64> {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"content-conservation-v1");
+    encode_fingerprint_algebra(conservation.algebra(), &mut bytes);
+    encode_fingerprint_term(conservation.left(), structural_places, &mut bytes)?;
+    encode_fingerprint_term(conservation.right(), structural_places, &mut bytes)?;
+    Some(bytes.into_iter().fold(OFFSET, |mut hash, byte| {
+        hash ^= u64::from(byte);
+        hash.wrapping_mul(PRIME)
+    }))
+}
+
+fn encode_fingerprint_algebra(algebra: &ContentAlgebra, output: &mut Vec<u8>) {
+    output.push(match algebra.kind {
+        ContentAlgebraKind::IntervalSet => 3,
+        ContentAlgebraKind::CountedQuantity => 2,
+    });
+    encode_fingerprint_string(&algebra.parameter, output);
+}
+
+fn encode_fingerprint_term(
+    term: &ContentTerm,
+    structural_places: &BTreeMap<PlaceId, StructuralPlaceKind>,
+    output: &mut Vec<u8>,
+) -> Option<()> {
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => {
+            output.push(1);
+            output.extend_from_slice(&u32::try_from(projection.domain.get()).ok()?.to_le_bytes());
+            output.extend_from_slice(&projection.projection_fingerprint.to_le_bytes());
+            output.push(match subject.version {
+                ContentPlaceVersion::Entry => 1,
+                ContentPlaceVersion::Current => 2,
+            });
+            match structural_places.get(&subject.root)? {
+                StructuralPlaceKind::Parameter { position, is_self } => {
+                    output.push(if *is_self { 2 } else { 1 });
+                    output.extend_from_slice(&position.to_le_bytes());
+                }
+                StructuralPlaceKind::Result => output.push(3),
+            }
+            output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
+            for segment in &subject.segments {
+                match segment {
+                    ContentPlaceSegment::Case(name) => {
+                        output.push(3);
+                        encode_fingerprint_string(name, output);
+                    }
+                    ContentPlaceSegment::Field(name) => {
+                        output.push(1);
+                        encode_fingerprint_string(name, output);
+                    }
+                    ContentPlaceSegment::FixedIndex(index) => {
+                        output.push(2);
+                        output.extend_from_slice(&index.to_le_bytes());
+                    }
+                }
+            }
+        }
+        ContentTerm::Separate(terms) => {
+            output.push(2);
+            output.extend_from_slice(&(terms.len() as u64).to_le_bytes());
+            for term in terms {
+                encode_fingerprint_term(term, structural_places, output)?;
+            }
+        }
+    }
+    Some(())
+}
+
+fn encode_fingerprint_string(value: &str, output: &mut Vec<u8>) {
+    output.extend_from_slice(&(value.len() as u64).to_le_bytes());
+    output.extend_from_slice(value.as_bytes());
 }
 
 const MAX_CONTENT_TERM_DEPTH: usize = 256;

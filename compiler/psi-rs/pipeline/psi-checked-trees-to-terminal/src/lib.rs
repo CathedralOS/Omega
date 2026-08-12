@@ -7995,6 +7995,19 @@ mod tests {
                 },
             ]
         );
+        let structural_places = lowered
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind))
+            .collect();
+        let Proposition::ContentConservation(conservation) = &lowered.proposition else {
+            panic!("content proposition")
+        };
+        assert_eq!(
+            psi_core::content_conservation_fingerprint(conservation, &structural_places),
+            Some(plan.fingerprint),
+            "terminal reconstruction must preserve the checked-plan identity preimage"
+        );
 
         let Proposition::ContentConservation(conservation) = lowered.proposition else {
             panic!("content proposition")
