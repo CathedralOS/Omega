@@ -147,6 +147,89 @@ fn unit_calls_transfer_numbered_record_field_claims() {
 }
 
 #[test]
+fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
+    let mut module = effect_module();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "test::Token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.extend([
+        StructuralFieldDeclaration {
+            id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+            identity: "#7".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type_id(2)),
+        },
+        StructuralFieldDeclaration {
+            id: psi_core::StructuralFieldId::new(2).expect("field identity"),
+            identity: "#9".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type_id(2)),
+        },
+    ]);
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims[0].field_path = vec!["#7".into()];
+        machine.entry_claims.push(EntryClaim {
+            claim: claim_id(2),
+            input: machine.structural_parameters[0].place,
+            field_path: vec!["#9".into()],
+        });
+    }
+    let OperationKind::CallUnit {
+        claim_transfers, ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    claim_transfers.push(ClaimTransfer {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+    let OperationKind::BoundaryCallUnit {
+        claim_settlements, ..
+    } = &mut module.machines[1].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    claim_settlements.push(ClaimSettlement {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+
+    let semantic = encode_module(&module).expect("sibling field-custody module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = structural_value(46);
+    let mut handler = RecordingHandler::default();
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument.clone()],
+        &mut handler,
+    )
+    .expect("verified sibling field custody should execute");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert!(matches!(
+        &handler.effects[0],
+        TerminalEffect::BoundaryCallUnit {
+            structural_arguments,
+            claim_settlements,
+            ..
+        } if structural_arguments == &[argument]
+            && claim_settlements == &[
+                ClaimSettlement { claim: claim_id(1), argument_index: 0 },
+                ClaimSettlement { claim: claim_id(2), argument_index: 0 },
+            ]
+    ));
+}
+
+#[test]
 fn sponsor_exhaustion_does_not_replay_unit_calls_or_accepted_effects() {
     let (semantic, proof) = effect_artifact_sections();
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(

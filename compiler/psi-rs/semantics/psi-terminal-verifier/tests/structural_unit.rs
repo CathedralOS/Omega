@@ -130,6 +130,65 @@ fn unit_call_requires_exact_aggregate_claim_path() {
 }
 
 #[test]
+fn unit_call_transfers_complete_canonical_sibling_claim_set() {
+    let mut module = hard_root_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields.extend([
+        StructuralFieldDeclaration {
+            id: psi_core::StructuralFieldId::new(1).expect("field identity"),
+            identity: "#7".into(),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type_id(2)),
+        },
+        StructuralFieldDeclaration {
+            id: psi_core::StructuralFieldId::new(2).expect("field identity"),
+            identity: "#9".into(),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type_id(2)),
+        },
+    ]);
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims[0].field_path = vec!["#7".into()];
+        machine.entry_claims.push(EntryClaim {
+            claim: claim_id(2),
+            input: machine.structural_parameters[0].place,
+            field_path: vec!["#9".into()],
+        });
+    }
+    unit_call_mut(&mut module).push(ClaimTransfer {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+    boundary_call_mut(&mut module).0.push(ClaimSettlement {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+    validate_module(&module).expect("both disjoint sibling claims should transfer and settle");
+
+    let mut incomplete = module.clone();
+    unit_call_mut(&mut incomplete).pop();
+    assert_eq!(
+        validate_module(&incomplete).unwrap_err(),
+        ModuleError::UnitCallClaimTransferCountMismatch {
+            operation: operation_id(1),
+            expected: 2,
+            actual: 1,
+        }
+    );
+
+    let mut noncanonical = module;
+    noncanonical.machines[0].entry_claims[0].field_path = vec!["#9".into()];
+    noncanonical.machines[0].entry_claims[1].field_path = vec!["#7".into()];
+    assert_eq!(
+        validate_module(&noncanonical).unwrap_err(),
+        ModuleError::NonCanonicalEntryClaimOrder(machine_id(1))
+    );
+}
+
+#[test]
 fn structural_calls_preserve_optional_affine_claim_custody() {
     let mut dropped_at_call = hard_root_module();
     for machine in &mut dropped_at_call.machines {

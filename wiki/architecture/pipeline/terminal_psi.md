@@ -138,6 +138,14 @@ content-entry bindings must name that same root and field path. The interpreter
 and verifier transfer those exact claims together; neither treats aggregate
 custody as a Boolean property of the containing parameter.
 
+One affine record argument may therefore carry several disjoint linear sibling
+claims. Source checking retains every sibling, terminal production assigns a
+dense machine-local claim identity to each one, and calls transfer the complete
+canonical set to the callee. Boundary settlement consumes the verifier-derived
+set of live claims attached to each argument, rather than assuming one claim per
+linear boundary parameter. Missing, duplicated, reordered, or path-mismatched
+sibling rows reject before execution.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and

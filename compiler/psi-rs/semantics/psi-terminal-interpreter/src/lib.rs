@@ -1501,22 +1501,22 @@ fn settle_claims(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     caller_arguments: &[StructuralArgument],
     settlements: &[ClaimSettlement],
-    boundary_parameters: &[StructuralParameterDeclaration],
+    _boundary_parameters: &[StructuralParameterDeclaration],
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-    let expected_indices = boundary_parameters
+    let expected = caller_arguments
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| parameter.multiplicity == StructuralMultiplicity::Linear)
-        .map(|(index, _)| index as u32)
-        .collect::<Vec<_>>();
-    if settlements.len() != expected_indices.len() {
-        return Err(TerminalInterpretError::ClaimSettlementMismatch);
-    }
+        .flat_map(|(index, argument)| {
+            caller_claims.iter().filter_map(move |(claim, live)| {
+                (live.place == Some(argument.place)).then_some((index as u32, *claim))
+            })
+        })
+        .collect::<BTreeSet<_>>();
     let mut remaining = caller_claims.clone();
-    let mut seen_indices = BTreeSet::new();
+    let mut actual = BTreeSet::new();
     for settlement in settlements {
-        if !expected_indices.contains(&settlement.argument_index)
-            || !seen_indices.insert(settlement.argument_index)
+        if !actual.insert((settlement.argument_index, settlement.claim))
+            || !expected.contains(&(settlement.argument_index, settlement.claim))
         {
             return Err(TerminalInterpretError::ClaimSettlementMismatch);
         }
@@ -1530,7 +1530,7 @@ fn settle_claims(
             return Err(TerminalInterpretError::ClaimSettlementMismatch);
         }
     }
-    if seen_indices.into_iter().collect::<Vec<_>>() != expected_indices {
+    if actual != expected {
         return Err(TerminalInterpretError::ClaimSettlementMismatch);
     }
     Ok(remaining)

@@ -7304,13 +7304,21 @@ mod tests {
     };
     use psi_symbols::SymbolHandle;
 
-    fn unit_claim(machine: SymbolHandle, state: SymbolHandle) -> PermissionClaimIdentity {
+    fn unit_claim_at(
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        ordinal: u32,
+    ) -> PermissionClaimIdentity {
         PermissionClaimIdentity::Established {
             machine_symbol: machine,
             state_symbol: state,
             source: PermissionEventSource::StateEntry,
-            ordinal: 0,
+            ordinal,
         }
+    }
+
+    fn unit_claim(machine: SymbolHandle, state: SymbolHandle) -> PermissionClaimIdentity {
+        unit_claim_at(machine, state, 0)
     }
 
     fn hard_root_checked_fixture() -> CheckedTrees {
@@ -7659,6 +7667,92 @@ mod tests {
         );
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
             .expect("aggregate custody must have a canonical terminal encoding");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes).expect("canonical aggregate custody bytes"),
+            lowered.semantic_module
+        );
+    }
+
+    #[test]
+    fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
+        let mut checked = hard_root_checked_fixture();
+        let plans = &mut checked.facts.flow.terminal_unit_effects;
+        plans
+            .structural_types
+            .push(psi_checked_trees::CheckedUnitStructuralTypePlan {
+                identity: "example::Token".to_owned(),
+                fields: Vec::new(),
+            });
+        let acknowledgement = plans
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == "example::Acknowledgement")
+            .expect("acknowledgement shape");
+        acknowledgement.fields[0].identity = "#7".to_owned();
+        acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
+            type_identity: "example::Token".to_owned(),
+        };
+        acknowledgement.fields.insert(
+            1,
+            psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                identity: "#9".to_owned(),
+                relevance: psi_terminal::BindingRelevance::Relevant,
+                field_type: CheckedUnitStructuralFieldType::Structural {
+                    type_identity: "example::Token".to_owned(),
+                },
+            },
+        );
+        for boundary in &mut plans.boundary_machines {
+            boundary.structural_parameters[0].multiplicity = Multiplicity::Affine;
+        }
+        for machine in &mut plans.machines {
+            machine.structural_parameters[0].multiplicity = Multiplicity::Affine;
+            machine.entry_claims[0].field_path = vec!["#7".to_owned()];
+            let mut sibling = machine.entry_claims[0].clone();
+            sibling.claim_identity = unit_claim_at(machine.machine, machine.state, 1);
+            sibling.field_path = vec!["#9".to_owned()];
+            machine.entry_claims.push(sibling);
+        }
+        let root = plans.machines[0].machine;
+        let root_state = plans.machines[0].state;
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            claim_transfers, ..
+        } = &mut plans.machines[0].operations[0]
+        else {
+            unreachable!()
+        };
+        claim_transfers.push(psi_checked_trees::CheckedUnitClaimTransferPlan {
+            claim_identity: unit_claim_at(root, root_state, 1),
+            argument_index: 0,
+        });
+        let helper = plans.machines[1].machine;
+        let helper_state = plans.machines[1].state;
+        let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+            claim_settlements, ..
+        } = &mut plans.machines[1].operations[1]
+        else {
+            unreachable!()
+        };
+        claim_settlements.push(psi_checked_trees::CheckedUnitClaimTransferPlan {
+            claim_identity: unit_claim_at(helper, helper_state, 1),
+            argument_index: 0,
+        });
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("both sibling resources should cross the complete Unit closure");
+        for machine in &lowered.semantic_module.machines {
+            assert_eq!(
+                machine.structural_parameters[0].multiplicity,
+                StructuralMultiplicity::Affine
+            );
+            assert_eq!(machine.entry_claims.len(), 2);
+            assert_eq!(machine.entry_claims[0].claim, claim_id(1));
+            assert_eq!(machine.entry_claims[0].field_path, ["#7"]);
+            assert_eq!(machine.entry_claims[1].claim, claim_id(2));
+            assert_eq!(machine.entry_claims[1].field_path, ["#9"]);
+        }
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("multi-field custody must have a canonical terminal encoding");
         assert_eq!(
             psi_terminal_codec::decode_module(&bytes).expect("canonical aggregate custody bytes"),
             lowered.semantic_module
