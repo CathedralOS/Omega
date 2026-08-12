@@ -77,6 +77,9 @@ Remaining:
   The static integer-dispatch guard cohort now uses the same exact hosted root
   path on native x64 and cross-compiled Linux AArch64 while retaining its
   target-specific footprint evidence.
+  The compiler-body general x86 binary-write footprint cohort now likewise
+  selects the exact Linux x64 hosted root before production compilation while
+  retaining its register and enumeration evidence.
   Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
