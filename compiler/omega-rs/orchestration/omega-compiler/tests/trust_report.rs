@@ -667,6 +667,7 @@ machine Main::main(&mut self) {}
     );
     assert!(entry_row.contains("predicate discharge: required"));
     assert!(entry_row.contains("own-package (dev-active)"));
+    assert!(entry_row.contains("grant selectors: none"));
     assert!(entry_row.contains("STANDING WARNING"));
 
     let result_row = report
@@ -680,6 +681,70 @@ machine Main::main(&mut self) {}
     assert!(result_row.contains("flow: returns"));
     assert!(result_row.contains("domain: Token::Issued"));
     assert!(result_row.contains("predicate discharge: none"));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn routed_qualification_rows_retain_exact_root_grant_selectors() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-routed-qualification-grant-provenance-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+machine build(b: &mut Build) {
+    b.accept_boundary<Issuer>();
+}
+"#,
+    )
+    .expect("write build.omg");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"data Token [linear] { id: u64; }
+domain Token::Issued { Issuer::issue; }
+
+boundary trait Issuer {
+    machine issue(id: u64) -> Token in Issued
+    ensures
+        result in Token::Issued;
+}
+
+machine issue_leaf(id: u64) -> Token in Issued
+    satisfies Issuer::issue
+    via Binding::VtableSlot(1);
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("root-granted routed provider plan should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    let row = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Issuer [") && line.contains("subject: result")
+        })
+        .expect("routed result row");
+    assert!(row.contains("root grant (build.omg)"));
+    assert!(row.contains("grant selectors: Issuer"));
+    assert!(!row.contains("STANDING WARNING"));
 
     let _ = std::fs::remove_dir_all(&project);
 }
