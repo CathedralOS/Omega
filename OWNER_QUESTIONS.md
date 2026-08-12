@@ -114,3 +114,21 @@ resume without exposing fuel to the program. It must apply coherently across
 x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
+
+## Q7 — Terminal-Psi artifact-verifier trust closure
+
+The Rust `psi-terminal-verifier` independently reconstructs the exact obligation
+set and invokes `psi-proof-kernel`, but proof-kernel acceptance does not prove
+that the verifier reconstructed the right obligations. The canonical
+architecture permits three final assurance routes and has not selected one:
+a low-rung reference artifact verifier, a reconstruction derivation checked by
+the low-rung kernel, or an explicit trust-ledger entry for the Psi-aware verifier.
+
+Choose the deployment-authoritative closure. The decision must name the trusted
+implementation or checked derivation format, bind it to the exact terminal-Psi
+vocabulary and obligation-reconstruction rules, state how independent agreement
+is audited across releases, and ensure that a Psi-hosted port of the proof kernel
+cannot be mistaken for reconstruction assurance. If the Rust verifier is made
+explicitly trusted, its enumerable primitive judgments and artifact-decoding
+dependencies must enter the executable trust ledger rather than being implied by
+successful certificate checks.
