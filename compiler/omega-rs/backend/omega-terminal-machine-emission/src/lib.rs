@@ -21,6 +21,7 @@ use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
     TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
@@ -58,6 +59,7 @@ fn emit_function(
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut unit_stack = None;
+    let mut scalar_stack_eligible = false;
     let bytes = match &function.operation {
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target)?;
@@ -79,22 +81,27 @@ fn emit_function(
             value,
             ..
         } => {
+            scalar_stack_eligible = true;
             let bits = integer_bits(*source_value, *scalar_type, *value)?;
             match architecture {
                 Architecture::Aarch64 => emit_aarch64_return(*scalar_type, bits),
                 Architecture::X86_64 => emit_x86_64_return(*scalar_type, bits),
             }
         }
-        TerminalAssignedOperation::ReturnBooleanImmediate { value, .. } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_boolean_return(*value),
-            Architecture::X86_64 => emit_x86_64_boolean_return(*value),
-        },
+        TerminalAssignedOperation::ReturnBooleanImmediate { value, .. } => {
+            scalar_stack_eligible = true;
+            match architecture {
+                Architecture::Aarch64 => emit_aarch64_boolean_return(*value),
+                Architecture::X86_64 => emit_x86_64_boolean_return(*value),
+            }
+        }
         TerminalAssignedOperation::ReturnIntegerParameter {
             source_value,
             scalar_type,
             location,
             ..
         } => {
+            scalar_stack_eligible = true;
             require_native_integer_width(*source_value, *scalar_type)?;
             match architecture {
                 Architecture::Aarch64 => emit_aarch64_parameter_return(
@@ -111,38 +118,49 @@ fn emit_function(
             source_value,
             location,
             ..
-        } => match architecture {
-            Architecture::Aarch64 => {
-                emit_aarch64_parameter_return(*source_value, false, *location)?
+        } => {
+            scalar_stack_eligible = true;
+            match architecture {
+                Architecture::Aarch64 => {
+                    emit_aarch64_parameter_return(*source_value, false, *location)?
+                }
+                Architecture::X86_64 => {
+                    emit_x86_64_parameter_return(*source_value, false, *location)?
+                }
             }
-            Architecture::X86_64 => emit_x86_64_parameter_return(*source_value, false, *location)?,
-        },
+        }
         TerminalAssignedOperation::ReturnBooleanNotParameter {
             source_value,
             location,
             ..
-        } => match architecture {
-            Architecture::Aarch64 => {
-                emit_aarch64_boolean_not_parameter_return(*source_value, *location)?
+        } => {
+            scalar_stack_eligible = true;
+            match architecture {
+                Architecture::Aarch64 => {
+                    emit_aarch64_boolean_not_parameter_return(*source_value, *location)?
+                }
+                Architecture::X86_64 => {
+                    emit_x86_64_boolean_not_parameter_return(*source_value, *location)?
+                }
             }
-            Architecture::X86_64 => {
-                emit_x86_64_boolean_not_parameter_return(*source_value, *location)?
-            }
-        },
+        }
         TerminalAssignedOperation::ReturnBooleanExpression {
             frame, expression, ..
-        } => match architecture {
-            Architecture::Aarch64 => emit_aarch64_boolean_expression(
-                frame,
-                expression,
-                Some((&mut internal_calls, target)),
-            )?,
-            Architecture::X86_64 => emit_x86_64_boolean_expression(
-                frame,
-                expression,
-                Some((&mut internal_calls, target)),
-            )?,
-        },
+        } => {
+            scalar_stack_eligible = linear_boolean_expression(expression);
+            match architecture {
+                Architecture::Aarch64 => emit_aarch64_boolean_expression(
+                    frame,
+                    expression,
+                    Some((&mut internal_calls, target)),
+                )?,
+                Architecture::X86_64 => emit_x86_64_boolean_expression(
+                    frame,
+                    expression,
+                    Some((&mut internal_calls, target)),
+                )?,
+            }
+        }
         TerminalAssignedOperation::ReturnIntegerExpression {
             source_value,
             scalar_type,
@@ -150,6 +168,7 @@ fn emit_function(
             expression,
             ..
         } => {
+            scalar_stack_eligible = linear_integer_expression(expression);
             require_native_integer_width(*source_value, *scalar_type)?;
             match architecture {
                 Architecture::Aarch64 => emit_aarch64_integer_expression(
@@ -293,11 +312,15 @@ fn emit_function(
             }
         },
     };
+    let scalar_stack = scalar_stack_eligible
+        .then(|| collect_linear_scalar_stack_evidence(architecture, &bytes))
+        .transpose()?;
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
         provenance: function.provenance.clone(),
         bytes,
         unit_stack,
+        scalar_stack,
         internal_calls,
         fuel_attribution,
         port_effects,
@@ -4406,6 +4429,174 @@ fn emit_aarch64_adjust_sp(
     Ok(())
 }
 
+fn linear_boolean_expression(expression: &TerminalAssignedBooleanExpression) -> bool {
+    match expression {
+        TerminalAssignedBooleanExpression::Call { .. } => false,
+        TerminalAssignedBooleanExpression::Immediate { .. }
+        | TerminalAssignedBooleanExpression::Parameter { .. } => true,
+        TerminalAssignedBooleanExpression::Not { operand, .. } => {
+            linear_boolean_expression(operand)
+        }
+        TerminalAssignedBooleanExpression::Equal { left, right, .. } => {
+            linear_boolean_expression(left) && linear_boolean_expression(right)
+        }
+        TerminalAssignedBooleanExpression::IntegerEqual { left, right, .. }
+        | TerminalAssignedBooleanExpression::IntegerLessThan { left, right, .. }
+        | TerminalAssignedBooleanExpression::IntegerLessOrEqual { left, right, .. } => {
+            linear_integer_expression(left) && linear_integer_expression(right)
+        }
+    }
+}
+
+fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> bool {
+    match expression {
+        TerminalAssignedIntegerExpression::Call { .. }
+        | TerminalAssignedIntegerExpression::ExactDivide { .. }
+        | TerminalAssignedIntegerExpression::ExactRemainder { .. }
+        | TerminalAssignedIntegerExpression::WrappingDivide { .. }
+        | TerminalAssignedIntegerExpression::WrappingRemainder { .. }
+        | TerminalAssignedIntegerExpression::SaturatingDivide { .. }
+        | TerminalAssignedIntegerExpression::SaturatingRemainder { .. } => false,
+        TerminalAssignedIntegerExpression::Immediate { .. }
+        | TerminalAssignedIntegerExpression::Parameter { .. } => true,
+        TerminalAssignedIntegerExpression::BitwiseNot { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerWiden { operand, .. }
+        | TerminalAssignedIntegerExpression::IntegerExactCast { operand, .. } => {
+            linear_integer_expression(operand)
+        }
+        TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
+        | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::WrappingShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftLeft {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::ExactShiftRight {
+            value: left,
+            count: right,
+            ..
+        }
+        | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
+            linear_integer_expression(left) && linear_integer_expression(right)
+        }
+    }
+}
+
+fn collect_linear_scalar_stack_evidence(
+    architecture: Architecture,
+    bytes: &[u8],
+) -> Result<TerminalScalarStackEvidence, EmissionError> {
+    let mutations = match architecture {
+        Architecture::X86_64 => {
+            let mut decoder =
+                iced_x86::Decoder::with_ip(64, bytes, 0, iced_x86::DecoderOptions::NONE);
+            let mut mutations = Vec::new();
+            while decoder.can_decode() {
+                let instruction = decoder.decode();
+                if instruction.is_invalid() {
+                    return Err(EmissionError::ScalarStackInstructionEncodingInvalid);
+                }
+                let offset = usize::try_from(instruction.ip())
+                    .map_err(|_| EmissionError::ScalarStackInstructionEncodingInvalid)?;
+                let kind = match instruction.mnemonic() {
+                    iced_x86::Mnemonic::Sub
+                        if instruction.op0_register() == iced_x86::Register::RSP =>
+                    {
+                        Some(TerminalScalarStackMutationKind::Allocate {
+                            byte_size: x86_adjustment_immediate(bytes, offset, instruction.len())?,
+                        })
+                    }
+                    iced_x86::Mnemonic::Add
+                        if instruction.op0_register() == iced_x86::Register::RSP =>
+                    {
+                        Some(TerminalScalarStackMutationKind::Release {
+                            byte_size: x86_adjustment_immediate(bytes, offset, instruction.len())?,
+                        })
+                    }
+                    iced_x86::Mnemonic::Push => Some(TerminalScalarStackMutationKind::X86Push),
+                    iced_x86::Mnemonic::Pop => Some(TerminalScalarStackMutationKind::X86Pop),
+                    _ => None,
+                };
+                if let Some(kind) = kind {
+                    mutations.push(TerminalScalarStackMutation {
+                        offset,
+                        byte_count: instruction.len(),
+                        kind,
+                    });
+                }
+            }
+            mutations
+        }
+        Architecture::Aarch64 => {
+            if !bytes.len().is_multiple_of(4) {
+                return Err(EmissionError::ScalarStackInstructionEncodingInvalid);
+            }
+            bytes
+                .chunks_exact(4)
+                .enumerate()
+                .filter_map(|(index, encoded)| {
+                    let encoded = u32::from_le_bytes(encoded.try_into().expect("four-byte word"));
+                    let base = encoded & !(0xfff << 10);
+                    let kind = match base {
+                        0xd100_03ff => TerminalScalarStackMutationKind::Allocate {
+                            byte_size: (encoded >> 10) & 0xfff,
+                        },
+                        0x9100_03ff => TerminalScalarStackMutationKind::Release {
+                            byte_size: (encoded >> 10) & 0xfff,
+                        },
+                        _ => return None,
+                    };
+                    Some(TerminalScalarStackMutation {
+                        offset: index * 4,
+                        byte_count: 4,
+                        kind,
+                    })
+                })
+                .collect()
+        }
+    };
+    Ok(TerminalScalarStackEvidence {
+        mutations,
+        stack_alignment: 16,
+    })
+}
+
+fn x86_adjustment_immediate(
+    bytes: &[u8],
+    offset: usize,
+    byte_count: usize,
+) -> Result<u32, EmissionError> {
+    match byte_count {
+        4 => bytes
+            .get(offset + 3)
+            .copied()
+            .map(u32::from)
+            .ok_or(EmissionError::ScalarStackInstructionEncodingInvalid),
+        7 => bytes
+            .get(offset + 3..offset + 7)
+            .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+            .map(u32::from_le_bytes)
+            .ok_or(EmissionError::ScalarStackInstructionEncodingInvalid),
+        _ => Err(EmissionError::ScalarStackInstructionEncodingInvalid),
+    }
+}
+
 fn aarch64_stack_access(
     base: u32,
     register: u8,
@@ -4567,6 +4758,7 @@ pub enum EmissionError {
     BooleanNotEncodingInvalid,
     UnsupportedCallArgumentRegister(MachineRegister),
     CallOutsideDirectReturnExpression,
+    ScalarStackInstructionEncodingInvalid,
     EntryFunctionMissing(MachineId),
 }
 
@@ -5410,6 +5602,54 @@ mod tests {
                 0x1a9f_17e0, // cset w0, eq
                 0x9100_43ff, // add sp, sp, #16
                 0xd65f_03c0, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn retains_ordered_linear_scalar_stack_mutations() {
+        let x86 = emit_machine_code(&boolean_equality_plan(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rsi,
+        ))
+        .expect("x86 scalar expression");
+        let x86_stack = x86.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("linear scalar evidence");
+        assert_eq!(x86_stack.stack_alignment, 16);
+        assert_eq!(x86_stack.mutations.len(), 2);
+        assert_eq!(
+            x86_stack.mutations[0].kind,
+            TerminalScalarStackMutationKind::X86Push
+        );
+        assert_eq!(
+            x86_stack.mutations[1].kind,
+            TerminalScalarStackMutationKind::X86Pop
+        );
+
+        let aarch64 = emit_machine_code(&boolean_equality_plan(
+            NativeTarget::linux_arm64(),
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(1),
+        ))
+        .expect("AArch64 scalar expression");
+        let aarch64_stack = aarch64.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("linear scalar evidence");
+        assert_eq!(
+            aarch64_stack
+                .mutations
+                .iter()
+                .map(|mutation| mutation.kind)
+                .collect::<Vec<_>>(),
+            [
+                TerminalScalarStackMutationKind::Allocate { byte_size: 16 },
+                TerminalScalarStackMutationKind::Allocate { byte_size: 16 },
+                TerminalScalarStackMutationKind::Release { byte_size: 16 },
+                TerminalScalarStackMutationKind::Release { byte_size: 16 },
             ]
         );
     }
@@ -6650,6 +6890,7 @@ mod tests {
             };
             let emitted = emit_machine_code(&plan).expect("emit direct call");
             let caller = &emitted.functions[0];
+            assert_eq!(caller.scalar_stack, None);
             assert_eq!(caller.internal_calls.len(), 1);
             let relocation = caller.internal_calls[0];
             assert_eq!(relocation.psi_operation, call_operation);
@@ -6698,6 +6939,44 @@ mod tests {
                     assert!(instructions.contains(&0xf900_03e0)); // str x0, [sp]
                 }
             }
+        }
+    }
+
+    #[test]
+    fn branch_producing_division_stays_outside_linear_scalar_stack_evidence() {
+        let scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let expression = |left, right| TerminalTargetIntegerExpression::WrappingDivide {
+            psi_operation: OperationId::new(3).expect("operation"),
+            left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(1).expect("left"),
+                parameter_index: 0,
+                location: left,
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(2).expect("right"),
+                parameter_index: 1,
+                location: right,
+            }),
+        };
+        for (target, left, right) in [
+            (
+                NativeTarget::linux_x64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ),
+        ] {
+            let emitted = emit_machine_code(&expression_plan(
+                target,
+                scalar_type,
+                expression(left, right),
+            ))
+            .expect("division still emits outside linear WCSU");
+            assert_eq!(emitted.functions[0].scalar_stack, None);
         }
     }
 

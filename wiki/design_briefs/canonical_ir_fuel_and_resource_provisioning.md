@@ -177,13 +177,16 @@ loop/build-time coverage remain in `TASKS.md`. This path does not grow into a
 symbolic complexity language.
 
 The first native WCSU precursor is deliberately narrower than installed-root
-admission. For fully lowered Unit closures, Omega's emitter retains each
-function's local peak and each typed internal call's active-frame plus transient
-argument/shadow/link contribution. Object construction validates those facts
-against the exact relocation sites and composes the acyclic call-closure peak by
-maximum over sequential calls. The result excludes external entry adapter and
-interrupt-arrival state; it is not yet an external-root `StackPlan` or provider
-receipt.
+admission. For fully lowered Unit closures, Omega's emitter retains exact
+code-positioned frame, argument/shadow, and link evidence. Object construction
+validates those instructions, derives numeric local and caller-live peaks, and
+composes the acyclic call-closure peak by maximum over sequential calls. The
+call-free, branch-free scalar slice similarly retains exact ordered frame and
+temporary-stack mutations; object construction decodes and replays them, rejects
+unclaimed mutations or control flow, and requires a balanced return. Scalar
+calls and conditional control-flow joins remain outside this first scalar slice.
+The result excludes external entry adapter and interrupt-arrival state; it is not
+yet an external-root `StackPlan` or provider receipt.
 
 ## Response and physical time
 

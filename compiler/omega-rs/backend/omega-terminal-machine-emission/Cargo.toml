@@ -17,6 +17,7 @@ omega-terminal-machine-code = { path = "../../representations/omega-terminal-mac
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 
 [dev-dependencies]
 omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
