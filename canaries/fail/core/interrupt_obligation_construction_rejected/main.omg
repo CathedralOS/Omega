@@ -1,14 +1,14 @@
 use omega::language::core::interrupt;
 
-data Main {}
-
-machine Main::settle(acknowledgement: InterruptAcknowledgement in Pending)
+machine settle(acknowledgement: InterruptAcknowledgement in Pending)
 reaches PortIo
 {
     acknowledgement.complete();
 }
 
-machine Main::main(&mut self) {
+machine reconstructed_acknowledgement_is_unqualified()
+reaches PortIo
+{
     // Matching runtime fields do not establish the provider-owned `Pending`
     // qualification required by a settlement path.
     let forged: InterruptAcknowledgement = InterruptAcknowledgement {
@@ -18,5 +18,5 @@ machine Main::main(&mut self) {
         policy: 4,
         acknowledgement: 5,
     };
-    self.settle(forged);
+    settle(forged);
 }
