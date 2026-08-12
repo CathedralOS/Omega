@@ -158,8 +158,10 @@ Current ownership is:
   result and later transparent chains. The terminal place may follow a prefix
   of effect-free caller-isolated scratch locals and direct local `&mut` aliases,
   including mutable bindings and results of other structurally transparent
-  helpers. The same exact returned-place relation composes when such a result is
-  supplied directly as a statement-call argument.
+  helpers. A validated mutable recast local with an effect-free source may write
+  through that source without obscuring a separately returned parameter origin.
+  The same exact returned-place relation composes when such a result is supplied
+  directly as a statement-call argument.
   Value-shaped assignments with effect-free right-hand sides may write through
   those origins, including exact transparent call-produced targets, without
   changing the relation; their ordinary exact frames remain published, and

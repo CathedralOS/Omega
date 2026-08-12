@@ -2927,6 +2927,20 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_after_recast_write(value: &mut u64) -> &mut u64 {
+        let view: &mut f64 = &mut value as &mut f64;
+        view = 4.0;
+        value
+    }
+
+    machine return_after_effectful_recast_write(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        let view: &mut f64 = &mut cells[make_index()] as &mut f64;
+        view = 4.0;
+        cells
+    }
+
     machine return_after_discarded_call(value: &mut u64) -> &mut u64 {
         _ = make_scratch();
         value
@@ -3125,6 +3139,17 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     machine Main::pure_expression_helper_result(&mut self) {
         let alias: &mut u64 = return_after_pure_expression(&mut self.value);
         alias = 3;
+    }
+
+    machine Main::recast_write_helper_result(&mut self) {
+        let alias: &mut u64 = return_after_recast_write(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::effectful_recast_write_helper_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_effectful_recast_write(&mut self.cells);
+        alias[0] = 3;
     }
 
     machine Main::discarded_call_helper_result(&mut self) {
@@ -3397,6 +3422,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::nontrivial_call_rebound_alias", "self.other"),
         ("Main::isolated_scratch_helper_result", "self.value"),
         ("Main::pure_expression_helper_result", "self.value"),
+        ("Main::recast_write_helper_result", "self.value"),
         (
             "Main::transparent_call_target_write_helper_result",
             "self.value",
@@ -3522,6 +3548,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::reference_scratch_helper_result",
         "Main::call_scratch_helper_result",
         "Main::discarded_call_helper_result",
+        "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",
         "Main::hidden_index_call_target_write_helper_result",
         "Main::call_rebound_mutable_local_alias_helper_result",

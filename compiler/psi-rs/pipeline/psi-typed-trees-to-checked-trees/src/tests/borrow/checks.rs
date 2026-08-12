@@ -3085,9 +3085,15 @@ fn accepts_static_persistent_copy_across_recast_local_frame() {
             code: u64;
         }
 
-        machine Main::touch_code(&mut self) {
-            let view: &mut f64 = &mut self.code as &mut f64;
+        machine recast_write_then_return(value: &mut u64) -> &mut u64 {
+            let view: &mut f64 = &mut value as &mut f64;
             view = 3.0;
+            value
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut u64 = recast_write_then_return(&mut self.code);
+            alias = 4;
         }
 
         machine Main::store(&mut self) {
@@ -3098,7 +3104,7 @@ fn accepts_static_persistent_copy_across_recast_local_frame() {
     "#;
 
     check_program(source)
-        .expect("a mutable recast local preserves the exact origin of its source storage");
+        .expect("a recast write does not obscure a helper's exact returned parameter origin");
 }
 
 #[test]
