@@ -4,10 +4,11 @@
 //! rather than a generic definition plus ambient instance bindings.
 //!
 //! The executable cohort includes fully substitutable records and pure sums.
-//! Records may have multiple distinct closed instances. A pure sum admits one
-//! distinct closed instance per generic base until every constructor and
-//! pattern occurrence carries its closed identity directly; a second distinct
-//! instance rejects instead of falling through to a legacy layout path.
+//! Records and pure sums may have multiple distinct closed instances. Sum
+//! constructors selected by an exact destination type and destructure paths
+//! selected by an exact local subject are relabeled to that closed identity;
+//! a sole closed instance remains an unambiguous fallback for other concrete
+//! executable contexts.
 //! Sluggable arguments are a plain concrete `Named` type OR a
 //! `Named` carrying only nameable domain constraints (`Box<i32 in Wrapping>`,
 //! `Store<u8 in Utf8>`) -- the substitution rides the argument's own type
@@ -268,7 +269,7 @@ pub(crate) fn desugar_generic_data_instances(
     // spellings are finite.
     let mut synthesized: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut synthesized_origins: HashMap<String, String> = HashMap::new();
-    let mut synthesized_sum_instances: HashMap<String, String> = HashMap::new();
+    let mut synthesized_sum_instances: HashMap<String, HashSet<String>> = HashMap::new();
     loop {
         let positions = collect_type_reference_positions(syntax);
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
@@ -293,16 +294,10 @@ pub(crate) fn desugar_generic_data_instances(
             if generic_data_shape(syntax, base_info) != Some(GenericDataShape::PureSum) {
                 continue;
             }
-            if let Some(existing) = synthesized_sum_instances.get(&instance.base_name)
-                && existing != &instance.synthetic_name
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "generic sum `{}` is used with distinct closed instances `{existing}` and `{}`; this executable slice requires one exact closed instance per generic sum",
-                    instance.base_name, instance.synthetic_name
-                ))]);
-            }
             synthesized_sum_instances
-                .insert(instance.base_name.clone(), instance.synthetic_name.clone());
+                .entry(instance.base_name.clone())
+                .or_default()
+                .insert(instance.synthetic_name.clone());
         }
         // Synthesize each not-yet-built instance: the base's members cloned with
         // the type parameters substituted for the arguments.
@@ -544,7 +539,15 @@ pub(crate) fn desugar_generic_data_instances(
     }
 
     relabel_closed_data_uses_in_annotated_locals(syntax, &synthesized_origins);
-    relabel_unique_closed_sum_paths(syntax, &synthesized_sum_instances);
+    relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized_origins);
+    relabel_closed_sum_memberships_from_local_types(syntax, &synthesized_origins);
+    let unique_sum_instances = synthesized_sum_instances
+        .into_iter()
+        .filter_map(|(base, instances)| {
+            (instances.len() == 1).then(|| (base, instances.into_iter().next().unwrap()))
+        })
+        .collect();
+    relabel_unique_closed_sum_paths(syntax, &unique_sum_instances);
 
     normalize_generic_template_const_expressions(syntax, &const_values)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -591,6 +594,106 @@ fn relabel_closed_data_uses_in_annotated_locals(
     }
 }
 
+/// An assignment target is another explicit destination type. Relabel a bare
+/// generic literal only when that type is available directly from a local or
+/// an attached data field; computed targets remain fail-closed.
+fn relabel_closed_data_uses_in_exact_assignments(
+    syntax: &mut SyntaxTrees,
+    synthesized_origins: &HashMap<String, String>,
+) {
+    let concrete_states = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
+            _ => None,
+        })
+        .flat_map(|machine| {
+            syntax
+                .tables
+                .items
+                .state_handles(machine.states)
+                .iter()
+                .map(|state| (*state, machine.attached_data.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    for (state_handle, attached_data) in concrete_states {
+        let state = syntax.tables.items.state(state_handle).clone();
+        let mut local_types = HashMap::<String, TypeReferenceHandle>::new();
+        for parameter in syntax.tables.items.state_parameters(state.parameters) {
+            let parameter = syntax.tables.items.state_parameter(*parameter);
+            local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
+        }
+        let statements = syntax.tables.items.statements(state.statements).to_vec();
+        for statement in &statements {
+            if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
+            {
+                local_types.insert(local.name.as_str().to_owned(), local.type_reference);
+            }
+        }
+        let self_field_types = attached_data
+            .as_ref()
+            .and_then(|attached| {
+                syntax.root_items().find_map(|item| match item {
+                    Item::Data(definition) if definition.name == *attached => Some(
+                        syntax
+                            .tables
+                            .items
+                            .data_members(definition.members)
+                            .iter()
+                            .filter_map(|member| match member {
+                                DataMember::Field(field) => {
+                                    Some((field.name.as_str().to_owned(), field.type_reference))
+                                }
+                                _ => None,
+                            })
+                            .collect::<HashMap<_, _>>(),
+                    ),
+                    _ => None,
+                })
+            })
+            .unwrap_or_default();
+
+        let assignments = statements
+            .iter()
+            .filter_map(
+                |statement| match syntax.tables.statements.statement(*statement) {
+                    StatementNode::Assignment(assignment) => Some(*assignment),
+                    _ => None,
+                },
+            )
+            .collect::<Vec<_>>();
+        for assignment in assignments {
+            let expected_type = match syntax.expressions.expression(assignment.target) {
+                ExpressionNode::Name(path) => {
+                    let [name] = syntax.expressions.identifier_path_members(*path) else {
+                        continue;
+                    };
+                    local_types.get(name.as_str()).copied()
+                }
+                ExpressionNode::Member(member)
+                    if matches!(
+                        syntax.expressions.expression(member.receiver),
+                        ExpressionNode::SelfValue
+                    ) =>
+                {
+                    self_field_types.get(member.member.as_str()).copied()
+                }
+                _ => None,
+            };
+            if let Some(expected_type) = expected_type {
+                relabel_data_literal_for_expected_type(
+                    syntax,
+                    assignment.value,
+                    expected_type,
+                    synthesized_origins,
+                );
+            }
+        }
+    }
+}
+
 fn relabel_data_literal_for_expected_type(
     syntax: &mut SyntaxTrees,
     expression: ExpressionHandle,
@@ -623,6 +726,29 @@ fn relabel_data_literal_for_expected_type(
     }) else {
         return;
     };
+    if let ExpressionNode::Name(path) = syntax.expressions.expression(expression).clone() {
+        let members = syntax.expressions.identifier_path_members(path);
+        let Some(base) = synthesized_origins.get(expected_name.as_str()) else {
+            return;
+        };
+        if let [literal_base, case] = members
+            && literal_base.as_str() == base
+            && syntax
+                .tables
+                .items
+                .data_members(definition.members)
+                .iter()
+                .any(|member| matches!(member, DataMember::Variant(variant) if variant.name == *case))
+        {
+            let case = case.clone();
+            let path = closed_sum_path(syntax, expected_name.as_str(), case);
+            syntax.expressions.replace_expression(
+                expression,
+                ExpressionNode::Name(path),
+            );
+        }
+        return;
+    }
     let ExpressionNode::StructLiteral(mut literal) =
         syntax.expressions.expression(expression).clone()
     else {
@@ -694,11 +820,143 @@ fn relabel_data_literal_for_expected_type(
     }
 }
 
-/// A pure generic sum is admitted with exactly one closed instance per base in
-/// this slice. That makes every remaining `Base::Case` constructor and pattern
-/// path unambiguous: rewrite it to the synthesized nominal identity before
-/// symbol resolution. Generic template bodies are excluded because their case
-/// paths remain parameterized declarations, not concrete uses.
+/// Destructure syntax lowers to `subject in Base::Case` before this pass. When
+/// the subject is a state parameter or local with an exact synthesized type,
+/// that annotation selects the corresponding closed case identity even when
+/// another closed instance of the same generic sum exists in the program.
+fn relabel_closed_sum_memberships_from_local_types(
+    syntax: &mut SyntaxTrees,
+    synthesized_origins: &HashMap<String, String>,
+) {
+    let concrete_states = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
+            _ => None,
+        })
+        .flat_map(|machine| {
+            syntax
+                .tables
+                .items
+                .state_handles(machine.states)
+                .iter()
+                .map(|state| (*state, machine.attached_data.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    for (state_handle, attached_data) in concrete_states {
+        let state = syntax.tables.items.state(state_handle).clone();
+        let mut local_types = HashMap::<String, String>::new();
+        for parameter in syntax.tables.items.state_parameters(state.parameters) {
+            let parameter = syntax.tables.items.state_parameter(*parameter);
+            if let Some(type_name) = named_type_name(syntax, parameter.type_reference) {
+                local_types.insert(parameter.name.as_str().to_owned(), type_name);
+            }
+        }
+        let statements = syntax.tables.items.statements(state.statements).to_vec();
+        for statement in &statements {
+            if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
+                && let Some(type_name) = named_type_name(syntax, local.type_reference)
+            {
+                local_types.insert(local.name.as_str().to_owned(), type_name);
+            }
+        }
+        let self_field_types = attached_data
+            .as_ref()
+            .and_then(|attached| {
+                syntax.root_items().find_map(|item| match item {
+                    Item::Data(definition) if definition.name == *attached => Some(
+                        syntax
+                            .tables
+                            .items
+                            .data_members(definition.members)
+                            .iter()
+                            .filter_map(|member| match member {
+                                DataMember::Field(field) => {
+                                    named_type_name(syntax, field.type_reference).map(|type_name| {
+                                        (field.name.as_str().to_owned(), type_name)
+                                    })
+                                }
+                                _ => None,
+                            })
+                            .collect::<HashMap<_, _>>(),
+                    ),
+                    _ => None,
+                })
+            })
+            .unwrap_or_default();
+
+        let mut reachable = HashSet::new();
+        for statement in statements {
+            collect_statement_expression_handles(syntax, statement, &mut reachable);
+        }
+        let replacements = syntax
+            .expressions
+            .iter_expressions()
+            .filter(|(handle, _)| reachable.contains(&handle.arena_index()))
+            .filter_map(|(handle, expression)| {
+                let ExpressionNode::Membership(membership) = expression else {
+                    return None;
+                };
+                let closed = match syntax.expressions.expression(membership.value) {
+                    ExpressionNode::Name(subject_path) => {
+                        let [subject] = syntax.expressions.identifier_path_members(*subject_path)
+                        else {
+                            return None;
+                        };
+                        local_types.get(subject.as_str())?
+                    }
+                    ExpressionNode::Member(member)
+                        if matches!(
+                            syntax.expressions.expression(member.receiver),
+                            ExpressionNode::SelfValue
+                        ) =>
+                    {
+                        self_field_types.get(member.member.as_str())?
+                    }
+                    _ => return None,
+                };
+                let base = synthesized_origins.get(closed)?;
+                let [domain_base, case] = syntax
+                    .expressions
+                    .identifier_path_members(membership.domain)
+                else {
+                    return None;
+                };
+                (domain_base.as_str() == base)
+                    .then(|| (handle, membership.value, closed.clone(), case.clone()))
+            })
+            .collect::<Vec<_>>();
+        for (handle, value, closed, case) in replacements {
+            let domain = closed_sum_path(syntax, &closed, case);
+            syntax.expressions.replace_expression(
+                handle,
+                ExpressionNode::Membership(
+                    psi_syntax_trees::expression::TableMembershipExpression { value, domain },
+                ),
+            );
+        }
+    }
+}
+
+fn named_type_name(syntax: &SyntaxTrees, type_reference: TypeReferenceHandle) -> Option<String> {
+    let type_reference = match syntax.tables.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+        TypeReferenceNode::Named(_) => type_reference,
+        _ => return None,
+    };
+    match syntax.tables.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Named(name) => Some(name.as_str().to_owned()),
+        _ => None,
+    }
+}
+
+/// When a generic sum has exactly one closed instance, every remaining
+/// `Base::Case` constructor and pattern path is unambiguous. Rewrite that
+/// fallback cohort to the synthesized nominal identity before symbol
+/// resolution. Multiple-instance uses must already have been selected by exact
+/// context above. Generic template bodies remain parameterized declarations.
 fn relabel_unique_closed_sum_paths(
     syntax: &mut SyntaxTrees,
     synthesized_sum_instances: &HashMap<String, String>,
@@ -3706,6 +3964,22 @@ mod tests {
     }
 
     #[test]
+    fn closed_generic_record_literal_uses_exact_assignment_destination() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Holder { integer: Box<i32>; boolean: Box<bool>; }
+            machine Holder::replace(&mut self) {
+                self.integer = Box { value: 7 };
+                self.boolean = Box { value: true };
+            }
+            "#,
+        )
+        .expect("an exact field assignment should select each closed record identity");
+    }
+
+    #[test]
     fn closed_generic_erased_record_still_rejects_generic_evidence_omission() {
         rejected(
             r#"
@@ -4060,20 +4334,45 @@ mod tests {
     }
 
     #[test]
-    fn distinct_closed_instances_of_one_generic_sum_reject() {
-        let source = r#"
+    fn distinct_closed_instances_of_one_generic_sum_select_exact_paths() {
+        checked(
+            r#"
             data Maybe<T> { case None; case Some(value: T); }
-            data Holder { integer: Maybe<i32>; boolean: Maybe<bool>; }
-        "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
-        let diagnostics = desugar_generic_data_instances(&mut syntax)
-            .expect_err("two closed sum instances must reject in this slice");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("requires one exact closed instance per generic sum")
-        }));
+            machine inspect_integer(value: Maybe<i32>) -> i32 {
+                transition value {
+                    Maybe::Some { value } -> value
+                    Maybe::None -> 0
+                }
+            }
+            machine inspect_boolean(value: Maybe<bool>) -> bool {
+                transition value {
+                    Maybe::Some { value } -> value
+                    Maybe::None -> false
+                }
+            }
+            machine run() -> i32 {
+                let integer: Maybe<i32> = Maybe::Some { value: 7 };
+                let boolean: Maybe<bool> = Maybe::Some { value: true };
+                let checked: bool = inspect_boolean(boolean);
+                inspect_integer(integer)
+            }
+            "#,
+        )
+        .expect("each generic sum occurrence should select its exact closed identity");
+    }
+
+    #[test]
+    fn distinct_closed_generic_sums_keep_untyped_call_literal_fail_closed() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
+            data Holder { boolean: Maybe<bool>; }
+            machine take(value: Maybe<i32>) -> i32 { 0 }
+            machine run() -> i32 { take(Maybe::Some { value: 7 }) }
+            "#,
+            "construction of erased generic data `Maybe` is unsupported in this context",
+        );
     }
 
     #[test]

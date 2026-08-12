@@ -1,0 +1,35 @@
+use omega::language::std::console;
+
+data Evidence { case Only; }
+data Maybe<T> {
+    case None;
+    case Some(value: T, proof [erased]: Evidence);
+}
+
+data Main {
+    console: Console;
+    integer: Maybe<i32>;
+    boolean: Maybe<bool>;
+}
+
+machine Main::inspect_integer(&mut self) -> i32 {
+    transition self.integer {
+        Maybe::Some { value, proof as _ } -> value
+        Maybe::None -> 0
+    }
+}
+
+machine Main::inspect_boolean(&mut self) -> bool {
+    transition self.boolean {
+        Maybe::Some { value, proof as _ } -> value
+        Maybe::None -> false
+    }
+}
+
+machine Main::main(&mut self) {
+    self.integer = Maybe::Some { value: 70 };
+    self.boolean = Maybe::Some { value: true };
+    let result: i32 = self.inspect_integer();
+    let checked: bool = self.inspect_boolean();
+    self.console.exit_process(result);
+}
