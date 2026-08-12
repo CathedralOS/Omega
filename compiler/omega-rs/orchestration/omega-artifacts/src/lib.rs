@@ -809,11 +809,18 @@ impl ArtifactWriter {
                 ));
                 for flow in &radius.flows {
                     output.push_str(&format!(
-                        "  - `{}` {} at statement {} call {}",
-                        flow.state, flow.authority_flow, flow.statement_index, flow.call_ordinal,
+                        "  - `{}` [{}] {} at statement {} call {}",
+                        flow.state,
+                        flow.machine_overload_identity,
+                        flow.authority_flow,
+                        flow.statement_index,
+                        flow.call_ordinal,
                     ));
-                    if let Some(via_state) = &flow.via_state {
-                        output.push_str(&format!(" via `{via_state}`"));
+                    if let Some(via) = &flow.via {
+                        output.push_str(&format!(
+                            " via `{}` [{}]",
+                            via.state, via.machine_overload_identity
+                        ));
                     } else {
                         output.push_str(" direct");
                     }
@@ -2030,16 +2037,27 @@ pub struct CapabilityBlastRadius {
 
 /// One checked capability-flow fact retained in the boundary artifact.
 ///
-/// Statement and call ordinals disambiguate repeated uses within an operation;
-/// `via_state` distinguishes a propagated helper route from a direct boundary
-/// use without turning a rendered provenance line into artifact identity.
+/// The readable state labels are presentation metadata beside the canonical
+/// overload identities of their owning machines. Statement and call ordinals
+/// disambiguate repeated uses within an operation; `via` distinguishes a
+/// propagated helper route from a direct boundary use.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CapabilityBlastRadiusFlow {
     pub state: String,
+    pub machine_overload_identity: String,
     pub authority_flow: String,
     pub statement_index: usize,
     pub call_ordinal: usize,
-    pub via_state: Option<String>,
+    pub via: Option<CapabilityBlastRadiusRoute>,
+}
+
+/// One helper route through which a capability flow was propagated. Keeping
+/// the presentation label and exact owner identity in one value prevents an
+/// artifact row from retaining either half alone.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CapabilityBlastRadiusRoute {
+    pub state: String,
+    pub machine_overload_identity: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
