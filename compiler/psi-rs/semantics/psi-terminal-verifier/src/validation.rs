@@ -1610,6 +1610,18 @@ fn validate_unit_call_claim_transfers(
                 .map(|claim| (claim.claim, claim.input.root)),
         )
         .collect::<BTreeMap<_, _>>();
+    for (claim, input) in &callee_claims {
+        if !callee
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == *input)
+        {
+            return Err(ModuleError::UnitCallClaimHasNoStructuralArgument {
+                operation,
+                claim: *claim,
+            });
+        }
+    }
     if transfers.len() != callee_claims.len() {
         return Err(ModuleError::UnitCallClaimTransferCountMismatch {
             operation,
@@ -3828,6 +3840,10 @@ pub enum ModuleError {
         operation: OperationId,
         expected: usize,
         actual: usize,
+    },
+    UnitCallClaimHasNoStructuralArgument {
+        operation: OperationId,
+        claim: ClaimId,
     },
     UnitCallClaimPresenceMismatch {
         operation: OperationId,
