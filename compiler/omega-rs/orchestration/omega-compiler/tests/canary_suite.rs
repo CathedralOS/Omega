@@ -1,7 +1,11 @@
 use omega_compiler::{
     CheckedCompilation, CompileOptions, CompileReport, PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
-    compile, compile_to_checked,
+    compile as production_compile, compile_to_checked, compile_with_test_entry,
 };
+
+fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_test_entry(options, "Main::main")
+}
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
@@ -35501,7 +35505,7 @@ fn cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = production_compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("linux_x64".to_owned()),
@@ -43906,6 +43910,27 @@ fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     let outcome = psi_checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn production_compile_rejects_an_unrooted_legacy_entry() {
+    let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
+    let build_dir = unique_no_output_build_dir();
+    let diagnostics = production_compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("production compilation must not discover `Main::main` by name");
+    let _ = fs::remove_dir_all(build_dir);
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("no runtime entry point was selected")),
+        "missing ProgramEntry selection should fail explicitly: {diagnostics:#?}"
+    );
 }
 
 #[test]

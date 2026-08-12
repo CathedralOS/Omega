@@ -4,13 +4,21 @@
 //! carry its own end-to-end oracle without making that shared file responsible
 //! for another subsystem.
 
-use omega_compiler::{CheckedCompilation, CompileOptions, compile, compile_to_checked};
+use omega_compiler::{
+    CheckedCompilation, CompileOptions, compile_to_checked, compile_with_test_entry,
+};
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(checked, "Main::main", stdin)
+}
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    compile_with_test_entry(options, "Main::main")
 }
 
 fn repo_root() -> PathBuf {

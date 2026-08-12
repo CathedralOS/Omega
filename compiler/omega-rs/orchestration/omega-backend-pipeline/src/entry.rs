@@ -1,11 +1,6 @@
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
-use psi_symbols::{SymbolHandle, SymbolKind};
-
-/// Transitional entry name used only while the corpus moves to explicit
-/// target-owned `ProgramEntry` bindings.
-const TRANSITIONAL_MAIN_MACHINE_NAME: &str = "Main::main";
-const TRANSITIONAL_MAIN_STATE_NAME: &str = "main";
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct BackendEntryPoint {
@@ -25,16 +20,8 @@ pub(super) fn resolve_backend_entry_point(
         });
     }
 
-    if let Some(entry_point) = find_entry_point(
-        program,
-        TRANSITIONAL_MAIN_MACHINE_NAME,
-        TRANSITIONAL_MAIN_STATE_NAME,
-    ) {
-        return Ok(entry_point);
-    }
-
     Err(Diagnostic::error(
-        "unknown runtime entry point `Main::main`",
+        "no runtime entry point was selected; bind the target-owned `ProgramEntry` root in build.omg",
     ))
 }
 
@@ -51,46 +38,4 @@ fn find_declared_entry_point(
         machine_symbol: machine.symbol,
         state_symbol: entry_state.symbol,
     })
-}
-
-fn find_entry_point(
-    program: &CheckedTrees,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<BackendEntryPoint> {
-    let machine_symbol =
-        find_root_child_by_name_and_kind(program, machine_name, SymbolKind::Machine)?;
-    let state_symbol =
-        find_child_by_name_and_kind(program, machine_symbol, state_name, SymbolKind::State)?;
-
-    Some(BackendEntryPoint {
-        machine_symbol,
-        state_symbol,
-    })
-}
-
-fn find_root_child_by_name_and_kind(
-    program: &CheckedTrees,
-    name: &str,
-    kind: SymbolKind,
-) -> Option<SymbolHandle> {
-    find_child_by_name_and_kind(program, program.symbols.root(), name, kind)
-}
-
-fn find_child_by_name_and_kind(
-    program: &CheckedTrees,
-    parent: SymbolHandle,
-    name: &str,
-    kind: SymbolKind,
-) -> Option<SymbolHandle> {
-    let children = program.symbols.child_handles(parent)?;
-
-    for child in children {
-        let symbol = program.symbols.get(child);
-        if symbol.kind == kind && program.symbols.name(child) == name {
-            return Some(child);
-        }
-    }
-
-    None
 }

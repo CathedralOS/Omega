@@ -46,7 +46,7 @@ pub use checked_entry::{CheckedCompilation, compile_to_checked};
 pub use compile_options::CompileOptions;
 pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::CompileReport;
-pub use compiler::{compile, compile_with_policy};
+pub use compiler::{compile, compile_with_policy, compile_with_test_entry};
 pub use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
     compute_layout_plan,

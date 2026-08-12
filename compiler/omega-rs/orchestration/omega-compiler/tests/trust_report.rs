@@ -3,7 +3,13 @@
 //! own-package declarations are dev-active (grant locality v1) and carry
 //! the standing warning until a root grant (GR3) flips their provenance.
 
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, compile_with_test_entry};
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    compile_with_test_entry(options, "Main::main")
+}
 
 #[test]
 fn trust_report_rows_dev_active_domain_introductions() {
