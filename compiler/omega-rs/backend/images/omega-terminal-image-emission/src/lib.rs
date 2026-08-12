@@ -30,8 +30,9 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
@@ -301,7 +302,7 @@ pub fn build_terminal_object_artifact(
         if let Some(stack) = &function.scalar_stack {
             validated_scalar_stacks.insert(
                 function.machine,
-                validate_linear_scalar_stack(
+                validate_scalar_stack(
                     plan.target.architecture,
                     function.machine,
                     &function.bytes,
@@ -764,7 +765,7 @@ fn validate_unit_function_stack(
     })
 }
 
-fn validate_linear_scalar_stack(
+fn validate_scalar_stack(
     architecture: Architecture,
     machine: MachineId,
     bytes: &[u8],
@@ -782,6 +783,23 @@ fn validate_linear_scalar_stack(
             machine,
             alignment: evidence.stack_alignment,
         });
+    }
+    if let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        branch_offset,
+        branch_byte_count,
+        false_arm_offset,
+    } = evidence.control_flow
+    {
+        return validate_top_level_two_return_scalar_stack(
+            architecture,
+            machine,
+            bytes,
+            calls,
+            evidence,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+        );
     }
     if evidence
         .mutations
@@ -1007,6 +1025,312 @@ fn validate_linear_scalar_stack(
         },
         validated_calls,
     ))
+}
+
+fn validate_top_level_two_return_scalar_stack(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
+    evidence: &TerminalScalarStackEvidence,
+    branch_offset: usize,
+    branch_byte_count: usize,
+    false_arm_offset: usize,
+) -> Result<
+    (
+        TerminalObjectScalarStack,
+        Vec<TerminalObjectScalarCallStack>,
+    ),
+    TerminalObjectError,
+> {
+    if !calls.is_empty() {
+        return Err(TerminalObjectError::ScalarConditionalCallNotSupported(
+            machine,
+        ));
+    }
+    if evidence
+        .mutations
+        .windows(2)
+        .any(|pair| pair[0].offset >= pair[1].offset)
+    {
+        return Err(TerminalObjectError::NonCanonicalScalarStackMutationOrder(
+            machine,
+        ));
+    }
+    let mut claimed = evidence
+        .mutations
+        .iter()
+        .map(|mutation| (mutation.offset, *mutation))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if claimed.len() != evidence.mutations.len() {
+        return Err(TerminalObjectError::NonCanonicalScalarStackMutationOrder(
+            machine,
+        ));
+    }
+    let true_arm_offset = branch_offset.checked_add(branch_byte_count).ok_or(
+        TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: branch_offset,
+        },
+    )?;
+    if true_arm_offset >= false_arm_offset || false_arm_offset >= bytes.len() {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: branch_offset,
+        });
+    }
+    validate_scalar_conditional_branch(
+        architecture,
+        machine,
+        bytes,
+        branch_offset,
+        branch_byte_count,
+        false_arm_offset,
+    )?;
+    let prefix_peak = replay_call_free_scalar_region(
+        architecture,
+        machine,
+        bytes,
+        0,
+        branch_offset,
+        false,
+        &mut claimed,
+    )?;
+    if prefix_peak != 0 {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: branch_offset,
+        });
+    }
+    let true_peak = replay_call_free_scalar_region(
+        architecture,
+        machine,
+        bytes,
+        true_arm_offset,
+        false_arm_offset,
+        true,
+        &mut claimed,
+    )?;
+    let false_peak = replay_call_free_scalar_region(
+        architecture,
+        machine,
+        bytes,
+        false_arm_offset,
+        bytes.len(),
+        true,
+        &mut claimed,
+    )?;
+    if let Some((&offset, _)) = claimed.first_key_value() {
+        return Err(TerminalObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    Ok((
+        TerminalObjectScalarStack {
+            local_peak_bytes: true_peak.max(false_peak),
+            stack_alignment: evidence.stack_alignment,
+        },
+        Vec::new(),
+    ))
+}
+
+fn validate_scalar_conditional_branch(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    branch_offset: usize,
+    branch_byte_count: usize,
+    false_arm_offset: usize,
+) -> Result<(), TerminalObjectError> {
+    let invalid = || TerminalObjectError::InvalidScalarConditionalEvidence {
+        machine,
+        offset: branch_offset,
+    };
+    let target = match architecture {
+        Architecture::X86_64 => {
+            if branch_byte_count != 6
+                || bytes.get(branch_offset..branch_offset.saturating_add(2)) != Some(&[0x0f, 0x84])
+            {
+                return Err(invalid());
+            }
+            let displacement = bytes
+                .get(branch_offset + 2..branch_offset + 6)
+                .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+                .map(i32::from_le_bytes)
+                .ok_or_else(invalid)?;
+            i64::try_from(branch_offset + branch_byte_count)
+                .ok()
+                .and_then(|base| base.checked_add(i64::from(displacement)))
+                .and_then(|target| usize::try_from(target).ok())
+                .ok_or_else(invalid)?
+        }
+        Architecture::Aarch64 => {
+            if branch_byte_count != 4 || !branch_offset.is_multiple_of(4) {
+                return Err(invalid());
+            }
+            let encoded = bytes
+                .get(branch_offset..branch_offset + 4)
+                .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+                .map(u32::from_le_bytes)
+                .ok_or_else(invalid)?;
+            if encoded & 0xff00_0000 != 0x3400_0000 {
+                return Err(invalid());
+            }
+            let immediate = ((encoded >> 5) & 0x7ffff) as i32;
+            let displacement = (immediate << 13 >> 13) * 4;
+            i64::try_from(branch_offset)
+                .ok()
+                .and_then(|base| base.checked_add(i64::from(displacement)))
+                .and_then(|target| usize::try_from(target).ok())
+                .ok_or_else(invalid)?
+        }
+    };
+    if target != false_arm_offset {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn replay_call_free_scalar_region(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    require_return: bool,
+    claimed: &mut std::collections::BTreeMap<usize, TerminalScalarStackMutation>,
+) -> Result<u32, TerminalObjectError> {
+    if start > end || end > bytes.len() {
+        return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: start,
+        });
+    }
+    let mut depth = 0_u32;
+    let mut peak = 0_u32;
+    let mut saw_return = false;
+    match architecture {
+        Architecture::X86_64 => {
+            let mut decoder = iced_x86::Decoder::with_ip(
+                64,
+                &bytes[start..end],
+                start as u64,
+                iced_x86::DecoderOptions::NONE,
+            );
+            let mut info_factory = iced_x86::InstructionInfoFactory::new();
+            while decoder.can_decode() {
+                let instruction = decoder.decode();
+                let offset = usize::try_from(instruction.ip()).expect("function-relative x86 IP");
+                if instruction.is_invalid() {
+                    return Err(TerminalObjectError::InvalidScalarInstructionEncoding {
+                        machine,
+                        offset,
+                    });
+                }
+                if instruction.mnemonic() == iced_x86::Mnemonic::Ret {
+                    if !require_return
+                        || offset.checked_add(instruction.len()) != Some(end)
+                        || saw_return
+                    {
+                        return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                            machine,
+                            offset,
+                        });
+                    }
+                    saw_return = true;
+                    continue;
+                }
+                if instruction.flow_control() != iced_x86::FlowControl::Next {
+                    return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                        machine,
+                        offset,
+                    });
+                }
+                let stack_mutation = matches!(
+                    instruction.mnemonic(),
+                    iced_x86::Mnemonic::Push | iced_x86::Mnemonic::Pop
+                ) || matches!(
+                    instruction.mnemonic(),
+                    iced_x86::Mnemonic::Add | iced_x86::Mnemonic::Sub
+                ) && instruction.op0_register()
+                    == iced_x86::Register::RSP;
+                if stack_mutation {
+                    let mutation = claimed.remove(&offset).ok_or(
+                        TerminalObjectError::UnclaimedScalarStackMutation { machine, offset },
+                    )?;
+                    validate_x86_scalar_mutation(machine, bytes, &instruction, mutation)?;
+                    replay_scalar_mutation(machine, offset, mutation.kind, &mut depth, &mut peak)?;
+                    continue;
+                }
+                let info = info_factory.info(&instruction);
+                if info.used_registers().iter().any(|register| {
+                    matches!(
+                        register.register(),
+                        iced_x86::Register::RSP
+                            | iced_x86::Register::ESP
+                            | iced_x86::Register::SP
+                            | iced_x86::Register::SPL
+                    ) && matches!(
+                        register.access(),
+                        iced_x86::OpAccess::Write
+                            | iced_x86::OpAccess::CondWrite
+                            | iced_x86::OpAccess::ReadWrite
+                            | iced_x86::OpAccess::ReadCondWrite
+                    )
+                }) {
+                    return Err(TerminalObjectError::UnsupportedScalarStackMutation {
+                        machine,
+                        offset,
+                    });
+                }
+            }
+        }
+        Architecture::Aarch64 => {
+            if !start.is_multiple_of(4) || !end.is_multiple_of(4) {
+                return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+                    machine,
+                    offset: start,
+                });
+            }
+            for offset in (start..end).step_by(4) {
+                let encoded = u32::from_le_bytes(
+                    bytes[offset..offset + 4]
+                        .try_into()
+                        .expect("four-byte AArch64 word"),
+                );
+                if encoded == 0xd65f_03c0 {
+                    if !require_return || offset + 4 != end || saw_return {
+                        return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                            machine,
+                            offset,
+                        });
+                    }
+                    saw_return = true;
+                    continue;
+                }
+                if aarch64_control_flow_instruction(encoded) {
+                    return Err(TerminalObjectError::NonLinearScalarControlFlow {
+                        machine,
+                        offset,
+                    });
+                }
+                if aarch64_stack_adjustment_at(bytes, offset) {
+                    let mutation = claimed.remove(&offset).ok_or(
+                        TerminalObjectError::UnclaimedScalarStackMutation { machine, offset },
+                    )?;
+                    validate_aarch64_scalar_mutation(machine, encoded, mutation)?;
+                    replay_scalar_mutation(machine, offset, mutation.kind, &mut depth, &mut peak)?;
+                } else if aarch64_unsupported_sp_write(encoded) {
+                    return Err(TerminalObjectError::UnsupportedScalarStackMutation {
+                        machine,
+                        offset,
+                    });
+                }
+            }
+        }
+    }
+    if require_return != saw_return || depth != 0 {
+        return Err(TerminalObjectError::MissingBalancedScalarReturn(machine));
+    }
+    Ok(peak)
 }
 
 fn validate_scalar_call_stack(
@@ -1959,6 +2283,11 @@ pub enum TerminalObjectError {
         machine: MachineId,
         alignment: u32,
     },
+    InvalidScalarConditionalEvidence {
+        machine: MachineId,
+        offset: usize,
+    },
+    ScalarConditionalCallNotSupported(MachineId),
     UntypedScalarInternalCall {
         machine: MachineId,
         offset: usize,

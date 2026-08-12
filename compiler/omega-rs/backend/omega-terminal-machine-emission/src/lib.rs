@@ -21,9 +21,9 @@ use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
-    TerminalScalarCallStackEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarCallStackEvidence, TerminalScalarControlFlowEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -61,6 +61,7 @@ fn emit_function(
     let mut boundary_settlements = Vec::new();
     let mut unit_stack = None;
     let mut scalar_stack_eligible = false;
+    let mut scalar_control_flow = TerminalScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target)?;
@@ -193,32 +194,36 @@ fn emit_function(
             when_true,
             when_false,
             ..
-        } => match architecture {
-            Architecture::Aarch64 => {
-                let fragment = emit_aarch64_conditional_integer_control(
+        } => {
+            let fragment = match architecture {
+                Architecture::Aarch64 => emit_aarch64_conditional_integer_control(
                     *condition_source,
                     *condition_location,
                     *scalar_type,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
-            }
-            Architecture::X86_64 => {
-                let fragment = emit_x86_64_conditional_integer_control(
+                )?,
+                Architecture::X86_64 => emit_x86_64_conditional_integer_control(
                     *condition_source,
                     *condition_location,
                     *scalar_type,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
+                )?,
+            };
+            scalar_stack_eligible = direct_linear_integer_arm(when_true)
+                && direct_linear_integer_arm(when_false)
+                && fragment.internal_calls.is_empty();
+            if scalar_stack_eligible {
+                scalar_control_flow = fragment
+                    .conditional
+                    .expect("top-level integer conditional retains its branch evidence");
             }
-        },
+            internal_calls = fragment.internal_calls;
+            fragment.bytes
+        }
         TerminalAssignedOperation::ReturnIntegerExpressionConditionalControl {
             condition_frame,
             condition,
@@ -314,7 +319,7 @@ fn emit_function(
         },
     };
     let scalar_stack = scalar_stack_eligible
-        .then(|| collect_linear_scalar_stack_evidence(architecture, &bytes))
+        .then(|| collect_scalar_stack_evidence(architecture, &bytes, scalar_control_flow))
         .transpose()?;
     if !scalar_stack_eligible {
         for call in &mut internal_calls {
@@ -1309,6 +1314,7 @@ fn emit_native_crash(architecture: Architecture) -> Vec<u8> {
 struct EmissionFragment {
     bytes: Vec<u8>,
     internal_calls: Vec<TerminalInternalCallRelocation>,
+    conditional: Option<TerminalScalarControlFlowEvidence>,
 }
 
 impl EmissionFragment {
@@ -1316,6 +1322,7 @@ impl EmissionFragment {
         Self {
             bytes,
             internal_calls: Vec::new(),
+            conditional: None,
         }
     }
 
@@ -1350,9 +1357,19 @@ fn emit_x86_64_conditional_integer_control(
     let false_fragment = emit_x86_64_integer_control(scalar_type, &when_false.control, target)?;
     let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.conditional = Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        branch_offset,
+        branch_byte_count: 6,
+        false_arm_offset,
+    });
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
     Ok(fragment)
@@ -1384,6 +1401,7 @@ fn emit_x86_64_integer_control(
             Ok(EmissionFragment {
                 bytes,
                 internal_calls,
+                conditional: None,
             })
         }
         TerminalAssignedIntegerControl::Conditional {
@@ -1440,6 +1458,7 @@ fn emit_x86_64_conditional_integer_expression_control(
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
+        conditional: None,
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -1492,6 +1511,7 @@ fn emit_x86_64_conditional_boolean_expression_control(
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
+        conditional: None,
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -1535,6 +1555,7 @@ fn emit_x86_64_boolean_control(
             Ok(EmissionFragment {
                 bytes,
                 internal_calls,
+                conditional: None,
             })
         }
         TerminalAssignedBooleanControl::Conditional {
@@ -1588,8 +1609,18 @@ fn emit_aarch64_conditional_integer_control(
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
     let cbz = 0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(condition_register);
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&cbz.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
+    fragment.conditional = Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        branch_offset,
+        branch_byte_count: 4,
+        false_arm_offset,
+    });
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
     Ok(fragment)
@@ -1621,6 +1652,7 @@ fn emit_aarch64_integer_control(
             Ok(EmissionFragment {
                 bytes,
                 internal_calls,
+                conditional: None,
             })
         }
         TerminalAssignedIntegerControl::Conditional {
@@ -1684,6 +1716,7 @@ fn emit_aarch64_conditional_integer_expression_control(
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
+        conditional: None,
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -1747,6 +1780,7 @@ fn emit_aarch64_conditional_boolean_expression_control(
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
+        conditional: None,
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -1790,6 +1824,7 @@ fn emit_aarch64_boolean_control(
             Ok(EmissionFragment {
                 bytes,
                 internal_calls,
+                conditional: None,
             })
         }
         TerminalAssignedBooleanControl::Conditional {
@@ -4547,9 +4582,18 @@ fn linear_scalar_expression(expression: &TerminalAssignedScalarExpression) -> bo
     }
 }
 
-fn collect_linear_scalar_stack_evidence(
+fn direct_linear_integer_arm(arm: &TerminalAssignedConditionalIntegerArm) -> bool {
+    matches!(
+        arm.control.as_ref(),
+        TerminalAssignedIntegerControl::Return { expression, .. }
+            if linear_integer_expression(expression)
+    )
+}
+
+fn collect_scalar_stack_evidence(
     architecture: Architecture,
     bytes: &[u8],
+    control_flow: TerminalScalarControlFlowEvidence,
 ) -> Result<TerminalScalarStackEvidence, EmissionError> {
     let mutations = match architecture {
         Architecture::X86_64 => {
@@ -4622,6 +4666,7 @@ fn collect_linear_scalar_stack_evidence(
     };
     Ok(TerminalScalarStackEvidence {
         mutations,
+        control_flow,
         stack_alignment: 16,
     })
 }
@@ -5806,6 +5851,7 @@ mod tests {
             MachineRegister::X86Rsi,
         ))
         .unwrap();
+        assert_eq!(x86.functions[0].scalar_stack, None);
         assert!(
             x86.functions[0]
                 .bytes
@@ -5819,6 +5865,7 @@ mod tests {
             MachineRegister::Aarch64X(1),
         ))
         .unwrap();
+        assert_eq!(aarch64.functions[0].scalar_stack, None);
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
         assert!(instructions.windows(6).any(|window| window
             == [
@@ -5893,11 +5940,9 @@ mod tests {
 
     #[test]
     fn emits_parameter_expression_conditionals_for_both_architectures() {
+        let x86 = emit_machine_code(&conditional_plan(NativeTarget::linux_x64())).unwrap();
         assert_eq!(
-            emit_machine_code(&conditional_plan(NativeTarget::linux_x64()))
-                .unwrap()
-                .functions[0]
-                .bytes,
+            x86.functions[0].bytes,
             [
                 0x89, 0xf8, // mov eax, edi
                 0x85, 0xc0, // test eax, eax
@@ -5907,6 +5952,19 @@ mod tests {
                 0x48, 0x89, 0xd0, // mov rax, rdx
                 0x25, 0xff, 0, 0, 0, 0xc3, // mask to u8; ret
             ]
+        );
+        let x86_stack = x86.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("top-level two-return x86 conditional stack evidence");
+        assert_eq!(x86_stack.mutations, []);
+        assert_eq!(
+            x86_stack.control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                branch_offset: 4,
+                branch_byte_count: 6,
+                false_arm_offset: 19,
+            }
         );
         let aarch64 = emit_machine_code(&conditional_plan(NativeTarget::linux_arm64())).unwrap();
         assert_eq!(
@@ -5926,6 +5984,71 @@ mod tests {
                 0x9100_43ff, // add sp, sp, #16
                 0xd65f_03c0, // ret
             ]
+        );
+        let aarch64_stack = aarch64.functions[0]
+            .scalar_stack
+            .as_ref()
+            .expect("top-level two-return AArch64 conditional stack evidence");
+        assert_eq!(
+            aarch64_stack.control_flow,
+            TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                branch_offset: 0,
+                branch_byte_count: 4,
+                false_arm_offset: 28,
+            }
+        );
+        assert_eq!(aarch64_stack.mutations.len(), 4);
+    }
+
+    #[test]
+    fn broader_conditional_shapes_remain_outside_scalar_stack_evidence() {
+        let mut division_arm = conditional_plan(NativeTarget::linux_x64());
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_true, .. } =
+            &mut division_arm.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerControl::Return { expression, .. } = when_true.control.as_mut()
+        else {
+            unreachable!()
+        };
+        *expression = TerminalTargetIntegerExpression::WrappingDivide {
+            psi_operation: OperationId::new(8).expect("divide operation"),
+            left: Box::new(TerminalTargetIntegerExpression::Immediate {
+                source_value: ValueId::new(8).expect("left"),
+                value: IntegerValue::Unsigned(8),
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Immediate {
+                source_value: ValueId::new(9).expect("right"),
+                value: IntegerValue::Unsigned(2),
+            }),
+        };
+        assert_eq!(
+            emit_machine_code(&division_arm)
+                .expect("conditional division still emits")
+                .functions[0]
+                .scalar_stack,
+            None
+        );
+
+        let mut crash_arm = conditional_plan(NativeTarget::linux_arm64());
+        let TerminalTargetOperation::ReturnIntegerConditionalControl { when_false, .. } =
+            &mut crash_arm.functions[0].operation
+        else {
+            unreachable!()
+        };
+        when_false.control = Box::new(TerminalTargetIntegerControl::Crash {
+            psi_crash_edge: EdgeId::new(9).expect("crash edge"),
+            cause: psi_terminal::CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        });
+        assert_eq!(
+            emit_machine_code(&crash_arm)
+                .expect("conditional crash still emits")
+                .functions[0]
+                .scalar_stack,
+            None
         );
     }
 

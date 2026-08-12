@@ -4,6 +4,7 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_assigned_target_operations::TerminalAssignedOperation;
+use omega_terminal_image_emission::{build_terminal_object_artifact, derive_terminal_stack_demand};
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use omega_terminal_target_operations::{
@@ -64,7 +65,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "0866a26b9d24f09b77e584270448daab0fa42d145304eddf8c2569e6c5f3f3f8"
+        "499375cb7d1377ac43ca0bb199a16fe94252d9b92591e375d643294d3eceab1d"
     );
     let bytes = encode_module(&module).expect("canonical bytes");
     let decoded = decode_module(&bytes).expect("decode canonical module");
@@ -192,6 +193,37 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     ));
     let machine_code = emit_machine_code(&assigned).expect("conditional machine code emits");
     assert!(!machine_code.functions[0].bytes.is_empty());
+}
+
+#[test]
+fn bounded_two_return_conditional_derives_native_stack_by_arm_maximum() {
+    let module = conditional_module(VocabularyMarker::CURRENT);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("bounded conditional verifies");
+    let abstract_plan = lower_verified_artifact(&verified).expect("bounded conditional lowers");
+    for (target, expected_peak) in [
+        (NativeTarget::linux_x64(), 0),
+        (NativeTarget::linux_arm64(), 16),
+    ] {
+        let target_plan = lower_to_target_operations(&abstract_plan, target)
+            .expect("bounded conditional lowers for stack accounting target");
+        let assigned = assign_registers(&target_plan)
+            .expect("bounded conditional assigns for stack accounting target");
+        let machine_code =
+            emit_machine_code(&assigned).expect("bounded conditional emits stack evidence");
+        let artifact = build_terminal_object_artifact(&machine_code)
+            .expect("bounded conditional object replays each arm");
+        assert_eq!(
+            derive_terminal_stack_demand(&artifact, MachineId::new(1).unwrap())
+                .expect("bounded conditional stack demand")
+                .ceiling_bytes(),
+            expected_peak
+        );
+    }
 }
 
 #[test]

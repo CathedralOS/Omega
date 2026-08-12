@@ -452,9 +452,12 @@ the native terminal Unit and branch-free scalar slices now retain exact
 emitter evidence that object construction validates and replays to derive
 local peaks plus caller-live stack at each typed internal-call relocation and
 compose that acyclic closure below function entry. Conditional scalar control
-flow, external adapter/interrupt-arrival state, other terminal function forms,
-provider admission, and exact installation binding are not yet part of that
-theorem, so the
+flow is limited to one exact two-terminal-arm shape: a top-level Boolean
+parameter branch with two direct, call-free linear integer returns, replayed
+independently by maximum. Expression conditions, nesting, reconvergence, calls
+or crashes in arms, external adapter/interrupt-arrival state, other terminal
+function forms, provider admission, and exact installation binding are not yet
+part of that theorem, so the
 inspection surface still makes no installed-root WCSU claim.
 
 ## Implementation queue
