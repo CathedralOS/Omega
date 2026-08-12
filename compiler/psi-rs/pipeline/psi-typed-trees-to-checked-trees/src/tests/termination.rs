@@ -2927,8 +2927,17 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         0
     }
 
+    machine scratch_from(value: u64) -> u64 {
+        value
+    }
+
     machine return_with_impure_call_scratch(value: &mut u64) -> &mut u64 {
         let scratch: u64 = impure_scratch(value);
+        value
+    }
+
+    machine return_with_nested_call_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = scratch_from(make_scratch());
         value
     }
 
@@ -3148,6 +3157,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::impure_call_scratch_helper_result(&mut self) {
         let alias: &mut u64 = return_with_impure_call_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::nested_call_scratch_helper_result(&mut self) {
+        let alias: &mut u64 = return_with_nested_call_scratch(&mut self.value);
         alias = 3;
     }
 
@@ -3563,6 +3577,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",
         "Main::impure_call_scratch_helper_result",
+        "Main::nested_call_scratch_helper_result",
         "Main::discarded_call_helper_result",
         "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",

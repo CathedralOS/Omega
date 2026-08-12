@@ -2120,10 +2120,17 @@ fn isolated_local_initializer_preserves_transparent_result(
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
     }
-    if !matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Call(_)
-    ) {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if (call.receiver.is_valid()
+        && expression_is_effectful_for_transparent_result(program, call.receiver))
+        || program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .any(|argument| expression_is_effectful_for_transparent_result(program, *argument))
+    {
         return false;
     }
 
