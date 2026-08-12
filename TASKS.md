@@ -275,6 +275,9 @@ Remaining:
   fail through their existing public ABI-shape limits rather than a relevance
   fence; this slice does not manufacture an ABI for shapes the calling-policy
   vocabulary cannot express.
+  Result-domain overload families with one identical closed parameter signature
+  now provide the same exact generic record/sum literal context as a unique free
+  call; parameter-distinct overloads remain resolver-owned and fail closed.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the
@@ -378,7 +381,9 @@ customer-shaped compiler concept is introduced.
   mutable-reference parameter, including an attached helper's actual receiver;
   its terminal result may follow a prefix of effect-free caller-isolated scratch
   locals and direct local `&mut` aliases, including mutable bindings and results
-  of other structurally transparent helpers. The same exact returned-place
+  of other structurally transparent helpers. A caller-isolated scratch local
+  may also be initialized by one direct value call when its inferred frame is
+  complete and empty. The same exact returned-place
   relation composes when such a result is supplied directly as a statement-call
   argument.
   Value-shaped assignments with effect-free right-hand sides may write through
@@ -388,10 +393,10 @@ customer-shaped compiler concept is introduced.
   rebind updates that name's origin without redirecting prior reborrows; a
   structurally transparent helper result may supply the replacement through the
   same origin algebra. Other computed rebinding, discarded/statement calls,
-  opaque or recursive result producers, effectful index computations, computed
-  helper initializers, and nontrivial results remain
-  opaque. Primitive-only
-  concrete record/sum locals are caller-isolated through nested fixed arrays;
+  opaque or recursive result producers, effectful index computations, other
+  computed helper initializers, and nontrivial results remain opaque. Opaque,
+  recursive, or write-capable scratch initializer calls remain fences.
+  Primitive-only concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.
   Recursive, generic, reference-bearing, or other computed local roots remain
   fences.

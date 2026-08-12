@@ -163,8 +163,11 @@ Current ownership is:
   result and later transparent chains. The terminal place may follow a prefix
   of effect-free caller-isolated scratch locals and direct local `&mut` aliases,
   including mutable bindings and results of other structurally transparent
-  helpers. A validated mutable recast local with an effect-free source may write
-  through that source without obscuring a separately returned parameter origin.
+  helpers. A caller-isolated scratch local may be initialized by one direct
+  value call whose inferred frame is complete and empty; opaque, recursive,
+  nested-computed, or write-capable initializer calls remain fences. A
+  validated mutable recast local with an effect-free source may write through
+  that source without obscuring a separately returned parameter origin.
   The same exact returned-place relation composes when such a result is supplied
   directly as a statement-call argument.
   Value-shaped assignments with effect-free right-hand sides may write through
@@ -176,7 +179,7 @@ Current ownership is:
   supply the replacement through the same origin algebra. Other computed
   rebinding, discarded/statement calls, opaque or recursive result producers,
   effectful index computations (including stable-alias and terminal
-  returned-place indexes), and computed initializers remain opaque. For an
+  returned-place indexes), and other computed initializers remain opaque. For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other
   nontrivial results remain opaque; signature lifetime elision alone is not
