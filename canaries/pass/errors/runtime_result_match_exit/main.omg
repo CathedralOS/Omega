@@ -1,6 +1,6 @@
 // Explicit Result-style error handling at RUNTIME -- the sum-type idiom (Ok / Err, no
-// exceptions) real apps use for recoverable failure. Distinct from fallible_result_data_
-// shape (a compile-only STRUCT-with-flag result via &mut out-params): here the result is a
+// exceptions) real apps use for recoverable failure. The compile-only
+// fallible_result_data_shape companion checks an ordinary returned outcome sum; here it is a
 // two-case ENUM that is produced conditionally, then MATCHED and handled, with the loop
 // accumulating successes and counting errors. Safe-dividing 10/2, 7/0, 20/4 yields
 // Ok(5), Err, Ok(5); the Ok values sum to 10 and one Err is counted. The quotient is

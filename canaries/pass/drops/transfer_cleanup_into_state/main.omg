@@ -1,4 +1,4 @@
-// PASS canary (ch16 "Transferring Cleanup Responsibility"): a resource-owning
+// Chapter 17: a resource-owning
 // value is moved into a target state through a transition argument. The source
 // state hands its owned `Guard` to `hold(...)`, transferring the cleanup
 // obligation; the receiving state owns it and lets it die. Move-into-target on a
