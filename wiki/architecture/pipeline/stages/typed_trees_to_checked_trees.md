@@ -130,9 +130,10 @@ Current ownership is:
   symbol rebases it independently of each state's receiver parameter. Stable
   leaf facts can accumulate over several states and survive disjoint sibling
   mutation. An immutable local or state-parameter runtime index also rebases
-  across a named edge when forwarded directly into an immutable target
-  parameter. Mutable/computed indices, a missing predecessor fact, overlap, or
-  an opaque statement call clear the affected shortcut. Complete R5 statement-
+  across a named edge when forwarded directly, or through a chain of direct
+  immutable local copies, into an immutable target parameter. Mutable/computed
+  aliases, a missing predecessor fact, overlap, or an opaque statement call
+  clear the affected shortcut. Complete R5 statement-
   and value-call frames preserve stable paths when their may-write sets are
   empty or disjoint and invalidate only overlapping paths. Internal wrappers
   compose

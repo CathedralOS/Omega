@@ -2718,6 +2718,35 @@ fn accepts_cross_state_static_runtime_index_forwarded_from_immutable_local() {
 }
 
 #[test]
+fn accepts_cross_state_static_runtime_index_through_immutable_local_alias() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self, source: u64 [0..2]) {
+            let index: u64 [0..2] = source;
+            let forwarded: u64 [0..2] = index;
+            self.messages[index].body = "program static";
+            transition { _ -> copy_element(forwarded) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    check_program(source).expect(
+        "a direct immutable local-copy alias retains the runtime index identity across states",
+    );
+}
+
+#[test]
 fn rejects_cross_state_static_runtime_index_from_mutable_local() {
     let source = r#"
         data Message {
@@ -2747,6 +2776,84 @@ fn rejects_cross_state_static_runtime_index_from_mutable_local() {
             .message
             .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
         "expected the mutable-index persistent fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn rejects_cross_state_static_runtime_index_through_mutable_local_alias() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self, source: u64 [0..2]) {
+            let index: u64 [0..2] = source;
+            let mut forwarded: u64 [0..2] = index;
+            self.messages[index].body = "program static";
+            transition { _ -> copy_element(forwarded) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a mutable copy cannot establish stable runtime-index identity");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
+        "expected the mutable-alias persistent fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn rejects_cross_state_static_runtime_index_through_computed_local_alias() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self, source: u64 [0..2]) {
+            let index: u64 [0..2] = source;
+            let forwarded: u64 [0..2] = index + 0;
+            self.messages[index].body = "program static";
+            transition { _ -> copy_element(forwarded) }
+
+            state copy_element(&mut self, index: u64 [0..2]) {
+                self.copy = self.messages[index];
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a computed copy needs equality proof beyond direct-name identity");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
+        "expected the computed-alias persistent fence, got:\n{}",
         diagnostics
             .iter()
             .map(|diagnostic| diagnostic.message.as_str())
