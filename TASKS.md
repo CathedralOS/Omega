@@ -108,6 +108,9 @@ Remaining:
   The signed-min literal, scoped-constant, and unsigned-max literal native
   canaries now select the running host's exact target-owned root before keeping
   their byte-exact exit assertions.
+  The elapsed-since, checked-arithmetic, system-time, and instant-elapsed
+  differential canaries likewise retain their interpreter oracles and native
+  exit assertions under the running host's exact entry root.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry

@@ -6115,17 +6115,10 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
         "interpreter oracle should exit 70 for the elapsed-since chain, got {}",
         outcome.exit_code
     );
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-elapsed-since-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("elapsed-since canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-elapsed-since-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("elapsed-since canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("elapsed-since canary should run");
     assert_eq!(
@@ -6135,7 +6128,7 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
          (1 = under 30ms/zeroed; negative status = the frequency-collision #DE crash)",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6533,17 +6526,10 @@ fn runtime_checked_time_arith_exit_canary_runs() {
         "interpreter oracle should exit 70 for the checked-arith chain, got {}",
         outcome.exit_code
     );
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-checked-arith-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("checked time arith canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-checked-arith-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("checked time arith canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("checked time arith canary should run");
     assert_eq!(
@@ -6553,7 +6539,7 @@ fn runtime_checked_time_arith_exit_canary_runs() {
          (exit N = leg N failed; see the canary header for the leg list)",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6614,16 +6600,10 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
         "interpreter oracle should exit 70 for the system-time chain, got {}",
         outcome.exit_code
     );
-    let build_dir = std::env::temp_dir().join(format!("omega-system-time-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("system-time canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-system-time-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("system-time canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("system-time canary should run");
     assert_eq!(
@@ -6633,7 +6613,7 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
          (1/2 = forward leg; 3/4 = backward leg; 5/6 = Unmeasured arm fired)",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6655,16 +6635,10 @@ fn runtime_instant_elapsed_exit_canary_runs() {
         "interpreter oracle should exit 70 for the instant chain, got {}",
         outcome.exit_code
     );
-    let build_dir = std::env::temp_dir().join(format!("omega-instant-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("instant elapsed canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-instant-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("instant elapsed canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("instant elapsed canary should run");
     assert_eq!(
@@ -6673,7 +6647,7 @@ fn runtime_instant_elapsed_exit_canary_runs() {
         "expected the instant chain to run natively (exit 70), got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
