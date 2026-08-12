@@ -1183,6 +1183,40 @@ fn machine_overload_identity(
         .map(|identity| identity.identity())
 }
 
+fn callable_overload_identity(
+    program: &CheckedTrees,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+) -> Option<String> {
+    if let Some(identity) = machine_overload_identity(program, target_machine) {
+        return Some(identity);
+    }
+    if target_machine == target_state {
+        return program.machine_parameter_signature(target_state).map(
+            |(declaring_machine, requirement)| {
+                program
+                    .normalized_machine_parameter_overload_identity(declaring_machine, requirement)
+                    .identity()
+            },
+        );
+    }
+    program.traits().iter().find_map(|definition| {
+        (definition.symbol == target_machine)
+            .then(|| {
+                program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|requirement| requirement.symbol == target_state)
+                    .map(|requirement| {
+                        program
+                            .normalized_trait_requirement_overload_identity(definition, requirement)
+                            .identity()
+                    })
+            })
+            .flatten()
+    })
+}
+
 fn program_point_name(point: psi_facts::ProgramPoint) -> &'static str {
     use psi_facts::ProgramPoint;
     match point {
@@ -1852,11 +1886,15 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push_str(&location.call_ordinal().to_string());
                 json.push_str(", \"target_machine\": ");
                 push_json_string(&mut json, target_machine_name);
-                json.push_str(", \"target_machine_overload_identity\": ");
+                json.push_str(", \"target_callable_overload_identity\": ");
                 push_json_string(
                     &mut json,
-                    &machine_overload_identity(program, call.target_machine())
-                        .expect("checked crash call must name an exact target machine"),
+                    &callable_overload_identity(
+                        program,
+                        call.target_machine(),
+                        call.target_state(),
+                    )
+                    .expect("checked crash call must name an exact callable target"),
                 );
                 json.push_str(", \"target_state\": ");
                 push_json_string(&mut json, target_state_name);
@@ -1938,6 +1976,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    {\"target_machine\": ");
         push_json_string(&mut json, program.symbols.name(capsule.target_machine()));
+        json.push_str(", \"target_callable_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &callable_overload_identity(program, capsule.target_machine(), capsule.target_state())
+                .expect("crash contract capsule must name an exact callable target"),
+        );
         json.push_str(", \"target_state\": ");
         push_json_string(&mut json, program.symbols.name(capsule.target_state()));
         json.push_str(", \"target_contract_fingerprint\": \"0x");
@@ -2974,7 +3018,9 @@ mod tests {
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::signature::StateSignature;
     use psi_typed_trees::state::State;
+    use psi_typed_trees::trait_definition::TraitDefinition;
     use psi_typed_trees::typed_trees::MachineSpecialization;
 
     #[test]
@@ -3416,6 +3462,8 @@ mod tests {
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         let symbol = SymbolHandle::from_arena_index(2);
         let state_symbol = SymbolHandle::from_arena_index(3);
+        let capsule_machine_symbol = SymbolHandle::from_arena_index(4);
+        let capsule_state_symbol = SymbolHandle::from_arena_index(5);
         let service_symbol = SymbolHandle::from_arena_index(1);
         let mut program = CheckedTrees::default();
         let service = program
@@ -3471,6 +3519,15 @@ mod tests {
                 .with_path_guard_conjuncts(vec![
                     psi_checked_trees::CrashPredicateIdentity::from_canonical_bytes(vec![1, 4, 1]),
                 ]),
+                psi_checked_trees::CheckedCrashCallSite::new(
+                    psi_checked_trees::CrashCallSiteLocation::new(state_symbol, 8, 0),
+                    capsule_machine_symbol,
+                    capsule_state_symbol,
+                    0x5678,
+                    vec![psi_checked_trees::CrashRouteBucket::unconditional(
+                        psi_checked_trees::CrashCause::Trap,
+                    )],
+                ),
             ])
             .expect("one crash call per invocation coordinate");
         let mut machine = Machine {
@@ -3497,6 +3554,20 @@ mod tests {
             },
         );
         program.typed.push_machine(machine);
+        let mut capsule_trait = TraitDefinition {
+            symbol: capsule_machine_symbol,
+            name: Identifier::generated("Firmware"),
+            ..Default::default()
+        };
+        program.typed.push_trait_machine_signature(
+            &mut capsule_trait,
+            StateSignature {
+                symbol: capsule_state_symbol,
+                name: Identifier::generated("read"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_trait_definition(capsule_trait);
         program
             .facts
             .contract_plans
@@ -3532,6 +3603,16 @@ mod tests {
                 inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,
             });
+        program.facts.contract_plans.crash_capsules.push(
+            psi_checked_trees::CrashContractCapsule::new(
+                capsule_machine_symbol,
+                capsule_state_symbol,
+                0x5678,
+                vec![psi_checked_trees::CrashRouteBucket::unconditional(
+                    psi_checked_trees::CrashCause::Trap,
+                )],
+            ),
+        );
         program
             .facts
             .termination
@@ -3580,11 +3661,22 @@ mod tests {
             "\"checked_crash_sites\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 4, \"cause\": \"Abort\", \"path_guard_conjuncts\": [\"0x010900000000\"], \"path_guard_consequences\": [\"0x010401\"], \"guard_covering_buckets\": [1], \"covering_buckets\": [1], \"frontier_lower_bound\": [{\"kind\": \"established\""
         ));
         assert!(json[implementation_start..].contains(
-            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_machine_overload_identity\": \"named-callable(path(Worker::run)"
+            "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_callable_overload_identity\": \"named-callable(path(Worker::run)"
         ));
         assert!(json[implementation_start..].contains(
             "\"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"alternative_guards\": [\"true\"]}]"
         ));
+        assert!(
+            json[implementation_start..].contains("\"statement_ordinal\": 8, \"call_ordinal\": 0")
+        );
+        assert!(json[implementation_start..].contains(
+            "\"target_callable_overload_identity\": \"named-callable(path(Firmware::read)"
+        ));
+        assert!(json.contains("\"crash_contract_capsules\": [\n    {\"target_machine\":"));
+        assert!(json.contains(
+            "\"target_callable_overload_identity\": \"named-callable(path(Firmware::read)"
+        ));
+        assert!(json.contains("\"target_contract_fingerprint\": \"0x0000000000005678\""));
         assert!(
             json[implementation_start..]
                 .contains("\"source\": {\"kind\": \"state_entry\"}, \"ordinal\": 0}]")

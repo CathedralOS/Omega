@@ -226,6 +226,28 @@ impl TypedTrees {
         )
     }
 
+    /// Canonical identity of one compile-time machine-parameter callable.
+    /// The declaring machine and all of its generic binders participate in
+    /// the identity, followed by binders authored directly on the callable
+    /// contract. This is the requirement-side analogue of a top-level named
+    /// machine overload; consumers must not reconstruct it from the parameter
+    /// spelling alone.
+    pub fn normalized_machine_parameter_overload_identity(
+        &self,
+        declaring_machine: &crate::machine::Machine,
+        requirement: &crate::signature::StateSignature,
+    ) -> NormalizedNamedCallableIdentity {
+        let mut type_parameters = self.machine_type_parameters(declaring_machine).to_vec();
+        type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+        self.normalized_named_callable_identity(
+            &format!("{}::{}", declaring_machine.name, requirement.name),
+            declaring_machine.symbol,
+            &type_parameters,
+            self.state_signature_parameters(requirement),
+            requirement.return_type,
+        )
+    }
+
     /// Canonical identity of one explicitly named operator requirement.
     /// Unspelled boundary operators participate in the same result-domain
     /// lookup as other named requirements; fixed spellings remain
