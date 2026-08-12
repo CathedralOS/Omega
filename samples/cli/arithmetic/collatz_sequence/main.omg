@@ -67,6 +67,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the step count, 111 for seed 27 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.collatz.steps);
+        self.console.exit_process(self.collatz.steps as i32);
     }
 }

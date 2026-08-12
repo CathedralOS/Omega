@@ -69,6 +69,6 @@ machine Main::main(&mut self) {
         self.console.write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.r);
+        self.console.exit_process(self.r as i32);
     }
 }

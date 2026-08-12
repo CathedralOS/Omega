@@ -86,6 +86,6 @@ machine Main::main(&mut self) {
         self.console.write_line("FAIL: prime count != 10 -- exiting the actual count (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.count);
+        self.console.exit_process(self.count as i32);
     }
 }

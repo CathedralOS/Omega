@@ -60,6 +60,6 @@ machine Main::main(&mut self) {
         self.console.write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.acc);
+        self.console.exit_process(self.acc as i32);
     }
 }

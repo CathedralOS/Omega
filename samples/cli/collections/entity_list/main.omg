@@ -67,6 +67,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: total remaining HP is the exit code (35)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.total);
+        self.console.exit_process(self.total as i32);
     }
 }

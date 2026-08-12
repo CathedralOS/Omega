@@ -72,18 +72,18 @@ machine Main::main(&mut self) {
 
         self.digit = self.sum / 100;
         self.digit = self.digit + 48;
-        self.ch = narrow_i32_to_u8_trapping(self.digit);
+        self.ch = narrow_i32_to_u8_trapping(self.digit as i32);
         self.out[0] = self.ch;
 
         self.digit = self.sum / 10;
         self.digit = self.digit % 10;
         self.digit = self.digit + 48;
-        self.ch = narrow_i32_to_u8_trapping(self.digit);
+        self.ch = narrow_i32_to_u8_trapping(self.digit as i32);
         self.out[1] = self.ch;
 
         self.digit = self.sum % 10;
         self.digit = self.digit + 48;
-        self.ch = narrow_i32_to_u8_trapping(self.digit);
+        self.ch = narrow_i32_to_u8_trapping(self.digit as i32);
         self.out[2] = self.ch;
 
         self.console.write_line(self.out);

@@ -73,7 +73,7 @@ machine Main::main(&mut self) {
 
     state done(&mut self) {
         self.digest = self.hash & 255;
-        self.out = narrow_u32_to_i32_trapping(self.digest);
+        self.out = narrow_u32_to_i32_trapping(self.digest as u32);
         self.console.write_line("result: the digest's low byte, 40 for omega (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);

@@ -74,6 +74,6 @@ machine Main::main(&mut self) {
         self.console.write_line("result: the digital root, 6 for 12345 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.state.n);
+        self.console.exit_process(self.state.n as i32);
     }
 }

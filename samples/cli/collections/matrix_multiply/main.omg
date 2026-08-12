@@ -49,6 +49,6 @@ machine Main::main(&mut self) {
     state checksum(&mut self) {
         let total: i32 in Wrapping = self.c[0][0] + self.c[1][1] + self.c[2][2];
         let code: i32 in Wrapping = total % 256;
-        self.console.exit_process(code);
+        self.console.exit_process(code as i32);
     }
 }
