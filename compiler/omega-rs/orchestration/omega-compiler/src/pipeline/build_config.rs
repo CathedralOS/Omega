@@ -92,9 +92,11 @@ pub(crate) struct SelectedProgramEntry<'config> {
 
 /// Resolve the selected target's `ProgramEntry` binding. This is the first
 /// implemented target-root slot; other root-slot kinds reject rather than
-/// being accepted and then ignored. With no root declarations at all the
-/// caller may still enter the explicit migration fallback for the legacy
-/// corpus.
+/// being accepted and then ignored. A build file may describe a target matrix:
+/// well-formed slots owned by other known profiles are validated and left for
+/// those profiles, while this selection consumes only the chosen profile's
+/// exact row. With no root declarations at all the caller may still enter the
+/// explicit migration fallback for the remaining corpus.
 pub(crate) fn selected_program_entry_machine<'config>(
     config: &'config BuildConfig,
     target_name: Option<&str>,
@@ -134,12 +136,6 @@ pub(crate) fn selected_program_entry_machine<'config>(
             continue;
         }
         if profile != selected_profile {
-            diagnostics.push(Diagnostic::error(format!(
-                "root slot `{}` belongs to target profile `{}`, not selected target `{}`",
-                binding.slot,
-                profile.root_slot_owner_name(),
-                selected_profile.target_name(),
-            )));
             continue;
         }
         program_entries.push((declaration, binding));
@@ -1022,35 +1018,33 @@ mod tests {
     }
 
     #[test]
-    fn selected_target_rejects_foreign_program_entry_slot_after_its_own() {
+    fn selected_target_ignores_valid_foreign_program_entry_slot_after_its_own() {
         let config = config_with_root_bindings(&[
             ("windows_x86_64::ProgramEntry", "Application::start"),
             ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
         ]);
 
-        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect_err("a foreign target root slot must reject");
+        let selected = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect("known foreign target roots remain available to their own profiles")
+            .expect("selected target has one exact root");
 
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].to_string().contains(
-            "root slot `linux_x86_64::ProgramEntry` belongs to target profile `linux_x86_64`, not selected target `windows_x64`"
-        ));
+        assert_eq!(selected.machine_name, "Application::start");
+        assert_eq!(selected.slot.owner, omega_target::TargetProfile::WindowsX64);
     }
 
     #[test]
-    fn selected_target_rejects_foreign_program_entry_slot_before_its_own() {
+    fn selected_target_ignores_valid_foreign_program_entry_slot_before_its_own() {
         let config = config_with_root_bindings(&[
             ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
             ("windows_x86_64::ProgramEntry", "Application::start"),
         ]);
 
-        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect_err("binding order must not hide a foreign target root slot");
+        let selected = selected_program_entry_machine(&config, Some("windows_x64"))
+            .expect("binding order cannot change target-scoped selection")
+            .expect("selected target has one exact root");
 
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].to_string().contains(
-            "root slot `linux_x86_64::ProgramEntry` belongs to target profile `linux_x86_64`, not selected target `windows_x64`"
-        ));
+        assert_eq!(selected.machine_name, "Application::start");
+        assert_eq!(selected.slot.owner, omega_target::TargetProfile::WindowsX64);
     }
 
     #[test]

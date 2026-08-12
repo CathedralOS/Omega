@@ -62,8 +62,9 @@ Remaining:
   behavior; pure language/checker fixtures use the checked-only harness. Migrate
   the remaining `Main::main` corpus to exact target-owned `ProgramEntry`
   bindings and delete the naming fallback. Three single-target hosted canaries
-  cover Windows x86-64, Linux x86-64, and Linux AArch64; the bulk multi-target
-  corpus still needs target-scoped build engineering. Production and development
+  cover Windows x86-64, Linux x86-64, and Linux AArch64; target-scoped build
+  selection now accepts a matrix of exact per-target root bindings, and the
+  first four-target hosted canary has migrated. Production and development
   interpreter callers require Omega's exact entry choice; checked-only semantic
   compilation no longer invents `Main::main`, while legacy test harnesses name
   that temporary fixture entry explicitly. Implicit Psi entry discovery and
