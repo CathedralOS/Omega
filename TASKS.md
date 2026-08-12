@@ -186,9 +186,10 @@ Remaining:
   rejects or changes the recorded trust closure; measured mutual proof
   recursion checks while an unmeasured cycle rejects; an admitted law makes
   every dependent normalization admission-dependent.
-- **PCC verifier closure.** The artifact determines obligations; bundles only
-  discharge them. The Rust verifier already reconstructs the exact obligation
-  set and invokes `psi-proof-kernel`; connect that certificate calculus to the
+- **PCC verifier closure — design blocked on owner Q7.** The artifact determines
+  obligations; bundles only discharge them. The Rust verifier already
+  reconstructs the exact obligation set and invokes `psi-proof-kernel`; connect
+  that certificate calculus to the
   independent low-rung kernel route and record one auditable reconstruction
   closure: low reference verifier, checked derivation, or explicitly trusted
   Psi verifier. A Psi kernel port alone is insufficient.
@@ -499,6 +500,10 @@ These entries are pointers, not duplicate specifications.
   exhaustion transfer, and unpaid-site continuation ABI in owner Q6. Attribution
   provenance and installation binding are implemented and do not settle that
   runtime contract.
+- **PCC-VERIFIER-CLOSURE:** blocked on choosing the deployment-authoritative
+  obligation-reconstruction assurance route in owner Q7. The Rust verifier and
+  proof kernel remain usable, but kernel acceptance alone does not close trust
+  in the reconstructed obligation set.
 
 ## Platform-gated verification
 
