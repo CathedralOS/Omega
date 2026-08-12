@@ -11,6 +11,7 @@ pub use pipeline::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
     MaterializationAction, MaterializationContext, MaterializationDiagnostic, MaterializationWrite,
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, PartitionedProgramStorageRoots,
+    ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
     ProgramStorageInstallationHandoffError, ProgramStorageInstallationRecord,

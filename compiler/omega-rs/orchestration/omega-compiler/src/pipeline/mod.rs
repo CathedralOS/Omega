@@ -53,6 +53,7 @@ pub use layout_plans::{
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
+    ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
     ProgramStorageInstallationHandoffError, ProgramStorageInstallationRecord,

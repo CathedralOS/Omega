@@ -53,9 +53,11 @@ Owners:
 Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Complete the physical entry bridge and explicit-entry
-  corpus migration. Bind the installer to the selected physical provider. Have
-  the bridge zero the conserved receiver reservation into the checked ZII value
-  and lend it for one `&mut self` activation. Migrate the remaining
+  corpus migration. The recorded installation handoff now binds an exact mapped
+  receiver reservation, zeroes it, and carries its one exclusive activation
+  loan without releasing receiver-bound roots through an unchecked path. Bind
+  that handoff and the installer to the selected physical provider and generated
+  native bridge. Migrate the remaining
   `Main::main` corpus to exact target-owned `ProgramEntry` bindings and delete
   that last naming fallback; three single-target hosted canaries now exercise
   explicit Windows x86-64, Linux x86-64, and Linux AArch64 bindings. The bulk

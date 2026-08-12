@@ -604,7 +604,9 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         storage_input.with_geometry(0x8000, 0x2000),
     )
     .expect("returned grants remain usable after rejected geometry");
-    let installed = recorded.into_roots();
+    let installed = recorded
+        .into_roots()
+        .expect("free entry installation has no receiver activation");
     assert_eq!(
         (installed.image().base(), installed.image().length()),
         (0x1000, 0x800)
@@ -809,7 +811,45 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     assert!(receiver_json.contains("\"status\": \"reserved\""));
     assert!(receiver_json.contains("\"initialization\": \"bridge_required\""));
     assert!(receiver_json.contains("\"base\": \"0x0000000000008008\""));
-    let receiver_roots = receiver_installation.into_roots();
+    let receiver_release = receiver_installation
+        .into_roots()
+        .expect_err("receiver roots cannot bypass ZII activation");
+    assert!(
+        receiver_release
+            .diagnostic()
+            .0
+            .contains("must be zeroed and activated")
+    );
+    let receiver_installation = receiver_release.into_installation();
+    let mut receiver_bytes = [0xa5; 8];
+    let wrong_mapping = receiver_installation
+        .activate_receiver(0x8007, &mut receiver_bytes)
+        .expect_err("receiver activation must bind the exact reserved base");
+    assert!(wrong_mapping.diagnostic().0.contains("exactly cover"));
+    assert_eq!(receiver_bytes, [0xa5; 8]);
+    let receiver_installation = wrong_mapping.into_installation();
+    let mut short_receiver_bytes = [0xa5; 7];
+    let wrong_mapping = receiver_installation
+        .activate_receiver(0x8008, &mut short_receiver_bytes)
+        .expect_err("receiver activation must bind the exact reserved length");
+    assert!(wrong_mapping.diagnostic().0.contains("exactly cover"));
+    assert_eq!(short_receiver_bytes, [0xa5; 7]);
+    let receiver_installation = wrong_mapping.into_installation();
+    let mut receiver_bytes = [0xa5; 8];
+    let mut activation = receiver_installation
+        .activate_receiver(0x8008, &mut receiver_bytes)
+        .expect("exact receiver mapping should construct one ZII activation");
+    assert_eq!(
+        (
+            activation.placement().base(),
+            activation.placement().length()
+        ),
+        (0x8008, 8)
+    );
+    assert_eq!(activation.receiver(), &[0; 8]);
+    activation.receiver()[3] = 70;
+    assert_eq!(activation.receiver()[3], 70);
+    let receiver_roots = activation.finish();
     assert!(receiver_roots.initial_storage().is_none());
     let receiver_storage = receiver_roots
         .receiver_storage()

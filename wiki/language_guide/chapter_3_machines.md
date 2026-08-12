@@ -157,10 +157,13 @@ the target schema states how the launch environment supplies those needs.
 > stale copies and never claims completion. Receiver-bound entries now retain
 > their checked layout, reject insufficient or misaligned storage before grant
 > consumption, conserve every reservation remainder, and audit the exact
-> placement. Binding this portable evidence to the selected physical provider,
-> physically zeroing the reservation and lending the ZII occurrence once,
-> corpus migration, and removal of transitional entry-name discovery remain
-> under `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
+> placement. The recorded installation handoff now rejects unchecked release
+> of receiver-bound roots, validates the exact mapped backing, zeroes it, and
+> retains its exclusive borrow through one activation before returning the
+> conserved roots. Binding this handoff and portable evidence to the selected
+> physical provider and generated native bridge, corpus migration, and removal
+> of transitional entry-name discovery remain under `ENTRY-CONTENT-ROOTS` in
+> `TASKS.md`.
 
 ## Parameters And Returns
 
