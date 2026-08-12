@@ -13,15 +13,9 @@
 //      stays frame-only (its indexed-address instruction has a frame-only index).
 //
 // These are held in a dedicated file (not the shared, hot `canary_suite.rs`).
-use omega_compiler::{CompileOptions, compile_with_test_entry};
+use omega_compiler::{CompileOptions, compile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-fn compile(
-    options: CompileOptions,
-) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    compile_with_test_entry(options, "Main::main")
-}
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -32,6 +26,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
+    let profile = omega_target::TargetProfile::host();
     let canary = repo_root().join("canaries/pass").join(canary_rel);
     let build_dir = std::env::temp_dir().join(format!("omega-{}-{}", tag, std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -39,12 +34,17 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some(profile.target_name().to_owned()),
         write_output: true,
     })
     .unwrap_or_else(|diagnostics| panic!("{canary_rel} should compile:\n{diagnostics:#?}"));
 
-    let output = Command::new(build_dir.join("omega-program"))
+    let executable = if cfg!(windows) {
+        "omega-program.exe"
+    } else {
+        "omega-program"
+    };
+    let output = Command::new(build_dir.join(executable))
         .output()
         .expect("canary should run");
     let _ = std::fs::remove_dir_all(&build_dir);
