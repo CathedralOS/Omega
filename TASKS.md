@@ -113,6 +113,9 @@ Remaining:
   exit assertions under the running host's exact entry root.
   The Duration totals and core-arithmetic differential pair now uses that exact
   native-host root as well, with its interpreter and exit-code coverage intact.
+  The sleep-for differential canary now uses the same exact native-host root;
+  its Darwin `poll` adapter retains the real C ABI, discarded status, call
+  footprint, and final-image replay while preserving its timing assertion.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
