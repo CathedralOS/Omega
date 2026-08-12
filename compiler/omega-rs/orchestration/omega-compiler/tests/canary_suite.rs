@@ -19522,7 +19522,7 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
             .expect("copy runtime byte replay canary");
         fs::write(
             src_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write runtime byte replay target manifest");
         compile(CompileOptions {
@@ -19559,7 +19559,7 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
                 .expect("copy runtime line replay canary");
             fs::write(
                 src_dir.join("build.omg"),
-                format!("target {target} {{\n}}\n"),
+                hosted_main_program_entry_build(target),
             )
             .expect("write runtime line replay target manifest");
             compile(CompileOptions {
@@ -48241,6 +48241,19 @@ fn pass_canary(path: &str) -> PathBuf {
 
 fn fail_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/fail").join(path)
+}
+
+fn hosted_main_program_entry_build(target: &str) -> String {
+    let root_owner = match target {
+        "windows_x64" => "windows_x86_64",
+        "linux_x64" => "linux_x86_64",
+        "macos_arm64" => "macos_arm64",
+        "linux_arm64" => "linux_arm64",
+        _ => panic!("no hosted ProgramEntry root owner for target `{target}`"),
+    };
+    format!(
+        "target {target} {{\n}}\n\nmachine build(b: &mut Build) {{\n    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+    )
 }
 
 fn pending_canary(path: &str) -> PathBuf {
