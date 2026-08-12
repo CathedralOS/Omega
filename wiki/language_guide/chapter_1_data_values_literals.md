@@ -2,20 +2,12 @@
 
 Omega starts with explicit data shapes and explicit values.
 
-> **No default *values* on data (settled 2026-07-05).** A field may not carry a
-> `= default` initializer. ZII is the substrate: a field's default IS its zero, and
-> construction lets you omit a field only when its zero satisfies the data type's
-> **default domain** (its invariants — see
-> [Chapter 7](chapter_7_types_constraints_invariants.md)). Where zero is invalid you
-> are *forced* to supply the value (Odin/Go partial-literal style, but
-> invariant-gated): `Player{ health = 50 }` leaves an unconstrained `age` at ZII but
-> makes `health` mandatory because `0` is out of its range. This generalizes the
-> case-bearing rule below ("common fields may not declare default initializers; ZII
-> makes the zero valid") to *all* data. A convenience non-zero default, if wanted, is
-> an explicit constructor machine (`Config::with_defaults() -> Config::Ready`), not
-> a hidden field default. This prohibition includes scalar, record, array, and
-> every other aggregate initializer after a data field. The parser rejects a
-> field initializer before it can be emitted or silently discarded.
+> **No default *values* on data.** A field may not carry a `= default`
+> initializer. Construction may omit a field only when zero satisfies the
+> data's [default domain](chapter_7_types_constraints_invariants.md); otherwise
+> that field is mandatory. Non-zero convenience defaults belong in explicit
+> constructor machines such as `Config::with_defaults()`, never hidden field
+> initializers. The parser rejects field initializers for every data shape.
 
 ## Hello World
 
@@ -113,7 +105,7 @@ data Command {
 }
 ```
 
-**Explicit discriminant values** (settled 2026-07-04). A payload-less case may
+**Explicit discriminant values.** A payload-less case may
 pin its tag to a specific integer — required when the sum matches a *foreign
 ABI* whose tag values are fixed by a spec (firmware, hardware, a protocol):
 

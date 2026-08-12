@@ -966,8 +966,8 @@ Vec<u8>::Utf8             // owned text (needs the allocator)
 [u8; N] in Utf8           // fixed text buffer
 ```
 
-**Encodings are ordinary library code — the compiler has ZERO encoding
-intrinsics (settled 2026-07-05).** `Utf8` is no more special than `Ascii`,
+**Encodings are ordinary library code — the compiler has no encoding
+intrinsics.** `Utf8` is no more special than `Ascii`,
 `Utf16`, or Shift-JIS; each is a validity *domain* over the byte container,
 defined in `core`, with no compiler privilege. There is no blessed `valid_utf8`
 primitive. A domain's `requires` clause states its predicates; the compiler's
@@ -991,7 +991,7 @@ domain Slice<u8>::Utf8
 ```
 
 `utf8_ok` is an ordinary machine, not a builtin. Ranked recursion is legal
-(settled 2026-07-18; chapter 3) and a tail-recursive spelling lowers to the
+(chapter 3), and a tail-recursive spelling lowers to the
 same loop — the idiomatic sequence walk remains a **state machine that narrows
 the slice** — slicing over indexing, no index variable:
 

@@ -11,12 +11,10 @@ it declares what it may import, and imports resolve only against that
 declaration. Visibility and hot-swap points nest *within* a package; a part that
 needs a different reach-set is, by that fact, a different package.
 
-**A package is a directory with a `build.omg`** (settled 2026-07-04). Its
+**A package is a directory with a `build.omg`.** Its
 identity lives in that manifest (and/or the directory name); source files are
-members **by location** and do **not** re-declare it — there is no per-file
-`package X` line (that was early spelling from before `build.omg` existed; it
-duplicated a build concern into every source file, like Java's redundant
-`package` statements). One directory = one package = one `build.omg`.
+members **by location** and do **not** re-declare it. There is no per-file
+`package X` line. One directory = one package = one `build.omg`.
 
 Packages expose public data, machines, traits, domains, wire schemas, and
 boundary surfaces.
@@ -69,7 +67,7 @@ used a volatile observation, in which case the graph fails the second. See the
 
 ## Path separator: `::` for names, `.` for values
 
-Settled 2026-07-04. Two different operations, two separators:
+Two different operations use two separators:
 
 - **`::` resolves a compile-time name path** — packages, modules, types,
   associated items. It is the same `::` already used for type-scoped machines

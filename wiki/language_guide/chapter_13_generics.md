@@ -198,7 +198,7 @@ without changing identity; unresolved equality rejects.
 
 ## Machine Parameters
 
-Settled 2026-07-20. A generic parameter may name a machine symbol:
+A generic parameter may name a machine symbol:
 
 ```omega
 machine Deck::best<machine Key>(&self) -> u64

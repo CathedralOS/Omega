@@ -393,7 +393,7 @@ policy. `~` complements exactly the carrier width, including two's-complement
 signed carriers. Boolean negation remains the distinct `!` operator; neither
 operator coerces between Boolean and integer values.
 
-Shift counts follow the same rule (settled 2026-07-18): under Exact, a
+Shift counts follow the same rule: under Exact, a
 shift's count must be **proven** nonnegative and below the operand width (a
 literal out-of-range shift is an immediate compile error); under `Wrapping` the
 count is reduced by Euclidean modulo of the shifted value's width. For the
@@ -684,16 +684,15 @@ data Particle {
 
 ### Policy domains — operation behavior
 
-Operand-driven and exclusive per operation (the decision-17 rule, applied
-to floats — whose failure modes are non-finite production, not overflow
-into wraparound):
+Operand-driven and exclusive per operation; float failure modes are non-finite
+production, not overflow into wraparound:
 
 - **default**: the format's quiet semantics — correctly rounded, inf/NaN
   propagate silently; `Finite` windows catch them wherever wellness was
   claimed.
 - **`in Trapping`**: producing a non-finite value traps.
 - **`in Saturating`**: overflow clamps to the format's largest finite
-  magnitude — **overflow only** (settled 2026-07-18): division by zero and
+  magnitude — **overflow only**: division by zero and
   invalid operations (`0.0/0.0`, `inf - inf`, `sqrt` of a negative) still
   produce non-finite values; those routes remain `Finite` obligations.
   `Finite & Saturating` is therefore the ergonomic pairing: magnitude
@@ -732,7 +731,7 @@ under the binary32/64 bindings):
   for exactly this reason. `is_finite(x)` is the portable wellness
   spelling; the idiom is what implements it under IEEE bindings.
 
-`min` and `max` follow the **hardware contract** (settled 2026-07-18):
+`min` and `max` follow the **hardware contract**:
 return the second operand on unordered-or-equal — exactly `a < b ? a : b`,
 matching `minsd`/`maxsd` and the aarch64 FCSEL lowering. This is
 order-dependent under NaN (`min(NaN, 5)` is `5`; `min(5, NaN)` is `NaN`)
