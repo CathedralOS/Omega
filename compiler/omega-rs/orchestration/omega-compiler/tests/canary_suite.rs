@@ -43732,6 +43732,11 @@ fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() 
             "build/static_machine_parameter_config_compile",
             "windows_x64",
         ),
+        ("inline_asm/asm_port_out_final_validation", "linux_x64"),
+        (
+            "inline_asm/asm_runtime_port_msr_final_validation",
+            "linux_x64",
+        ),
         (
             "text/runtime_x86_general_double_indexed_string_concat_compile",
             "linux_x64",
