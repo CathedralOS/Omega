@@ -61,7 +61,7 @@ Remaining:
   compilation unless they assert provider, artifact, ABI, layout, or native
   behavior; pure language/checker fixtures use the checked-only harness. Migrate
   the remaining `Main::main` corpus to exact target-owned `ProgramEntry`
-  bindings and delete the naming fallback. Three single-target hosted canaries
+  bindings. Three single-target hosted canaries
   cover Windows x86-64, Linux x86-64, and Linux AArch64; target-scoped build
   selection now accepts a matrix of exact per-target root bindings, and the
   first four-target hosted canary plus the byte/line console replay matrices
@@ -69,11 +69,10 @@ Remaining:
   binary-write, text/bounded-buffer, wire, and storage/guard footprint artifact
   cohorts plus the primitive-float differential matrix have migrated. Hosted
   import, runtime-exit, fixed-array, plan-laid, and wire-policy cohorts now
-  select exact roots too. The remaining raw-target sites are five intentional
-  result-bearing entry-ABI probes and one checked-only filesystem-conversion
-  fixture; move the result probes behind an explicitly named legacy test entry
-  and then delete backend `Main::main` discovery.
-  Production and development interpreter callers require Omega's
+  select exact roots too. Five intentional result-bearing entry-ABI probes and
+  one checked-only filesystem-conversion fixture now use an explicitly named
+  legacy test entry; backend `Main::main` discovery is deleted. Production and
+  development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
   explicitly. Implicit Psi entry discovery and the former `Main::run` entry

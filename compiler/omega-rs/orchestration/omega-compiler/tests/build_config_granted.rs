@@ -9,9 +9,15 @@
 //! real streams. The fail halves live in canaries/fail/build
 //! (undeclared services; unpinned custom boundary).
 
-use omega_compiler::{CompileOptions, compile, compile_to_checked};
+use omega_compiler::{CompileOptions, compile_to_checked, compile_with_test_entry};
 use std::path::PathBuf;
 use std::process::Command;
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    compile_with_test_entry(options, "Main::main")
+}
 
 fn executable_name() -> &'static str {
     if cfg!(windows) {

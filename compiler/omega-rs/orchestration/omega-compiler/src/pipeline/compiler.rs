@@ -31,6 +31,21 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     compile_with_policy(options, ExecutableTcbBuildPolicy::default())
 }
 
+/// Legacy native-test seam while semantic fixtures migrate to target-owned
+/// `ProgramEntry` roots. Production callers must use [`compile`].
+#[doc(hidden)]
+pub fn compile_with_test_entry(
+    options: CompileOptions,
+    entry_machine_name: impl Into<String>,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let entry_machine_name = entry_machine_name.into();
+    run_on_compile_thread(move || {
+        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
+            .with_test_entry(entry_machine_name)
+            .compile()
+    })
+}
+
 /// Compile with deployment-owned executable-TCB admissions and profile policy.
 ///
 /// The policy is evaluated only after exact provider selection and before any
@@ -301,6 +316,7 @@ fn selected_source_boundary_entry_plan(
 pub struct Compiler {
     options: CompileOptions,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
+    test_entry_machine_name: Option<String>,
 }
 
 impl Compiler {
@@ -311,7 +327,13 @@ impl Compiler {
         Self {
             options,
             executable_tcb_policy,
+            test_entry_machine_name: None,
         }
+    }
+
+    fn with_test_entry(mut self, entry_machine_name: String) -> Self {
+        self.test_entry_machine_name = Some(entry_machine_name);
+        self
     }
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -438,8 +460,9 @@ impl Compiler {
         let program_entry_boundary_plan = program_entry_realization
             .as_ref()
             .map(|(plan, _)| plan.clone());
-        let entry_machine_name =
-            selected_program_entry.map(|selected| selected.machine_name.to_owned());
+        let entry_machine_name = selected_program_entry
+            .map(|selected| selected.machine_name.to_owned())
+            .or(self.test_entry_machine_name.clone());
         let target_provider_defaults =
             crate::pipeline::build_config::compute_target_provider_defaults(
                 &typed,

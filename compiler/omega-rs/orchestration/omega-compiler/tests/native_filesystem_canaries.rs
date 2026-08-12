@@ -7,9 +7,15 @@
 // dir ops. (These canaries signal success via "PASS: …" on stdout and exit with the
 // final write's byte count, so the assertion is on stdout, not the exit code.)
 #![cfg(target_os = "macos")]
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, compile_with_test_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    compile_with_test_entry(options, "Main::main")
+}
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
