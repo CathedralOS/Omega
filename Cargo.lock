@@ -329,6 +329,9 @@ version = "0.1.0"
 dependencies = [
  "omega-compiler",
  "omega-core",
+ "psi-checked-trees-to-terminal",
+ "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]
@@ -519,6 +522,7 @@ dependencies = [
  "omega-executable-installation",
  "omega-target",
  "omega-terminal-image-emission",
+ "omega-terminal-target-operations",
  "psi-core",
  "psi-extents",
  "psi-language-semantics",
@@ -648,6 +652,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-target-operations",
+ "omega-x86-encoding",
  "psi-arena",
  "psi-diagnostics",
  "psi-language-core",
@@ -1121,6 +1126,7 @@ dependencies = [
 name = "omega-terminal-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-target",
  "omega-terminal-target-operations",
  "psi-core",
@@ -1139,6 +1145,7 @@ dependencies = [
  "omega-target",
  "omega-terminal-machine-code",
  "omega-terminal-target-operations",
+ "omega-x86-encoding",
  "psi-core",
  "psi-diagnostics",
  "psi-terminal",
@@ -1159,11 +1166,13 @@ dependencies = [
 name = "omega-terminal-machine-emission"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-target",
  "omega-terminal-assigned-target-operations",
  "omega-terminal-machine-code",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
+ "omega-x86-encoding",
  "psi-core",
  "psi-terminal",
 ]
@@ -1226,6 +1235,10 @@ dependencies = [
  "psi-syntax-trees",
  "psi-typed-trees",
 ]
+
+[[package]]
+name = "omega-x86-encoding"
+version = "0.1.0"
 
 [[package]]
 name = "proc-macro2"

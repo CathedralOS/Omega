@@ -63,6 +63,26 @@ macro_rules! semantic_id {
 }
 
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
+semantic_id!(
+    StructuralTypeId,
+    "Stable identity of one concrete instantiated structural type in terminal Psi."
+);
+semantic_id!(
+    StructuralFieldId,
+    "Stable identity of one ordered field in a terminal-Psi structural type."
+);
+semantic_id!(
+    StructuralDomainId,
+    "Stable identity of one structural qualification domain in terminal Psi."
+);
+semantic_id!(
+    ServiceId,
+    "Stable identity of one boundary-service declaration in terminal Psi."
+);
+semantic_id!(
+    BoundaryMachineId,
+    "Stable identity of one target-neutral boundary-machine declaration in terminal Psi."
+);
 semantic_id!(MachineId, "Stable identity of one terminal-Psi machine.");
 semantic_id!(BlockId, "Stable identity of one terminal-Psi block.");
 semantic_id!(

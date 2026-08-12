@@ -17,6 +17,10 @@ use omega_calling_conventions::{
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
 use omega_terminal_image_emission::TerminalObjectArtifact;
+use omega_terminal_target_operations::{
+    TerminalBoundarySettlementBinding, TerminalMetadataOnlyPortRealization,
+    TerminalProviderExecutionBinding, TerminalProviderPlanIdentity,
+};
 pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::EntryStubId;
 
@@ -1517,6 +1521,43 @@ impl ProviderExecution {
 
     pub const fn normalized_identity(&self) -> u64 {
         self.normalized_identity
+    }
+
+    /// Export the exact admitted execution evidence consumed by the clean
+    /// terminal-Psi native lane. Lowering does not accept a second provider
+    /// plan choice: this binding inherits the plan selected by root admission.
+    pub fn terminal_binding(
+        &self,
+    ) -> Result<TerminalProviderExecutionBinding, ExternalRootDiagnostic> {
+        let provider_plan =
+            TerminalProviderPlanIdentity::new(self.provider_plan.normalized_identity())
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic("provider plan identity cannot be zero".into())
+                })?;
+        TerminalProviderExecutionBinding::from_admitted_execution(
+            provider_plan,
+            self.identity.normalized_identity(),
+            self.normalized_identity,
+            self.normalized_root_identity,
+            self.boundary_contract_fingerprint,
+        )
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "provider execution evidence contains a reserved zero identity".into(),
+            )
+        })
+    }
+
+    pub fn terminal_metadata_only_port_settlement(
+        &self,
+        boundary: psi_core::BoundaryMachineId,
+        realization: TerminalMetadataOnlyPortRealization,
+    ) -> Result<TerminalBoundarySettlementBinding, ExternalRootDiagnostic> {
+        Ok(TerminalBoundarySettlementBinding {
+            boundary,
+            provider_execution: self.terminal_binding()?,
+            realization,
+        })
     }
 
     pub const fn exit_assurance(&self) -> OpaqueProviderExitAssurance {
@@ -4664,6 +4705,46 @@ mod tests {
         .expect_err("equal compact identity cannot replay execution across exact-root drift");
 
         assert!(error.0.contains("exact validated root realization"));
+    }
+
+    #[test]
+    fn terminal_settlement_inherits_the_admitted_provider_execution() {
+        let validated =
+            validate_external_root(candidate(entry_id(1001)), &boundary()).expect("root");
+        let execution = provider_execution(&validated);
+        let realization = TerminalMetadataOnlyPortRealization {
+            effect_operation: psi_core::OperationId::new(1).unwrap(),
+            service: psi_core::ServiceId::new(1).unwrap(),
+            port: 0x20,
+            value: 0x20,
+        };
+        let binding = execution
+            .terminal_metadata_only_port_settlement(
+                psi_core::BoundaryMachineId::new(1).unwrap(),
+                realization,
+            )
+            .expect("terminal binding");
+        assert_eq!(binding.realization, realization);
+        assert_eq!(
+            binding.provider_execution.provider_plan().get(),
+            execution.provider_plan().normalized_identity()
+        );
+        assert_eq!(
+            binding.provider_execution.provider_execution_identity(),
+            execution.identity().normalized_identity()
+        );
+        assert_eq!(
+            binding.provider_execution.provider_execution_fingerprint(),
+            execution.normalized_identity()
+        );
+        assert_eq!(
+            binding.provider_execution.normalized_root_identity(),
+            validated.normalized_identity()
+        );
+        assert_eq!(
+            binding.provider_execution.boundary_contract_fingerprint(),
+            validated.boundary_contract_fingerprint()
+        );
     }
 
     #[test]

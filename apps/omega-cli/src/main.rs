@@ -1,7 +1,10 @@
+use std::fmt::Write;
 use std::path::PathBuf;
 
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, compile, compile_to_checked};
 use omega_core::allocations::CountingAllocator;
+use psi_core::{ServiceId, StructuralTypeId};
+use psi_terminal::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
@@ -14,8 +17,9 @@ fn main() {
     // still needs a rebuild after compiler changes (apps/omega-cli is its own
     // workspace).
     let mut raw_arguments = std::env::args_os().skip(1);
-    if raw_arguments
-        .next()
+    let first_argument = raw_arguments.next();
+    if first_argument
+        .as_deref()
         .is_some_and(|first| first == "refresh-samples")
     {
         let samples_root = raw_arguments
@@ -24,10 +28,17 @@ fn main() {
             .unwrap_or_else(|| PathBuf::from("samples"));
         refresh_samples(&samples_root);
     }
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "inspect-terminal")
+    {
+        inspect_terminal(raw_arguments);
+        return;
+    }
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -51,6 +62,347 @@ fn main() {
             std::process::exit(1);
         }
     };
+}
+
+fn inspect_terminal(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    let Some(arguments) = parse_inspect_terminal_arguments(arguments) else {
+        eprintln!(
+            "usage: omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>"
+        );
+        std::process::exit(2);
+    };
+    let checked = match compile_to_checked(&arguments.root_path, arguments.target_name.as_deref()) {
+        Ok(checked) => checked,
+        Err(diagnostics) => {
+            for diagnostic in diagnostics {
+                eprintln!("{diagnostic}");
+            }
+            std::process::exit(1);
+        }
+    };
+    let lowered = match psi_checked_trees_to_terminal::lower_machine(&checked, &arguments.machine) {
+        Ok(lowered) => lowered,
+        Err(error) => {
+            eprintln!(
+                "cannot lower terminal machine `{}`: {error}",
+                arguments.machine
+            );
+            std::process::exit(1);
+        }
+    };
+    print!(
+        "{}",
+        terminal_summary(&arguments.machine, &lowered.semantic_module)
+    );
+}
+
+struct InspectTerminalArguments {
+    machine: String,
+    root_path: PathBuf,
+    target_name: Option<String>,
+}
+
+fn parse_inspect_terminal_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Option<InspectTerminalArguments> {
+    let mut machine = None;
+    let mut root_path = None;
+    let mut target_name = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--machine" {
+            if machine.is_some() {
+                return None;
+            }
+            machine = arguments.next().and_then(|value| value.into_string().ok());
+            machine.as_ref()?;
+            continue;
+        }
+        if argument == "--target" {
+            if target_name.is_some() {
+                return None;
+            }
+            target_name = arguments.next().and_then(|value| value.into_string().ok());
+            target_name.as_ref()?;
+            continue;
+        }
+        if root_path.is_some() || argument.to_string_lossy().starts_with('-') {
+            return None;
+        }
+        root_path = Some(PathBuf::from(argument));
+    }
+    Some(InspectTerminalArguments {
+        machine: machine?,
+        root_path: root_path?,
+        target_name,
+    })
+}
+
+fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
+    let mut output = String::new();
+    writeln!(
+        output,
+        "terminal selected_machine={} entry=machine:{}",
+        selected_machine,
+        module.entry.get()
+    )
+    .expect("writing to a String cannot fail");
+    for declaration in &module.structural_types {
+        writeln!(
+            output,
+            "type id=type:{} identity={} fields={}",
+            declaration.id.get(),
+            declaration.identity,
+            match &declaration.shape {
+                psi_terminal::StructuralTypeShape::Record { fields } => fields.len(),
+            }
+        )
+        .expect("writing to a String cannot fail");
+    }
+    for declaration in &module.structural_domains {
+        writeln!(
+            output,
+            "domain id=domain:{} identity={} carrier=type:{}",
+            declaration.id.get(),
+            declaration.identity,
+            declaration.carrier.get()
+        )
+        .expect("writing to a String cannot fail");
+    }
+    for declaration in &module.services {
+        writeln!(
+            output,
+            "service id=service:{} identity={} parents={}",
+            declaration.id.get(),
+            declaration.identity,
+            format_ids(
+                declaration
+                    .parents
+                    .iter()
+                    .map(|parent| format!("service:{}", parent.get()))
+            )
+        )
+        .expect("writing to a String cannot fail");
+    }
+    for boundary in &module.boundary_machines {
+        writeln!(
+            output,
+            "boundary id=boundary:{} identity={} attachment={} services={} requirements={}",
+            boundary.id.get(),
+            boundary.identity,
+            boundary
+                .attachment
+                .and_then(|id| structural_type_identity(module, id))
+                .unwrap_or("none"),
+            format_ids(boundary.published_service_ceiling.iter().map(|service| {
+                format!(
+                    "service:{}:{}",
+                    service.get(),
+                    service_identity(module, *service).unwrap_or("unknown")
+                )
+            })),
+            format_ids(boundary.requires.iter().map(|requirement| format!(
+                "argument:{}:domain:{}",
+                requirement.argument_index,
+                requirement.domain.get()
+            )))
+        )
+        .expect("writing to a String cannot fail");
+    }
+    for machine in &module.machines {
+        writeln!(
+            output,
+            "machine id=machine:{} attachment={} result={} services={}",
+            machine.id.get(),
+            machine
+                .attachment
+                .and_then(|id| structural_type_identity(module, id))
+                .unwrap_or("none"),
+            match machine.result {
+                TerminalMachineResult::Unit => "unit",
+                TerminalMachineResult::Scalar(_) => "scalar",
+            },
+            format_ids(machine.published_service_ceiling.iter().map(|service| {
+                format!(
+                    "service:{}:{}",
+                    service.get(),
+                    service_identity(module, *service).unwrap_or("unknown")
+                )
+            }))
+        )
+        .expect("writing to a String cannot fail");
+        for (index, parameter) in machine.structural_parameters.iter().enumerate() {
+            writeln!(
+                output,
+                "parameter machine=machine:{} index={} place=place:{} type={} multiplicity={:?} qualifications={}",
+                machine.id.get(),
+                index,
+                parameter.place.get(),
+                structural_type_identity(module, parameter.structural_type).unwrap_or("unknown"),
+                parameter.multiplicity,
+                format_ids(
+                    parameter
+                        .qualifications
+                        .iter()
+                        .map(|domain| format!("domain:{}", domain.get()))
+                )
+            )
+            .expect("writing to a String cannot fail");
+        }
+        for claim in &machine.entry_claims {
+            writeln!(
+                output,
+                "claim machine=machine:{} id=claim:{} input=place:{}",
+                machine.id.get(),
+                claim.claim.get(),
+                claim.input.get()
+            )
+            .expect("writing to a String cannot fail");
+        }
+        for block in &machine.blocks {
+            for operation in &block.operations {
+                write_operation_summary(
+                    &mut output,
+                    module,
+                    machine.id.get(),
+                    block.id.get(),
+                    operation,
+                );
+            }
+            match &block.terminator {
+                Terminator::ReturnUnit { edge } => writeln!(
+                    output,
+                    "terminator machine=machine:{} block=block:{} kind=ReturnUnit edge=edge:{}",
+                    machine.id.get(),
+                    block.id.get(),
+                    edge.get()
+                ),
+                other => writeln!(
+                    output,
+                    "terminator machine=machine:{} block=block:{} kind={other:?}",
+                    machine.id.get(),
+                    block.id.get()
+                ),
+            }
+            .expect("writing to a String cannot fail");
+        }
+    }
+    output
+}
+
+fn write_operation_summary(
+    output: &mut String,
+    module: &TerminalModule,
+    machine: u64,
+    block: u64,
+    operation: &psi_terminal::Operation,
+) {
+    match &operation.kind {
+        OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => {
+            let callee_attachment = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == *callee)
+                .and_then(|machine| machine.attachment)
+                .and_then(|id| structural_type_identity(module, id))
+                .unwrap_or("none");
+            writeln!(
+                output,
+                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=CallUnit callee=machine:{} callee_attachment={} arguments={} transfers={}",
+                operation.id.get(),
+                callee.get(),
+                callee_attachment,
+                format_ids(
+                    structural_arguments
+                        .iter()
+                        .map(|argument| format!("place:{}", argument.place.get()))
+                ),
+                format_ids(claim_transfers.iter().map(|transfer| format!(
+                    "claim:{}->argument:{}",
+                    transfer.claim.get(),
+                    transfer.argument_index
+                )))
+            )
+            .expect("writing to a String cannot fail");
+        }
+        OperationKind::BoundaryCallUnit {
+            boundary,
+            structural_arguments,
+            claim_settlements,
+            ..
+        } => {
+            let identity = module
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == *boundary)
+                .map(|boundary| boundary.identity.as_str())
+                .unwrap_or("unknown");
+            writeln!(
+                output,
+                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCallUnit boundary=boundary:{} boundary_identity={} arguments={} settlements={}",
+                operation.id.get(),
+                boundary.get(),
+                identity,
+                format_ids(
+                    structural_arguments
+                        .iter()
+                        .map(|argument| format!("place:{}", argument.place.get()))
+                ),
+                format_ids(claim_settlements.iter().map(|settlement| format!(
+                    "claim:{}->argument:{}",
+                    settlement.claim.get(),
+                    settlement.argument_index
+                )))
+            )
+            .expect("writing to a String cannot fail");
+        }
+        OperationKind::PortWrite {
+            service,
+            port,
+            value,
+        } => {
+            writeln!(
+                output,
+                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=PortWrite service=service:{} service_identity={} port=0x{port:04x} value=0x{value:02x}",
+                operation.id.get(),
+                service.get(),
+                service_identity(module, *service).unwrap_or("unknown")
+            )
+            .expect("writing to a String cannot fail");
+        }
+        other => {
+            writeln!(
+                output,
+                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind={other:?}",
+                operation.id.get()
+            )
+            .expect("writing to a String cannot fail");
+        }
+    }
+}
+
+fn format_ids(values: impl IntoIterator<Item = String>) -> String {
+    format!("[{}]", values.into_iter().collect::<Vec<_>>().join(","))
+}
+
+fn structural_type_identity(module: &TerminalModule, id: StructuralTypeId) -> Option<&str> {
+    module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == id)
+        .map(|declaration| declaration.identity.as_str())
+}
+
+fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
+    module
+        .services
+        .iter()
+        .find(|declaration| declaration.id == id)
+        .map(|declaration| declaration.identity.as_str())
 }
 
 /// Compile every sample `main.omg` under `<samples_root>` into its own `build/` directory,

@@ -16,18 +16,19 @@ use psi_checked_trees::{
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
     CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    types::PrimitiveType,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
-    BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
-    PropositionError, PropositionId, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    PropositionContext, PropositionError, PropositionId, ScalarTerm, ScalarType, ServiceId,
+    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use psi_language_semantics::PermissionClaimIdentity;
 use psi_language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentConservationEquation,
     ContentConservationOwnerKind, ContentConservationPlan,
@@ -36,18 +37,25 @@ use psi_language_semantics::content::{
     ContentPlaceVersion as CheckedContentPlaceVersion,
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
 };
+use psi_language_semantics::{
+    CarryPolicy, Multiplicity, PermissionClaimIdentity, ServiceReachId, ServiceReachInterface,
+    ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
+};
 use psi_proof_kernel::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause,
-    CrashCause as TerminalCrashCause, MachineContract, Operation, OperationKind,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, StructuralPlaceDeclaration, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
+    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
+    MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -1393,13 +1401,17 @@ pub fn lower_machine(
     lowered.semantic_module.proposition_applications = applications;
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
-    lowered.debug_map = checked
-        .facts
-        .flow
-        .terminal_debug
-        .for_machine(selection.machine)
-        .map(|plan| build_debug_map(plan, &lowered.semantic_module))
-        .transpose()?;
+    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
+        checked
+            .facts
+            .flow
+            .terminal_debug
+            .for_machine(selection.machine)
+            .map(|plan| build_debug_map(plan, &lowered.semantic_module))
+            .transpose()?
+    } else {
+        None
+    };
     Ok(lowered)
 }
 
@@ -1528,9 +1540,7 @@ fn lower_selected_machine(
     match selection.signature {
         CheckedTerminalSignatureEligibility::Eligible => {}
         CheckedTerminalSignatureEligibility::Attached => {
-            return unsupported(
-                "attached machines are not in the current terminal-Psi source slice",
-            );
+            return lower_attached_unit_closure(checked, selection.machine);
         }
         CheckedTerminalSignatureEligibility::Unsupported => {
             return unsupported(
@@ -1553,6 +1563,1199 @@ fn lower_selected_machine(
     } else {
         lower_scalar_call_closure(checked, &closure)
     }
+}
+
+fn lower_attached_unit_closure(
+    checked: &CheckedTrees,
+    entry: psi_symbols::SymbolHandle,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let closure = checked_unit_call_closure(checked, entry)?;
+    reject_recursive_unit_closure(plans, &closure)?;
+
+    let mut boundaries = Vec::<(&CheckedUnitBoundaryMachinePlan, String)>::new();
+    for machine_symbol in &closure {
+        let machine = unique_unit_machine(plans, *machine_symbol)?;
+        if machine.contract_fingerprint == 0 {
+            return unsupported("Unit closure contains a null checked contract fingerprint");
+        }
+        validate_unit_operation_sequence(machine)?;
+        for operation in &machine.operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    target_machine,
+                    target_state,
+                    target_contract_fingerprint,
+                    service_reach,
+                    ..
+                } => {
+                    let target = unique_unit_machine(plans, *target_machine)?;
+                    if target.state != *target_state
+                        || target.contract_fingerprint != *target_contract_fingerprint
+                        || !checked_unit_target_reach_matches(
+                            *service_reach,
+                            target.contract_service_reach,
+                        )
+                    {
+                        return unsupported(
+                            "Unit call does not match the exact checked target state, contract, and reach",
+                        );
+                    }
+                }
+                CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+                    target_machine,
+                    target_state,
+                    target_contract_fingerprint,
+                    service_reach,
+                    ..
+                } => {
+                    let target = unique_unit_boundary(plans, *target_machine)?;
+                    if target.contract_fingerprint == 0 {
+                        return unsupported(
+                            "Unit boundary target has a null checked contract fingerprint",
+                        );
+                    }
+                    if target.state != *target_state
+                        || target.contract_fingerprint != *target_contract_fingerprint
+                        || !checked_unit_target_reach_matches(
+                            *service_reach,
+                            target.contract_service_reach,
+                        )
+                    {
+                        return unsupported(
+                            "boundary Unit call does not match the exact checked target state, contract, and reach",
+                        );
+                    }
+                    if !boundaries
+                        .iter()
+                        .any(|(candidate, _)| candidate.machine == target.machine)
+                    {
+                        boundaries.push((
+                            target,
+                            checked_terminal_machine_name(checked, target.machine)?.to_owned(),
+                        ));
+                    }
+                }
+                CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
+            }
+        }
+    }
+    boundaries.sort_by(|left, right| left.1.cmp(&right.1));
+    if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
+        return unsupported("boundary Unit closure contains duplicate canonical identities");
+    }
+
+    let (structural_types, type_ids) = lower_unit_structural_types(checked, &closure, &boundaries)?;
+    let (structural_domains, domain_ids) =
+        lower_unit_structural_domains(checked, &closure, &boundaries, &type_ids)?;
+    let (services, service_ids) = lower_unit_services(checked, &closure, &boundaries)?;
+
+    let mut next_place = 1_u64;
+    let mut lowered_boundary_parameters = Vec::with_capacity(boundaries.len());
+    let mut boundary_machines = Vec::with_capacity(boundaries.len());
+    for (index, (plan, identity)) in boundaries.iter().enumerate() {
+        let parameters = lower_unit_parameters(
+            &plan.structural_parameters,
+            &type_ids,
+            &domain_ids,
+            &mut next_place,
+        )?;
+        let mut requires = plan
+            .domain_requirements
+            .iter()
+            .map(|requirement| {
+                if usize::try_from(requirement.argument_index)
+                    .ok()
+                    .map_or(true, |index| index >= parameters.len())
+                {
+                    return Err(LoweringError::Unsupported(
+                        "boundary structural requirement has an invalid argument index",
+                    ));
+                }
+                Ok(StructuralDomainRequirement {
+                    argument_index: requirement.argument_index,
+                    domain: lookup_domain_id(&domain_ids, requirement.domain)?,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        requires.sort();
+        let original_requirement_count = requires.len();
+        requires.dedup();
+        if requires.len() != original_requirement_count {
+            return unsupported("boundary structural requirements contain duplicates");
+        }
+        let published_service_ceiling = lower_published_service_ceiling(
+            &checked.facts.service_reaches.rows,
+            plan.contract_service_reach,
+            plan.service_reach,
+            &service_ids,
+        )?;
+        let id = boundary_machine_id(dense_identity(index)?);
+        boundary_machines.push(BoundaryMachineDeclaration {
+            id,
+            identity: identity.clone(),
+            attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+            structural_parameters: parameters.clone(),
+            requires,
+            published_service_ceiling,
+        });
+        lowered_boundary_parameters.push((plan.machine, id, parameters));
+    }
+
+    let mut lowered_machine_parameters = Vec::with_capacity(closure.len());
+    let mut next_claim = 1_u64;
+    let mut lowered_claims = Vec::with_capacity(closure.len());
+    for machine_symbol in &closure {
+        let plan = unique_unit_machine(plans, *machine_symbol)?;
+        if plan.body_qualifications.iter().any(|domain| {
+            !plan
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.qualifications.contains(domain))
+        }) {
+            return unsupported(
+                "Unit body qualification is not represented by an exact structural parameter precondition",
+            );
+        }
+        let parameters = lower_unit_parameters(
+            &plan.structural_parameters,
+            &type_ids,
+            &domain_ids,
+            &mut next_place,
+        )?;
+        let mut claims = Vec::with_capacity(plan.entry_claims.len());
+        let mut claim_bindings = Vec::with_capacity(plan.entry_claims.len());
+        for claim in &plan.entry_claims {
+            if !claim.field_path.is_empty() || claim.carry != CarryPolicy::STRICT {
+                return unsupported(
+                    "Unit entry claim has an unsupported field projection or non-default carry policy",
+                );
+            }
+            let parameter = parameters
+                .get(usize::try_from(claim.parameter_index).map_err(|_| {
+                    LoweringError::Unsupported("Unit entry claim parameter index exceeds usize")
+                })?)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit entry claim has an invalid parameter index",
+                ))?;
+            let PermissionClaimIdentity::Established {
+                machine_symbol,
+                state_symbol,
+                source: psi_language_semantics::PermissionEventSource::StateEntry,
+                ..
+            } = claim.claim_identity
+            else {
+                return unsupported("Unit entry claim is not an exact checked state-entry claim");
+            };
+            if machine_symbol != plan.machine || state_symbol != plan.state {
+                return unsupported("Unit entry claim belongs to another checked state");
+            }
+            if claim_bindings
+                .iter()
+                .any(|(identity, _)| *identity == claim.claim_identity)
+            {
+                return unsupported("Unit entry claim identity is duplicated");
+            }
+            let id = claim_id(allocate_dense(&mut next_claim)?);
+            claims.push(EntryClaim {
+                claim: id,
+                input: parameter.place,
+            });
+            claim_bindings.push((claim.claim_identity, id));
+        }
+        lowered_machine_parameters.push((*machine_symbol, parameters));
+        lowered_claims.push((*machine_symbol, claims, claim_bindings));
+    }
+
+    let machine_ids = closure
+        .iter()
+        .enumerate()
+        .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut next_operation = 1_u64;
+    let mut next_edge = 1_u64;
+    let mut next_block = 1_u64;
+    let mut machines = Vec::with_capacity(closure.len());
+
+    for machine_symbol in &closure {
+        let plan = unique_unit_machine(plans, *machine_symbol)?;
+        let terminal_machine = lookup_machine_id(&machine_ids, plan.machine)?;
+        let parameters = lowered_machine_parameters
+            .iter()
+            .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
+            .expect("every closure machine has lowered parameters");
+        let (_, entry_claims, claim_bindings) = lowered_claims
+            .iter()
+            .find(|(symbol, _, _)| *symbol == plan.machine)
+            .expect("every closure machine has lowered entry claims");
+        let mut operations = Vec::with_capacity(plan.operations.len().saturating_sub(1));
+        for operation in &plan.operations[..plan.operations.len() - 1] {
+            let kind = match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    target_machine,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } => {
+                    let target = unique_unit_machine(plans, *target_machine)?;
+                    validate_transfer_shape(
+                        structural_arguments,
+                        claim_transfers,
+                        parameters,
+                        &target.structural_parameters,
+                        &type_ids,
+                        &target
+                            .entry_claims
+                            .iter()
+                            .map(|claim| claim.parameter_index)
+                            .collect::<Vec<_>>(),
+                    )?;
+                    OperationKind::CallUnit {
+                        callee: lookup_machine_id(&machine_ids, *target_machine)?,
+                        structural_arguments: lower_structural_arguments(
+                            structural_arguments,
+                            parameters,
+                        )?,
+                        claim_transfers: claim_transfers
+                            .iter()
+                            .map(|transfer| {
+                                Ok(ClaimTransfer {
+                                    claim: lookup_claim_id(
+                                        claim_bindings,
+                                        transfer.claim_identity,
+                                    )?,
+                                    argument_index: transfer.argument_index,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()?,
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    }
+                }
+                CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+                    target_machine,
+                    structural_arguments,
+                    claim_settlements,
+                    ..
+                } => {
+                    let target = unique_unit_boundary(plans, *target_machine)?;
+                    let expected_claim_arguments = target
+                        .structural_parameters
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, parameter)| {
+                            (parameter.multiplicity == Multiplicity::Linear)
+                                .then(|| u32::try_from(index).ok())
+                                .flatten()
+                        })
+                        .collect::<Vec<_>>();
+                    validate_transfer_shape(
+                        structural_arguments,
+                        claim_settlements,
+                        parameters,
+                        &target.structural_parameters,
+                        &type_ids,
+                        &expected_claim_arguments,
+                    )?;
+                    let (_, boundary, _) = lowered_boundary_parameters
+                        .iter()
+                        .find(|(symbol, _, _)| *symbol == *target_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "boundary Unit call target is absent from the lowered closure",
+                        ))?;
+                    OperationKind::BoundaryCallUnit {
+                        boundary: *boundary,
+                        structural_arguments: lower_structural_arguments(
+                            structural_arguments,
+                            parameters,
+                        )?,
+                        claim_settlements: claim_settlements
+                            .iter()
+                            .map(|settlement| {
+                                Ok(ClaimSettlement {
+                                    claim: lookup_claim_id(
+                                        claim_bindings,
+                                        settlement.claim_identity,
+                                    )?,
+                                    argument_index: settlement.argument_index,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()?,
+                        requirement_obligations: Vec::new(),
+                    }
+                }
+                CheckedUnitEffectOperationPlan::PortWrite {
+                    service_reach,
+                    port,
+                    value,
+                    ..
+                } => {
+                    let direct = checked
+                        .facts
+                        .service_reaches
+                        .rows
+                        .services(service_reach.direct);
+                    let [port_service] = direct else {
+                        return unsupported(
+                            "port output does not carry the unique exact checked PortIo service",
+                        );
+                    };
+                    if !checked
+                        .facts
+                        .service_reaches
+                        .rows
+                        .services(service_reach.transitive)
+                        .contains(port_service)
+                    {
+                        return unsupported(
+                            "port output does not carry the unique exact checked PortIo service",
+                        );
+                    }
+                    OperationKind::PortWrite {
+                        // `CheckedUnitEffectOperationPlan::PortWrite` is minted only for the
+                        // exact checked asm-port-out builtin. Its singleton direct row is
+                        // therefore the symbol-backed PortIo authority; no spelling lookup is
+                        // repeated here.
+                        service: lookup_service_id(&service_ids, *port_service)?,
+                        port: *port,
+                        value: *value,
+                    }
+                }
+                CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
+                    return unsupported("Unit return is not the final checked operation");
+                }
+            };
+            operations.push(Operation {
+                id: operation_id(allocate_dense(&mut next_operation)?),
+                result: psi_terminal::OperationResult::Unit,
+                kind,
+            });
+        }
+        let block = block_id(allocate_dense(&mut next_block)?);
+        let edge = edge_id(allocate_dense(&mut next_edge)?);
+        machines.push(TerminalMachine {
+            id: terminal_machine,
+            attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+            parameters: Vec::new(),
+            structural_parameters: parameters.clone(),
+            result: TerminalMachineResult::Unit,
+            structural_places: parameters
+                .iter()
+                .map(|parameter| StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                        is_self: parameter.is_self,
+                    },
+                })
+                .collect(),
+            entry_claims: entry_claims.clone(),
+            published_service_ceiling: lower_published_service_ceiling(
+                &checked.facts.service_reaches.rows,
+                plan.contract_service_reach,
+                plan.service_reach,
+                &service_ids,
+            )?,
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block,
+            blocks: vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations,
+                terminator: Terminator::ReturnUnit { edge },
+            }],
+            contract: MachineContract {
+                id: contract_id(terminal_machine.get()),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        });
+    }
+
+    Ok(LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine_id(1),
+            structural_types,
+            structural_domains,
+            services,
+            boundary_machines,
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines,
+        },
+        proof_bundle: ProofBundle {
+            evidence: Vec::new(),
+        },
+        debug_map: None,
+    })
+}
+
+fn checked_unit_call_closure(
+    checked: &CheckedTrees,
+    entry: psi_symbols::SymbolHandle,
+) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut closure = vec![entry];
+    let mut next = 0_usize;
+    while let Some(machine_symbol) = closure.get(next).copied() {
+        next += 1;
+        checked_terminal_machine_name(checked, machine_symbol)?;
+        let machine = unique_unit_machine(plans, machine_symbol)?;
+        for target in machine
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                _ => None,
+            })
+        {
+            if !closure.contains(&target) {
+                closure.push(target);
+            }
+        }
+    }
+    Ok(closure)
+}
+
+fn unique_unit_machine(
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&CheckedUnitEffectMachinePlan, LoweringError> {
+    let mut matches = plans.machines.iter().filter(|plan| plan.machine == symbol);
+    let plan = matches.next().ok_or(LoweringError::Unsupported(
+        "attached Unit closure is missing a checked transitive machine plan",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("attached Unit closure contains duplicate checked machine plans");
+    }
+    Ok(plan)
+}
+
+fn unique_unit_boundary(
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&CheckedUnitBoundaryMachinePlan, LoweringError> {
+    let mut matches = plans
+        .boundary_machines
+        .iter()
+        .filter(|plan| plan.machine == symbol);
+    let plan = matches.next().ok_or(LoweringError::Unsupported(
+        "attached Unit closure is missing a checked boundary machine plan",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("attached Unit closure contains duplicate boundary machine plans");
+    }
+    Ok(plan)
+}
+
+fn checked_terminal_machine_name(
+    checked: &CheckedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&str, LoweringError> {
+    let mut matches = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|selection| selection.machine == symbol);
+    let selection = matches.next().ok_or(LoweringError::Unsupported(
+        "attached Unit member has no checked terminal selection",
+    ))?;
+    if matches.next().is_some()
+        || selection.signature != CheckedTerminalSignatureEligibility::Attached
+        || selection.name.is_empty()
+    {
+        return unsupported("attached Unit member has an invalid checked terminal selection");
+    }
+    Ok(&selection.name)
+}
+
+fn validate_unit_operation_sequence(
+    machine: &CheckedUnitEffectMachinePlan,
+) -> Result<(), LoweringError> {
+    let Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index }) =
+        machine.operations.last()
+    else {
+        return unsupported("Unit machine does not end in exactly one checked Unit return");
+    };
+    let mut previous = None;
+    for operation in &machine.operations[..machine.operations.len() - 1] {
+        let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryCallUnit { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
+                return unsupported("Unit machine contains a nonfinal Unit return");
+            }
+        };
+        let key = (coordinate.statement_index, coordinate.call_ordinal);
+        if previous.is_some_and(|previous| previous >= key)
+            || coordinate.statement_index >= *statement_index
+        {
+            return unsupported("Unit machine operation order is not canonical source order");
+        }
+        previous = Some(key);
+    }
+    Ok(())
+}
+
+fn reject_recursive_unit_closure(
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    closure: &[psi_symbols::SymbolHandle],
+) -> Result<(), LoweringError> {
+    fn visit(
+        plans: &psi_checked_trees::CheckedUnitEffectPlans,
+        symbol: psi_symbols::SymbolHandle,
+        active: &mut Vec<psi_symbols::SymbolHandle>,
+        complete: &mut Vec<psi_symbols::SymbolHandle>,
+    ) -> Result<(), LoweringError> {
+        if active.contains(&symbol) {
+            return unsupported("recursive Unit call closure is not yet terminal");
+        }
+        if complete.contains(&symbol) {
+            return Ok(());
+        }
+        active.push(symbol);
+        for target in unique_unit_machine(plans, symbol)?
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                _ => None,
+            })
+        {
+            visit(plans, target, active, complete)?;
+        }
+        active.pop();
+        complete.push(symbol);
+        Ok(())
+    }
+
+    let mut active = Vec::new();
+    let mut complete = Vec::new();
+    for symbol in closure {
+        visit(plans, *symbol, &mut active, &mut complete)?;
+    }
+    Ok(())
+}
+
+fn lower_unit_structural_types(
+    checked: &CheckedTrees,
+    closure: &[psi_symbols::SymbolHandle],
+    boundaries: &[(&CheckedUnitBoundaryMachinePlan, String)],
+) -> Result<
+    (
+        Vec<StructuralTypeDeclaration>,
+        Vec<(String, StructuralTypeId)>,
+    ),
+    LoweringError,
+> {
+    fn collect(
+        plans: &psi_checked_trees::CheckedUnitEffectPlans,
+        identity: &str,
+        active: &mut Vec<String>,
+        selected: &mut Vec<String>,
+    ) -> Result<(), LoweringError> {
+        if active.iter().any(|candidate| candidate == identity) {
+            return unsupported("recursive structural type is outside the Unit terminal slice");
+        }
+        if selected.iter().any(|candidate| candidate == identity) {
+            return Ok(());
+        }
+        let mut matches = plans
+            .structural_types
+            .iter()
+            .filter(|plan| plan.identity == identity);
+        let plan = matches.next().ok_or(LoweringError::Unsupported(
+            "Unit closure references a missing structural type",
+        ))?;
+        if matches.next().is_some() || identity.is_empty() {
+            return unsupported(
+                "Unit closure contains a duplicate or empty structural type identity",
+            );
+        }
+        active.push(identity.to_owned());
+        for field in &plan.fields {
+            if let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type
+            {
+                collect(plans, type_identity, active, selected)?;
+            }
+        }
+        active.pop();
+        selected.push(identity.to_owned());
+        Ok(())
+    }
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut selected = Vec::new();
+    let mut active = Vec::new();
+    for symbol in closure {
+        let machine = unique_unit_machine(plans, *symbol)?;
+        collect(
+            plans,
+            &machine.attachment_type_identity,
+            &mut active,
+            &mut selected,
+        )?;
+        for parameter in &machine.structural_parameters {
+            collect(plans, &parameter.type_identity, &mut active, &mut selected)?;
+        }
+    }
+    for (boundary, _) in boundaries {
+        collect(
+            plans,
+            &boundary.attachment_type_identity,
+            &mut active,
+            &mut selected,
+        )?;
+        for parameter in &boundary.structural_parameters {
+            collect(plans, &parameter.type_identity, &mut active, &mut selected)?;
+        }
+    }
+    selected.sort();
+    selected.dedup();
+    let type_ids = selected
+        .iter()
+        .enumerate()
+        .map(|(index, identity)| Ok((identity.clone(), structural_type_id(dense_identity(index)?))))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut next_field = 1_u64;
+    let mut declarations = Vec::with_capacity(selected.len());
+    for identity in selected {
+        let plan = plans
+            .structural_types
+            .iter()
+            .find(|plan| plan.identity == identity)
+            .expect("selected structural type was validated above");
+        let mut field_identities = BTreeSet::new();
+        let fields = plan
+            .fields
+            .iter()
+            .map(|field| {
+                if field.identity.is_empty() || !field_identities.insert(field.identity.as_str()) {
+                    return Err(LoweringError::Unsupported(
+                        "Unit structural type contains an empty or duplicate field identity",
+                    ));
+                }
+                let field_type = match &field.field_type {
+                    CheckedUnitStructuralFieldType::Scalar(primitive) => {
+                        StructuralFieldType::Scalar(terminal_scalar_type(*primitive)?)
+                    }
+                    CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                        StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?)
+                    }
+                };
+                Ok(StructuralFieldDeclaration {
+                    id: structural_field_id(allocate_dense(&mut next_field)?),
+                    identity: field.identity.clone(),
+                    field_type,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        declarations.push(StructuralTypeDeclaration {
+            id: lookup_type_id(&type_ids, &identity)?,
+            identity,
+            shape: StructuralTypeShape::Record { fields },
+        });
+    }
+    Ok((declarations, type_ids))
+}
+
+fn lower_unit_structural_domains(
+    checked: &CheckedTrees,
+    closure: &[psi_symbols::SymbolHandle],
+    boundaries: &[(&CheckedUnitBoundaryMachinePlan, String)],
+    type_ids: &[(String, StructuralTypeId)],
+) -> Result<
+    (
+        Vec<StructuralDomainDeclaration>,
+        Vec<(psi_language_semantics::SemanticDomainId, StructuralDomainId)>,
+    ),
+    LoweringError,
+> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut selected = Vec::new();
+    for symbol in closure {
+        let machine = unique_unit_machine(plans, *symbol)?;
+        for domain in machine
+            .structural_parameters
+            .iter()
+            .flat_map(|parameter| &parameter.qualifications)
+            .chain(&machine.body_qualifications)
+        {
+            if !selected.contains(domain) {
+                selected.push(*domain);
+            }
+        }
+    }
+    for (boundary, _) in boundaries {
+        for domain in boundary
+            .structural_parameters
+            .iter()
+            .flat_map(|parameter| &parameter.qualifications)
+            .chain(
+                boundary
+                    .domain_requirements
+                    .iter()
+                    .map(|requirement| &requirement.domain),
+            )
+        {
+            if !selected.contains(domain) {
+                selected.push(*domain);
+            }
+        }
+    }
+    let mut selected_plans = selected
+        .into_iter()
+        .map(|domain| {
+            let mut matches = plans
+                .structural_domains
+                .iter()
+                .filter(|plan| plan.domain == domain);
+            let plan = matches.next().ok_or(LoweringError::Unsupported(
+                "Unit closure references a missing structural domain",
+            ))?;
+            if matches.next().is_some()
+                || !domain.is_valid()
+                || plan.identity.is_empty()
+                || plan.carrier_type_identity.is_empty()
+            {
+                return Err(LoweringError::Unsupported(
+                    "Unit structural domain is duplicate, null, or incomplete",
+                ));
+            }
+            Ok(plan)
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    selected_plans.sort_by(|left, right| left.identity.cmp(&right.identity));
+    if selected_plans
+        .windows(2)
+        .any(|pair| pair[0].identity == pair[1].identity)
+    {
+        return unsupported("Unit structural domains have duplicate canonical identities");
+    }
+    let domain_ids = selected_plans
+        .iter()
+        .enumerate()
+        .map(|(index, plan)| Ok((plan.domain, structural_domain_id(dense_identity(index)?))))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let declarations = selected_plans
+        .into_iter()
+        .map(|plan| {
+            Ok(StructuralDomainDeclaration {
+                id: lookup_domain_id(&domain_ids, plan.domain)?,
+                identity: plan.identity.clone(),
+                carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok((declarations, domain_ids))
+}
+
+fn lower_unit_services(
+    checked: &CheckedTrees,
+    closure: &[psi_symbols::SymbolHandle],
+    boundaries: &[(&CheckedUnitBoundaryMachinePlan, String)],
+) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
+    let facts = &checked.facts.service_reaches;
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut selected = Vec::<ServiceReachId>::new();
+    for symbol in closure {
+        let machine = unique_unit_machine(plans, *symbol)?;
+        collect_contract_services(
+            &facts.rows,
+            machine.contract_service_reach,
+            machine.service_reach,
+            &mut selected,
+        )?;
+        for operation in &machine.operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryCallUnit { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
+                    collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
+                }
+                CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
+            }
+        }
+    }
+    for (boundary, _) in boundaries {
+        collect_contract_services(
+            &facts.rows,
+            boundary.contract_service_reach,
+            boundary.service_reach,
+            &mut selected,
+        )?;
+    }
+    let mut next = 0_usize;
+    while let Some(service) = selected.get(next).copied() {
+        next += 1;
+        let definition = facts
+            .services
+            .definition(service)
+            .ok_or(LoweringError::Unsupported(
+                "Unit closure references an unknown checked service",
+            ))?;
+        for parent in &definition.parents {
+            if !selected.contains(parent) {
+                selected.push(*parent);
+            }
+        }
+    }
+    let mut selected_definitions = selected
+        .iter()
+        .map(|service| {
+            facts
+                .services
+                .definition(*service)
+                .map(|definition| (*service, definition))
+                .ok_or(LoweringError::Unsupported(
+                    "Unit closure references an unknown checked service",
+                ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    selected_definitions.sort_by(|left, right| left.1.name.cmp(&right.1.name));
+    if selected_definitions
+        .iter()
+        .any(|(_, definition)| definition.name.is_empty())
+        || selected_definitions
+            .windows(2)
+            .any(|pair| pair[0].1.name == pair[1].1.name)
+    {
+        return unsupported("Unit services have empty or duplicate canonical identities");
+    }
+    let service_ids = selected_definitions
+        .iter()
+        .enumerate()
+        .map(|(index, (source, _))| Ok((*source, service_id(dense_identity(index)?))))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let declarations = selected_definitions
+        .into_iter()
+        .map(|(source, definition)| {
+            let mut parents = definition
+                .parents
+                .iter()
+                .map(|parent| lookup_service_id(&service_ids, *parent))
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            parents.sort();
+            parents.dedup();
+            Ok(ServiceDeclaration {
+                id: lookup_service_id(&service_ids, source)?,
+                identity: definition.name.clone(),
+                parents,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok((declarations, service_ids))
+}
+
+fn collect_contract_services(
+    rows: &psi_language_semantics::ServiceReachRowTable,
+    contract: ServiceReachPlan,
+    summary: ServiceReachSummary,
+    selected: &mut Vec<ServiceReachId>,
+) -> Result<(), LoweringError> {
+    collect_service_summary(rows, summary, selected)?;
+    if contract.checked_inferred != summary.transitive {
+        return unsupported(
+            "Unit contract reach does not match the exact checked transitive reach",
+        );
+    }
+    let published = match contract.interface {
+        ServiceReachInterface::PublishedCeiling(row) => row,
+        ServiceReachInterface::InternalInferred => {
+            if rows.services(summary.transitive).is_empty() {
+                return Ok(());
+            }
+            return unsupported("effectful Unit machine has no published service ceiling");
+        }
+    };
+    require_valid_service_row(published)?;
+    let ceiling = rows.services(published);
+    if rows
+        .services(summary.transitive)
+        .iter()
+        .any(|service| !ceiling.contains(service))
+    {
+        return unsupported("checked Unit service reach exceeds its published ceiling");
+    }
+    for service in ceiling {
+        if !selected.contains(service) {
+            selected.push(*service);
+        }
+    }
+    Ok(())
+}
+
+fn checked_unit_target_reach_matches(
+    call: ServiceReachSummary,
+    target_contract: ServiceReachPlan,
+) -> bool {
+    let expected = match target_contract.interface {
+        ServiceReachInterface::PublishedCeiling(row) => row,
+        ServiceReachInterface::InternalInferred => target_contract.checked_inferred,
+    };
+    call.transitive == expected
+}
+
+fn collect_service_summary(
+    rows: &psi_language_semantics::ServiceReachRowTable,
+    summary: ServiceReachSummary,
+    selected: &mut Vec<ServiceReachId>,
+) -> Result<(), LoweringError> {
+    require_valid_service_row(summary.direct)?;
+    require_valid_service_row(summary.transitive)?;
+    let transitive = rows.services(summary.transitive);
+    if rows
+        .services(summary.direct)
+        .iter()
+        .any(|service| !transitive.contains(service))
+    {
+        return unsupported("Unit direct service reach is not contained in transitive reach");
+    }
+    for service in rows.services(summary.direct).iter().chain(transitive) {
+        if !selected.contains(service) {
+            selected.push(*service);
+        }
+    }
+    Ok(())
+}
+
+fn require_valid_service_row(row: ServiceReachRowId) -> Result<(), LoweringError> {
+    if row.is_valid() {
+        Ok(())
+    } else {
+        unsupported("Unit closure contains a null checked service row")
+    }
+}
+
+fn lower_unit_parameters(
+    parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan],
+    type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[(psi_language_semantics::SemanticDomainId, StructuralDomainId)],
+    next_place: &mut u64,
+) -> Result<Vec<StructuralParameterDeclaration>, LoweringError> {
+    let mut positions = BTreeSet::new();
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(dense_position, parameter)| {
+            if !positions.insert(parameter.position) {
+                return Err(LoweringError::Unsupported(
+                    "Unit structural parameters contain duplicate source positions",
+                ));
+            }
+            let mut qualifications = parameter
+                .qualifications
+                .iter()
+                .map(|domain| lookup_domain_id(domain_ids, *domain))
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            qualifications.sort();
+            qualifications.dedup();
+            if qualifications.len() != parameter.qualifications.len() {
+                return Err(LoweringError::Unsupported(
+                    "Unit structural parameter repeats a qualification",
+                ));
+            }
+            Ok(StructuralParameterDeclaration {
+                place: place_id(allocate_dense(next_place)?),
+                position: u32::try_from(dense_position).map_err(|_| {
+                    LoweringError::Unsupported("Unit structural parameter count exceeds u32")
+                })?,
+                is_self: parameter.is_self,
+                structural_type: lookup_type_id(type_ids, &parameter.type_identity)?,
+                multiplicity: match parameter.multiplicity {
+                    Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                    Multiplicity::Affine => StructuralMultiplicity::Affine,
+                    Multiplicity::Linear => StructuralMultiplicity::Linear,
+                },
+                qualifications,
+            })
+        })
+        .collect()
+}
+
+fn lower_published_service_ceiling(
+    rows: &psi_language_semantics::ServiceReachRowTable,
+    contract: ServiceReachPlan,
+    summary: ServiceReachSummary,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    if contract.checked_inferred != summary.transitive {
+        return unsupported("Unit contract reach does not match checked transitive reach");
+    }
+    let source = match contract.interface {
+        ServiceReachInterface::PublishedCeiling(row) => {
+            require_valid_service_row(row)?;
+            rows.services(row)
+        }
+        ServiceReachInterface::InternalInferred if rows.services(summary.transitive).is_empty() => {
+            &[]
+        }
+        ServiceReachInterface::InternalInferred => {
+            return unsupported("effectful Unit machine has no published service ceiling");
+        }
+    };
+    let mut lowered = source
+        .iter()
+        .map(|service| lookup_service_id(service_ids, *service))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    lowered.sort();
+    lowered.dedup();
+    if lowered.len() != source.len() {
+        return unsupported("Unit published service ceiling contains duplicates");
+    }
+    Ok(lowered)
+}
+
+fn validate_transfer_shape(
+    arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
+    transfers: &[psi_checked_trees::CheckedUnitClaimTransferPlan],
+    caller_parameters: &[StructuralParameterDeclaration],
+    target_parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan],
+    type_ids: &[(String, StructuralTypeId)],
+    expected_claim_arguments: &[u32],
+) -> Result<(), LoweringError> {
+    if arguments.len() != target_parameters.len() {
+        return unsupported(
+            "Unit call structural argument arity does not match its checked target",
+        );
+    }
+    for (argument, target) in arguments.iter().zip(target_parameters) {
+        let source = caller_parameters
+            .get(
+                usize::try_from(argument.source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported("Unit structural argument index exceeds usize")
+                })?,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "Unit structural argument has an invalid caller parameter index",
+            ))?;
+        if argument.type_identity != target.type_identity
+            || source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+        {
+            return unsupported("Unit structural argument type identity is inconsistent");
+        }
+    }
+    let actual = transfers
+        .iter()
+        .map(|transfer| transfer.argument_index)
+        .collect::<Vec<_>>();
+    if actual != expected_claim_arguments
+        || actual.iter().any(|index| {
+            usize::try_from(*index)
+                .ok()
+                .map_or(true, |index| index >= arguments.len())
+        })
+    {
+        return unsupported("Unit claim transfer does not exactly match target entry custody");
+    }
+    Ok(())
+}
+
+fn lower_structural_arguments(
+    arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
+    parameters: &[StructuralParameterDeclaration],
+) -> Result<Vec<StructuralArgument>, LoweringError> {
+    arguments
+        .iter()
+        .map(|argument| {
+            let parameter = parameters
+                .get(
+                    usize::try_from(argument.source_parameter_index).map_err(|_| {
+                        LoweringError::Unsupported("Unit structural argument index exceeds usize")
+                    })?,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "Unit structural argument has an invalid caller parameter index",
+                ))?;
+            Ok(StructuralArgument {
+                place: parameter.place,
+            })
+        })
+        .collect()
+}
+
+fn lookup_type_id(
+    ids: &[(String, StructuralTypeId)],
+    identity: &str,
+) -> Result<StructuralTypeId, LoweringError> {
+    ids.iter()
+        .find_map(|(candidate, id)| (candidate == identity).then_some(*id))
+        .ok_or(LoweringError::Unsupported(
+            "Unit closure references an unlowered structural type",
+        ))
+}
+
+fn lookup_domain_id(
+    ids: &[(psi_language_semantics::SemanticDomainId, StructuralDomainId)],
+    source: psi_language_semantics::SemanticDomainId,
+) -> Result<StructuralDomainId, LoweringError> {
+    ids.iter()
+        .find_map(|(candidate, id)| (*candidate == source).then_some(*id))
+        .ok_or(LoweringError::Unsupported(
+            "Unit closure references an unlowered structural domain",
+        ))
+}
+
+fn lookup_service_id(
+    ids: &[(ServiceReachId, ServiceId)],
+    source: ServiceReachId,
+) -> Result<ServiceId, LoweringError> {
+    ids.iter()
+        .find_map(|(candidate, id)| (*candidate == source).then_some(*id))
+        .ok_or(LoweringError::Unsupported(
+            "Unit closure references an unlowered checked service",
+        ))
+}
+
+fn lookup_machine_id(
+    ids: &[(psi_symbols::SymbolHandle, MachineId)],
+    source: psi_symbols::SymbolHandle,
+) -> Result<MachineId, LoweringError> {
+    ids.iter()
+        .find_map(|(candidate, id)| (*candidate == source).then_some(*id))
+        .ok_or(LoweringError::Unsupported(
+            "Unit call target is absent from the lowered closure",
+        ))
+}
+
+fn lookup_claim_id(
+    ids: &[(PermissionClaimIdentity, ClaimId)],
+    source: PermissionClaimIdentity,
+) -> Result<ClaimId, LoweringError> {
+    ids.iter()
+        .find_map(|(candidate, id)| (*candidate == source).then_some(*id))
+        .ok_or(LoweringError::Unsupported(
+            "Unit claim transfer references a non-entry caller claim",
+        ))
+}
+
+fn dense_identity(index: usize) -> Result<u64, LoweringError> {
+    u64::try_from(index)
+        .map_err(|_| LoweringError::Unsupported("terminal Unit identity count exceeds u64"))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "terminal Unit identity count exceeds u64",
+        ))
+}
+
+fn allocate_dense(next: &mut u64) -> Result<u64, LoweringError> {
+    let current = *next;
+    *next = next.checked_add(1).ok_or(LoweringError::Unsupported(
+        "terminal Unit identity count exceeds u64",
+    ))?;
+    Ok(current)
 }
 
 fn checked_scalar_call_closure(
@@ -1688,6 +2891,10 @@ fn lower_scalar_call_closure(
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines,
@@ -5226,10 +6433,18 @@ fn build_scalar_graph_module(
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: terminal_machine,
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters,
                 result: TerminalMachineResult::Scalar(result),
                 structural_places: structural_places
@@ -5333,10 +6548,10 @@ fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
-                },
+                }),
                 kind: OperationKind::BooleanConstant { value: *value },
             });
             id
@@ -5351,10 +6566,10 @@ fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
-                },
+                }),
                 kind: kind.operation(left, right),
             });
             id
@@ -5371,10 +6586,10 @@ fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
-                },
+                }),
                 kind: OperationKind::BooleanNot { operand },
             });
             id
@@ -5389,10 +6604,10 @@ fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: ScalarType::Boolean,
-                },
+                }),
                 kind: OperationKind::BooleanEqual { left, right },
             });
             id
@@ -5640,10 +6855,10 @@ fn emit_direct_call_operation(
     let operation = operations.allocate();
     operations.push(Operation {
         id: operation,
-        result: ValueDeclaration {
+        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type: call.result_type,
-        },
+        }),
         kind: OperationKind::Call {
             callee,
             arguments: arguments.iter().map(|argument| argument.id).collect(),
@@ -5671,10 +6886,10 @@ fn emit_direct_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
-                },
+                }),
                 kind: OperationKind::IntegerConstant { value: *value },
             });
             id
@@ -5694,10 +6909,10 @@ fn emit_direct_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
-                },
+                }),
                 kind: kind.operation(operation, left, right),
             });
             id
@@ -5715,10 +6930,10 @@ fn emit_direct_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
-                },
+                }),
                 kind: OperationKind::IntegerBitwiseNot { operand },
             });
             id
@@ -5736,10 +6951,10 @@ fn emit_direct_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
-                },
+                }),
                 kind: OperationKind::IntegerWiden { operand },
             });
             id
@@ -5757,10 +6972,10 @@ fn emit_direct_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 id: operation,
-                result: ValueDeclaration {
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                     id,
                     scalar_type: *scalar_type,
-                },
+                }),
                 kind: OperationKind::IntegerExactCast {
                     operand,
                     obligation: obligation_id(
@@ -5844,14 +7059,17 @@ fn build_debug_map(
                 .filter(|span| has_source_file(*span));
             if let Some(source_span) = source_span {
                 push(DebugSubject::Operation(operation.id), Some(source_span));
-                push(DebugSubject::Value(operation.result.id), Some(source_span));
+                push(
+                    DebugSubject::Value(operation.result.expect_scalar().id),
+                    Some(source_span),
+                );
             } else {
                 push(
                     DebugSubject::Operation(operation.id),
                     source_state.state_span,
                 );
                 push(
-                    DebugSubject::Value(operation.result.id),
+                    DebugSubject::Value(operation.result.expect_scalar().id),
                     source_state.state_span,
                 );
             }
@@ -5973,8 +7191,15 @@ macro_rules! id_constructor {
 }
 
 id_constructor!(value_id, ValueId);
+id_constructor!(structural_type_id, StructuralTypeId);
+id_constructor!(structural_field_id, StructuralFieldId);
+id_constructor!(structural_domain_id, StructuralDomainId);
+id_constructor!(service_id, ServiceId);
+id_constructor!(boundary_machine_id, BoundaryMachineId);
 id_constructor!(machine_id, MachineId);
 id_constructor!(block_id, BlockId);
+id_constructor!(place_id, PlaceId);
+id_constructor!(claim_id, ClaimId);
 id_constructor!(operation_id, OperationId);
 id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);
@@ -6063,6 +7288,348 @@ mod tests {
         },
     };
     use psi_symbols::SymbolHandle;
+
+    fn unit_claim(machine: SymbolHandle, state: SymbolHandle) -> PermissionClaimIdentity {
+        PermissionClaimIdentity::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: PermissionEventSource::StateEntry,
+            ordinal: 0,
+        }
+    }
+
+    fn hard_root_checked_fixture() -> CheckedTrees {
+        let root = SymbolHandle::from_arena_index(1);
+        let helper = SymbolHandle::from_arena_index(2);
+        let boundary = SymbolHandle::from_arena_index(3);
+        let root_state = SymbolHandle::from_arena_index(11);
+        let helper_state = SymbolHandle::from_arena_index(12);
+        let boundary_state = SymbolHandle::from_arena_index(13);
+        let port_service_symbol = SymbolHandle::from_arena_index(20);
+        let domain = SemanticDomainId(9);
+
+        let mut checked = CheckedTrees::default();
+        let port_service = checked
+            .facts
+            .service_reaches
+            .services
+            .intern(port_service_symbol, "PortIo");
+        let empty_reach = checked.facts.service_reaches.rows.intern(Vec::new());
+        assert_eq!(
+            empty_reach,
+            psi_language_semantics::ServiceReachRowTable::EMPTY_ROW
+        );
+        let port_reach = checked
+            .facts
+            .service_reaches
+            .rows
+            .intern(vec![port_service]);
+        let reach = ServiceReachSummary {
+            direct: port_reach,
+            transitive: port_reach,
+        };
+        let contract_reach = ServiceReachPlan {
+            interface: ServiceReachInterface::PublishedCeiling(port_reach),
+            checked_inferred: port_reach,
+        };
+        checked.facts.flow.terminal_machines =
+            psi_checked_trees::CheckedTerminalMachineSelections {
+                machines: vec![
+                    CheckedTerminalMachineSelection {
+                        machine: root,
+                        name: "example::Root::enter".to_owned(),
+                        signature: CheckedTerminalSignatureEligibility::Attached,
+                    },
+                    CheckedTerminalMachineSelection {
+                        machine: helper,
+                        name: "example::Helper::run".to_owned(),
+                        signature: CheckedTerminalSignatureEligibility::Attached,
+                    },
+                    CheckedTerminalMachineSelection {
+                        machine: boundary,
+                        name: "example::Acknowledgement::settle".to_owned(),
+                        signature: CheckedTerminalSignatureEligibility::Attached,
+                    },
+                ],
+            };
+        let structural_parameter =
+            |position| psi_checked_trees::CheckedUnitStructuralParameterPlan {
+                position,
+                is_self: false,
+                type_identity: "example::Acknowledgement".to_owned(),
+                multiplicity: Multiplicity::Linear,
+                qualifications: vec![domain],
+            };
+        let entry_claim = |machine, state| psi_checked_trees::CheckedUnitEntryClaimPlan {
+            claim_identity: unit_claim(machine, state),
+            parameter_index: 0,
+            field_path: Vec::new(),
+            carry: CarryPolicy::STRICT,
+        };
+        checked.facts.flow.terminal_unit_effects = psi_checked_trees::CheckedUnitEffectPlans {
+            structural_types: vec![
+                psi_checked_trees::CheckedUnitStructuralTypePlan {
+                    identity: "example::Acknowledgement".to_owned(),
+                    fields: vec![psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                        identity: "sequence".to_owned(),
+                        field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
+                    }],
+                },
+                psi_checked_trees::CheckedUnitStructuralTypePlan {
+                    identity: "example::Helper".to_owned(),
+                    fields: Vec::new(),
+                },
+                psi_checked_trees::CheckedUnitStructuralTypePlan {
+                    identity: "example::Root".to_owned(),
+                    fields: Vec::new(),
+                },
+            ],
+            structural_domains: vec![psi_checked_trees::CheckedUnitStructuralDomainPlan {
+                domain,
+                identity: "example::Acknowledgement::Pending".to_owned(),
+                carrier_type_identity: "example::Acknowledgement".to_owned(),
+            }],
+            boundary_machines: vec![CheckedUnitBoundaryMachinePlan {
+                machine: boundary,
+                state: boundary_state,
+                attachment_type_identity: "example::Acknowledgement".to_owned(),
+                structural_parameters: vec![
+                    psi_checked_trees::CheckedUnitStructuralParameterPlan {
+                        is_self: true,
+                        ..structural_parameter(0)
+                    },
+                ],
+                domain_requirements: vec![
+                    psi_checked_trees::CheckedUnitStructuralDomainRequirementPlan {
+                        argument_index: 0,
+                        domain,
+                    },
+                ],
+                contract_fingerprint: 0x303,
+                contract_service_reach: contract_reach,
+                service_reach: reach,
+            }],
+            machines: vec![
+                CheckedUnitEffectMachinePlan {
+                    machine: root,
+                    state: root_state,
+                    attachment_type_identity: "example::Root".to_owned(),
+                    structural_parameters: vec![structural_parameter(7)],
+                    entry_claims: vec![entry_claim(root, root_state)],
+                    body_qualifications: vec![domain],
+                    contract_fingerprint: 0x101,
+                    contract_service_reach: contract_reach,
+                    service_reach: reach,
+                    operations: vec![
+                        CheckedUnitEffectOperationPlan::CallUnit {
+                            coordinate: psi_checked_trees::CheckedUnitCallCoordinate {
+                                statement_index: 0,
+                                call_ordinal: 0,
+                            },
+                            target_machine: helper,
+                            target_state: helper_state,
+                            target_contract_fingerprint: 0x202,
+                            service_reach: reach,
+                            structural_arguments: vec![
+                                psi_checked_trees::CheckedUnitStructuralArgumentPlan {
+                                    source_parameter_index: 0,
+                                    type_identity: "example::Acknowledgement".to_owned(),
+                                },
+                            ],
+                            claim_transfers: vec![
+                                psi_checked_trees::CheckedUnitClaimTransferPlan {
+                                    claim_identity: unit_claim(root, root_state),
+                                    argument_index: 0,
+                                },
+                            ],
+                        },
+                        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 1 },
+                    ],
+                },
+                CheckedUnitEffectMachinePlan {
+                    machine: helper,
+                    state: helper_state,
+                    attachment_type_identity: "example::Helper".to_owned(),
+                    structural_parameters: vec![structural_parameter(3)],
+                    entry_claims: vec![entry_claim(helper, helper_state)],
+                    body_qualifications: vec![domain],
+                    contract_fingerprint: 0x202,
+                    contract_service_reach: contract_reach,
+                    service_reach: reach,
+                    operations: vec![
+                        CheckedUnitEffectOperationPlan::PortWrite {
+                            coordinate: psi_checked_trees::CheckedUnitCallCoordinate {
+                                statement_index: 0,
+                                call_ordinal: 0,
+                            },
+                            port: 0x3f8,
+                            value: 0x5a,
+                            service_reach: reach,
+                        },
+                        CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+                            coordinate: psi_checked_trees::CheckedUnitCallCoordinate {
+                                statement_index: 1,
+                                call_ordinal: 0,
+                            },
+                            target_machine: boundary,
+                            target_state: boundary_state,
+                            target_contract_fingerprint: 0x303,
+                            service_reach: reach,
+                            structural_arguments: vec![
+                                psi_checked_trees::CheckedUnitStructuralArgumentPlan {
+                                    source_parameter_index: 0,
+                                    type_identity: "example::Acknowledgement".to_owned(),
+                                },
+                            ],
+                            claim_settlements: vec![
+                                psi_checked_trees::CheckedUnitClaimTransferPlan {
+                                    claim_identity: unit_claim(helper, helper_state),
+                                    argument_index: 0,
+                                },
+                            ],
+                        },
+                        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2 },
+                    ],
+                },
+            ],
+        };
+        checked
+    }
+
+    #[test]
+    fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() {
+        let checked = hard_root_checked_fixture();
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("complete attached Unit closure should lower");
+        let module = &lowered.semantic_module;
+
+        assert_eq!(module.entry, machine_id(1));
+        assert_eq!(module.structural_types.len(), 3);
+        assert_eq!(
+            module
+                .structural_types
+                .iter()
+                .map(|declaration| declaration.id.get())
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        assert_eq!(module.structural_domains[0].id, structural_domain_id(1));
+        assert_eq!(module.services[0].id, service_id(1));
+        assert_eq!(module.services[0].identity, "PortIo");
+        assert_eq!(module.boundary_machines[0].id, boundary_machine_id(1));
+        assert_eq!(module.boundary_machines[0].requires.len(), 1);
+        assert_eq!(module.machines.len(), 2);
+        assert_eq!(module.machines[0].id, machine_id(1));
+        assert_eq!(module.machines[1].id, machine_id(2));
+        assert_eq!(module.machines[0].structural_parameters[0].position, 0);
+        assert_eq!(module.machines[1].structural_parameters[0].position, 0);
+        assert_eq!(module.machines[0].entry_claims[0].claim, claim_id(1));
+        assert_eq!(module.machines[1].entry_claims[0].claim, claim_id(2));
+
+        let [root_call] = module.machines[0].blocks[0].operations.as_slice() else {
+            panic!("root emits one call before its Unit return")
+        };
+        let OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            ..
+        } = &root_call.kind
+        else {
+            panic!("root operation should be CallUnit")
+        };
+        assert_eq!(*callee, machine_id(2));
+        assert_eq!(structural_arguments[0].place, place_id(2));
+        assert_eq!(claim_transfers[0].claim, claim_id(1));
+        assert!(requirement_obligations.is_empty());
+
+        let [port, settlement] = module.machines[1].blocks[0].operations.as_slice() else {
+            panic!("helper emits port output and boundary settlement")
+        };
+        assert!(matches!(
+            port.kind,
+            OperationKind::PortWrite {
+                service,
+                port: 0x3f8,
+                value: 0x5a,
+            } if service == service_id(1)
+        ));
+        let OperationKind::BoundaryCallUnit {
+            boundary,
+            structural_arguments,
+            claim_settlements,
+            requirement_obligations,
+        } = &settlement.kind
+        else {
+            panic!("helper settlement should be BoundaryCallUnit")
+        };
+        assert_eq!(*boundary, boundary_machine_id(1));
+        assert_eq!(structural_arguments[0].place, place_id(3));
+        assert_eq!(claim_settlements[0].claim, claim_id(2));
+        assert!(requirement_obligations.is_empty());
+        assert!(matches!(
+            module.machines[0].blocks[0].terminator,
+            Terminator::ReturnUnit { edge } if edge == edge_id(1)
+        ));
+        assert!(matches!(
+            module.machines[1].blocks[0].terminator,
+            Terminator::ReturnUnit { edge } if edge == edge_id(2)
+        ));
+        assert!(lowered.proof_bundle.evidence.is_empty());
+        assert_eq!(
+            lower_machine(&checked, "example::Root::enter")
+                .expect("repeat lowering")
+                .semantic_module,
+            *module,
+            "canonical identities must be deterministic"
+        );
+    }
+
+    #[test]
+    fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
+        let mut checked = hard_root_checked_fixture();
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .retain(|machine| machine.contract_fingerprint != 0x202);
+
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "attached Unit closure is missing a checked transitive machine plan"
+            ))
+        ));
+    }
+
+    #[test]
+    fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
+        let mut checked = hard_root_checked_fixture();
+        let empty = psi_language_semantics::ServiceReachRowTable::EMPTY_ROW;
+        let helper = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|machine| machine.contract_fingerprint == 0x202)
+            .expect("helper plan");
+        let CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } =
+            &mut helper.operations[0]
+        else {
+            panic!("fixture begins helper with port output")
+        };
+        service_reach.direct = empty;
+
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "port output does not carry the unique exact checked PortIo service"
+            ))
+        ));
+    }
 
     fn source_projection(
         version: CheckedContentPlaceVersion,

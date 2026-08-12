@@ -1,12 +1,13 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, SuccessorEdge, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    Block, BoundaryMachineDeclaration, ContractClause, CrashCause, CrashRouteBucket,
+    CrashRouteGuard, MachineContract, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -188,6 +189,25 @@ fn calls_include_the_complete_callee_bound() {
 }
 
 #[test]
+fn unit_calls_and_effect_operations_use_the_same_transitive_schedule() {
+    let module = unit_effect_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("Unit/effect module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(700))
+        .expect("acyclic Unit call has an exact fixed bound");
+
+    assert_eq!(certificate.ceiling_units(), 5);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+    let segments = derive_fixed_safe_point_segments(&verified, machine_id(700)).unwrap();
+    assert_eq!(segments.len(), 1);
+    assert_eq!(segments[0].ceiling_units(), 5);
+}
+
+#[test]
 fn an_all_crash_callee_excludes_the_unreachable_caller_tail() {
     let mut module = call_fixture();
     let route = CrashRouteBucket {
@@ -291,18 +311,18 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             operations: vec![
                 Operation {
                     id: operation_id(3),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: value_id(6),
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::BooleanConstant { value: false },
                 },
                 Operation {
                     id: operation_id(4),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: value_id(7),
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::BooleanConstant { value: false },
                 },
             ],
@@ -370,10 +390,18 @@ fn unit_fixture() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
@@ -397,6 +425,115 @@ fn unit_fixture() -> TerminalModule {
     }
 }
 
+fn unit_effect_fixture() -> TerminalModule {
+    let service = service_id(1);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(700),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: vec![ServiceDeclaration {
+            id: service,
+            identity: "test::PortIo".into(),
+            parents: Vec::new(),
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_id(1),
+            identity: "test::boundary".into(),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            requires: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(700),
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: vec![service],
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(700),
+                blocks: vec![Block {
+                    id: block_id(700),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: operation_id(700),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::CallUnit {
+                                callee: machine_id(701),
+                                structural_arguments: Vec::new(),
+                                claim_transfers: Vec::new(),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
+                            },
+                        },
+                        Operation {
+                            id: operation_id(701),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::PortWrite {
+                                service,
+                                port: 0x20,
+                                value: 0x20,
+                            },
+                        },
+                    ],
+                    terminator: Terminator::ReturnUnit { edge: edge_id(700) },
+                }],
+                contract: MachineContract {
+                    id: contract_id(700),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(701),
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(701),
+                blocks: vec![Block {
+                    id: block_id(701),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: operation_id(702),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::BoundaryCallUnit {
+                            boundary: boundary_id(1),
+                            structural_arguments: Vec::new(),
+                            claim_settlements: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnUnit { edge: edge_id(701) },
+                }],
+                contract: MachineContract {
+                    id: contract_id(701),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            },
+        ],
+    }
+}
+
 fn fixture() -> (TerminalModule, ProofBundle) {
     let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -406,10 +543,18 @@ fn fixture() -> (TerminalModule, ProofBundle) {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(3),
@@ -426,10 +571,10 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: operation_id(1),
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: value_id(1),
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Signed(7),
                         },
@@ -488,11 +633,19 @@ fn call_fixture() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),
                 result: TerminalMachineResult::Scalar(declaration(3)),
                 structural_places: Vec::new(),
@@ -506,12 +659,12 @@ fn call_fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             id: operation_id(1),
-                            result: declaration(1),
+                            result: psi_terminal::OperationResult::Scalar(declaration(1)),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
                             id: operation_id(2),
-                            result: declaration(2),
+                            result: psi_terminal::OperationResult::Scalar(declaration(2)),
                             kind: OperationKind::Call {
                                 callee: machine_id(2),
                                 arguments: vec![value_id(1)],
@@ -529,6 +682,10 @@ fn call_fixture() -> TerminalModule {
             },
             TerminalMachine {
                 id: machine_id(2),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: vec![declaration(4)],
                 result: TerminalMachineResult::Scalar(declaration(5)),
                 structural_places: Vec::new(),
@@ -566,3 +723,5 @@ id_constructor!(operation_id, OperationId);
 id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
+id_constructor!(boundary_id, BoundaryMachineId);
+id_constructor!(service_id, ServiceId);

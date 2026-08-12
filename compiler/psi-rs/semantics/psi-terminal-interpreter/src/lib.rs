@@ -5,10 +5,17 @@
 //! execution state; no source or checked-tree representation crosses this
 //! boundary.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{BlockId, ClaimId, IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
-use psi_terminal::{Block, CrashCause, OperationKind, Terminator};
+use psi_core::{
+    BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
+    PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
+};
+use psi_terminal::{
+    Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, CrashCause, EntryClaim,
+    OperationKind, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    TerminalMachineResult, Terminator,
+};
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
@@ -23,11 +30,39 @@ pub fn interpret_terminal_artifact_measured(
     profile: &psi_proof_kernel::AdmissionProfile,
     arguments: &[TerminalScalarValue],
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut execution =
-        TerminalExecution::start_artifact(semantic_bytes, proof_bytes, profile, arguments)?;
+    let mut handler = AcceptTerminalEffects;
+    interpret_terminal_artifact_with_effect_handler_measured(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        arguments,
+        &[],
+        &mut handler,
+    )
+}
+
+/// Execute one verified artifact with opaque structural runtime arguments and
+/// an injected deterministic effect handler. The interpreter records every
+/// accepted effect in semantic execution order; the handler cannot inspect or
+/// mutate fuel, values, claims, or control state.
+pub fn interpret_terminal_artifact_with_effect_handler_measured(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+    scalar_arguments: &[TerminalScalarValue],
+    structural_arguments: &[TerminalStructuralValue],
+    handler: &mut impl TerminalEffectHandler,
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        scalar_arguments,
+        structural_arguments,
+    )?;
     let mut meter = TerminalFuelMeter::unbounded();
     let value = match execution
-        .resume(&mut meter)
+        .resume_with_effect_handler(&mut meter, handler)
         .map_err(TerminalArtifactInterpretError::Execution)?
     {
         TerminalExecutionStatus::Complete(value) => value,
@@ -45,6 +80,7 @@ pub fn interpret_terminal_artifact_measured(
     Ok(MeasuredTerminalExecution {
         value,
         usage: meter.into_usage(),
+        effects: execution.effects,
     })
 }
 
@@ -67,6 +103,64 @@ pub enum TerminalScalarValue {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+}
+
+/// Opaque target-neutral runtime carrier for one structural argument.
+///
+/// `opaque_identity` is chosen by the embedding host and is only preserved for
+/// argument forwarding and deterministic effect observation. Psi never treats
+/// it as an address or layout. Qualification IDs are semantic runtime facts
+/// supplied by the root installation and must be strictly increasing.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalStructuralValue {
+    pub opaque_identity: u64,
+    pub structural_type: StructuralTypeId,
+    pub qualifications: Vec<StructuralDomainId>,
+}
+
+/// One externally observable terminal-Psi effect in semantic execution order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalEffect {
+    BoundaryCallUnit {
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+        structural_arguments: Vec<TerminalStructuralValue>,
+        claim_settlements: Vec<ClaimSettlement>,
+    },
+    PortWrite {
+        operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+    },
+}
+
+/// Injected semantic effect sink used by the oracle and tests. Native provider
+/// selection and hardware realization remain outside the Psi interpreter.
+pub trait TerminalEffectHandler {
+    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalEffectRejection {
+    pub reason: String,
+}
+
+impl TerminalEffectRejection {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct AcceptTerminalEffects;
+
+impl TerminalEffectHandler for AcceptTerminalEffects {
+    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        Ok(())
+    }
 }
 
 /// The normal result of terminal-Psi execution.
@@ -95,18 +189,27 @@ impl TerminalScalarValue {
 /// semantic work or charging it twice.
 pub struct TerminalExecution {
     machines: BTreeMap<MachineId, ExecutableMachine>,
+    boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
+    structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    live_claims: BTreeMap<ClaimId, LiveClaim>,
+    current_machine: MachineId,
     current: BlockId,
     next_operation: usize,
     call_stack: Vec<SuspendedCall>,
     result: Option<TerminalExecutionResult>,
     crash: Option<TerminalCrash>,
+    effects: Vec<TerminalEffect>,
 }
 
 #[derive(Clone)]
 struct ExecutableMachine {
     parameters: Vec<psi_terminal::ValueDeclaration>,
+    structural_parameters: Vec<StructuralParameterDeclaration>,
+    entry_claims: Vec<EntryClaim>,
+    content_entry_claims: Vec<psi_terminal::ContentEntryClaim>,
+    result: TerminalMachineResult,
     entry: BlockId,
     blocks: BTreeMap<BlockId, Block>,
 }
@@ -114,9 +217,23 @@ struct ExecutableMachine {
 struct SuspendedCall {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
+    structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    live_claims: BTreeMap<ClaimId, LiveClaim>,
+    current_machine: MachineId,
     current: BlockId,
     next_operation: usize,
-    result: ValueId,
+    result: SuspendedCallResult,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LiveClaim {
+    place: Option<PlaceId>,
+    multiplicity: Option<StructuralMultiplicity>,
+}
+
+enum SuspendedCallResult {
+    Scalar(ValueId),
+    Unit,
 }
 
 impl TerminalExecution {
@@ -129,18 +246,36 @@ impl TerminalExecution {
         profile: &psi_proof_kernel::AdmissionProfile,
         arguments: &[TerminalScalarValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
+        Self::start_artifact_with_structural_arguments(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            arguments,
+            &[],
+        )
+    }
+
+    pub fn start_artifact_with_structural_arguments(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &psi_proof_kernel::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = psi_terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start(&verified, arguments).map_err(TerminalArtifactInterpretError::Execution)
+        Self::start(&verified, scalar_arguments, structural_arguments)
+            .map_err(TerminalArtifactInterpretError::Execution)
     }
 
     fn start(
         verified: &VerifiedTerminalModule<'_>,
-        arguments: &[TerminalScalarValue],
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
     ) -> Result<Self, TerminalInterpretError> {
         let module = verified.module();
         let machines = module
@@ -151,6 +286,10 @@ impl TerminalExecution {
                     machine.id,
                     ExecutableMachine {
                         parameters: machine.parameters.clone(),
+                        structural_parameters: machine.structural_parameters.clone(),
+                        entry_claims: machine.entry_claims.clone(),
+                        content_entry_claims: machine.content_entry_claims.clone(),
+                        result: machine.result,
                         entry: machine.entry,
                         blocks: machine
                             .blocks
@@ -161,27 +300,63 @@ impl TerminalExecution {
                 )
             })
             .collect::<BTreeMap<_, _>>();
+        let boundary_machines = module
+            .boundary_machines
+            .iter()
+            .cloned()
+            .map(|boundary| (boundary.id, boundary))
+            .collect::<BTreeMap<_, _>>();
         let machine = machines
             .get(&module.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
-        let values = bind_arguments(&machine.parameters, arguments)?;
+        let values = bind_arguments(&machine.parameters, scalar_arguments)?;
+        let structural_values =
+            bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
+        let live_claims = bind_entry_claims(
+            &machine.entry_claims,
+            &machine.content_entry_claims,
+            &machine.structural_parameters,
+            &structural_values,
+        )?;
         let blocks = machine.blocks.clone();
         let current = machine.entry;
         Ok(Self {
             machines,
+            boundary_machines,
             blocks,
             values,
+            structural_values,
+            live_claims,
+            current_machine: module.entry,
             current,
             next_operation: 0,
             call_stack: Vec::new(),
             result: None,
             crash: None,
+            effects: Vec::new(),
         })
     }
 
     pub fn resume(
         &mut self,
         meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        let mut handler = AcceptTerminalEffects;
+        self.resume_with_effect_handler(meter, &mut handler)
+    }
+
+    pub fn effects(&self) -> &[TerminalEffect] {
+        &self.effects
+    }
+
+    pub fn live_claim_frontier(&self) -> impl Iterator<Item = ClaimId> + '_ {
+        self.live_claims.keys().copied()
+    }
+
+    pub fn resume_with_effect_handler(
+        &mut self,
+        meter: &mut TerminalFuelMeter,
+        handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(result) = self.result {
             return Ok(TerminalExecutionStatus::Complete(result));
@@ -203,6 +378,126 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::CallUnit {
+                        callee,
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let callee_id = callee;
+                        let callee =
+                            self.machines.get(&callee_id).cloned().ok_or(
+                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
+                            )?;
+                        if callee.result != TerminalMachineResult::Unit
+                            || !callee.parameters.is_empty()
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let arguments = resolve_structural_arguments(
+                            &self.structural_values,
+                            &structural_arguments,
+                        )?;
+                        let structural_values =
+                            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+                        let (remaining_claims, live_claims) = transfer_claims(
+                            &self.live_claims,
+                            &self.structural_values,
+                            &structural_arguments,
+                            &claim_transfers,
+                            &callee.structural_parameters,
+                            &callee.entry_claims,
+                            &callee.content_entry_claims,
+                            &structural_values,
+                        )?;
+                        self.next_operation += 1;
+                        self.live_claims = remaining_claims;
+                        self.call_stack.push(SuspendedCall {
+                            blocks: std::mem::take(&mut self.blocks),
+                            values: std::mem::take(&mut self.values),
+                            structural_values: std::mem::take(&mut self.structural_values),
+                            live_claims: std::mem::take(&mut self.live_claims),
+                            current_machine: self.current_machine,
+                            current: self.current,
+                            next_operation: self.next_operation,
+                            result: SuspendedCallResult::Unit,
+                        });
+                        self.blocks = callee.blocks;
+                        self.values = BTreeMap::new();
+                        self.structural_values = structural_values;
+                        self.live_claims = live_claims;
+                        self.current_machine = callee_id;
+                        self.current = callee.entry;
+                        self.next_operation = 0;
+                        continue;
+                    }
+                    OperationKind::BoundaryCallUnit {
+                        boundary,
+                        structural_arguments,
+                        claim_settlements,
+                        ..
+                    } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let boundary_declaration = self.boundary_machines.get(&boundary).ok_or(
+                            TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
+                        )?;
+                        let arguments = resolve_structural_arguments(
+                            &self.structural_values,
+                            &structural_arguments,
+                        )?;
+                        bind_structural_arguments(
+                            &boundary_declaration.structural_parameters,
+                            &arguments,
+                        )?;
+                        validate_boundary_requirements(boundary_declaration, &arguments)?;
+                        let remaining_claims = settle_claims(
+                            &self.live_claims,
+                            &structural_arguments,
+                            &claim_settlements,
+                            &boundary_declaration.structural_parameters,
+                        )?;
+                        let effect = TerminalEffect::BoundaryCallUnit {
+                            operation: operation.id,
+                            boundary,
+                            structural_arguments: arguments,
+                            claim_settlements,
+                        };
+                        handler.handle_effect(&effect).map_err(|rejection| {
+                            TerminalInterpretError::EffectRejected {
+                                operation: operation.id,
+                                rejection,
+                            }
+                        })?;
+                        self.live_claims = remaining_claims;
+                        self.effects.push(effect);
+                    }
+                    OperationKind::PortWrite {
+                        service,
+                        port,
+                        value,
+                    } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let effect = TerminalEffect::PortWrite {
+                            operation: operation.id,
+                            service,
+                            port,
+                            value,
+                        };
+                        handler.handle_effect(&effect).map_err(|rejection| {
+                            TerminalInterpretError::EffectRejected {
+                                operation: operation.id,
+                                rejection,
+                            }
+                        })?;
+                        self.effects.push(effect);
+                    }
                     OperationKind::Call {
                         callee, arguments, ..
                     } => {
@@ -215,44 +510,63 @@ impl TerminalExecution {
                                     .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
-                        let callee = self
-                            .machines
-                            .get(&callee)
-                            .cloned()
-                            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
+                        let callee_id = callee;
+                        let callee =
+                            self.machines.get(&callee_id).cloned().ok_or(
+                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
+                            )?;
+                        if !callee.structural_parameters.is_empty()
+                            || !callee.entry_claims.is_empty()
+                            || !callee.content_entry_claims.is_empty()
+                            || !matches!(callee.result, TerminalMachineResult::Scalar(_))
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
                         let values = bind_arguments(&callee.parameters, &arguments)?;
                         self.next_operation += 1;
                         self.call_stack.push(SuspendedCall {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
+                            structural_values: std::mem::take(&mut self.structural_values),
+                            live_claims: std::mem::take(&mut self.live_claims),
+                            current_machine: self.current_machine,
                             current: self.current,
                             next_operation: self.next_operation,
-                            result: operation.result.id,
+                            result: SuspendedCallResult::Scalar(
+                                operation.result.expect_scalar().id,
+                            ),
                         });
                         self.blocks = callee.blocks;
                         self.values = values;
+                        self.structural_values = BTreeMap::new();
+                        self.live_claims = BTreeMap::new();
+                        self.current_machine = callee_id;
                         self.current = callee.entry;
                         self.next_operation = 0;
                         continue;
                     }
                     OperationKind::IntegerConstant { value } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
                     OperationKind::BooleanConstant { value } => {
-                        if operation.result.scalar_type != ScalarType::Boolean {
+                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                        self.values
-                            .insert(operation.result.id, TerminalScalarValue::Boolean(value));
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::Boolean(value),
+                        );
                     }
                     OperationKind::BooleanNot { operand } => {
-                        if operation.result.scalar_type != ScalarType::Boolean {
+                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let TerminalScalarValue::Boolean(value) = self
@@ -263,11 +577,13 @@ impl TerminalExecution {
                         else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
-                        self.values
-                            .insert(operation.result.id, TerminalScalarValue::Boolean(!value));
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::Boolean(!value),
+                        );
                     }
                     OperationKind::BooleanEqual { left, right } => {
-                        if operation.result.scalar_type != ScalarType::Boolean {
+                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let TerminalScalarValue::Boolean(left) = self
@@ -287,12 +603,12 @@ impl TerminalExecution {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Boolean(left == right),
                         );
                     }
                     OperationKind::IntegerEqual { left, right } => {
-                        if operation.result.scalar_type != ScalarType::Boolean {
+                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let TerminalScalarValue::Integer {
@@ -321,13 +637,13 @@ impl TerminalExecution {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Boolean(left == right),
                         );
                     }
                     OperationKind::IntegerLessThan { left, right }
                     | OperationKind::IntegerLessOrEqual { left, right } => {
-                        if operation.result.scalar_type != ScalarType::Boolean {
+                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let TerminalScalarValue::Integer {
@@ -363,11 +679,15 @@ impl TerminalExecution {
                             OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
                             _ => unreachable!(),
                         };
-                        self.values
-                            .insert(operation.result.id, TerminalScalarValue::Boolean(result));
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::Boolean(result),
+                        );
                     }
                     OperationKind::IntegerBitwiseNot { operand } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let TerminalScalarValue::Integer {
@@ -388,12 +708,14 @@ impl TerminalExecution {
                             .bitwise_not(operand)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
                     OperationKind::IntegerWiden { operand } => {
-                        let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(target_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let TerminalScalarValue::Integer {
@@ -411,7 +733,7 @@ impl TerminalExecution {
                             .widen_value_to(target_type, value)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer {
                                 scalar_type: target_type,
                                 value,
@@ -419,7 +741,9 @@ impl TerminalExecution {
                         );
                     }
                     OperationKind::IntegerExactCast { operand, .. } => {
-                        let ScalarType::Integer(target_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(target_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let TerminalScalarValue::Integer {
@@ -437,7 +761,7 @@ impl TerminalExecution {
                             .exact_cast_value_to(target_type, value)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer {
                                 scalar_type: target_type,
                                 value,
@@ -447,7 +771,9 @@ impl TerminalExecution {
                     OperationKind::IntegerBitwiseAnd { left, right }
                     | OperationKind::IntegerBitwiseOr { left, right }
                     | OperationKind::IntegerBitwiseXor { left, right } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let TerminalScalarValue::Integer {
@@ -489,7 +815,7 @@ impl TerminalExecution {
                         }
                         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
@@ -497,7 +823,9 @@ impl TerminalExecution {
                     | OperationKind::WrappingIntegerShiftRight { value, count }
                     | OperationKind::ExactIntegerShiftLeft { value, count, .. }
                     | OperationKind::ExactIntegerShiftRight { value, count, .. } => {
-                        let ScalarType::Integer(value_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(value_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let TerminalScalarValue::Integer {
@@ -542,7 +870,7 @@ impl TerminalExecution {
                         }
                         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer {
                                 scalar_type: value_type,
                                 value,
@@ -561,7 +889,9 @@ impl TerminalExecution {
                     | OperationKind::SaturatingIntegerDivide { left, right, .. }
                     | OperationKind::SaturatingIntegerRemainder { left, right, .. }
                     | OperationKind::WrappingIntegerMultiply { left, right } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let left = self
@@ -631,12 +961,14 @@ impl TerminalExecution {
                         }
                         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
                     OperationKind::SaturatingIntegerAdd { left, right } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let left = self
@@ -669,12 +1001,14 @@ impl TerminalExecution {
                             .saturating_add(left, right)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
                     OperationKind::SaturatingIntegerSubtract { left, right } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let left = self
@@ -707,12 +1041,14 @@ impl TerminalExecution {
                             .saturating_sub(left, right)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
                     OperationKind::SaturatingIntegerMultiply { left, right } => {
-                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        let ScalarType::Integer(scalar_type) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         let left = self
@@ -745,7 +1081,7 @@ impl TerminalExecution {
                             .saturating_mul(left, right)
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
-                            operation.result.id,
+                            operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
                     }
@@ -822,6 +1158,14 @@ impl TerminalExecution {
                     self.next_operation = 0;
                 }
                 Terminator::Return { value, .. } => {
+                    let machine = self.machines.get(&self.current_machine).ok_or(
+                        TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                    )?;
+                    if !matches!(machine.result, TerminalMachineResult::Scalar(_))
+                        || has_live_linear_claims(&self.live_claims)
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
@@ -831,9 +1175,15 @@ impl TerminalExecution {
                         .copied()
                         .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
                     if let Some(caller) = self.call_stack.pop() {
+                        let SuspendedCallResult::Scalar(result_value) = caller.result else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
                         self.blocks = caller.blocks;
                         self.values = caller.values;
-                        self.values.insert(caller.result, result);
+                        self.values.insert(result_value, result);
+                        self.structural_values = caller.structural_values;
+                        self.live_claims = caller.live_claims;
+                        self.current_machine = caller.current_machine;
                         self.current = caller.current;
                         self.next_operation = caller.next_operation;
                         continue;
@@ -843,11 +1193,29 @@ impl TerminalExecution {
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
                 Terminator::ReturnUnit { .. } => {
+                    let machine = self.machines.get(&self.current_machine).ok_or(
+                        TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                    )?;
+                    if machine.result != TerminalMachineResult::Unit
+                        || has_live_linear_claims(&self.live_claims)
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
-                    if !self.call_stack.is_empty() {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    if let Some(caller) = self.call_stack.pop() {
+                        if !matches!(caller.result, SuspendedCallResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.blocks = caller.blocks;
+                        self.values = caller.values;
+                        self.structural_values = caller.structural_values;
+                        self.live_claims = caller.live_claims;
+                        self.current_machine = caller.current_machine;
+                        self.current = caller.current;
+                        self.next_operation = caller.next_operation;
+                        continue;
                     }
                     let result = TerminalExecutionResult::Unit;
                     self.result = Some(result);
@@ -860,6 +1228,10 @@ impl TerminalExecution {
                     frontier_lower_bound,
                     ..
                 } => {
+                    if frontier_lower_bound != &self.live_claims.keys().copied().collect::<Vec<_>>()
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
@@ -908,6 +1280,260 @@ fn bind_arguments(
     Ok(values)
 }
 
+fn bind_structural_arguments(
+    parameters: &[StructuralParameterDeclaration],
+    arguments: &[TerminalStructuralValue],
+) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    if arguments.len() != parameters.len() {
+        return Err(TerminalInterpretError::StructuralArgumentCount {
+            expected: parameters.len(),
+            actual: arguments.len(),
+        });
+    }
+    let mut bound_identities = BTreeMap::new();
+    let mut values = BTreeMap::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if argument
+            .qualifications
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(TerminalInterpretError::StructuralQualificationsNonCanonical);
+        }
+        if parameter.structural_type != argument.structural_type {
+            return Err(TerminalInterpretError::StructuralArgumentType {
+                place: parameter.place,
+                expected: parameter.structural_type,
+                actual: argument.structural_type,
+            });
+        }
+        if parameter
+            .qualifications
+            .iter()
+            .any(|domain| !argument.qualifications.contains(domain))
+        {
+            return Err(TerminalInterpretError::StructuralQualificationMissing(
+                parameter.place,
+            ));
+        }
+        if let Some(previous) =
+            bound_identities.insert(argument.opaque_identity, parameter.multiplicity)
+            && (previous != StructuralMultiplicity::Unrestricted
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+        {
+            return Err(TerminalInterpretError::StructuralArgumentAliasing(
+                argument.opaque_identity,
+            ));
+        }
+        if values.insert(parameter.place, argument.clone()).is_some() {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+    }
+    Ok(values)
+}
+
+fn bind_entry_claims(
+    entry_claims: &[EntryClaim],
+    content_entry_claims: &[psi_terminal::ContentEntryClaim],
+    parameters: &[StructuralParameterDeclaration],
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
+    let mut claims = BTreeMap::new();
+    for entry_claim in entry_claims {
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.place == entry_claim.input)
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            || !values.contains_key(&parameter.place)
+            || claims
+                .insert(
+                    entry_claim.claim,
+                    LiveClaim {
+                        place: Some(parameter.place),
+                        multiplicity: Some(parameter.multiplicity),
+                    },
+                )
+                .is_some()
+        {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+    }
+    for entry_claim in content_entry_claims {
+        claims.entry(entry_claim.claim).or_insert(LiveClaim {
+            place: None,
+            multiplicity: None,
+        });
+    }
+    Ok(claims)
+}
+
+fn resolve_structural_arguments(
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    arguments: &[StructuralArgument],
+) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
+    arguments
+        .iter()
+        .map(|argument| {
+            values.get(&argument.place).cloned().ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+            )
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn transfer_claims(
+    caller_claims: &BTreeMap<ClaimId, LiveClaim>,
+    _caller_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    caller_arguments: &[StructuralArgument],
+    transfers: &[ClaimTransfer],
+    callee_parameters: &[StructuralParameterDeclaration],
+    callee_entry_claims: &[EntryClaim],
+    callee_content_entry_claims: &[psi_terminal::ContentEntryClaim],
+    callee_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+) -> Result<(BTreeMap<ClaimId, LiveClaim>, BTreeMap<ClaimId, LiveClaim>), TerminalInterpretError> {
+    if transfers.len() != callee_entry_claims.len() {
+        return Err(TerminalInterpretError::ClaimTransferMismatch);
+    }
+    let mut expected_by_argument = BTreeMap::<u32, Vec<&EntryClaim>>::new();
+    for entry_claim in callee_entry_claims {
+        let (index, parameter) = callee_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.place == entry_claim.input)
+            .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            || !callee_values.contains_key(&parameter.place)
+        {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        expected_by_argument
+            .entry(index as u32)
+            .or_default()
+            .push(entry_claim);
+    }
+    let mut actual_by_argument = BTreeMap::<u32, Vec<&ClaimTransfer>>::new();
+    for transfer in transfers {
+        if transfer.argument_index as usize >= caller_arguments.len() {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        actual_by_argument
+            .entry(transfer.argument_index)
+            .or_default()
+            .push(transfer);
+    }
+    if expected_by_argument.keys().collect::<Vec<_>>()
+        != actual_by_argument.keys().collect::<Vec<_>>()
+    {
+        return Err(TerminalInterpretError::ClaimTransferMismatch);
+    }
+
+    let mut remaining = caller_claims.clone();
+    let mut callee_claims = BTreeMap::new();
+    for (argument_index, expected) in expected_by_argument {
+        let actual = &actual_by_argument[&argument_index];
+        if actual.len() != expected.len() {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        let caller_place = caller_arguments[argument_index as usize].place;
+        for (transfer, entry_claim) in actual.iter().zip(expected) {
+            let caller_claim = remaining
+                .remove(&transfer.claim)
+                .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+            if caller_claim.place != Some(caller_place) {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+            let parameter = callee_parameters
+                .get(argument_index as usize)
+                .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+            if callee_claims
+                .insert(
+                    entry_claim.claim,
+                    LiveClaim {
+                        place: Some(parameter.place),
+                        multiplicity: Some(parameter.multiplicity),
+                    },
+                )
+                .is_some()
+            {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+        }
+    }
+    for entry_claim in callee_content_entry_claims {
+        callee_claims.entry(entry_claim.claim).or_insert(LiveClaim {
+            place: None,
+            multiplicity: None,
+        });
+    }
+    Ok((remaining, callee_claims))
+}
+
+fn validate_boundary_requirements(
+    boundary: &BoundaryMachineDeclaration,
+    arguments: &[TerminalStructuralValue],
+) -> Result<(), TerminalInterpretError> {
+    for requirement in &boundary.requires {
+        let argument = arguments
+            .get(requirement.argument_index as usize)
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        if !argument.qualifications.contains(&requirement.domain) {
+            return Err(TerminalInterpretError::BoundaryQualificationMissing {
+                boundary: boundary.id,
+                argument_index: requirement.argument_index,
+                domain: requirement.domain,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn settle_claims(
+    caller_claims: &BTreeMap<ClaimId, LiveClaim>,
+    caller_arguments: &[StructuralArgument],
+    settlements: &[ClaimSettlement],
+    boundary_parameters: &[StructuralParameterDeclaration],
+) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
+    let expected_indices = boundary_parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.multiplicity == StructuralMultiplicity::Linear)
+        .map(|(index, _)| index as u32)
+        .collect::<Vec<_>>();
+    if settlements.len() != expected_indices.len() {
+        return Err(TerminalInterpretError::ClaimSettlementMismatch);
+    }
+    let mut remaining = caller_claims.clone();
+    let mut seen_indices = BTreeSet::new();
+    for settlement in settlements {
+        if !expected_indices.contains(&settlement.argument_index)
+            || !seen_indices.insert(settlement.argument_index)
+        {
+            return Err(TerminalInterpretError::ClaimSettlementMismatch);
+        }
+        let argument = caller_arguments
+            .get(settlement.argument_index as usize)
+            .ok_or(TerminalInterpretError::ClaimSettlementMismatch)?;
+        let claim = remaining
+            .remove(&settlement.claim)
+            .ok_or(TerminalInterpretError::ClaimSettlementMismatch)?;
+        if claim.place != Some(argument.place) {
+            return Err(TerminalInterpretError::ClaimSettlementMismatch);
+        }
+    }
+    if seen_indices.into_iter().collect::<Vec<_>>() != expected_indices {
+        return Err(TerminalInterpretError::ClaimSettlementMismatch);
+    }
+    Ok(remaining)
+}
+
+fn has_live_linear_claims(claims: &BTreeMap<ClaimId, LiveClaim>) -> bool {
+    claims
+        .values()
+        .any(|claim| claim.multiplicity == Some(StructuralMultiplicity::Linear))
+}
+
 fn meter_status(error: FuelMeterError) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
     match error {
         FuelMeterError::Exhausted(exhaustion) => {
@@ -941,6 +1567,7 @@ pub struct TerminalCrash {
 pub struct MeasuredTerminalExecution {
     value: TerminalExecutionResult,
     usage: TerminalFuelUsage,
+    effects: Vec<TerminalEffect>,
 }
 
 impl MeasuredTerminalExecution {
@@ -952,12 +1579,26 @@ impl MeasuredTerminalExecution {
         &self.usage
     }
 
+    pub fn effects(&self) -> &[TerminalEffect] {
+        &self.effects
+    }
+
     pub fn into_value(self) -> TerminalExecutionResult {
         self.value
     }
 
     pub fn into_parts(self) -> (TerminalExecutionResult, TerminalFuelUsage) {
         (self.value, self.usage)
+    }
+
+    pub fn into_parts_with_effects(
+        self,
+    ) -> (
+        TerminalExecutionResult,
+        TerminalFuelUsage,
+        Vec<TerminalEffect>,
+    ) {
+        (self.value, self.usage, self.effects)
     }
 }
 
@@ -975,11 +1616,36 @@ pub enum TerminalInterpretError {
     ArgumentIntegerOutsideType {
         value: ValueId,
     },
+    StructuralArgumentCount {
+        expected: usize,
+        actual: usize,
+    },
+    StructuralArgumentType {
+        place: PlaceId,
+        expected: StructuralTypeId,
+        actual: StructuralTypeId,
+    },
+    StructuralQualificationsNonCanonical,
+    StructuralQualificationMissing(PlaceId),
+    StructuralArgumentAliasing(u64),
+    BoundaryQualificationMissing {
+        boundary: BoundaryMachineId,
+        argument_index: u32,
+        domain: StructuralDomainId,
+    },
+    ClaimTransferMismatch,
+    ClaimSettlementMismatch,
     VerifiedEntryMachineMissing,
     VerifiedCallTargetMissing(MachineId),
+    VerifiedBoundaryMachineMissing(BoundaryMachineId),
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
+    VerifiedStructuralPlaceMissing(PlaceId),
     VerifiedValueMissing(ValueId),
+    EffectRejected {
+        operation: OperationId,
+        rejection: TerminalEffectRejection,
+    },
     Crash(TerminalCrash),
     Fuel(FuelMeterError),
 }

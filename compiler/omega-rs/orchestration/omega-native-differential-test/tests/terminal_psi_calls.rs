@@ -223,11 +223,19 @@ fn call_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),
                 result: TerminalMachineResult::Scalar(boolean_declaration(caller_result)),
                 structural_places: Vec::new(),
@@ -241,12 +249,16 @@ fn call_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             id: operation_id(1),
-                            result: boolean_declaration(caller_constant),
+                            result: psi_terminal::OperationResult::Scalar(boolean_declaration(
+                                caller_constant,
+                            )),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
                             id: operation_id(2),
-                            result: boolean_declaration(call_result),
+                            result: psi_terminal::OperationResult::Scalar(boolean_declaration(
+                                call_result,
+                            )),
                             kind: OperationKind::Call {
                                 callee: machine_id(2),
                                 arguments: vec![caller_constant],
@@ -264,6 +276,10 @@ fn call_module() -> TerminalModule {
             },
             TerminalMachine {
                 id: machine_id(2),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
                 parameters: vec![boolean_declaration(callee_parameter)],
                 result: TerminalMachineResult::Scalar(boolean_declaration(callee_result)),
                 structural_places: Vec::new(),

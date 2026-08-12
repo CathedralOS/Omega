@@ -23,6 +23,7 @@ mod state;
 mod statements;
 mod terminal_debug;
 mod terminal_scalar;
+mod terminal_unit;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
@@ -78,4 +79,5 @@ pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
 pub(crate) use terminal_scalar::{
     build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
 };
+pub(crate) use terminal_unit::build_checked_unit_effect_plans;
 use transfers::propagate_statement_transfers;

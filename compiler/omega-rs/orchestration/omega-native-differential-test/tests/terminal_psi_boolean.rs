@@ -81,10 +81,18 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
@@ -100,10 +108,10 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: constant,
                         scalar_type: ScalarType::Boolean,
-                    },
+                    }),
                     kind: OperationKind::BooleanConstant { value: true },
                 }],
                 terminator: Terminator::Return {
@@ -228,10 +236,18 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
@@ -248,30 +264,30 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
                 operations: vec![
                     Operation {
                         id: left_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: left,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Unsigned(200),
                         },
                     },
                     Operation {
                         id: right_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: right,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Unsigned(100),
                         },
                     },
                     Operation {
                         id: add_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: sum,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::WrappingIntegerAdd { left, right },
                     },
                 ],
@@ -400,10 +416,18 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
@@ -420,30 +444,30 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
                 operations: vec![
                     Operation {
                         id: left_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: left,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Unsigned(200),
                         },
                     },
                     Operation {
                         id: right_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: right,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Unsigned(100),
                         },
                     },
                     Operation {
                         id: add_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: sum,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::SaturatingIntegerAdd { left, right },
                     },
                 ],
@@ -570,10 +594,18 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -598,10 +630,10 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: difference,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::SaturatingIntegerSubtract { left, right },
                 }],
                 terminator: Terminator::Return {
@@ -706,10 +738,18 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -734,10 +774,10 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: difference,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::WrappingIntegerSubtract { left, right },
                 }],
                 terminator: Terminator::Return {
@@ -849,10 +889,18 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -877,10 +925,10 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: product,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::WrappingIntegerMultiply { left, right },
                 }],
                 terminator: Terminator::Return {
@@ -992,10 +1040,18 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -1020,10 +1076,10 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: product,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::SaturatingIntegerMultiply { left, right },
                 }],
                 terminator: Terminator::Return {
@@ -1138,10 +1194,18 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: parameters.clone(),
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
@@ -1158,10 +1222,10 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                 operations: vec![
                     Operation {
                         id: wrapping_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: wrapped,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: parameters[0].id,
                             right: parameters[8].id,
@@ -1169,10 +1233,10 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                     },
                     Operation {
                         id: saturating_operation,
-                        result: ValueDeclaration {
+                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                             id: saturated,
                             scalar_type,
-                        },
+                        }),
                         kind: OperationKind::SaturatingIntegerAdd {
                             left: wrapped,
                             right: parameters[1].id,
@@ -1269,10 +1333,18 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters: vec![
                 ValueDeclaration {
                     id: left,
@@ -1297,10 +1369,10 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: sum,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::SaturatingIntegerAdd { left, right },
                 }],
                 terminator: Terminator::Return { edge, value: sum },
@@ -1384,10 +1456,18 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
             parameters,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,

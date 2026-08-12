@@ -134,6 +134,9 @@ pub struct FlowFacts {
     /// Optional source presentation retained independently from terminal
     /// semantic and proof plans.
     pub terminal_debug: super::CheckedTerminalDebugPlans,
+    /// General source-handle-free structural/Unit effect plans. These are
+    /// populated after checked ownership and carry recording succeeds.
+    pub terminal_unit_effects: super::CheckedUnitEffectPlans,
 }
 
 impl FlowFacts {
@@ -155,6 +158,7 @@ impl FlowFacts {
             terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
             terminal_machines: super::CheckedTerminalMachineSelections::default(),
             terminal_debug: super::CheckedTerminalDebugPlans::default(),
+            terminal_unit_effects: super::CheckedUnitEffectPlans::default(),
         }
     }
 }

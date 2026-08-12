@@ -197,11 +197,14 @@ Remaining:
   derive them. Migrate Cathedral hard roots through a complete attached,
   unit-returning, linear-parameter effect slice that retains provider/port
   operations; an admitted or manually counted summary is not source evidence.
-  Terminal artifacts now distinguish value-less normal return from scalar
-  return through verification, interpretation, and fixed fuel, but checked
-  source production and Omega realization remain scalar-only. Connect those
-  layers as part of the complete hard-root slice, then add
-  provenance-preserving native metering. Keep WCET and wall-clock conversion
+  Checked production, Terminal Psi verification/interpretation/fixed fuel, and
+  the x86 native realization now retain Unit return, structural custody,
+  service-qualified port effects, exact admitted provider-execution evidence,
+  and metadata-only claim settlement without duplicating the hardware effect.
+  Cathedral's legacy timer-root canary pins the source-produced closure. Finish
+  the production installation/admission composition and add
+  provenance-preserving native metering; implement the full AAPCS64 Unit-call
+  ABI before enabling that target. Keep WCET and wall-clock conversion
   separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. Explicit

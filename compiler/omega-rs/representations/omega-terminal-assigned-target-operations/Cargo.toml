@@ -9,6 +9,7 @@ name = "omega_terminal_assigned_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-target-operations = { path = "../omega-terminal-target-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }

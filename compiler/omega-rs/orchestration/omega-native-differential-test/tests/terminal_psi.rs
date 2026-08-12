@@ -34,6 +34,10 @@ fn verified_integer_control_contract_slice_executes_directly() {
 
     let machine = TerminalMachine {
         id: MachineId::new(1).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
@@ -50,10 +54,10 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(1).expect("operation"),
-                    result: ValueDeclaration {
+                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
                         id: constant,
                         scalar_type,
-                    },
+                    }),
                     kind: OperationKind::IntegerConstant {
                         value: IntegerValue::Signed(7),
                     },
@@ -90,6 +94,10 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![machine],
@@ -324,6 +332,10 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: ValueId::new(90).expect("result"),
@@ -358,6 +370,10 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![machine],
@@ -413,6 +429,10 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
     let result = ValueId::new(11).expect("result");
     let machine = TerminalMachine {
         id: MachineId::new(10).expect("machine"),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
         parameters: vec![ValueDeclaration {
             id: parameter,
             scalar_type,
@@ -445,6 +465,10 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         machines: vec![machine],

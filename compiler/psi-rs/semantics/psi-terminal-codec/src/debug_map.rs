@@ -355,7 +355,7 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
                         || block
                             .operations
                             .iter()
-                            .any(|operation| operation.result.id == id)
+                            .any(|operation| operation.result.expect_scalar().id == id)
                 })
         }),
         DebugSubject::Contract(id) => module

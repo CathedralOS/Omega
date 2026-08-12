@@ -29,19 +29,36 @@ impl ValueFactBuilder<'_, '_> {
                 );
             }
             StatementNode::Call(call) => {
-                for argument in self
+                let expected_primitives = if self
+                    .program
+                    .symbols
+                    .builtin_function_symbol(psi_symbols::BuiltinFunction::AsmPortOut)
+                    == Some(call.target_symbol)
+                {
+                    [
+                        Some(psi_typed_trees::types::PrimitiveType::U16),
+                        Some(psi_typed_trees::types::PrimitiveType::U8),
+                    ]
+                } else {
+                    [None, None]
+                };
+                for (argument_index, argument) in self
                     .program
                     .statement_table
                     .expression_handles(call.arguments)
                     .iter()
                     .copied()
+                    .enumerate()
                 {
-                    self.collect_statement_expression(
-                        machine_symbol,
-                        state_symbol,
-                        statement_index,
+                    self.collect_expression_with_expected_primitive(
                         argument,
-                        CheckedValueStatementRole::CallArgument,
+                        psi_checked_trees::CheckedValueOrigin::StateStatement {
+                            machine_symbol,
+                            state_symbol,
+                            statement_index,
+                            role: CheckedValueStatementRole::CallArgument,
+                        },
+                        expected_primitives.get(argument_index).copied().flatten(),
                     );
                 }
             }

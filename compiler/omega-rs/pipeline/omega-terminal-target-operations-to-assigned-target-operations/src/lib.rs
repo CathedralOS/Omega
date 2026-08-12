@@ -7,18 +7,20 @@ use std::collections::BTreeMap;
 
 use omega_target::Architecture;
 use omega_terminal_assigned_target_operations::{
-    TerminalAssignedBooleanControl, TerminalAssignedBooleanExpression,
-    TerminalAssignedCallArgument, TerminalAssignedCallDestination,
-    TerminalAssignedConditionalBooleanArm, TerminalAssignedConditionalIntegerArm,
-    TerminalAssignedFunction, TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression,
-    TerminalAssignedOperation, TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
-    TerminalAssignedScalarLocation, TerminalEntryRegisterSpill, TerminalExpressionFrame,
+    TerminalAssignedAggregateCopy, TerminalAssignedBooleanControl,
+    TerminalAssignedBooleanExpression, TerminalAssignedCallArgument,
+    TerminalAssignedCallDestination, TerminalAssignedConditionalBooleanArm,
+    TerminalAssignedConditionalIntegerArm, TerminalAssignedFunction,
+    TerminalAssignedIntegerControl, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
+    TerminalAssignedOperationPlan, TerminalAssignedScalarExpression,
+    TerminalAssignedScalarLocation, TerminalAssignedUnitBody, TerminalAssignedUnitOperation,
+    TerminalEntryRegisterSpill, TerminalExpressionFrame,
 };
 use omega_terminal_target_operations::{
     MachineRegister, TerminalScalarParameterLocation, TerminalTargetBooleanControl,
     TerminalTargetBooleanExpression, TerminalTargetCallArgument, TerminalTargetFunction,
     TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
-    TerminalTargetOperationPlan, TerminalTargetScalarExpression,
+    TerminalTargetOperationPlan, TerminalTargetScalarExpression, TerminalTargetUnitOperation,
 };
 use psi_core::{MachineId, OperationId, ValueId};
 
@@ -49,6 +51,70 @@ fn assign_function(
     architecture: Architecture,
 ) -> Result<TerminalAssignedFunction, AssignmentError> {
     let operation = match &function.operation {
+        TerminalTargetOperation::UnitBody(body) => {
+            let operations = body
+                .operations
+                .iter()
+                .map(|operation| match operation {
+                    TerminalTargetUnitOperation::Call {
+                        psi_operation,
+                        callee,
+                        arguments,
+                        claim_transfers,
+                    } => TerminalAssignedUnitOperation::Call {
+                        psi_operation: *psi_operation,
+                        callee: *callee,
+                        copies: arguments
+                            .iter()
+                            .map(|argument| TerminalAssignedAggregateCopy {
+                                place: argument.place,
+                                structural_type: argument.structural_type,
+                                shape: argument.shape,
+                                source: argument.source.clone(),
+                                destination: argument.destination.clone(),
+                            })
+                            .collect(),
+                        claim_transfers: claim_transfers.clone(),
+                    },
+                    TerminalTargetUnitOperation::PortWrite {
+                        psi_operation,
+                        service,
+                        port,
+                        value,
+                    } => TerminalAssignedUnitOperation::PortWrite {
+                        psi_operation: *psi_operation,
+                        service: *service,
+                        port: *port,
+                        value: *value,
+                    },
+                    TerminalTargetUnitOperation::BoundarySettlement {
+                        psi_operation,
+                        boundary,
+                        provider_execution,
+                        realization,
+                        argument_places,
+                        claim_settlements,
+                    } => TerminalAssignedUnitOperation::BoundarySettlement {
+                        psi_operation: *psi_operation,
+                        boundary: *boundary,
+                        provider_execution: *provider_execution,
+                        realization: *realization,
+                        argument_places: argument_places.clone(),
+                        claim_settlements: claim_settlements.clone(),
+                    },
+                    TerminalTargetUnitOperation::Return { psi_edge } => {
+                        TerminalAssignedUnitOperation::Return {
+                            psi_edge: *psi_edge,
+                        }
+                    }
+                })
+                .collect();
+            TerminalAssignedOperation::UnitBody(TerminalAssignedUnitBody {
+                call_plan: body.call_plan.clone(),
+                parameters: body.parameters.clone(),
+                operations,
+            })
+        }
         TerminalTargetOperation::Crash {
             psi_edge,
             cause,

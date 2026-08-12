@@ -8,25 +8,41 @@
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
 use psi_core::{
-    BlockId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
-    ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
+    ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
-use psi_terminal::{CrashCause, TerminalPsiIdentity};
+use psi_terminal::{
+    BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, CrashCause, EntryClaim,
+    StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    TerminalPsiIdentity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAbstractOperationPlan {
     pub terminal_psi: TerminalPsiIdentity,
     pub entry: MachineId,
+    /// Concrete target-neutral carrier shapes retained for Omega-owned layout
+    /// and ABI selection. These rows contain no source handles or target
+    /// offsets.
+    pub structural_types: Vec<StructuralTypeDeclaration>,
+    /// Exact bodyless boundary declarations available to Unit operations.
+    pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub functions: Vec<TerminalAbstractFunction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAbstractFunction {
     pub machine: MachineId,
+    pub attachment: Option<StructuralTypeId>,
     pub entry: BlockId,
     /// Runtime values supplied by the caller, in declared terminal-Psi order.
     pub parameters: Vec<TerminalAbstractParameter>,
-    pub result: TerminalAbstractResult,
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    pub result: TerminalAbstractFunctionResult,
+    /// Generic live claims supplied by the caller/root installation.
+    pub entry_claims: Vec<EntryClaim>,
+    /// Exact verified service ceiling retained for realization and audit.
+    pub published_service_ceiling: Vec<ServiceId>,
     /// Canonical block starts in `operations`. This keeps conditional targets
     /// source-independent without flattening away control-flow identity.
     pub block_entries: Vec<TerminalAbstractBlockEntry>,
@@ -53,8 +69,41 @@ pub struct TerminalAbstractResult {
     pub scalar_type: ScalarType,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAbstractFunctionResult {
+    Unit,
+    Scalar(TerminalAbstractResult),
+}
+
+impl TerminalAbstractFunctionResult {
+    pub const fn scalar(self) -> Option<TerminalAbstractResult> {
+        match self {
+            Self::Unit => None,
+            Self::Scalar(result) => Some(result),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAbstractOperation {
+    CallUnit {
+        psi_operation: OperationId,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+    },
+    BoundaryCallUnit {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_settlements: Vec<ClaimSettlement>,
+    },
+    PortWrite {
+        psi_operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+    },
     Call {
         psi_operation: OperationId,
         result: ValueId,
@@ -274,6 +323,9 @@ pub enum TerminalAbstractOperation {
         result: ValueId,
         value: ValueId,
         scalar_type: ScalarType,
+    },
+    ReturnUnit {
+        psi_edge: EdgeId,
     },
     /// A verified no-successor terminal. The audit-only site guard and frontier
     /// remain attached at the Omega boundary even though native realization

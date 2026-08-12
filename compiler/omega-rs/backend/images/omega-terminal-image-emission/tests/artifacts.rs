@@ -11,10 +11,14 @@ use omega_terminal_image_emission::{
     validate_terminal_installation_record,
 };
 use omega_terminal_machine_code::{
-    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
+    TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
+    TerminalMachineCodePlan, TerminalPortEffectRecord,
 };
-use omega_terminal_target_operations::TerminalPsiProvenance;
-use psi_core::{EdgeId, MachineId, OperationId, ProfileDecisionId};
+use omega_terminal_target_operations::{
+    TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalProviderPlanIdentity, TerminalPsiProvenance,
+};
+use psi_core::{BoundaryMachineId, EdgeId, MachineId, OperationId, ProfileDecisionId, ServiceId};
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[test]
@@ -267,6 +271,8 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 },
                 bytes: bytes.clone(),
                 internal_calls: Vec::new(),
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
             }],
         };
         let artifact = build_terminal_object_artifact(&plan).expect("artifact");
@@ -344,7 +350,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "1f34d55bc653e72bf35fc53b3b50ae89a9f593f7138b53c4e128aa6df5fd44e3"
+        "9e61da8b0d7076f1614df6a46f3d984aa51ddeb375f285640b61bd1039bec3ba"
     );
 
     let mut changed_plan = plan;
@@ -382,16 +388,20 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&3_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(2))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(3))
     );
 
     let mut reordered = bytes.clone();
-    let provider_offset = reordered.len() - 16;
+    let provider_pair = [3_u64.to_le_bytes(), 9_u64.to_le_bytes()].concat();
+    let provider_offset = reordered
+        .windows(provider_pair.len())
+        .position(|window| window == provider_pair)
+        .expect("provider rows");
     reordered[provider_offset..provider_offset + 8].copy_from_slice(&9_u64.to_le_bytes());
-    reordered[provider_offset + 8..].copy_from_slice(&3_u64.to_le_bytes());
+    reordered[provider_offset + 8..provider_offset + 16].copy_from_slice(&3_u64.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&reordered),
         Err(TerminalInstallationError::NonCanonicalProviderPlanOrder)
@@ -432,6 +442,96 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
 }
 
 #[test]
+fn privileged_effect_and_exact_provider_execution_survive_installation() {
+    let port_operation = operation_id(1);
+    let settlement_operation = operation_id(2);
+    let service = ServiceId::new(1).unwrap();
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    let provider_plan = TerminalProviderPlanIdentity::new(7).unwrap();
+    let provider_execution =
+        TerminalProviderExecutionBinding::from_admitted_execution(provider_plan, 8, 9, 10, 11)
+            .unwrap();
+    let realization = TerminalMetadataOnlyPortRealization {
+        effect_operation: port_operation,
+        service,
+        port: 0x20,
+        value: 0x20,
+    };
+    let mut bytes = omega_x86_encoding::encode_immediate_port_write(0x20, 0x20).to_vec();
+    bytes.push(0xc3);
+    let plan = TerminalMachineCodePlan {
+        terminal_psi: identity(),
+        target: NativeTarget::linux_x64(),
+        entry: machine_id(1),
+        functions: vec![TerminalMachineCodeFunction {
+            machine: machine_id(1),
+            provenance: TerminalPsiProvenance {
+                operations: vec![port_operation, settlement_operation],
+                edges: vec![edge_id(1)],
+            },
+            bytes,
+            internal_calls: Vec::new(),
+            port_effects: vec![TerminalPortEffectRecord {
+                psi_operation: port_operation,
+                service,
+                port: 0x20,
+                value: 0x20,
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: 27,
+            }],
+            boundary_settlements: vec![TerminalBoundarySettlementRecord {
+                psi_operation: settlement_operation,
+                boundary,
+                provider_execution,
+                realization,
+                argument_places: Vec::new(),
+                claim_settlements: Vec::new(),
+                operation_ordinal: 1,
+                code_offset: 27,
+            }],
+        }],
+    };
+    let artifact = build_terminal_object_artifact(&plan).expect("effect artifact");
+    assert_eq!(artifact.port_effects()[0].effect.service, service);
+    assert_eq!(
+        artifact.boundary_settlements()[0].settlement.realization,
+        realization
+    );
+    let image = emit_terminal_executable_image(&artifact, 3).expect("effect image");
+    let record = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(1).unwrap(),
+        [provider_id(7)],
+    )
+    .expect("effect installation");
+    assert_eq!(record.port_effects(), image.port_effects());
+    assert_eq!(
+        record.boundary_settlements()[0]
+            .settlement
+            .provider_execution,
+        provider_execution
+    );
+    let encoded = encode_terminal_installation_record(&record).unwrap();
+    assert_eq!(decode_terminal_installation_record(&encoded), Ok(record));
+
+    let mut wrong_bytes = plan.clone();
+    wrong_bytes.functions[0].bytes[0] ^= 1;
+    assert!(matches!(
+        build_terminal_object_artifact(&wrong_bytes),
+        Err(TerminalObjectError::PortEffectBytesMismatch { .. })
+    ));
+    let mut wrong_realization = plan;
+    wrong_realization.functions[0].boundary_settlements[0]
+        .realization
+        .value = 0x21;
+    assert!(matches!(
+        build_terminal_object_artifact(&wrong_realization),
+        Err(TerminalObjectError::BoundaryRealizationMismatch { .. })
+    ));
+}
+
+#[test]
 fn image_boundary_rejects_noncanonical_pointer_facts() {
     let mut plan = two_function_plan();
     plan.target.pointer_size = 4;
@@ -458,6 +558,8 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 },
                 bytes: integer_return(3),
                 internal_calls: Vec::new(),
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
@@ -467,6 +569,8 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 },
                 bytes: integer_return(7),
                 internal_calls: Vec::new(),
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
             },
         ],
     }
@@ -494,6 +598,8 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 },
                 bytes: callee,
                 internal_calls: Vec::new(),
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
@@ -507,6 +613,8 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     target: machine_id(1),
                     offset: call_offset,
                 }],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
             },
         ],
     }

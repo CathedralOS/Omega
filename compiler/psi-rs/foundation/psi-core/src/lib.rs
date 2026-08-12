@@ -18,9 +18,10 @@ pub use content::{
     StructuralPlaceKind,
 };
 pub use identity::{
-    AdmissionSiteId, BlockId, ClaimId, ContentDomainId, ContractId, EdgeId, EvidenceIdentity,
-    FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
-    PropositionId, PsiSemanticId, ValueId,
+    AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId, EdgeId,
+    EvidenceIdentity, FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId,
+    ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub use proposition::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
