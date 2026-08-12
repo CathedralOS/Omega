@@ -6654,16 +6654,10 @@ fn runtime_time_host_native_exit_canary_runs() {
     // real-clock inequalities; the interpreter's virtual clock (1000 / 0) is
     // asserted exactly by runtime_time_host_virtual_exit instead.
     let canary = pass_canary("time/runtime_time_host_native_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-time-host-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("time host native canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-time-host-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, "windows_x64")
+        .expect("time host native canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("time host native canary should run");
     assert_eq!(
@@ -6672,7 +6666,7 @@ fn runtime_time_host_native_exit_canary_runs() {
         "expected the native time-host chain to exit 70, got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6684,17 +6678,11 @@ fn runtime_time_host_native_darwin_exit_canary_runs() {
     // asserted exactly (10^9 units, offset 0), real-clock inequalities.
     // NO interpreter oracle (virtual clock reports 1000/0 by design).
     let canary = pass_canary("time/runtime_time_host_native_darwin_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-time-host-darwin-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("darwin time host native canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("darwin time host native canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("darwin time host native canary should run");
     assert_eq!(
@@ -6703,7 +6691,7 @@ fn runtime_time_host_native_darwin_exit_canary_runs() {
         "expected the darwin native time-host chain to exit 70, got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
