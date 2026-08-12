@@ -378,7 +378,13 @@ reach or trust, and private proof improvements do not change public identity.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
-  park/resume, and implement the suspension-safe-loan subset.
+  park/resume, and implement the suspension-safe-loan subset. The terminal
+  Unit-body native slice now retains emitter-derived local peaks and exact
+  caller-live stack at every internal call, validates those rows against typed
+  relocation sites, and composes an acyclic closure demand. Extend that sealed
+  accounting to scalar/conditional temporary stacks, the external entry
+  adapter, and installed-root/provider admission before treating it as a full
+  root `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

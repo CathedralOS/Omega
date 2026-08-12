@@ -25,6 +25,10 @@ pub struct TerminalMachineCodeFunction {
     pub machine: MachineId,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
+    /// Target-emitter-owned stack facts for the currently supported Unit-body
+    /// closure. Other terminal function forms remain deliberately unreported
+    /// until their complete temporary-stack accounting is retained.
+    pub unit_stack: Option<TerminalUnitStackEvidence>,
     /// Typed internal-call relocation fields, ordered by `offset`. Each row
     /// points at the mutable immediate bits of one architecture-native call;
     /// object construction validates the surrounding opcode before accepting
@@ -139,8 +143,35 @@ pub struct TerminalPortEffectRecord {
 pub struct TerminalInternalCallRelocation {
     pub psi_operation: OperationId,
     pub target: MachineId,
+    /// Exact caller-owned stack live immediately after this Unit-body call
+    /// enters its callee. Absent for non-Unit function forms whose full stack
+    /// accounting has not yet migrated.
+    pub unit_stack: Option<TerminalUnitCallStackEvidence>,
     /// Byte offset within this function at which the relocation field begins.
     /// On x86-64 this points at the four-byte displacement following `CALL`;
     /// on AArch64 it points at the `BL` instruction word.
     pub offset: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalUnitStackEvidence {
+    /// Maximum caller-owned bytes below this function's entry stack pointer;
+    /// excludes any incoming adapter/interrupt frame and all callee-owned
+    /// frames.
+    pub local_peak_bytes: u32,
+    pub stack_alignment: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalUnitCallStackEvidence {
+    /// Function-lifetime parameter/save area still live across the call.
+    pub active_frame_bytes: u32,
+    /// Outgoing argument/shadow/link bytes live only while the callee runs.
+    pub transient_bytes: u32,
+}
+
+impl TerminalUnitCallStackEvidence {
+    pub const fn caller_live_bytes(self) -> Option<u32> {
+        self.active_frame_bytes.checked_add(self.transient_bytes)
+    }
 }

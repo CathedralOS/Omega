@@ -176,6 +176,15 @@ certificate cannot authorize a whole root. Cathedral migration and general
 loop/build-time coverage remain in `TASKS.md`. This path does not grow into a
 symbolic complexity language.
 
+The first native WCSU precursor is deliberately narrower than installed-root
+admission. For fully lowered Unit closures, Omega's emitter retains each
+function's local peak and each typed internal call's active-frame plus transient
+argument/shadow/link contribution. Object construction validates those facts
+against the exact relocation sites and composes the acyclic call-closure peak by
+maximum over sequential calls. The result excludes external entry adapter and
+interrupt-arrival state; it is not yet an external-root `StackPlan` or provider
+receipt.
+
 ## Response and physical time
 
 Logical compute and response are separate:

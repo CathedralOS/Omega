@@ -29,7 +29,8 @@ use omega_object_file::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
-    TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
@@ -128,11 +129,62 @@ pub struct TerminalObjectFunction {
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
     pub byte_count: usize,
+    /// Emitter-derived stack facts for a completely accounted Unit body.
+    /// `None` means this function form has not yet joined the WCSU slice.
+    pub unit_stack: Option<TerminalUnitStackEvidence>,
+    pub unit_call_stacks: Vec<TerminalObjectUnitCallStack>,
 }
 
 impl TerminalObjectFunction {
     pub fn bytes<'artifact>(&self, artifact: &'artifact TerminalObjectArtifact) -> &'artifact [u8] {
         &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalObjectUnitCallStack {
+    pub psi_operation: psi_core::OperationId,
+    pub target: MachineId,
+    pub text_offset: usize,
+    pub stack: TerminalUnitCallStackEvidence,
+}
+
+/// Recomputed whole-call-closure stack demand for the fully accounted
+/// terminal Unit slice. This excludes the external entry adapter/interrupt
+/// arrival frame, which belongs to installed-root realization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalUnitStackDemand {
+    terminal_psi: TerminalPsiIdentity,
+    target: NativeTarget,
+    entry: MachineId,
+    ceiling_bytes: u64,
+    stack_alignment: u32,
+    contributing_machines: std::collections::BTreeSet<MachineId>,
+}
+
+impl TerminalUnitStackDemand {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn target(&self) -> NativeTarget {
+        self.target
+    }
+
+    pub const fn entry(&self) -> MachineId {
+        self.entry
+    }
+
+    pub const fn ceiling_bytes(&self) -> u64 {
+        self.ceiling_bytes
+    }
+
+    pub const fn stack_alignment(&self) -> u32 {
+        self.stack_alignment
+    }
+
+    pub const fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
+        &self.contributing_machines
     }
 }
 
@@ -209,6 +261,39 @@ pub fn build_terminal_object_artifact(
                     operation: call.psi_operation,
                 });
             }
+            match (function.unit_stack, call.unit_stack) {
+                (Some(function_stack), Some(call_stack)) => {
+                    validate_unit_call_stack(
+                        plan.target.architecture,
+                        function.machine,
+                        call.psi_operation,
+                        function_stack,
+                        call_stack,
+                    )?;
+                }
+                (Some(_), None) => {
+                    return Err(TerminalObjectError::MissingUnitCallStackEvidence {
+                        caller: function.machine,
+                        operation: call.psi_operation,
+                    });
+                }
+                (None, Some(_)) => {
+                    return Err(TerminalObjectError::UnexpectedUnitCallStackEvidence {
+                        caller: function.machine,
+                        operation: call.psi_operation,
+                    });
+                }
+                (None, None) => {}
+            }
+        }
+        if let Some(stack) = function.unit_stack
+            && (stack.stack_alignment != 16
+                || !stack.local_peak_bytes.is_multiple_of(stack.stack_alignment))
+        {
+            return Err(TerminalObjectError::InvalidUnitStackAlignment {
+                machine: function.machine,
+                alignment: stack.stack_alignment,
+            });
         }
         if function.fuel_attribution.windows(2).any(|pair| {
             (pair[0].operation_ordinal, pair[0].code_offset)
@@ -418,12 +503,27 @@ pub fn build_terminal_object_artifact(
                     .ok_or(TerminalObjectError::TextSizeOverflow)?,
             });
         }
+        let mut unit_call_stacks = Vec::new();
+        for call in &function.internal_calls {
+            if let Some(stack) = call.unit_stack {
+                unit_call_stacks.push(TerminalObjectUnitCallStack {
+                    psi_operation: call.psi_operation,
+                    target: call.target,
+                    text_offset: text_offset
+                        .checked_add(call.offset)
+                        .ok_or(TerminalObjectError::TextSizeOverflow)?,
+                    stack,
+                });
+            }
+        }
         functions.push(TerminalObjectFunction {
             machine: function.machine,
             provenance: function.provenance.clone(),
             symbol,
             text_offset,
             byte_count: function.bytes.len(),
+            unit_stack: function.unit_stack,
+            unit_call_stacks,
         });
     }
 
@@ -479,6 +579,132 @@ pub fn build_terminal_object_artifact(
         port_effects,
         boundary_settlements,
     })
+}
+
+fn validate_unit_call_stack(
+    architecture: Architecture,
+    caller: MachineId,
+    operation: psi_core::OperationId,
+    function: TerminalUnitStackEvidence,
+    call: TerminalUnitCallStackEvidence,
+) -> Result<(), TerminalObjectError> {
+    let live = call
+        .caller_live_bytes()
+        .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, operation })?;
+    if live > function.local_peak_bytes {
+        return Err(TerminalObjectError::UnitCallStackExceedsLocalPeak {
+            caller,
+            operation,
+            caller_live_bytes: live,
+            local_peak_bytes: function.local_peak_bytes,
+        });
+    }
+    if !live.is_multiple_of(16) {
+        return Err(TerminalObjectError::MisalignedUnitCalleeEntry {
+            caller,
+            operation,
+            caller_live_bytes: live,
+        });
+    }
+    match architecture {
+        Architecture::X86_64 if call.transient_bytes < 8 => {
+            Err(TerminalObjectError::MissingX86UnitCallLink { caller, operation })
+        }
+        Architecture::Aarch64 if call.active_frame_bytes < 16 => {
+            Err(TerminalObjectError::MissingAarch64UnitReturnLink { caller, operation })
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Compose the exact caller-owned peaks retained by the target emitter for a
+/// selected Unit entry. Sequential calls take a maximum; one active caller
+/// prefix adds to the selected callee's peak. Cycles and any reachable
+/// non-Unit function fail closed.
+pub fn derive_terminal_unit_stack_demand(
+    artifact: &TerminalObjectArtifact,
+    entry: MachineId,
+) -> Result<TerminalUnitStackDemand, TerminalObjectError> {
+    let functions = artifact
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if !functions.contains_key(&entry) {
+        return Err(TerminalObjectError::EntryFunctionMissing(entry));
+    }
+    let mut active = std::collections::BTreeSet::new();
+    let mut memoized = std::collections::BTreeMap::new();
+    let mut contributing_machines = std::collections::BTreeSet::new();
+    let ceiling_bytes = derive_terminal_unit_stack_peak(
+        entry,
+        &functions,
+        &mut active,
+        &mut memoized,
+        &mut contributing_machines,
+    )?;
+    Ok(TerminalUnitStackDemand {
+        terminal_psi: artifact.terminal_psi,
+        target: artifact.target,
+        entry,
+        ceiling_bytes,
+        stack_alignment: 16,
+        contributing_machines,
+    })
+}
+
+fn derive_terminal_unit_stack_peak(
+    machine: MachineId,
+    functions: &std::collections::BTreeMap<MachineId, &TerminalObjectFunction>,
+    active: &mut std::collections::BTreeSet<MachineId>,
+    memoized: &mut std::collections::BTreeMap<MachineId, u64>,
+    contributing_machines: &mut std::collections::BTreeSet<MachineId>,
+) -> Result<u64, TerminalObjectError> {
+    if let Some(peak) = memoized.get(&machine) {
+        contributing_machines.insert(machine);
+        return Ok(*peak);
+    }
+    if !active.insert(machine) {
+        return Err(TerminalObjectError::TerminalUnitStackCycle(machine));
+    }
+    contributing_machines.insert(machine);
+    let function =
+        functions
+            .get(&machine)
+            .copied()
+            .ok_or(TerminalObjectError::UnknownInternalCallTarget {
+                caller: machine,
+                target: machine,
+            })?;
+    let stack = function
+        .unit_stack
+        .ok_or(TerminalObjectError::UnaccountedTerminalUnitStack(machine))?;
+    let mut peak = u64::from(stack.local_peak_bytes);
+    for call in &function.unit_call_stacks {
+        let callee_peak = derive_terminal_unit_stack_peak(
+            call.target,
+            functions,
+            active,
+            memoized,
+            contributing_machines,
+        )?;
+        let caller_live = u64::from(call.stack.caller_live_bytes().ok_or(
+            TerminalObjectError::UnitCallStackArithmeticOverflow {
+                caller: machine,
+                operation: call.psi_operation,
+            },
+        )?);
+        let composed = caller_live.checked_add(callee_peak).ok_or(
+            TerminalObjectError::TerminalUnitStackCompositionOverflow {
+                caller: machine,
+                operation: call.psi_operation,
+            },
+        )?;
+        peak = peak.max(composed);
+    }
+    active.remove(&machine);
+    memoized.insert(machine, peak);
+    Ok(peak)
 }
 
 fn validate_internal_call_site(
@@ -737,6 +963,47 @@ pub enum TerminalObjectError {
         operation: psi_core::OperationId,
     },
     DuplicateInternalCallOperation {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    MissingUnitCallStackEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    UnexpectedUnitCallStackEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    InvalidUnitStackAlignment {
+        machine: MachineId,
+        alignment: u32,
+    },
+    UnitCallStackArithmeticOverflow {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    UnitCallStackExceedsLocalPeak {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+        caller_live_bytes: u32,
+        local_peak_bytes: u32,
+    },
+    MisalignedUnitCalleeEntry {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+        caller_live_bytes: u32,
+    },
+    MissingX86UnitCallLink {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    MissingAarch64UnitReturnLink {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    UnaccountedTerminalUnitStack(MachineId),
+    TerminalUnitStackCycle(MachineId),
+    TerminalUnitStackCompositionOverflow {
         caller: MachineId,
         operation: psi_core::OperationId,
     },

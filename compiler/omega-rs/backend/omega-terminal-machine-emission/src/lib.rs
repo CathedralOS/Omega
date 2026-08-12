@@ -20,7 +20,7 @@ use omega_terminal_assigned_target_operations::{
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord,
+    TerminalPortEffectRecord, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -56,6 +56,7 @@ fn emit_function(
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
+    let mut unit_stack = None;
     let bytes = match &function.operation {
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target)?;
@@ -63,6 +64,7 @@ fn emit_function(
             fuel_attribution = emitted.fuel_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
+            unit_stack = Some(emitted.stack);
             emitted.bytes
         }
         // The verified cause remains in the assigned operation and terminal
@@ -294,6 +296,7 @@ fn emit_function(
         machine: function.machine,
         provenance: function.provenance.clone(),
         bytes,
+        unit_stack,
         internal_calls,
         fuel_attribution,
         port_effects,
@@ -307,6 +310,7 @@ struct UnitEmission {
     fuel_attribution: Vec<TerminalNativeFuelAttribution>,
     port_effects: Vec<TerminalPortEffectRecord>,
     boundary_settlements: Vec<TerminalBoundarySettlementRecord>,
+    stack: TerminalUnitStackEvidence,
 }
 
 #[derive(Debug, Clone)]
@@ -361,6 +365,11 @@ fn emit_unit_body(
             append_aarch64_instructions(&mut bytes, instructions);
         }
     };
+    let active_frame_bytes = match target.architecture {
+        Architecture::X86_64 => x86_frame_bytes,
+        Architecture::Aarch64 => aarch64_frame_bytes,
+    };
+    let mut local_peak_bytes = active_frame_bytes;
     let mut returned = false;
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if returned {
@@ -385,6 +394,8 @@ fn emit_unit_body(
                         copies,
                         target,
                         &x86_homes,
+                        active_frame_bytes,
+                        &mut local_peak_bytes,
                         &mut internal_calls,
                     )?,
                     Architecture::Aarch64 => emit_aarch64_unit_call(
@@ -393,6 +404,8 @@ fn emit_unit_body(
                         *callee,
                         copies,
                         &aarch64_homes,
+                        active_frame_bytes,
+                        &mut local_peak_bytes,
                         &mut internal_calls,
                     )?,
                 }
@@ -491,6 +504,10 @@ fn emit_unit_body(
         fuel_attribution,
         port_effects,
         boundary_settlements,
+        stack: TerminalUnitStackEvidence {
+            local_peak_bytes,
+            stack_alignment: 16,
+        },
     })
 }
 
@@ -501,6 +518,8 @@ fn emit_x86_64_unit_call(
     copies: &[TerminalAssignedAggregateCopy],
     target: NativeTarget,
     homes: &[X86UnitParameterHome],
+    active_frame_bytes: u32,
+    local_peak_bytes: &mut u32,
     internal_calls: &mut Vec<TerminalInternalCallRelocation>,
 ) -> Result<(), EmissionError> {
     let outgoing_bytes = copies
@@ -519,6 +538,13 @@ fn emit_x86_64_unit_call(
     let call_stack_bytes = outgoing_bytes
         .checked_add(padding)
         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    let transient_bytes = call_stack_bytes
+        .checked_add(8)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    let caller_live_bytes = active_frame_bytes
+        .checked_add(transient_bytes)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    *local_peak_bytes = (*local_peak_bytes).max(caller_live_bytes);
     if call_stack_bytes != 0 {
         emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
     }
@@ -538,6 +564,10 @@ fn emit_x86_64_unit_call(
     internal_calls.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
+        unit_stack: Some(TerminalUnitCallStackEvidence {
+            active_frame_bytes,
+            transient_bytes,
+        }),
         offset,
     });
     if call_stack_bytes != 0 {
@@ -552,6 +582,8 @@ fn emit_aarch64_unit_call(
     callee: MachineId,
     copies: &[TerminalAssignedAggregateCopy],
     homes: &[Aarch64UnitParameterHome],
+    active_frame_bytes: u32,
+    local_peak_bytes: &mut u32,
     internal_calls: &mut Vec<TerminalInternalCallRelocation>,
 ) -> Result<(), EmissionError> {
     let outgoing_bytes = copies
@@ -561,6 +593,10 @@ fn emit_aarch64_unit_call(
             candidate.map(|value| extent.max(value))
         })?;
     let call_stack_bytes = align_u32(outgoing_bytes, 16)?;
+    let caller_live_bytes = active_frame_bytes
+        .checked_add(call_stack_bytes)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    *local_peak_bytes = (*local_peak_bytes).max(caller_live_bytes);
     let mut instructions = Vec::new();
     if call_stack_bytes != 0 {
         emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, false)?;
@@ -581,6 +617,10 @@ fn emit_aarch64_unit_call(
     internal_calls.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
+        unit_stack: Some(TerminalUnitCallStackEvidence {
+            active_frame_bytes,
+            transient_bytes: call_stack_bytes,
+        }),
         offset,
     });
     if call_stack_bytes != 0 {
@@ -2500,6 +2540,7 @@ fn emit_x86_64_call(
     relocations.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
+        unit_stack: None,
         offset,
     });
     if call_stack_bytes != 0 {
@@ -4162,6 +4203,7 @@ fn emit_aarch64_call(
     relocations.push(TerminalInternalCallRelocation {
         psi_operation,
         target: callee,
+        unit_stack: None,
         offset,
     });
     instructions.push(aarch64_stack_access(
@@ -4611,11 +4653,32 @@ mod tests {
         );
         assert_eq!(root.internal_calls[0].offset, 5);
         assert_eq!(root.internal_calls[0].target, MachineId::new(2).unwrap());
+        assert_eq!(
+            root.unit_stack,
+            Some(TerminalUnitStackEvidence {
+                local_peak_bytes: 16,
+                stack_alignment: 16,
+            })
+        );
+        assert_eq!(
+            root.internal_calls[0].unit_stack,
+            Some(TerminalUnitCallStackEvidence {
+                active_frame_bytes: 0,
+                transient_bytes: 16,
+            })
+        );
 
         let leaf = &emitted.functions[1];
         let mut expected = omega_x86_encoding::encode_immediate_port_write(0x20, 0x20).to_vec();
         expected.push(0xc3);
         assert_eq!(leaf.bytes, expected);
+        assert_eq!(
+            leaf.unit_stack,
+            Some(TerminalUnitStackEvidence {
+                local_peak_bytes: 0,
+                stack_alignment: 16,
+            })
+        );
         assert_eq!(leaf.bytes.iter().filter(|byte| **byte == 0xee).count(), 1);
         assert_eq!(leaf.boundary_settlements.len(), 1);
         assert_eq!(leaf.boundary_settlements[0].code_offset, 27);
@@ -4924,6 +4987,20 @@ mod tests {
         let instructions = aarch64_instructions(&caller.bytes);
         assert_eq!(caller.internal_calls[0].offset, 24);
         assert_eq!(caller.internal_calls[0].target, MachineId::new(2).unwrap());
+        assert_eq!(
+            caller.unit_stack,
+            Some(TerminalUnitStackEvidence {
+                local_peak_bytes: 32,
+                stack_alignment: 16,
+            })
+        );
+        assert_eq!(
+            caller.internal_calls[0].unit_stack,
+            Some(TerminalUnitCallStackEvidence {
+                active_frame_bytes: 32,
+                transient_bytes: 0,
+            })
+        );
         assert_eq!(instructions[0], 0xd100_83ff); // sub sp, sp, #32
         assert_eq!(instructions[1], 0xf900_0bfe); // str x30, [sp, #16]
         assert_eq!(instructions[2], 0xf900_03e0); // str x0, [sp]
