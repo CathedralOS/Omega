@@ -2498,20 +2498,28 @@ struct LiveClaim {
     multiplicity: Option<StructuralMultiplicity>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StructuralOwnershipFrontier {
+    // Claims carry proof-visible custody identity. Owned places independently
+    // enforce by-value affine/linear use even when no linear claim row exists.
+    claims: BTreeMap<ClaimId, LiveClaim>,
+    owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
+}
+
 fn validate_structural_frontier(
-    _module: &TerminalModule,
+    module: &TerminalModule,
     machine: &TerminalMachine,
-    _machines: &BTreeMap<MachineId, &TerminalMachine>,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
 ) -> Result<(), ModuleError> {
-    let mut entry = BTreeMap::<ClaimId, LiveClaim>::new();
+    let mut claims = BTreeMap::<ClaimId, LiveClaim>::new();
     for claim in &machine.entry_claims {
         let parameter = machine
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == claim.input)
             .expect("entry claims were validated against structural parameters");
-        entry.insert(
+        claims.insert(
             claim.claim,
             LiveClaim {
                 input: Some(claim.input),
@@ -2520,11 +2528,22 @@ fn validate_structural_frontier(
         );
     }
     for claim in &machine.content_entry_claims {
-        entry.entry(claim.claim).or_insert(LiveClaim {
+        claims.entry(claim.claim).or_insert(LiveClaim {
             input: None,
             multiplicity: None,
         });
     }
+    let entry = StructuralOwnershipFrontier {
+        claims,
+        owned_places: machine
+            .structural_parameters
+            .iter()
+            .filter_map(|parameter| {
+                (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                    .then_some((parameter.place, parameter.multiplicity))
+            })
+            .collect(),
+    };
 
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
     let mut predecessors = blocks
@@ -2568,7 +2587,7 @@ fn validate_structural_frontier(
         }
     }
 
-    let mut incoming = BTreeMap::<BlockId, Vec<BTreeMap<ClaimId, LiveClaim>>>::new();
+    let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
     for block_id in order {
         let frontiers = incoming
@@ -2578,8 +2597,17 @@ fn validate_structural_frontier(
             .first()
             .expect("a reachable block has an incoming frontier")
             .clone();
-        if frontiers.iter().any(|candidate| candidate != &frontier) {
+        if frontiers
+            .iter()
+            .any(|candidate| candidate.claims != frontier.claims)
+        {
             return Err(ModuleError::ClaimFrontierJoinMismatch(block_id));
+        }
+        if frontiers
+            .iter()
+            .any(|candidate| candidate.owned_places != frontier.owned_places)
+        {
+            return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block_id));
         }
         let block = blocks
             .get(&block_id)
@@ -2602,10 +2630,52 @@ fn validate_structural_frontier(
                 _ => Vec::new(),
             };
             for claim in claims {
-                if frontier.remove(&claim).is_none() {
+                if frontier.claims.remove(&claim).is_none() {
                     return Err(ModuleError::ClaimNotLiveAtOperation {
                         operation: operation.id,
                         claim,
+                    });
+                }
+            }
+            let consumed_places = match &operation.kind {
+                OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    ..
+                } => structural_arguments
+                    .iter()
+                    .zip(&machines[callee].structural_parameters)
+                    .filter_map(|(argument, parameter)| {
+                        (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                            .then_some(argument.place)
+                    })
+                    .collect::<Vec<_>>(),
+                OperationKind::BoundaryCallUnit {
+                    boundary,
+                    structural_arguments,
+                    ..
+                } => {
+                    let boundary = module
+                        .boundary_machines
+                        .iter()
+                        .find(|candidate| candidate.id == *boundary)
+                        .expect("static validation established the boundary target");
+                    structural_arguments
+                        .iter()
+                        .zip(&boundary.structural_parameters)
+                        .filter_map(|(argument, parameter)| {
+                            (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                                .then_some(argument.place)
+                        })
+                        .collect()
+                }
+                _ => Vec::new(),
+            };
+            for place in consumed_places {
+                if frontier.owned_places.remove(&place).is_none() {
+                    return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                        operation: operation.id,
+                        place,
                     });
                 }
             }
@@ -2630,6 +2700,7 @@ fn validate_structural_frontier(
             }
             Terminator::ReturnUnit { .. } => {
                 if let Some((claim, _)) = frontier
+                    .claims
                     .iter()
                     .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
                 {
@@ -2644,7 +2715,7 @@ fn validate_structural_frontier(
                 frontier_lower_bound,
                 ..
             } => {
-                let expected = frontier.keys().copied().collect::<Vec<_>>();
+                let expected = frontier.claims.keys().copied().collect::<Vec<_>>();
                 if frontier_lower_bound != &expected {
                     return Err(ModuleError::CrashFrontierMismatch { block: block.id });
                 }
@@ -3695,7 +3766,12 @@ pub enum ModuleError {
         operation: OperationId,
         claim: ClaimId,
     },
+    OwnedStructuralPlaceNotLiveAtOperation {
+        operation: OperationId,
+        place: PlaceId,
+    },
     ClaimFrontierJoinMismatch(BlockId),
+    OwnedStructuralFrontierJoinMismatch(BlockId),
     LiveLinearClaimAtUnitReturn {
         machine: MachineId,
         block: BlockId,
