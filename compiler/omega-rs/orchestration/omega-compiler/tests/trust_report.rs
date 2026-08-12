@@ -3,12 +3,19 @@
 //! own-package declarations are dev-active (grant locality v1) and carry
 //! the standing warning until a root grant (GR3) flips their provenance.
 
-use omega_compiler::{CompileOptions, compile_with_test_entry};
+use omega_compiler::CompileOptions;
 
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    compile_with_test_entry(options, "Main::main")
+    assert!(
+        !options.write_output,
+        "trust-report fixtures are entry-agnostic semantic checks"
+    );
+    let report = omega_compiler::compile(options)?;
+    assert!(!report.wrote_output);
+    assert_eq!(report.program_storage_entry, None);
+    Ok(report)
 }
 
 #[test]
@@ -21,7 +28,7 @@ fn trust_report_rows_dev_active_domain_introductions() {
         r#"domain u32::Meters;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
 }
@@ -34,7 +41,7 @@ machine Main::main(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("domain program should compile");
 
@@ -65,7 +72,7 @@ fn trust_report_empty_without_commitments() {
         project.join("main.omg"),
         r#"boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     self.console.exit_process(70);
 }
 "#,
@@ -77,7 +84,7 @@ machine Main::main(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("plain program should compile");
 
@@ -105,7 +112,7 @@ boundary machine combine_commutative(a: Carrier, b: Carrier)
 ensures Carrier::combine(a, b) == Carrier::combine(b, a);
 
 data Main {}
-machine Main::main(&mut self) {}
+machine Main::exercise(&mut self) {}
 "#,
     )
     .expect("write main.omg");
@@ -150,7 +157,7 @@ fn claim_free_boundary_symbols_are_not_runtime_providers() {
         r#"boundary machine unexplained_runtime_operation();
 
 data Main {}
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     unexplained_runtime_operation();
 }
 "#,
@@ -203,7 +210,7 @@ machine build(b: &mut Build) {
         r#"domain u32::Meters;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
 }
@@ -216,7 +223,7 @@ machine Main::main(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("granted project should compile");
 
@@ -272,7 +279,7 @@ machine build(b: &mut Build) {
             r#"{domain}
 boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Console; }}
-machine Main::main(&mut self) {{
+machine Main::exercise(&mut self) {{
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
 }}
@@ -286,7 +293,7 @@ machine Main::main(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     };
     compile(options()).expect("granted project should compile");
 
@@ -341,7 +348,7 @@ boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
 ensures
     {claim};
 
-machine Main::main(&mut self) {{
+machine Main::exercise(&mut self) {{
     self.console.exit_process(70);
 }}
 "#
@@ -358,7 +365,7 @@ machine Main::main(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     };
     compile(options()).expect("granted axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -410,7 +417,7 @@ boundary machine admitted<T, machine F>(value: &T)
 where machine F(item: &T){requirement_clause};
 ensures true;
 
-machine Main::main(&mut self) {{
+machine Main::exercise(&mut self) {{
     admitted<selected>(&self.value);
     self.console.exit_process(70);
 }}
@@ -424,7 +431,7 @@ machine Main::main(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     };
     compile(options()).expect("granted generic axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -485,7 +492,7 @@ boundary trait Flags {{
 machine open_read() -> i32
     satisfies Flags::open_read via Binding::VtableSlot({slot});
 data Main {{ console: Console; }}
-machine Main::main(&mut self) {{
+machine Main::exercise(&mut self) {{
     self.console.exit_process(70);
 }}
 "#
@@ -498,7 +505,7 @@ machine Main::main(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     };
     compile(options()).expect("granted plan project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -535,7 +542,7 @@ boundary trait Flags {
 machine open_read() -> i32
     satisfies Flags::open_read via Binding::VtableSlot(1);
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     self.console.exit_process(70);
 }
 "#,
@@ -547,7 +554,7 @@ machine Main::main(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("external-leaf project should compile");
 
@@ -615,7 +622,7 @@ machine issue_leaf(id: u64) -> Token in Issued
     via Binding::VtableSlot(1);
 
 data Main {}
-machine Main::main(&mut self) {}
+machine Main::exercise(&mut self) {}
 "#,
     )
     .expect("write main.omg");
@@ -726,7 +733,7 @@ machine issue_leaf(id: u64) -> Token in Issued
     via Binding::VtableSlot(1);
 
 data Main {}
-machine Main::main(&mut self) {}
+machine Main::exercise(&mut self) {}
 "#,
     )
     .expect("write main.omg");
@@ -774,7 +781,7 @@ boundary trait Pair {
 machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::VtableSlot(1);
 
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     self.console.exit_process(70);
 }
 "#,
@@ -786,7 +793,7 @@ machine Main::main(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("satisfies-leaf project should compile");
 
@@ -834,7 +841,7 @@ machine SecondProvider::second(code: i32) -> i32
     satisfies Pair::second via Binding::VtableSlot(2);
 
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::exercise(&mut self) {
     self.console.exit_process(70);
 }
 "#,
@@ -846,7 +853,7 @@ machine Main::main(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        write_output: false,
     })
     .expect("separate partial provider candidates should compile");
 
@@ -902,7 +909,7 @@ SecondProviderPair: SecondProvider satisfies Pair;
 machine SecondProvider::choose() -> i32 satisfies Pair::choose { 2 }
 
 data Main {}
-machine Main::main(&mut self) {}
+machine Main::exercise(&mut self) {}
 "#,
     )
     .expect("write main.omg");
