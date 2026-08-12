@@ -351,6 +351,13 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
                 });
             }
         }
+        if declaration
+            .parents
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalServiceParents(declaration.id));
+        }
     }
     validate_service_graph(&services)?;
 
@@ -404,6 +411,9 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
                     actual: domain.carrier,
                 });
             }
+        }
+        if boundary.requires.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(ModuleError::NonCanonicalBoundaryRequirements(boundary.id));
         }
     }
 
@@ -636,6 +646,15 @@ fn validate_structural_signature(
                 });
             }
         }
+        if parameter
+            .qualifications
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalStructuralQualifications(
+                parameter.place,
+            ));
+        }
     }
     Ok(())
 }
@@ -669,6 +688,9 @@ fn validate_service_ceiling(
                 service: *service,
             });
         }
+    }
+    if ceiling.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(ModuleError::NonCanonicalPublishedServiceCeiling(owner));
     }
     Ok(())
 }
@@ -3723,6 +3745,7 @@ pub enum ModuleError {
         service: ServiceId,
         parent: ServiceId,
     },
+    NonCanonicalServiceParents(ServiceId),
     RecursiveServiceHierarchy(ServiceId),
     IncompleteServiceParentClosure {
         service: ServiceId,
@@ -3751,10 +3774,12 @@ pub enum ModuleError {
         place: PlaceId,
         domain: StructuralDomainId,
     },
+    NonCanonicalStructuralQualifications(PlaceId),
     DuplicatePublishedService {
         owner: ServiceCeilingOwner,
         service: ServiceId,
     },
+    NonCanonicalPublishedServiceCeiling(ServiceCeilingOwner),
     UnknownPublishedService {
         owner: ServiceCeilingOwner,
         service: ServiceId,
@@ -3772,6 +3797,7 @@ pub enum ModuleError {
         argument_index: u32,
         domain: StructuralDomainId,
     },
+    NonCanonicalBoundaryRequirements(BoundaryMachineId),
     StructuralParameterPlaceMismatch {
         machine: MachineId,
         place: PlaceId,
