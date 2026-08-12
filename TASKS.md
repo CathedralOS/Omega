@@ -306,8 +306,10 @@ customer-shaped compiler concept is introduced.
   mutable-reference parameter, including an attached helper's actual receiver;
   its terminal result may follow a prefix of direct immutable local `&mut`
   aliases, including results of other structurally transparent helpers.
-  Effectful/computed or recursive helper initializers and other nontrivial
-  results remain opaque. Primitive-only
+  Call-free value-shaped assignments may write through those origins without
+  changing the relation, while their ordinary frames remain published.
+  Reference-shaped assignments, nested/statement calls, computed or recursive
+  helper initializers, and other nontrivial results remain opaque. Primitive-only
   concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.
   Recursive, generic, reference-bearing, or other computed local roots remain

@@ -3067,6 +3067,41 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_value_write_helper_result_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: i32;
+        }
+
+        machine write_then_return(value: &mut i32) -> &mut i32 {
+            value = 7;
+            value
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut i32 = write_then_return(&mut self.code);
+            alias = 8;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source).expect(
+        "a call-free value write preserves its helper result origin and disjoint caller facts",
+    );
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_receiver_result_frame() {
     let source = r#"
         data Message {

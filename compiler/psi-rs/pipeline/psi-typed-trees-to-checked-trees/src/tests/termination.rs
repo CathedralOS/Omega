@@ -2821,6 +2821,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         alias
     }
 
+    machine call_then_return(value: &mut u64) -> &mut u64 {
+        overwrite_alias_binding(&mut value);
+        value
+    }
+
     machine Main::call_rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
         overwrite_alias_binding(&mut alias);
@@ -2876,6 +2881,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::recursive_alias_helper_result(&mut self) {
         let alias: &mut u64 = return_recursive_alias(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::escaping_call_then_result_alias(&mut self) {
+        let alias: &mut u64 = call_then_return(&mut self.value);
         alias = 3;
     }
 
@@ -3046,6 +3056,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::indexed_constrained_local_origin",
         "Main::indexed_local_member_after_index",
         "Main::computed_local_collection_origin",
+        "Main::effectful_computed_local_collection_origin",
     ] {
         let machine = typed
             .machines()
@@ -3073,6 +3084,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::indexed_alias_rebind", "self.other"),
         ("Main::call_produced_alias_chain", "self.value"),
         ("Main::nested_call_produced_alias_chain", "self.value"),
+        (
+            "Main::effectful_call_initialized_alias_helper_result",
+            "self.value",
+        ),
+        ("Main::nontrivial_call_result_alias", "self.value"),
         ("Main::local_alias_helper_result", "self.value"),
         (
             "Main::call_initialized_local_alias_helper_result",
@@ -3125,17 +3141,31 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         );
     }
 
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::nontrivial_attached_receiver_result_alias")
+        .expect("attached value-write helper caller");
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .expect("attached value-write helper caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(machine, entry)
+            .complete_paths(),
+        Some(["self.other".to_owned(), "self.value".to_owned()].as_slice()),
+        "the attached helper's own write and returned-alias write must both remain exact"
+    );
+
     for name in [
         "reference_bearing_named_local_origin",
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
-        "Main::effectful_call_initialized_alias_helper_result",
         "Main::recursive_alias_helper_result",
-        "Main::nontrivial_call_result_alias",
+        "Main::escaping_call_then_result_alias",
         "Main::nontrivial_call_rebound_alias",
-        "Main::effectful_computed_local_collection_origin",
-        "Main::nontrivial_attached_receiver_result_alias",
         "duplicate_parameter_alias_cycle",
         "Main::named_alias_cross_state_local",
     ] {
