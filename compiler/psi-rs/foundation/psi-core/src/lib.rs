@@ -2,9 +2,9 @@
 //!
 //! This crate deliberately has no dependency on Omega representations. Psi
 //! owns source semantics through its terminal module; Omega consumes that
-//! module later. Canonical byte encoding and semantic fingerprints are not
-//! defined here yet: the architecture freezes those only after the in-memory
-//! vocabulary has both interpreter and lowering customers.
+//! module later. Canonical artifact encoding remains outside this vocabulary;
+//! the content helper reconstructs the already-settled checked-plan identity
+//! needed for independent terminal validation.
 
 #![forbid(unsafe_code)]
 
@@ -15,7 +15,7 @@ mod proposition;
 pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    StructuralPlaceKind,
+    StructuralPlaceKind, content_conservation_fingerprint,
 };
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId, EdgeId,

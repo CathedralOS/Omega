@@ -155,7 +155,25 @@ fn claims_are_linear_across_unit_operations_and_return() {
         ModuleError::LiveLinearClaimAtUnitReturn {
             machine: machine_id(2),
             block: block_id(2),
-            claim: claim_id(2),
+            claim: claim_id(1),
+        }
+    );
+}
+
+#[test]
+fn entry_claims_are_dense_in_each_machine_local_namespace() {
+    let mut module = hard_root_module();
+    assert_eq!(module.machines[0].entry_claims[0].claim, claim_id(1));
+    assert_eq!(module.machines[1].entry_claims[0].claim, claim_id(1));
+    validate_module(&module).expect("each machine starts its claim namespace at one");
+
+    module.machines[1].entry_claims[0].claim = claim_id(2);
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::NonDenseStructuralEntryClaim {
+            machine: machine_id(2),
+            expected: claim_id(1),
+            actual: claim_id(2),
         }
     );
 }
@@ -288,7 +306,7 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
             callee: machine_id(2),
             structural_arguments: vec![StructuralArgument { place: place_id(2) }],
             claim_transfers: vec![ClaimTransfer {
-                claim: claim_id(2),
+                claim: claim_id(1),
                 argument_index: 0,
             }],
             requirement_obligations: Vec::new(),
@@ -426,7 +444,7 @@ fn hard_root_module() -> TerminalModule {
         result: TerminalMachineResult::Unit,
         structural_places: vec![structural_place(place_id(2))],
         entry_claims: vec![EntryClaim {
-            claim: claim_id(2),
+            claim: claim_id(1),
             input: place_id(2),
         }],
         published_service_ceiling: vec![port_io.id],
@@ -454,7 +472,7 @@ fn hard_root_module() -> TerminalModule {
                         boundary: boundary.id,
                         structural_arguments: vec![StructuralArgument { place: place_id(2) }],
                         claim_settlements: vec![ClaimSettlement {
-                            claim: claim_id(2),
+                            claim: claim_id(1),
                             argument_index: 0,
                         }],
                         requirement_obligations: Vec::new(),
