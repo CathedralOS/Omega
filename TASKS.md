@@ -304,11 +304,13 @@ customer-shaped compiler concept is introduced.
   indexing coarsens to the nearest collection and that coarsening is absorbing.
   A one-expression free or attached helper may relate a returned `&mut` place
   to one mutable-reference parameter, including an attached helper's actual
-  receiver; computed or nontrivial results remain opaque. Escaped aliases,
-  reference-bearing/computed local roots, unrepresentable rebinding, and
-  non-bijective cyclic transport also remain fences. Signature lifetime elision
-  alone establishes no relation. Continue with other representable candidates;
-  do not restore authored `stores` clauses.
+  receiver; computed or nontrivial results remain opaque. Primitive-only
+  concrete record/sum locals are caller-isolated through nested fixed arrays;
+  recursive, generic, reference-bearing, or computed local roots remain fences.
+  Escaped aliases, unrepresentable rebinding, and non-bijective cyclic transport
+  also remain opaque. Signature lifetime elision alone establishes no relation.
+  Continue with other representable candidates; do not restore authored
+  `stores` clauses.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.

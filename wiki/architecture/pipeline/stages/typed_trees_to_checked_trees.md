@@ -145,9 +145,10 @@ Current ownership is:
   chains retain exact member projections; an indexed reborrow through an exact
   alias retains its nearest collection, while an already-coarse alias stays
   absorbing, including across a direct member-after-index origin. An
-  alias into a primitive scalar or recursively primitive fixed-array local is
-  caller-isolated and contributes no published write; computed or
-  reference-bearing local roots remain opaque. A free or attached helper whose
+  alias into a primitive scalar, concrete primitive-only record/sum, or nested
+  fixed-array local is caller-isolated and contributes no published write;
+  recursive, generic, computed, or reference-bearing local roots remain opaque.
+  A free or attached helper whose
   entire body returns one terminal place rooted in one mutable-reference
   parameter composes exact member suffixes or absorbing collection-coarse
   indexing onto that argument's origin through its call result and later

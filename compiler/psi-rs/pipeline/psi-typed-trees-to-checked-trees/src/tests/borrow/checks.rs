@@ -3060,6 +3060,39 @@ fn accepts_static_persistent_copy_across_receiver_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_isolated_record_local_frame() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+        }
+
+        machine Main::touch_local_record(&mut self) {
+            let local: [Cell; 2] = [Cell { value: 0 }, Cell { value: 1 }];
+            let alias: &mut i32 = &mut local[0].value;
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_local_record();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a primitive-only record local contributes no caller-visible write frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_stable_rebound_alias_frame() {
     let source = r#"
         data Message {
