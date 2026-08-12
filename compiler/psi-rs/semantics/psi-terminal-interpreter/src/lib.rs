@@ -1161,6 +1161,13 @@ impl TerminalExecution {
                                 .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    for place in &successor.trivial_affine_discards {
+                        if self.structural_values.remove(place).is_none() {
+                            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                *place,
+                            ));
+                        }
+                    }
                     for (parameter, value) in target_block.parameters.iter().zip(transferred) {
                         self.values.insert(parameter.id, value);
                     }

@@ -2997,7 +2997,7 @@ fn validate_structural_frontier(
                 trivial_affine_discards,
                 ..
             } => {
-                apply_jump_trivial_affine_discards(
+                apply_edge_trivial_affine_discards(
                     machine,
                     &mut frontier,
                     *edge,
@@ -3010,10 +3010,23 @@ fn validate_structural_frontier(
                 when_false,
                 ..
             } => {
+                let mut true_frontier = frontier.clone();
+                apply_edge_trivial_affine_discards(
+                    machine,
+                    &mut true_frontier,
+                    when_true.edge,
+                    &when_true.trivial_affine_discards,
+                )?;
                 incoming
                     .entry(when_true.target)
                     .or_default()
-                    .push(frontier.clone());
+                    .push(true_frontier);
+                apply_edge_trivial_affine_discards(
+                    machine,
+                    &mut frontier,
+                    when_false.edge,
+                    &when_false.trivial_affine_discards,
+                )?;
                 incoming
                     .entry(when_false.target)
                     .or_default()
@@ -3103,7 +3116,7 @@ fn expected_trivial_affine_discards(
         .collect()
 }
 
-fn apply_jump_trivial_affine_discards(
+fn apply_edge_trivial_affine_discards(
     machine: &TerminalMachine,
     frontier: &mut StructuralOwnershipFrontier,
     edge: EdgeId,
@@ -3117,7 +3130,7 @@ fn apply_jump_trivial_affine_discards(
         }
     }
     if next != discards.len() {
-        return Err(ModuleError::JumpAffineDiscardsInvalid { edge });
+        return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
     }
     for place in discards {
         frontier.owned_places.remove(place);
@@ -4264,7 +4277,7 @@ pub enum ModuleError {
         machine: MachineId,
         block: BlockId,
     },
-    JumpAffineDiscardsInvalid {
+    EdgeAffineDiscardsInvalid {
         edge: EdgeId,
     },
     LiveLinearClaimAtScalarReturn {

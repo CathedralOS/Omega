@@ -1823,6 +1823,13 @@ fn encode_successor_edge(writer: &mut Writer, successor: &SuccessorEdge) -> Resu
     for argument in &successor.arguments {
         writer.id(*argument);
     }
+    writer.len(
+        "conditional successor trivial affine discards",
+        successor.trivial_affine_discards.len(),
+    )?;
+    for place in &successor.trivial_affine_discards {
+        writer.id(*place);
+    }
     Ok(())
 }
 
@@ -3058,6 +3065,7 @@ fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, Codec
         edge,
         target,
         arguments,
+        trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
     })
 }
 

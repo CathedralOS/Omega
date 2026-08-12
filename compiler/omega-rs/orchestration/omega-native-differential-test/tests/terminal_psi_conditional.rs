@@ -65,7 +65,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "59fae98cb448c5c7878420fe8b88974a6fde131afcade2a446cb4bdd9b1a24f6"
+        "b00c56b155766fa87578beac25fb3cfbbf67b19da2a3fbafa95f5ad23de11e75"
     );
     let bytes = encode_module(&module).expect("canonical bytes");
     let decoded = decode_module(&bytes).expect("decode canonical module");
@@ -824,11 +824,13 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![ValueId::new(2).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(3).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
@@ -966,11 +968,13 @@ fn conditional_shared_tail_module() -> TerminalModule {
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![ValueId::new(2).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(3).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
@@ -1082,11 +1086,13 @@ fn nested_constant_conditional_module() -> TerminalModule {
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![ValueId::new(2).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(3).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
@@ -1107,11 +1113,13 @@ fn nested_constant_conditional_module() -> TerminalModule {
                             edge: EdgeId::new(3).unwrap(),
                             target: BlockId::new(4).unwrap(),
                             arguments: vec![ValueId::new(4).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: EdgeId::new(4).unwrap(),
                             target: BlockId::new(5).unwrap(),
                             arguments: vec![ValueId::new(4).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
@@ -1212,11 +1220,13 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                                 ValueId::new(3).unwrap(),
                                 ValueId::new(4).unwrap(),
                             ],
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(5).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
@@ -1230,11 +1240,13 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                             edge: EdgeId::new(3).unwrap(),
                             target: BlockId::new(4).unwrap(),
                             arguments: vec![ValueId::new(7).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: EdgeId::new(4).unwrap(),
                             target: BlockId::new(5).unwrap(),
                             arguments: vec![ValueId::new(8).unwrap()],
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                 },

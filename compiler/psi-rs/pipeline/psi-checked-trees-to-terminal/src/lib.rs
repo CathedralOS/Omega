@@ -4583,11 +4583,13 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         edge: true_edge,
                         target: when_true.block,
                         arguments: when_true.arguments,
+                        trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         edge: false_edge,
                         target: when_false.block,
                         arguments: when_false.arguments,
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
             });
@@ -4695,11 +4697,13 @@ fn emit_reserved_boolean_value_blocks(
                         edge: true_edge,
                         target: when_true,
                         arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         edge: false_edge,
                         target: when_false,
                         arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
                 operation_end,
@@ -4892,11 +4896,13 @@ fn emit_reserved_boolean_tuple_stage_blocks(
                         edge: true_edge,
                         target: when_true,
                         arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         edge: false_edge,
                         target: when_false,
                         arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
                 operation_end,
@@ -5935,11 +5941,13 @@ fn build_scalar_graph_module(
                             edge: when_true_edge,
                             target: when_true.block,
                             arguments: when_true.arguments,
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: when_false_edge,
                             target: when_false.block,
                             arguments: when_false.arguments,
+                            trivial_affine_discards: Vec::new(),
                         },
                     }
                 }
@@ -6217,11 +6225,13 @@ fn build_scalar_graph_module(
                             edge: when_true_edge,
                             target: when_true.block,
                             arguments: when_true.arguments,
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             edge: when_false_edge,
                             target: when_false.block,
                             arguments: when_false.arguments,
+                            trivial_affine_discards: Vec::new(),
                         },
                     }
                 }
@@ -8143,6 +8153,73 @@ mod tests {
             panic!("first scalar block should jump")
         };
         assert!(trivial_affine_discards.is_empty());
+    }
+
+    #[test]
+    fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
+        let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
+        let parameter_expression = || LoweredDirectExpression::Boolean {
+            expression: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),
+        };
+        let states = [
+            LoweredScalarBranchState {
+                parameter_types: vec![ScalarType::Boolean],
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Conditional {
+                    condition: LoweredBooleanReturnExpression::Parameter { position: 0 },
+                    when_true_target: 1,
+                    when_true_arguments: vec![parameter_expression()],
+                    when_false_target: 2,
+                    when_false_arguments: vec![parameter_expression()],
+                },
+            },
+            LoweredScalarBranchState {
+                parameter_types: vec![ScalarType::Boolean],
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Return {
+                    expression: parameter_expression(),
+                },
+            },
+            LoweredScalarBranchState {
+                parameter_types: vec![ScalarType::Boolean],
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Return {
+                    expression: parameter_expression(),
+                },
+            },
+        ];
+        let lowered = build_scalar_graph_module(
+            &states,
+            ScalarType::Boolean,
+            None,
+            Vec::new(),
+            LoweredContentIdentityReshuffles {
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                reshuffles: Vec::new(),
+                source_claims: Vec::new(),
+            },
+            LoweredContentPartitionCompositions {
+                structural_places: Vec::new(),
+                compositions: Vec::new(),
+            },
+            machine_id(2),
+            identity_base,
+            &[],
+            &[],
+        )
+        .expect("primitive scalar conditional should lower");
+
+        let Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &lowered.semantic_module.machines[0].blocks[0].terminator
+        else {
+            panic!("first scalar block should branch")
+        };
+        assert!(when_true.trivial_affine_discards.is_empty());
+        assert!(when_false.trivial_affine_discards.is_empty());
     }
 
     fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {

@@ -792,4 +792,7 @@ pub struct SuccessorEdge {
     pub edge: EdgeId,
     pub target: BlockId,
     pub arguments: Vec<ValueId>,
+    /// Exact no-code affine discards committed only when this successor is
+    /// selected, in reverse parameter declaration order.
+    pub trivial_affine_discards: Vec<PlaceId>,
 }
