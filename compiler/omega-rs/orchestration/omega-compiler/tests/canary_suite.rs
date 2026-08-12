@@ -5617,13 +5617,8 @@ fn exact_overflow_value_call_hint_canary_is_rejected() {
     // decision-17 overflow; the diagnostic must NAME the call and point at annotating
     // the callee's return (not just the generic "constrain the operands' range").
     let canary = fail_canary("arithmetic/exact_overflow_value_call_hint");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected exact-overflow-over-value-call canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics = check_canary(&canary)
+        .expect_err("expected exact-overflow-over-value-call canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5648,13 +5643,8 @@ fn unknown_field_write_rejected_canary_is_rejected() {
     // type-check with a clear "data X has no field Y", not the misleading "not
     // mutable" or an opaque backend lowering error.
     let canary = fail_canary("arithmetic/unknown_field_write_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected unknown-field write canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected unknown-field write canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5672,13 +5662,8 @@ fn literal_class_mismatch_rejected_canary_is_rejected() {
     // type-check. This was a SILENT MISCOMPILE -- the backend stored the bool
     // literal as an integer with no error at any phase.
     let canary = fail_canary("arithmetic/literal_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected literal-class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected literal-class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5696,13 +5681,8 @@ fn member_class_mismatch_rejected_canary_is_rejected() {
     // rejected. Like the literal case this was a SILENT MISCOMPILE -- the bool
     // field was stored into the integer field with no error at any phase.
     let canary = fail_canary("arithmetic/member_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected member-class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected member-class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5720,13 +5700,8 @@ fn arg_class_mismatch_rejected_canary_is_rejected() {
     // parameter) is rejected. Like the assignment cases this was a SILENT
     // MISCOMPILE -- the bool arg reached the host encoder as a raw byte.
     let canary = fail_canary("arithmetic/arg_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected arg-class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected arg-class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5745,13 +5720,8 @@ fn value_call_arg_class_mismatch_rejected_canary_is_rejected() {
     // silent miscompile in the cross-class family -- the value-position path
     // validated only type-parameter bounds, not argument classes.
     let canary = fail_canary("arithmetic/value_call_arg_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected value-call-arg-class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected value-call-arg-class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5769,13 +5739,8 @@ fn narrowing_call_arg_rejected_canary_is_rejected() {
     // i64 (300) to an i8 state parameter was a SILENT MISCOMPILE (truncated to
     // 44); now rejected like the analogous assignment.
     let canary = fail_canary("arithmetic/narrowing_call_arg_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected narrowing-call-arg canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected narrowing-call-arg canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5793,13 +5758,8 @@ fn narrowing_value_call_arg_rejected_canary_is_rejected() {
     // (`let v: i32 = self.take_i8(self.big)`, i64 -> i8): the last silent
     // miscompile in the call-argument narrowing family, now rejected.
     let canary = fail_canary("arithmetic/narrowing_value_call_arg_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected narrowing value-call-arg canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected narrowing value-call-arg canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5818,13 +5778,8 @@ fn transition_value_overflow_rejected_canary_is_rejected() {
     // overflow proof obligation the other boundaries enforce, so the sum wrapped
     // silently. Now checked uniformly.
     let canary = fail_canary("arithmetic/transition_value_overflow_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected transition-value-overflow canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected transition-value-overflow canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5839,8 +5794,8 @@ fn transition_value_overflow_rejected_canary_is_rejected() {
 #[test]
 fn joint_add_guard_cannot_bound_a_different_operand() {
     let canary = fail_canary("arithmetic/joint_add_guard_wrong_operand");
-    let diagnostics = compile_canary_without_output(&canary)
-        .expect_err("a guard over `other` must not authorize `left + right`");
+    let diagnostics =
+        check_canary(&canary).expect_err("a guard over `other` must not authorize `left + right`");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5858,13 +5813,8 @@ fn struct_literal_class_mismatch_rejected_canary_is_rejected() {
     // field) is rejected. This was a SILENT MISCOMPILE at construction, the
     // sibling of the assignment / call-arg cross-class holes.
     let canary = fail_canary("arithmetic/struct_literal_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected struct-literal-class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected struct-literal-class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5883,13 +5833,8 @@ fn struct_literal_narrowing_rejected_canary_is_rejected() {
     // rejected. The construction check enforces the field's type width for every
     // primitive field, not only `[a..=b]`-refined ones.
     let canary = fail_canary("arithmetic/struct_literal_narrowing_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected struct-literal-narrowing canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected struct-literal-narrowing canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5908,13 +5853,8 @@ fn array_literal_element_narrowing_rejected_canary_is_rejected() {
     // into a `[i8; 3]`): a SILENT truncation (300 -> 44), now rejected. Each
     // element is checked against the array's element type.
     let canary = fail_canary("arithmetic/array_literal_element_narrowing_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected array-literal-element-narrowing canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics = check_canary(&canary)
+        .expect_err("expected array-literal-element-narrowing canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5931,13 +5871,8 @@ fn array_literal_let_init_narrowing_rejected_canary_is_rejected() {
     // Array-literal element narrowing at the LET-INITIALIZER position -- a distinct
     // wiring of the shared array-element check from the assignment one.
     let canary = fail_canary("arithmetic/array_literal_let_init_narrowing_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected array-literal let-init narrowing canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics = check_canary(&canary)
+        .expect_err("expected array-literal let-init narrowing canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5955,13 +5890,8 @@ fn let_init_class_mismatch_rejected_canary_is_rejected() {
     // SILENT MISCOMPILE (the LocalData path had the narrowing check but not the
     // class check); now every scalar value-binding position class-checks.
     let canary = fail_canary("arithmetic/let_init_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected let-init class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected let-init class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -5979,13 +5909,8 @@ fn return_value_class_mismatch_rejected_canary_is_rejected() {
     // is rejected. This was a SILENT MISCOMPILE -- the terminal `{ true }` form was
     // shape-gated, but the transition-value form was not class-checked.
     let canary = fail_canary("arithmetic/return_value_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected return-value class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected return-value class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -6004,13 +5929,8 @@ fn terminal_return_class_mismatch_rejected_canary_is_rejected() {
     // place values, so this was a SILENT MISCOMPILE; the terminal-return path now
     // class-checks place values (gated to avoid double-reporting a literal).
     let canary = fail_canary("arithmetic/terminal_return_class_mismatch_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected terminal-return class-mismatch canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics = check_canary(&canary)
+        .expect_err("expected terminal-return class-mismatch canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -6029,13 +5949,8 @@ fn wrong_struct_type_argument_rejected_canary_is_rejected() {
     // blanket-accepts a place against any Named parameter, comparing only shape not
     // the type name. The user-type complement of the cross-class scalar family.
     let canary = fail_canary("arithmetic/wrong_struct_type_argument_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected wrong-struct-type-argument canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected wrong-struct-type-argument canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -6053,13 +5968,8 @@ fn wrong_struct_type_assignment_rejected_canary_is_rejected() {
     // Foo place) is rejected -- a distinct position from the call-argument canary,
     // sharing report_data_type_conflict.
     let canary = fail_canary("arithmetic/wrong_struct_type_assignment_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected wrong-struct-type-assignment canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected wrong-struct-type-assignment canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -6077,13 +5987,8 @@ fn wrong_struct_type_array_element_rejected_canary_is_rejected() {
     // `[Foo; 2]`) is rejected -- the array element check now runs the nominal guard
     // for data element types, not only the scalar class/width check.
     let canary = fail_canary("arithmetic/wrong_struct_type_array_element_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected wrong-struct-type-array-element canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics = check_canary(&canary)
+        .expect_err("expected wrong-struct-type-array-element canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -6101,13 +6006,8 @@ fn unknown_field_read_rejected_canary_is_rejected() {
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
     // passed.
     let canary = fail_canary("arithmetic/unknown_field_read_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected unknown-field read canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        check_canary(&canary).expect_err("expected unknown-field read canary to reject");
     let combined = diagnostics
         .iter()
         .map(ToString::to_string)
