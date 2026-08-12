@@ -75,7 +75,8 @@ Remaining:
   compilation, while the hosted build-evaluation/native staging cohort selects
   an exact host-owned entry root. The native runtime-END/domained-subslice and
   positive recast/layout cohorts select exact roots across the four hosted
-  targets too; negative recast diagnostics remain checked-only. Backend
+  targets too; negative recast diagnostics and the entry-agnostic checked/
+  artifact canary cohort use production checked-only compilation. Backend
   `Main::main` discovery is deleted.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
@@ -416,13 +417,16 @@ reach or trust, and private proof improvements do not change public identity.
   validates typed direct-call outbound/link evidence against those mutations,
   derives caller-live bytes with pending temporaries, and joins the same
   acyclic closure. One bounded scalar CFG shape is also sealed: a top-level
-  Boolean-parameter conditional with two direct linear integer return arms,
-  whose exact branch is validated and whose arms replay independently by
-  maximum. Typed scalar calls within those arms reuse exact call evidence and
-  closure composition. Extend that accounting to expression conditions,
-  nested/reconvergent conditionals, crashes in arms, the external entry
-  adapter, and installed-root/provider admission before treating it as a full
-  root `StackPlan`.
+  Boolean-parameter or linear Boolean-expression condition with two direct
+  linear integer return arms. Object validation distinguishes the condition
+  branch form, requires exact x86 flag-preserving frame release and AArch64
+  `B.EQ` evidence for expression conditions, replays the balanced condition
+  prefix and both arms independently, and takes their maximum. Typed scalar
+  calls in the prefix or either arm reuse exact call evidence and closure
+  composition. Extend that accounting to nested/reconvergent conditionals,
+  crashes in arms, division/remainder expressions, the external entry adapter,
+  and installed-root/provider admission before treating it as a full root
+  `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;
