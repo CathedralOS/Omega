@@ -229,7 +229,10 @@ Remaining:
   and typed trees plus their snapshots. The executable slice supports
   non-generic transparent records, sums, and mixed common-field/case shapes,
   plus closed synthesized generic-record instances selected by explicitly typed
-  local initializers (including nested concrete record fields), and
+  local initializers (including nested concrete record fields), pure generic
+  sums with one exact closed instance per generic base (including nested
+  concrete payload records and constructor/pattern uses outside local
+  initializers), and
   non-generic plain `CheckedShape` records whose attached machines are closed
   ordinary checked bodies:
   construction elaborates an omitted exact common or selected-case erased
@@ -243,12 +246,15 @@ Remaining:
   renumbering variants; erased attached fields also create no runtime
   contained-machine topology. Ambiguous, absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
-  Expand this without compatibility scaffolding to generic-sum construction and
-  runtime use, unresolved generic construction contexts beyond annotated locals,
-  plan-laid and placed views, wire/codec and ABI classification, and attached
-  machines over generic or case-bearing data, non-checked supply modes, or
-  unresolved machine parameters; all of those shapes currently fail closed at
-  use sites.
+  Expand this without compatibility scaffolding to multiple distinct closed
+  instances of one generic sum, mixed common-field/case generic data, unresolved
+  generic record construction contexts beyond annotated locals, plan-laid
+  values, wire/codec and ABI classification, and attached machines over generic
+  or case-bearing data, non-checked supply modes, or unresolved machine
+  parameters. Plan-laid physical reflection and layout must omit erased
+  bindings while the synthetic semantic value retains their terms, obligations,
+  and identity. `Placed<P, T>` erased-evidence establishment is design-blocked
+  on owner Q8. All unsupported shapes continue to fail closed at use sites.
   Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
   Do not infer carrier relation roles from relevance.

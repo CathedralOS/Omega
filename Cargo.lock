@@ -1071,6 +1071,7 @@ dependencies = [
  "omega-state-graph",
  "psi-arena",
  "psi-checked-trees",
+ "psi-language-core",
  "psi-numerics",
  "psi-symbols",
  "psi-typed-trees",

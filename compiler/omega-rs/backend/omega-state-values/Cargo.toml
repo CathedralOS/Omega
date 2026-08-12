@@ -17,4 +17,5 @@ psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
+psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

@@ -388,10 +388,12 @@ machine UartAccess::plan(
 ```
 
 The field key is compile-time identity only. The evaluated plan has exactly one
-decision per schema field. Starting from the inaccessible plan makes zero and
-omission deny access. A fixed-capacity bootstrap representation may back this
-model until computed generic sizes are implemented, but its capacity and tail
-do not enter source semantics or normalized identity; overflow rejects.
+decision per runtime-relevant reflected schema field. An `[erased]` binding
+remains in semantic/type identity but has no physical field key or access
+decision. Starting from the inaccessible plan makes zero and omission deny
+access. A fixed-capacity bootstrap representation may back this model until
+computed generic sizes are implemented, but its capacity and tail do not enter
+source semantics or normalized identity; overflow rejects.
 
 The target field vocabulary is a sum, so invalid cross-products are not
 representable:

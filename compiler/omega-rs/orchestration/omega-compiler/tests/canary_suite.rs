@@ -25914,8 +25914,15 @@ fn runtime_generic_multiple_specializations_exit_canary_runs() {
 #[test]
 fn runtime_generic_enum_payload_exit_canary_runs() {
     // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
-    // matched, and destructured natively -- the Option<T> shape. Exit 70 via the payload.
+    // matched, and destructured natively -- the Option<T> shape. Its erased evidence payload
+    // remains semantic but takes no runtime storage. Exit 70 via the material payload.
     let canary = pass_canary("generics/runtime_generic_enum_payload_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("generic enum payload canary should reach checked semantics");
+    let interpreted = psi_checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
     let build_dir = std::env::temp_dir().join(format!("omega-gen-enum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {

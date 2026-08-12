@@ -132,3 +132,21 @@ cannot be mistaken for reconstruction assurance. If the Rust verifier is made
 explicitly trusted, its enumerable primitive judgments and artifact-decoding
 dependencies must enter the executable trust ledger rather than being implied by
 successful certificate checks.
+
+## Q8 — Erased-evidence establishment for placed views
+
+`Placed<P, T>` may interpret backing as a semantic `T` whose declaration
+contains `[erased]` fields. The settled representation law gives those bindings
+no offset, size, or transfer, and admission proves only demand/supply
+compatibility; it does not establish that `T` or its erased terms inhabit the
+place. The current design does not say how Stable adopt/initialize/validate or
+External adopt supplies those exact terms.
+
+Choose the source contract and checked representation that establishes each
+erased binding on every placement-establishment route. The decision must bind
+evidence to the exact nominal `T`, normalized placement,
+extent/content/revision, and source or provider derivation; define projection,
+multiplicity, lifetime, provenance, retirement, and invalidation under permitted
+writes; and prevent raw bytes, admission alone, or a layout/access policy from
+manufacturing proof. Physical `LayoutPlan`, `AccessPlan`, offsets, and transfers
+remain erased-stripped.

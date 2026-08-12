@@ -1,30 +1,18 @@
-//! GENERIC DATA MONOMORPHIZATION -- Phase 1 (per-instance layout via
-//! pre-resolution desugar). A field `b: Box<i32>;` where `data Box<T> { value:
-//! T }` is a genuine generic definition is rewritten to a synthesized concrete
-//! record `data Box<i32> { value: i32 }` -- the type parameter substituted for
-//! the spelled argument. `Box<i32>` and `Box<bool>` become DISTINCT plain
-//! types, so symbol resolution, typing, validation, and the native layout
-//! builder all see ordinary records: two coexisting instances instead of the
-//! layout builder's one-slot poison. Per-instance monomorphization, no
-//! unification (the argument is always spelled) -- Zach's settled design.
+//! Closed generic-data synthesis before resolution. A spelled `Box<i32>` is
+//! rewritten to a concrete nominal `data Box<i32> { value: i32 }`, so every
+//! downstream semantic and native phase sees one exact closed definition
+//! rather than a generic definition plus ambient instance bindings.
 //!
-//! This is the same shape as `plan_laid`'s desugar (synthesize a per-spelling
-//! instance definition, rewrite the field's type reference to its plain name),
-//! plus the one addition generics need: SUBSTITUTE the type parameter inside
-//! the copied members.
-//!
-//! PURELY ADDITIVE. Phase 1 monomorphizes only the cases it can lower
-//! completely; every other generic spelling is LEFT UNTOUCHED for the existing
-//! type-check-only path (which handles single instantiations, generic enums,
-//! and domain-typed arguments today). So this never regresses a working
-//! program -- it only lifts the layout builder's one-slot POISON for the clean
-//! case (two `plain-record<sluggable-arg>` instantiations that previously
-//! collided). Sluggable arguments are a plain concrete `Named` type OR a
+//! The executable cohort includes fully substitutable records and pure sums.
+//! Records may have multiple distinct closed instances. A pure sum admits one
+//! distinct closed instance per generic base until every constructor and
+//! pattern occurrence carries its closed identity directly; a second distinct
+//! instance rejects instead of falling through to a legacy layout path.
+//! Sluggable arguments are a plain concrete `Named` type OR a
 //! `Named` carrying only nameable domain constraints (`Box<i32 in Wrapping>`,
 //! `Store<u8 in Utf8>`) -- the substitution rides the argument's own type
-//! reference, so the domain follows the field for free. What it skips (later
-//! phases, or the pre-existing poison for a second such instantiation): generic
-//! ENUMS (`case` members), genuinely composite ARGUMENTS (`Box<[i32; 4]>`,
+//! reference, so the domain follows the field for free. What it skips: mixed
+//! record/case data, genuinely composite ARGUMENTS (`Box<[i32; 4]>`,
 //! `Box<&T>`, a range-bounded arg), and a field that nests the parameter under a
 //! NON-generic composite (`[T; N]`, `&T`). A field nesting the parameter under
 //! ANOTHER generic (`Pair<T> { a: Box<T> }`) IS handled (Phase 3): the desugar
@@ -73,6 +61,12 @@ struct Instantiation {
     synthetic_name: String,
     base_name: String,
     argument_handles: Vec<TypeReferenceHandle>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GenericDataShape {
+    Record,
+    PureSum,
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a
@@ -272,6 +266,7 @@ pub(crate) fn desugar_generic_data_instances(
     // spellings are finite.
     let mut synthesized: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut synthesized_origins: HashMap<String, String> = HashMap::new();
+    let mut synthesized_sum_instances: HashMap<String, String> = HashMap::new();
     loop {
         let positions = collect_type_reference_positions(syntax);
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
@@ -290,6 +285,22 @@ pub(crate) fn desugar_generic_data_instances(
         }
         if rewrites.is_empty() {
             break; // no more monomorphizable generic spellings
+        }
+        for instance in &instantiations {
+            let base_info = &generic_data[&instance.base_name];
+            if generic_data_shape(syntax, base_info) != Some(GenericDataShape::PureSum) {
+                continue;
+            }
+            if let Some(existing) = synthesized_sum_instances.get(&instance.base_name)
+                && existing != &instance.synthetic_name
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "generic sum `{}` is used with distinct closed instances `{existing}` and `{}`; this executable slice requires one exact closed instance per generic sum",
+                    instance.base_name, instance.synthetic_name
+                ))]);
+            }
+            synthesized_sum_instances
+                .insert(instance.base_name.clone(), instance.synthetic_name.clone());
         }
         // Synthesize each not-yet-built instance: the base's members cloned with
         // the type parameters substituted for the arguments.
@@ -530,7 +541,8 @@ pub(crate) fn desugar_generic_data_instances(
         }
     }
 
-    relabel_closed_record_literals_in_annotated_locals(syntax, &synthesized_origins);
+    relabel_closed_data_uses_in_annotated_locals(syntax, &synthesized_origins);
+    relabel_unique_closed_sum_paths(syntax, &synthesized_sum_instances);
 
     normalize_generic_template_const_expressions(syntax, &const_values)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -542,7 +554,7 @@ pub(crate) fn desugar_generic_data_instances(
 /// `let value: Box<i32> = Box { ... }` (and record literals nested beneath that
 /// known destination shape) are rewritten. Calls, returns, assignments, generic
 /// sums, and literals without an annotated local destination remain untouched.
-fn relabel_closed_record_literals_in_annotated_locals(
+fn relabel_closed_data_uses_in_annotated_locals(
     syntax: &mut SyntaxTrees,
     synthesized_origins: &HashMap<String, String>,
 ) {
@@ -568,7 +580,7 @@ fn relabel_closed_record_literals_in_annotated_locals(
         .collect::<Vec<_>>();
 
     for (expected_type, expression) in locals {
-        relabel_record_literal_for_expected_type(
+        relabel_data_literal_for_expected_type(
             syntax,
             expression,
             expected_type,
@@ -577,7 +589,7 @@ fn relabel_closed_record_literals_in_annotated_locals(
     }
 }
 
-fn relabel_record_literal_for_expected_type(
+fn relabel_data_literal_for_expected_type(
     syntax: &mut SyntaxTrees,
     expression: ExpressionHandle,
     expected_type: TypeReferenceHandle,
@@ -616,12 +628,9 @@ fn relabel_record_literal_for_expected_type(
     };
 
     let literal_names_expected = literal.type_name.as_str() == expected_name.as_str();
-    let literal_names_generic_origin =
-        synthesized_origins
-            .get(expected_name.as_str())
-            .is_some_and(|base| {
-                literal.case_name.is_none() && literal.type_name.as_str() == base.as_str()
-            });
+    let literal_names_generic_origin = synthesized_origins
+        .get(expected_name.as_str())
+        .is_some_and(|base| literal.type_name.as_str() == base.as_str());
     if !literal_names_expected && !literal_names_generic_origin {
         return;
     }
@@ -674,12 +683,233 @@ fn relabel_record_literal_for_expected_type(
         else {
             continue;
         };
-        relabel_record_literal_for_expected_type(
+        relabel_data_literal_for_expected_type(
             syntax,
             field.value,
             *field_type,
             synthesized_origins,
         );
+    }
+}
+
+/// A pure generic sum is admitted with exactly one closed instance per base in
+/// this slice. That makes every remaining `Base::Case` constructor and pattern
+/// path unambiguous: rewrite it to the synthesized nominal identity before
+/// symbol resolution. Generic template bodies are excluded because their case
+/// paths remain parameterized declarations, not concrete uses.
+fn relabel_unique_closed_sum_paths(
+    syntax: &mut SyntaxTrees,
+    synthesized_sum_instances: &HashMap<String, String>,
+) {
+    if synthesized_sum_instances.is_empty() {
+        return;
+    }
+
+    let template_expressions = generic_template_expression_handles(syntax);
+    let replacements = syntax
+        .expressions
+        .iter_expressions()
+        .filter(|(handle, _)| !template_expressions.contains(&handle.arena_index()))
+        .filter_map(|(handle, expression)| {
+            let (path, kind) = match expression {
+                ExpressionNode::Name(path) => (*path, SumPathExpressionKind::Name),
+                ExpressionNode::Membership(membership) => (
+                    membership.domain,
+                    SumPathExpressionKind::Membership(membership.value),
+                ),
+                ExpressionNode::StructLiteral(literal) if literal.case_name.is_some() => {
+                    let closed = synthesized_sum_instances.get(literal.type_name.as_str())?;
+                    return Some((
+                        handle,
+                        SumPathExpressionKind::StructLiteral(literal.clone()),
+                        closed.clone(),
+                        literal.case_name.clone().expect("case literal"),
+                    ));
+                }
+                _ => return None,
+            };
+            let [base, case] = syntax.expressions.identifier_path_members(path) else {
+                return None;
+            };
+            let closed = synthesized_sum_instances.get(base.as_str())?;
+            Some((handle, kind, closed.clone(), case.clone()))
+        })
+        .collect::<Vec<_>>();
+
+    for (handle, kind, closed, case) in replacements {
+        let replacement = match kind {
+            SumPathExpressionKind::Name => {
+                ExpressionNode::Name(closed_sum_path(syntax, &closed, case))
+            }
+            SumPathExpressionKind::Membership(value) => ExpressionNode::Membership(
+                psi_syntax_trees::expression::TableMembershipExpression {
+                    value,
+                    domain: closed_sum_path(syntax, &closed, case),
+                },
+            ),
+            SumPathExpressionKind::StructLiteral(mut literal) => {
+                literal.type_name = Identifier::generated(closed);
+                ExpressionNode::StructLiteral(literal)
+            }
+        };
+        syntax.expressions.replace_expression(handle, replacement);
+    }
+}
+
+fn closed_sum_path(
+    syntax: &mut SyntaxTrees,
+    closed: &str,
+    case: Identifier,
+) -> HandleSpan<Identifier> {
+    let mut path = HandleSpan::empty();
+    syntax
+        .expressions
+        .append_identifier_path_member_to_span(&mut path, Identifier::generated(closed));
+    syntax
+        .expressions
+        .append_identifier_path_member_to_span(&mut path, case);
+    path
+}
+
+#[derive(Clone)]
+enum SumPathExpressionKind {
+    Name,
+    Membership(ExpressionHandle),
+    StructLiteral(psi_syntax_trees::expression::TableStructLiteral),
+}
+
+fn generic_template_expression_handles(syntax: &SyntaxTrees) -> HashSet<u32> {
+    let mut handles = HashSet::new();
+    for item in syntax.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        if machine.type_parameters.is_empty()
+            && machine.attached_data.as_ref().is_none_or(|attached| {
+                syntax.root_items().all(|item| {
+                    !matches!(item, Item::Data(definition)
+                        if definition.name == *attached && !definition.type_parameters.is_empty())
+                })
+            })
+        {
+            continue;
+        }
+        for state in syntax.tables.items.state_handles(machine.states) {
+            let state = syntax.tables.items.state(*state);
+            for statement in syntax.tables.items.statements(state.statements) {
+                collect_statement_expression_handles(syntax, *statement, &mut handles);
+            }
+        }
+    }
+    handles
+}
+
+fn collect_statement_expression_handles(
+    syntax: &SyntaxTrees,
+    statement: psi_syntax_trees::statement::StatementHandle,
+    handles: &mut HashSet<u32>,
+) {
+    use psi_syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+    match syntax.tables.statements.statement(statement) {
+        StatementNode::AssemblyFact(fact) => {
+            collect_expression_handles(syntax, fact.expression, handles)
+        }
+        StatementNode::Assignment(assignment) => {
+            collect_expression_handles(syntax, assignment.target, handles);
+            collect_expression_handles(syntax, assignment.value, handles);
+        }
+        StatementNode::Call(call) => {
+            for argument in syntax.tables.statements.expression_handles(call.arguments) {
+                collect_expression_handles(syntax, *argument, handles);
+            }
+        }
+        StatementNode::Expression(expression) => {
+            collect_expression_handles(syntax, *expression, handles)
+        }
+        StatementNode::LocalData(local) => {
+            collect_expression_handles(syntax, local.initial_value, handles)
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                collect_expression_handles(syntax, guard, handles);
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match syntax.tables.statements.transition_target(target) {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        for argument in syntax.tables.statements.expression_handles(*arguments) {
+                            collect_expression_handles(syntax, *argument, handles);
+                        }
+                    }
+                    TransitionTargetNode::Value(value) => {
+                        collect_expression_handles(syntax, *value, handles)
+                    }
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+}
+
+fn collect_expression_handles(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    handles: &mut HashSet<u32>,
+) {
+    if !expression.is_valid() || !handles.insert(expression.arena_index()) {
+        return;
+    }
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::ArrayLiteral(expressions) => {
+            for expression in syntax.expressions.expression_handles(*expressions) {
+                collect_expression_handles(syntax, *expression, handles);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_handles(syntax, atomic.value, handles);
+            collect_expression_handles(syntax, atomic.result, handles);
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_handles(syntax, binary.left, handles);
+            collect_expression_handles(syntax, binary.right, handles);
+        }
+        ExpressionNode::Cast(cast) => collect_expression_handles(syntax, cast.value, handles),
+        ExpressionNode::Call(call) => {
+            collect_expression_handles(syntax, call.receiver, handles);
+            for argument in syntax.expressions.expression_handles(call.arguments) {
+                collect_expression_handles(syntax, *argument, handles);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression_handles(syntax, indexed.collection, handles);
+            collect_expression_handles(syntax, indexed.index, handles);
+        }
+        ExpressionNode::Membership(membership) => {
+            collect_expression_handles(syntax, membership.value, handles)
+        }
+        ExpressionNode::Member(member) => {
+            collect_expression_handles(syntax, member.receiver, handles)
+        }
+        ExpressionNode::Mutable(inner) => collect_expression_handles(syntax, *inner, handles),
+        ExpressionNode::Range(range) => {
+            collect_expression_handles(syntax, range.start, handles);
+            collect_expression_handles(syntax, range.end, handles);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in syntax.expressions.struct_fields(literal.fields) {
+                collect_expression_handles(syntax, field.value, handles);
+            }
+        }
+        ExpressionNode::Unary(unary) => collect_expression_handles(syntax, unary.operand, handles),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::SelfValue
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 
@@ -2102,8 +2332,17 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
             // machine bodies hold real `Box<i32>` spellings.
             Item::Data(definition) if definition.type_parameters.is_empty() => {
                 for member in syntax.tables.items.data_members(definition.members) {
-                    if let DataMember::Field(field) = member {
-                        positions.push(field.type_reference);
+                    match member {
+                        DataMember::Field(field) => positions.push(field.type_reference),
+                        DataMember::Variant(variant) => positions.extend(
+                            syntax
+                                .tables
+                                .items
+                                .data_payload_fields(variant.payload)
+                                .iter()
+                                .map(|field| field.type_reference),
+                        ),
+                        DataMember::Retired(_) => {}
                     }
                 }
             }
@@ -2730,12 +2969,10 @@ fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
     }
 }
 
-/// Whether the base generic is a PLAIN RECORD each of whose fields Phase 1/3 can
-/// substitute soundly. A `case`/version member fails. A field may be exactly the
-/// parameter, a concrete Named, a parameter-free composite, or a NESTED generic
-/// `Base<Args..>` of a KNOWN generic whose arguments are each a parameter or
-/// parameter-free (`Pair<T> { a: Box<T> }`) -- the fixpoint monomorphizes the
-/// concrete `Box<i32>` the substitution produces.
+/// Whether every field of a record or pure sum can be substituted soundly. A
+/// field may be exactly the parameter, a concrete Named, a parameter-free
+/// composite, or a nested known generic whose arguments are substitutable.
+/// Mixed common-field/case shapes remain outside this closed cohort.
 fn base_is_fully_monomorphizable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<String, GenericData>,
@@ -2746,73 +2983,108 @@ fn base_is_fully_monomorphizable(
         .iter()
         .map(|name| (name.clone(), TypeReferenceHandle::default()))
         .collect();
+    let Some(shape) = generic_data_shape(syntax, base_info) else {
+        return false;
+    };
     syntax
         .tables
         .items
         .data_members(base_info.members)
         .iter()
-        .all(|member| {
-            let DataMember::Field(field) = member else {
-                return false; // case/version member
-            };
-            match syntax
-                .tables
-                .type_references
-                .type_reference(field.type_reference)
-            {
-                // exactly the parameter, or a concrete Named -> fine.
-                TypeReferenceNode::Named(_) => true,
-                // a nested generic of a KNOWN base whose args are each the
-                // parameter or parameter-free -> substitution yields a concrete
-                // `Base<concretes>` the fixpoint picks up.
-                TypeReferenceNode::Generic {
-                    base_name,
-                    arguments,
-                    ..
-                } => {
-                    generic_data.contains_key(base_name.as_str())
-                        && syntax
-                            .tables
-                            .type_references
-                            .type_reference_handles(*arguments)
-                            .iter()
-                            .all(|&argument| {
-                                matches!(
-                                    syntax.tables.type_references.type_reference(argument),
-                                    TypeReferenceNode::Named(_)
-                                        | TypeReferenceNode::ConstExpression(_)
-                                ) || !type_reference_mentions_parameter(
-                                    syntax,
-                                    argument,
-                                    &parameters,
-                                )
-                            })
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } => {
-                    let element_is_substitutable =
-                        matches!(
-                            syntax.tables.type_references.type_reference(*element_type),
-                            TypeReferenceNode::Named(_)
-                        ) || !type_reference_mentions_parameter(syntax, *element_type, &parameters);
-                    let length_is_substitutable = match length {
-                        FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall(_) => true,
-                        FixedArrayLength::ConstParameter(name) => base_info
-                            .parameter_names
-                            .iter()
-                            .zip(&base_info.const_parameter_types)
-                            .any(|(parameter_name, parameter_type)| {
-                                parameter_type.is_some() && parameter_name == name.as_str()
-                            }),
-                    };
-                    element_is_substitutable && length_is_substitutable
-                }
-                // any other node is fine only if it does NOT nest a parameter.
-                _ => !type_reference_mentions_parameter(syntax, field.type_reference, &parameters),
+        .all(|member| match member {
+            DataMember::Field(field) if shape == GenericDataShape::Record => {
+                type_reference_is_substitutable(syntax, generic_data, base_info, field, &parameters)
             }
+            DataMember::Variant(variant) if shape == GenericDataShape::PureSum => syntax
+                .tables
+                .items
+                .data_payload_fields(variant.payload)
+                .iter()
+                .all(|field| {
+                    type_reference_is_substitutable(
+                        syntax,
+                        generic_data,
+                        base_info,
+                        field,
+                        &parameters,
+                    )
+                }),
+            DataMember::Retired(_) => true,
+            _ => false,
         })
+}
+
+fn generic_data_shape(syntax: &SyntaxTrees, base_info: &GenericData) -> Option<GenericDataShape> {
+    let mut has_fields = false;
+    let mut has_variants = false;
+    for member in syntax.tables.items.data_members(base_info.members) {
+        match member {
+            DataMember::Field(_) => has_fields = true,
+            DataMember::Variant(_) => has_variants = true,
+            DataMember::Retired(_) => {}
+        }
+    }
+    match (has_fields, has_variants) {
+        (true, false) | (false, false) => Some(GenericDataShape::Record),
+        (false, true) => Some(GenericDataShape::PureSum),
+        (true, true) => None,
+    }
+}
+
+fn type_reference_is_substitutable(
+    syntax: &SyntaxTrees,
+    generic_data: &HashMap<String, GenericData>,
+    base_info: &GenericData,
+    field: &psi_syntax_trees::item::DataField,
+    parameters: &HashMap<String, TypeReferenceHandle>,
+) -> bool {
+    match syntax
+        .tables
+        .type_references
+        .type_reference(field.type_reference)
+    {
+        TypeReferenceNode::Named(_) => true,
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            generic_data.contains_key(base_name.as_str())
+                && syntax
+                    .tables
+                    .type_references
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .all(|&argument| {
+                        matches!(
+                            syntax.tables.type_references.type_reference(argument),
+                            TypeReferenceNode::Named(_) | TypeReferenceNode::ConstExpression(_)
+                        ) || !type_reference_mentions_parameter(syntax, argument, parameters)
+                    })
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let element_is_substitutable =
+                matches!(
+                    syntax.tables.type_references.type_reference(*element_type),
+                    TypeReferenceNode::Named(_)
+                ) || !type_reference_mentions_parameter(syntax, *element_type, parameters);
+            let length_is_substitutable = match length {
+                FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall(_) => true,
+                FixedArrayLength::ConstParameter(name) => base_info
+                    .parameter_names
+                    .iter()
+                    .zip(&base_info.const_parameter_types)
+                    .any(|(parameter_name, parameter_type)| {
+                        parameter_type.is_some() && parameter_name == name.as_str()
+                    }),
+            };
+            element_is_substitutable && length_is_substitutable
+        }
+        _ => !type_reference_mentions_parameter(syntax, field.type_reference, parameters),
+    }
 }
 
 /// Clone a member with the type parameters substituted. Only reached for a base
@@ -2826,9 +3098,44 @@ fn substitute_member(
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
 ) -> DataMember {
-    let DataMember::Field(mut field) = member else {
-        return member;
-    };
+    match member {
+        DataMember::Field(field) => DataMember::Field(substitute_data_field(
+            syntax,
+            field,
+            substitution,
+            const_values,
+        )),
+        DataMember::Variant(mut variant) => {
+            let payload = syntax
+                .tables
+                .items
+                .data_payload_fields(variant.payload)
+                .to_vec();
+            let mut first = Handle::invalid();
+            let mut count = 0u32;
+            for field in payload {
+                let field = substitute_data_field(syntax, field, substitution, const_values);
+                let handle = syntax.tables.items.append_data_payload_field(field);
+                if count == 0 {
+                    first = handle;
+                }
+                count = count
+                    .checked_add(1)
+                    .expect("generic sum payload field count overflow");
+            }
+            variant.payload = HandleSpan::from_parts(first, count);
+            DataMember::Variant(variant)
+        }
+        DataMember::Retired(identity) => DataMember::Retired(identity),
+    }
+}
+
+fn substitute_data_field(
+    syntax: &mut SyntaxTrees,
+    mut field: psi_syntax_trees::item::DataField,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_values: &HashMap<String, i128>,
+) -> psi_syntax_trees::item::DataField {
     let node = syntax
         .tables
         .type_references
@@ -2947,7 +3254,7 @@ fn substitute_member(
         }
         _ => {} // parameter-free composite: shared unchanged
     }
-    DataMember::Field(field)
+    field
 }
 
 /// Whether a type reference mentions any of the substituted parameter names
@@ -3279,6 +3586,282 @@ mod tests {
             "#,
             "no unique accessible nullary constructor",
         );
+    }
+
+    #[test]
+    fn closed_generic_sum_preserves_payload_relevance_and_identities() {
+        let source = r#"
+            data Evidence { case Only; }
+            data Maybe<T> {
+                case #1 None;
+                case #2 Some(#1 value: T, #2 proof [erased]: Evidence, retired #3);
+                retired #4;
+            }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some { value: 7 };
+                0
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize pure sum");
+
+        let definition = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(definition) if definition.name.as_str() == "Maybe<i32>" => {
+                    Some(definition)
+                }
+                _ => None,
+            })
+            .expect("closed Maybe definition");
+        assert!(definition.type_parameters.is_empty());
+        let members = syntax.items.data_members(definition.members);
+        assert!(
+            matches!(members[0], DataMember::Variant(ref variant) if variant.identity == Some(1))
+        );
+        let DataMember::Variant(some) = &members[1] else {
+            panic!("Some variant");
+        };
+        assert_eq!(some.identity, Some(2));
+        assert_eq!(some.retired_payload_identities, [3]);
+        let payload = syntax.items.data_payload_fields(some.payload);
+        assert_eq!(payload.len(), 2);
+        assert_eq!(payload[0].identity, Some(1));
+        assert_eq!(payload[1].identity, Some(2));
+        assert!(payload[1].relevance.is_erased());
+        assert!(matches!(
+            syntax.type_references.type_reference(payload[0].type_reference),
+            TypeReferenceNode::Named(name) if name.as_str() == "i32"
+        ));
+        assert!(matches!(members[2], DataMember::Retired(4)));
+
+        let ExpressionNode::StructLiteral(literal) = local_initializer(&syntax, "maybe") else {
+            panic!("Maybe::Some literal");
+        };
+        assert_eq!(literal.type_name.as_str(), "Maybe<i32>");
+        assert_eq!(
+            literal.case_name.as_ref().map(|name| name.as_str()),
+            Some("Some")
+        );
+    }
+
+    #[test]
+    fn closed_generic_erased_sum_elaborates_and_lays_out_material_payload_only() {
+        let checked = checked(
+            r#"
+            data Evidence { case Only; case WithPayload(value: i32); }
+            data Maybe<T> {
+                case None;
+                case Some(value: T, proof [erased]: Evidence);
+                case ProvenOnly(proof [erased]: Evidence);
+            }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some { value: 7 };
+                transition maybe {
+                    Maybe::Some { value, proof as _ } -> value
+                    Maybe::None -> 0
+                    Maybe::ProvenOnly { proof as _ } -> 1
+                }
+            }
+            "#,
+        )
+        .expect("closed generic erased sum should check");
+
+        let definition = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Maybe<i32>")
+            .expect("closed Maybe definition");
+        assert!(definition.type_parameters.is_empty());
+        let some = checked
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                psi_checked_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == "Some" =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+            .expect("Some variant");
+        assert_eq!(checked.data_payload_fields(some).len(), 2);
+
+        let layout = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let maybe = layout
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Maybe<i32>")
+            .expect("closed Maybe layout");
+        let DataShape::Enum { variants, .. } = maybe.shape else {
+            panic!("closed Maybe should have sum layout");
+        };
+        let variants = layout.variants.span_or_empty(variants);
+        assert_eq!(variants.len(), 3);
+        assert_eq!(layout.fields.span_or_empty(variants[1].fields).len(), 1);
+        assert!(layout.fields.span_or_empty(variants[2].fields).is_empty());
+    }
+
+    #[test]
+    fn closed_generic_sum_payload_reaches_nested_record_fixpoint() {
+        let checked = checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; }
+            data Maybe<T> {
+                case None;
+                case Some(boxed: Box<T>, proof [erased]: Evidence);
+            }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some {
+                    boxed: Box { value: 7 },
+                };
+                transition maybe {
+                    Maybe::Some { boxed, proof as _ } -> boxed.value
+                    Maybe::None -> 0
+                }
+            }
+            "#,
+        )
+        .expect("a nested closed payload should reach the synthesis fixpoint");
+
+        for expected in ["Maybe<i32>", "Box<i32>"] {
+            assert!(
+                checked
+                    .data_definitions()
+                    .iter()
+                    .any(|definition| definition.name.as_str() == expected
+                        && definition.type_parameters.is_empty()),
+                "expected closed definition {expected}"
+            );
+        }
+        let maybe = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Maybe<i32>")
+            .expect("closed Maybe definition");
+        let some = checked
+            .data_members(maybe)
+            .iter()
+            .find_map(|member| match member {
+                psi_checked_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == "Some" =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+            .expect("Some variant");
+        let boxed = &checked.data_payload_fields(some)[0];
+        assert!(matches!(
+            checked
+                .type_reference_table
+                .type_reference(boxed.type_reference),
+            psi_checked_trees::types::TypeReferenceNode::Named { name, .. }
+                if name.as_str() == "Box<i32>"
+        ));
+    }
+
+    #[test]
+    fn closed_generic_sum_requires_explicit_generic_evidence() {
+        rejected(
+            r#"
+            data Evidence<U> { case Only; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence<i32>); }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some { value: 7 };
+                0
+            }
+            "#,
+            "no unique accessible nullary constructor",
+        );
+    }
+
+    #[test]
+    fn closed_generic_sum_accepts_explicit_generic_evidence() {
+        checked(
+            r#"
+            data Evidence<U> { case Only; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence<i32>); }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some {
+                    value: 7,
+                    proof: Evidence::Only,
+                };
+                transition maybe {
+                    Maybe::Some { value, proof as _ } -> value
+                    Maybe::None -> 0
+                }
+            }
+            "#,
+        )
+        .expect("an explicit closed generic evidence term should remain valid");
+    }
+
+    #[test]
+    fn closed_generic_sum_erased_payload_cannot_drive_runtime_data() {
+        rejected(
+            r#"
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: i32); }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some { value: 7, proof: 9 };
+                transition maybe {
+                    Maybe::Some { value as _, proof } -> proof
+                    Maybe::None -> 0
+                }
+            }
+            "#,
+            "has no runtime value, address, read, write, or cleanup",
+        );
+    }
+
+    #[test]
+    fn closed_generic_sum_retains_erased_linear_payload_obligation() {
+        rejected(
+            r#"
+            data Receipt [linear] { case Issued; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Receipt); }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some { value: 7, proof: Receipt::Issued };
+                0
+            }
+            "#,
+            "linear value `maybe",
+        );
+    }
+
+    #[test]
+    fn mixed_generic_sum_remains_fail_closed() {
+        rejected(
+            r#"
+            data Mixed<T> { common [erased]: i32; case None; case Some(value: T); }
+            machine run() -> i32 {
+                let mixed: Mixed<i32> = Mixed::Some { common: 1, value: 7 };
+                0
+            }
+            "#,
+            "requires a closed monomorphized instance",
+        );
+    }
+
+    #[test]
+    fn distinct_closed_instances_of_one_generic_sum_reject() {
+        let source = r#"
+            data Maybe<T> { case None; case Some(value: T); }
+            data Holder { integer: Maybe<i32>; boolean: Maybe<bool>; }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+        let diagnostics = desugar_generic_data_instances(&mut syntax)
+            .expect_err("two closed sum instances must reject in this slice");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("requires one exact closed instance per generic sum")
+        }));
     }
 
     #[test]
