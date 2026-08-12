@@ -154,12 +154,15 @@ Current ownership is:
   collection-coarse indexing onto that argument's origin through its call
   result and later transparent chains. The terminal place may follow a prefix
   of direct immutable local `&mut` aliases, including results of other
-  structurally transparent helpers. Assignments, effectful/computed
-  initializers, and recursive helper relations remain opaque. For an attached
-  helper, its actual receiver supplies the caller origin when the result is
-  rooted in `self`. Other nontrivial results remain opaque; signature lifetime
-  elision alone is not relational frame evidence. An unsummarized body falls
-  back to its receiver plus every potentially exclusive place argument.
+  structurally transparent helpers. Call-free value-shaped assignments may
+  write through those origins without changing the relation; their ordinary
+  exact frames remain published. Reference-shaped assignments,
+  nested/statement calls, computed initializers, and recursive helper relations
+  remain opaque. For an attached helper, its actual receiver supplies the
+  caller origin when the result is rooted in `self`. Other nontrivial results
+  remain opaque; signature lifetime elision alone is not relational frame
+  evidence. An unsummarized body falls back to its receiver plus every
+  potentially exclusive place argument.
   Frames whose places cannot be represented remain all-facts fences. Other
   writes into attached or machine-owned persistent storage remain fail-closed
   until
