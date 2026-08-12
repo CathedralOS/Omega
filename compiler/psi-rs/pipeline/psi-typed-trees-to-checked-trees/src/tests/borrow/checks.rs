@@ -3027,6 +3027,39 @@ fn accepts_static_persistent_copy_across_attached_transparent_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_receiver_result_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: i32;
+        }
+
+        machine Main::code_alias(&mut self) -> &mut i32 {
+            &mut self.code
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut i32 = self.code_alias();
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("an exact receiver-rooted result preserves its disjoint caller frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_stable_rebound_alias_frame() {
     let source = r#"
         data Message {

@@ -1715,10 +1715,10 @@ fn stable_alias_place_origin(
 /// Recover one deliberately structural value-call relation. The helper may be
 /// free or attached, but must be acyclic at the result surface, return `&mut`,
 /// and have one terminal result expression that is a direct place rooted in one
-/// explicit mutable-reference parameter. An attached receiver is deliberately
-/// not a result origin in this rung. This is body evidence, not lifetime
-/// elision: a computed result, nested call, named-state route, or alternate
-/// result fails closed.
+/// mutable-reference parameter. Explicit arguments and an attached helper's
+/// actual receiver both supply exact caller origins. This is body evidence, not
+/// lifetime elision: a computed result, nested call, named-state route, or
+/// alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1757,36 +1757,56 @@ fn transparent_call_result_origin(
     let result_origin = frame_place_path(program, *result)?;
     let result_root_symbol = frame_place_root_symbol(program, *result)?;
     let (result_root, result_suffix) = split_place_root(&result_origin.path);
-    let (argument_index, _) = program
-        .state_parameters(callee_state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-        .find(|(_, parameter)| {
-            matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                TypeReferenceNode::Reference {
-                    is_mutable: true,
-                    ..
-                }
-            ) && parameter.name.as_str() == result_root
-                && parameter.symbol == result_root_symbol
-        })?;
-    let argument = *program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(argument_index)?;
-    let argument_origin = stable_alias_expression_origin(
-        program,
-        argument,
-        caller_parameters,
-        isolated_local_roots,
-        aliases,
-        symbols,
-        false,
-    )?;
+    let parameters = program.state_parameters(callee_state);
+    let receiver_parameter = parameters.iter().find(|parameter| {
+        parameter.is_self
+            && mutable_reference_parameter_matches_result_root(
+                program,
+                parameter,
+                result_root,
+                result_root_symbol,
+            )
+    });
+    let argument_origin = if receiver_parameter.is_some() {
+        if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
+            return None;
+        }
+        stable_alias_expression_origin(
+            program,
+            call.receiver,
+            caller_parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            false,
+        )?
+    } else {
+        let (argument_index, _) = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .enumerate()
+            .find(|(_, parameter)| {
+                mutable_reference_parameter_matches_result_root(
+                    program,
+                    parameter,
+                    result_root,
+                    result_root_symbol,
+                )
+            })?;
+        let argument = *program
+            .expression_table
+            .expression_handles(call.arguments)
+            .get(argument_index)?;
+        stable_alias_expression_origin(
+            program,
+            argument,
+            caller_parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            false,
+        )?
+    };
     Some(match argument_origin.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&argument_origin.path, result_suffix),
@@ -1794,6 +1814,24 @@ fn transparent_call_result_origin(
         },
         FramePathPrecision::CollectionCoarse => argument_origin,
     })
+}
+
+fn mutable_reference_parameter_matches_result_root(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+    result_root: &str,
+    result_root_symbol: SymbolHandle,
+) -> bool {
+    matches!(
+        program
+            .type_reference_table
+            .type_reference(parameter.type_reference),
+        TypeReferenceNode::Reference {
+            is_mutable: true,
+            ..
+        }
+    ) && parameter.name.as_str() == result_root
+        && (parameter.symbol == result_root_symbol || (parameter.is_self && result_root == "self"))
 }
 
 fn frame_place_root_symbol(
