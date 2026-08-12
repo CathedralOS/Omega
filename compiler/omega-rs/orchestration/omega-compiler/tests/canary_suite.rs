@@ -5330,11 +5330,11 @@ fn capability_manifest_reports_authority_flow_verbs() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        compile(CompileOptions {
+        let compilation = production_compile(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: true,
+            write_output: false,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -5346,6 +5346,8 @@ fn capability_manifest_reports_authority_flow_verbs() {
                     .join("\n")
             )
         });
+        assert!(!compilation.wrote_output);
+        assert_eq!(compilation.program_storage_entry, None);
 
         let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
             .expect("capability manifest should be written");
@@ -5407,11 +5409,11 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        compile(CompileOptions {
+        let compilation = production_compile(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: true,
+            write_output: false,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -5423,6 +5425,8 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
                     .join("\n")
             )
         });
+        assert!(!compilation.wrote_output);
+        assert_eq!(compilation.program_storage_entry, None);
 
         let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
             .expect("boundary report should be written");
