@@ -564,6 +564,127 @@ machine Main::main(&mut self) {
 }
 
 #[test]
+fn routed_qualification_rows_retain_exact_plan_claims_and_provenance() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-routed-qualification-rows-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"data Token [linear] { id: u64; }
+domain Token::Granted
+requires
+    self.id > 0
+{
+    StorageEntry::enter;
+}
+
+domain Token::Issued {
+    Issuer::issue;
+}
+
+boundary trait StorageEntry {
+    machine enter(token: Token in Granted) -> Token;
+}
+
+data StorageEntryProvider {}
+StorageEntryProviderStorageEntry: StorageEntryProvider satisfies StorageEntry;
+
+machine StorageEntryProvider::enter(token: Token in Granted) -> Token
+    satisfies StorageEntry::enter
+{
+    token as Token
+}
+
+boundary trait Issuer {
+    machine issue(id: u64) -> Token in Issued
+    ensures
+        result in Token::Issued;
+}
+
+machine issue_leaf(id: u64) -> Token in Issued
+    satisfies Issuer::issue
+    via Binding::VtableSlot(1);
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("routed provider plans should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    assert!(
+        report.contains("routed qualifications: 2"),
+        "one predicate-bearing entry claim and one bodyless result claim should be reported:\n{report}"
+    );
+
+    let extent_plan = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: StorageEntryProvider::satisfies::StorageEntry [")
+                && line.contains("coverage")
+        })
+        .expect("extent provider-plan commitment row");
+    let extent_fingerprint = extent_plan
+        .split('[')
+        .nth(1)
+        .and_then(|suffix| suffix.split(']').next())
+        .expect("provider-plan fingerprint");
+    let extent_rows = report
+        .lines()
+        .filter(|line| {
+            line.contains("provider plan: StorageEntryProvider::satisfies::StorageEntry [")
+                && line.contains("subject: parameter:")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        extent_rows.len(),
+        1,
+        "expected one routed parameter row:\n{report}"
+    );
+    let entry_row = extent_rows[0];
+    assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
+    assert!(entry_row.contains("requirement: named-callable(path(StorageEntry::enter)"));
+    assert!(entry_row.contains("subject: parameter:0"));
+    assert!(entry_row.contains("flow: accepts"));
+    assert!(entry_row.contains("domain: Token::Granted"));
+    assert!(
+        entry_row.contains(
+            "carry: carry(suspension: forbidden, cpu: same, thread: same, address: stable)"
+        )
+    );
+    assert!(entry_row.contains("predicate discharge: required"));
+    assert!(entry_row.contains("own-package (dev-active)"));
+    assert!(entry_row.contains("STANDING WARNING"));
+
+    let result_row = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::Issuer [") && line.contains("subject: result")
+        })
+        .expect("routed result row");
+    assert!(result_row.contains("requirement: named-callable(path(Issuer::issue)"));
+    assert!(result_row.contains("result-dispatch(declared:Token::Issued)"));
+    assert!(result_row.contains("flow: returns"));
+    assert!(result_row.contains("domain: Token::Issued"));
+    assert!(result_row.contains("predicate discharge: none"));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn satisfies_leaves_derive_a_covered_plan() {
     // PRV4 step (2): external leaves assemble one plan per (trait, target)
     // with coverage counted against the typed schema; the trust row shows

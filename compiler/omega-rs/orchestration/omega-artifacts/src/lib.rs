@@ -667,6 +667,34 @@ impl ArtifactWriter {
             }
             output.push('\n');
         }
+        output.push_str("\n## Routed qualifications\n\n");
+        output.push_str(&format!(
+            "routed qualifications: {}\n\n",
+            trust_report.qualifications.len()
+        ));
+        for row in &trust_report.qualifications {
+            output.push_str(&format!(
+                "- provider plan: {} [{:016x}] -- requirement: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {}",
+                row.provider_plan,
+                row.provider_plan_fingerprint,
+                row.requirement,
+                row.method,
+                row.subject,
+                row.authority_flow,
+                row.domain,
+                row.effective_carry,
+                if row.predicate_discharge_required {
+                    "required"
+                } else {
+                    "none"
+                },
+                row.provenance,
+            ));
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants its provider plan]");
+            }
+            output.push('\n');
+        }
         self.write_text("trust_report.md", &output)
     }
 
@@ -1921,9 +1949,33 @@ pub struct TrustReportRow {
     pub standing_warning: bool,
 }
 
+/// One exact routed qualification carried by a normalized provider plan.
+///
+/// These rows keep the durable trust artifact at least as specific as the
+/// admitted claim. They are derived from structured provider-plan schema, not
+/// parsed from display types or reconstructed from a compact plan identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustQualificationRow {
+    pub provider_plan: String,
+    pub provider_plan_fingerprint: u64,
+    pub requirement: String,
+    pub method: String,
+    /// `parameter:N` for an accepted entry claim or `result` for a returned
+    /// qualification.
+    pub subject: String,
+    /// `accepts` or `returns`.
+    pub authority_flow: String,
+    pub domain: String,
+    pub effective_carry: String,
+    pub predicate_discharge_required: bool,
+    pub provenance: String,
+    pub standing_warning: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustReport {
     pub rows: Vec<TrustReportRow>,
+    pub qualifications: Vec<TrustQualificationRow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
