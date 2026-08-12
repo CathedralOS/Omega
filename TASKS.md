@@ -379,7 +379,9 @@ customer-shaped compiler concept is introduced.
   its collection write and every index-call write remain published without
   redirecting the returned origin. A value-shaped assignment RHS may likewise
   be a typed non-reference direct-call tree through depth two with complete
-  frames; nested writes publish without redirecting a separate returned origin.
+  frames; sibling branches are admitted independently and all nested writes
+  publish without redirecting a separate returned origin. A depth or binding-
+  reborrow violation on one sibling fences the whole RHS.
   The bounded indexed target and bounded non-reference RHS may coexist on one
   assignment; their complete frames and writes compose independently, while a
   depth or rebinding violation on either side fences the relation.
