@@ -4721,6 +4721,29 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         result
     }
 
+    machine return_after_alias_indexed_statement<'cells, 'result, 'write>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64,
+        index_write: &'write mut u64
+    ) -> &'result mut u64 {
+        let alias: &mut [u64; 2] = cells;
+        write_argument(
+            &mut alias[identity_index(write_index(index_write))]
+        );
+        result
+    }
+
+    machine return_after_deep_alias_indexed_statement<'cells, 'result>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        let alias: &mut [u64; 2] = cells;
+        write_argument(
+            &mut alias[identity_index(identity_index(make_index()))]
+        );
+        result
+    }
+
     machine return_after_deep_indexed_statement<'cells, 'result>(
         cells: &'cells mut [u64; 2],
         result: &'result mut u64
@@ -4763,6 +4786,23 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             &mut self.cells,
             &mut self.result,
             &mut self.index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::alias_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_alias_indexed_statement(
+            &mut self.cells,
+            &mut self.result,
+            &mut self.index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::deep_alias_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_alias_indexed_statement(
+            &mut self.cells,
+            &mut self.result
         );
         alias = 3;
     }
@@ -4810,6 +4850,10 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             "Main::nested_indexed_statement_result",
             vec!["self.cells", "self.index_write", "self.result"],
         ),
+        (
+            "Main::alias_indexed_statement_result",
+            vec!["self.cells", "self.index_write", "self.result"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -4837,6 +4881,7 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
 
     for name in [
         "Main::deep_indexed_statement_result",
+        "Main::deep_alias_indexed_statement_result",
         "Main::reborrow_indexed_statement_result",
         "Main::recursive_indexed_statement_result",
     ] {

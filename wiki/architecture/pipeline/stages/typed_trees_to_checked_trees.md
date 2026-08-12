@@ -199,9 +199,10 @@ Current ownership is:
   value-call arguments and their bounded two-level direct-call trees. An
   internal statement call may also take a mutable indexed argument whose index
   is such a tree: caller-alias-aware instantiation coarsens callee writes to the
-  argument's collection and publishes index-call writes. Boundary calls and
-  deeper, binding-reborrow, recursive, or opaque indexed arguments remain
-  fences. A direct
+  argument's collection and publishes index-call writes. The indexed argument
+  may project through a stable helper-local mutable alias; that alias's
+  established origin supplies the collection. Boundary calls and deeper,
+  binding-reborrow, recursive, or opaque indexed arguments remain fences. A direct
   helper-local alias rebind updates that local's origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
