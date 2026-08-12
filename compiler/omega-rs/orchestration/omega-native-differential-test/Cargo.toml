@@ -33,6 +33,7 @@ psi-checked-trees-to-terminal = { path = "../../../psi-rs/pipeline/psi-checked-t
 omega-compiler = { path = "../omega-compiler" }
 omega-external-roots = { path = "../omega-external-roots" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }

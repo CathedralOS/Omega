@@ -3,12 +3,11 @@ use omega_object_file::{
 };
 use omega_target::NativeTarget;
 use omega_terminal_image_emission::{
-    SelectedProviderPlanIdentity, TerminalInstallationError, TerminalObjectError,
-    build_terminal_installation_record, build_terminal_object_artifact,
-    can_emit_terminal_executable_image, decode_terminal_installation_record,
-    emit_terminal_executable_image, emit_terminal_object_container,
-    encode_terminal_installation_record, terminal_installation_fingerprint,
-    validate_terminal_installation_record,
+    TerminalInstallationError, TerminalObjectError, build_terminal_installation_record,
+    build_terminal_object_artifact, can_emit_terminal_executable_image,
+    decode_terminal_installation_record, emit_terminal_executable_image,
+    emit_terminal_object_container, encode_terminal_installation_record,
+    terminal_installation_fingerprint, validate_terminal_installation_record,
 };
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
@@ -151,7 +150,7 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     );
     assert_eq!(evidence.text_relocation_count, 1);
 
-    let record = build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap(), [])
+    let record = build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
         .expect("installation record");
     validate_terminal_installation_record(&record, &image).expect("image binding");
 }
@@ -282,7 +281,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             .unwrap_or_else(|error| panic!("{target:?} image failed: {error}"));
         assert_eq!(image.terminal_psi(), plan.terminal_psi);
         let installation =
-            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap(), [])
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
                 .expect("installation record");
         assert_eq!(
             installation.subsystem(),
@@ -325,22 +324,16 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     let plan = two_function_plan();
     let artifact = build_terminal_object_artifact(&plan).expect("artifact");
     let image = emit_terminal_executable_image(&artifact, 3).expect("Linux image");
-    let provider_three = provider_id(3);
-    let provider_nine = provider_id(9);
     let record = build_terminal_installation_record(
         &image,
         ProfileDecisionId::new(11).expect("profile decision"),
-        [provider_nine, provider_three],
     )
     .expect("installation record");
 
     assert_eq!(record.terminal_psi(), plan.terminal_psi);
     assert_eq!(record.target(), plan.target);
     assert_eq!(record.subsystem(), None);
-    assert_eq!(
-        record.selected_provider_plans(),
-        [provider_three, provider_nine]
-    );
+    assert!(record.selected_provider_plans().is_empty());
     let bytes = encode_terminal_installation_record(&record).expect("canonical bytes");
     assert_eq!(&bytes[..8], b"PSIINST\0");
     assert_eq!(
@@ -352,7 +345,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "d9969cbee98987bcb832be1d1f1c63aece059630eca18a7cc91747e36d76928c"
+        "f1a637482775555fd523fdd5386ca8b09cc4a66cd39adaa3090d5d10e1798b14"
     );
 
     let mut changed_plan = plan;
@@ -364,29 +357,14 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         validate_terminal_installation_record(&record, &changed_image),
         Err(TerminalInstallationError::ImageBindingMismatch)
     );
-
-    assert_eq!(
-        build_terminal_installation_record(
-            &image,
-            ProfileDecisionId::new(11).unwrap(),
-            [provider_three, provider_three],
-        ),
-        Err(TerminalInstallationError::DuplicateProviderPlan(
-            provider_three
-        ))
-    );
 }
 
 #[test]
 fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let artifact = build_terminal_object_artifact(&two_function_plan()).expect("artifact");
     let image = emit_terminal_executable_image(&artifact, 3).expect("image");
-    let record = build_terminal_installation_record(
-        &image,
-        ProfileDecisionId::new(1).unwrap(),
-        [provider_id(3), provider_id(9)],
-    )
-    .expect("record");
+    let record = build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
+        .expect("record");
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
@@ -394,19 +372,6 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     assert_eq!(
         decode_terminal_installation_record(&future),
         Err(TerminalInstallationError::UnsupportedFormatMarker(4))
-    );
-
-    let mut reordered = bytes.clone();
-    let provider_pair = [3_u64.to_le_bytes(), 9_u64.to_le_bytes()].concat();
-    let provider_offset = reordered
-        .windows(provider_pair.len())
-        .position(|window| window == provider_pair)
-        .expect("provider rows");
-    reordered[provider_offset..provider_offset + 8].copy_from_slice(&9_u64.to_le_bytes());
-    reordered[provider_offset + 8..provider_offset + 16].copy_from_slice(&3_u64.to_le_bytes());
-    assert_eq!(
-        decode_terminal_installation_record(&reordered),
-        Err(TerminalInstallationError::NonCanonicalProviderPlanOrder)
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -421,13 +386,6 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     assert_eq!(
         decode_terminal_installation_record(&zero_profile),
         Err(TerminalInstallationError::ZeroProfileDecision)
-    );
-
-    let mut zero_provider = bytes.clone();
-    zero_provider[174..182].copy_from_slice(&0_u64.to_le_bytes());
-    assert_eq!(
-        decode_terminal_installation_record(&zero_provider),
-        Err(TerminalInstallationError::ZeroProviderPlan)
     );
 
     assert_eq!(
@@ -530,38 +488,9 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     );
     let image = emit_terminal_executable_image(&artifact, 3).expect("effect image");
     assert_eq!(image.fuel_attribution(), artifact.fuel_attribution());
-    let record = build_terminal_installation_record(
-        &image,
-        ProfileDecisionId::new(1).unwrap(),
-        [provider_id(7)],
-    )
-    .expect("effect installation");
-    assert_eq!(record.fuel_attribution(), image.fuel_attribution());
-    assert_eq!(record.fuel_attribution().len(), 3);
-    assert_eq!(record.fuel_attribution()[1].attribution.byte_count, 0);
-    assert_eq!(record.port_effects(), image.port_effects());
     assert_eq!(
-        record.boundary_settlements()[0]
-            .settlement
-            .provider_execution,
-        provider_execution.into()
-    );
-    let encoded = encode_terminal_installation_record(&record).unwrap();
-    assert_eq!(
-        decode_terminal_installation_record(&encoded),
-        Ok(record.clone())
-    );
-
-    let mut changed_attribution = plan.clone();
-    changed_attribution.functions[0].fuel_attribution[0].units = 2;
-    let changed_artifact =
-        build_terminal_object_artifact(&changed_attribution).expect("changed attribution artifact");
-    let changed_image =
-        emit_terminal_executable_image(&changed_artifact, 3).expect("changed attribution image");
-    assert_eq!(changed_image.output().bytes, image.output().bytes);
-    assert_eq!(
-        validate_terminal_installation_record(&record, &changed_image),
-        Err(TerminalInstallationError::ImageBindingMismatch)
+        build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()),
+        Err(TerminalInstallationError::ProviderExecutionClosureMismatch)
     );
 
     let mut wrong_bytes = plan.clone();
@@ -694,10 +623,6 @@ fn operation_id(raw: u64) -> OperationId {
 
 fn edge_id(raw: u64) -> EdgeId {
     EdgeId::new(raw).expect("edge")
-}
-
-fn provider_id(raw: u64) -> SelectedProviderPlanIdentity {
-    SelectedProviderPlanIdentity::new(raw).expect("provider plan")
 }
 
 fn identity() -> TerminalPsiIdentity {
