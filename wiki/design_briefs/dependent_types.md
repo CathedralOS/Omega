@@ -344,12 +344,13 @@ separately returned parameter origin only when the call's inferred frame is
 complete and every write resolves into a previously established caller-isolated
 scratch local; an empty frame is the degenerate case. Opaque, recursive,
 nested-computed, and calls with any write outside those isolated roots remain
-fences. One direct Unit statement call with a complete empty frame may likewise
-precede the terminal place; explicitly discarded call results, effectful
-arguments, and nonempty or opaque statement calls remain fences. Non-bijective,
-computed, or otherwise unrepresentable
-cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns
-further relational candidates.
+fences. One direct Unit statement call whose complete frame writes only into
+previously established caller-isolated scratch locals may likewise precede the
+terminal place; an empty frame is the degenerate case. Explicitly discarded call
+results, effectful arguments, and calls with any write outside those isolated
+roots or opaque frames remain fences. Non-bijective, computed, or otherwise
+unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
+`TASKS.md` R5 owns further relational candidates.
 
 ## 6. Dynamic lowering — the runtime half
 
