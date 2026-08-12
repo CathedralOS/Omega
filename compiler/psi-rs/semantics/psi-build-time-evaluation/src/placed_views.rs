@@ -37,11 +37,11 @@ use psi_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use psi_typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlacedViewRecord {
-    pub(crate) synthetic_name: String,
-    pub(crate) policy_machine: String,
-    pub(crate) schema_data: String,
-    pub(crate) normalized_placement: PlacementPlanId,
+pub struct PlacedViewRecord {
+    pub synthetic_name: String,
+    pub policy_machine: String,
+    pub schema_data: String,
+    pub normalized_placement: PlacementPlanId,
 }
 
 #[derive(Clone)]
@@ -68,7 +68,7 @@ type Discovery = (
     BTreeMap<String, SchemaRecord>,
 );
 
-pub(crate) fn desugar_placed_views(
+pub fn desugar_placed_views(
     syntax: &mut SyntaxTrees,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
     let (applications, rewrites, schemas) = discover_applications(syntax)?;
@@ -85,30 +85,26 @@ pub(crate) fn desugar_placed_views(
     let mut probe = syntax.clone();
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
     let mut probe = psi_generic_instances::normalize_pre_resolution(probe)?;
-    let probe_plan_laid = super::plan_laid::desugar_plan_laid_value_types(&mut probe)?;
+    let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
     let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
         .map_err(|diagnostic| vec![diagnostic])?;
     let mut typed =
         psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|diagnostic| vec![diagnostic])?;
-    psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
-    psi_build_time_evaluation::evaluate_const_domain_facts(&mut typed)?;
-    super::plan_laid::compute_plan_laid_layouts(&mut typed, &probe_plan_laid)?;
+    crate::evaluate_const_array_lengths(&mut typed)?;
+    crate::evaluate_const_domain_facts(&mut typed)?;
+    crate::compute_plan_laid_layouts(&mut typed, &probe_plan_laid)?;
 
     let mut plans = BTreeMap::new();
     for application in &applications {
         let policy_machine = format!("{}::plan", application.policy);
-        let plan = psi_build_time_evaluation::compute_placement_plan(
-            &typed,
-            &policy_machine,
-            &application.schema,
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "placed view `{}`: {reason}",
-                application.synthetic_name
-            ))]
-        })?;
+        let plan = crate::compute_placement_plan(&typed, &policy_machine, &application.schema)
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "placed view `{}`: {reason}",
+                    application.synthetic_name
+                ))]
+            })?;
         plans.insert(application.synthetic_name.clone(), plan);
     }
 
@@ -127,22 +123,19 @@ pub(crate) fn desugar_placed_views(
         .collect())
 }
 
-pub(crate) fn validate_placed_view_plans(
+pub fn validate_placed_view_plans(
     typed: &mut TypedTrees,
     records: &[PlacedViewRecord],
 ) -> Result<(), Vec<Diagnostic>> {
     for record in records {
-        let plan = psi_build_time_evaluation::compute_placement_plan(
-            typed,
-            &record.policy_machine,
-            &record.schema_data,
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "placed view `{}`: {reason}",
-                record.synthetic_name
-            ))]
-        })?;
+        let plan =
+            crate::compute_placement_plan(typed, &record.policy_machine, &record.schema_data)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "placed view `{}`: {reason}",
+                        record.synthetic_name
+                    ))]
+                })?;
         if plan.identity() != record.normalized_placement {
             return Err(vec![Diagnostic::error(format!(
                 "placed view `{}` changed normalized placement identity between accessor derivation and the authoritative typed program",
