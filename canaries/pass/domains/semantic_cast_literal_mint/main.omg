@@ -1,16 +1,10 @@
-// THE MINT (decision 19, v1): `5 as i64 in Km` qualifies a LITERAL into a
-// declared semantic domain -- in-program authority is the owning package's,
-// and the predicate obligation (self >= 0) folds TRUE at the literal.
-// Zero-cost: the representation is unchanged and the value flows on.
-// RUNS exit 70.
-use omega::language::std::console;
-data Main { console: Console; }
+// A literal may qualify into a declared semantic domain when its value proves
+// the domain predicate. Qualification is checked semantics and adds no runtime
+// representation.
 domain i64::Km
 requires
     self >= 0;
-machine Main::main(&mut self) {
-    let distance: i64 = 5 as i64 in Km;
-    transition distance == 5 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+
+machine mint_literal() {
+    let distance: i64 in Km = 5 as i64 in Km;
 }

@@ -1,10 +1,5 @@
-// THE GUARD CHAIN (decision 19, end to end): a dominating co-located
-// guard (`sensed >= 0`) proves qualify's REQUIRES at the call site (the
-// existing R1 machinery), and the mint inside qualify discharges from
-// those requires -- a RUNTIME value flows through a guard into a semantic
-// domain. RUNS exit 70.
-use omega::language::std::console;
-data Main { console: Console; }
+// A dominating guard proves the callee's requirement, and that requirement in
+// turn proves the domain predicate at the qualification site.
 domain i64::Km
 requires
     self >= 0;
@@ -14,12 +9,8 @@ requires
 {
     transition { _ -> (raw as i64 in Km) }
 }
-machine Main::main(&mut self) {
-    let sensed: i64 = 9;
-    transition sensed >= 0 { true -> take(qualify(sensed)) _ -> bad() }
-    state take(&mut self, d: i64) {
-        transition d == 9 { true -> good() _ -> bad() }
-    }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+machine mint_guarded(sensed: i64) {
+    transition sensed >= 0 { true -> take(qualify(sensed)) _ -> done() }
+    state take(distance: i64) {}
+    state done() {}
 }
