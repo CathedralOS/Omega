@@ -293,37 +293,32 @@ customer-shaped compiler concept is introduced.
 
 ### Frames, reach, and trust
 
-- **R5:** extend exact inferred may-write summaries and relational candidates
-  beyond acyclic and read-only-rebinding-cycle-safe statement/value calls and
-  transitive boundary wrappers. Preserve facts outside complete frames; opaque
-  or unrepresentable frames are conservative fences. Exact finite fixed points
-  are live for named state SCCs whose write-capable parameters traverse only
-  bijective permutations, including resolved caller instantiation. Stable
-  single-state, direct-self-loop, and acyclic named-state local mutable aliases
-  now substitute exact `self` or state-parameter origins through positional
-  transition arguments; stable local reborrow chains, including exact member
-  projections, flatten to the same origin. Indexed reborrows through an exact
-  alias retain the nearest intermediate collection; once an origin is coarse,
-  collection coarsening absorbs all later suffixes through aliases, calls, and
-  transitions, including direct member-after-index origins. Rebinding,
-  named/reference-bearing local origins, computed collection origins,
-  computed/nontrivial call results, and named-SCC alias transport remain
-  opaque. A call-produced chain is representable only through a free helper
-  whose entire body is one terminal place rooted in one mutable-reference
-  parameter; the result composes that argument's exact origin with exact member
-  suffixes or absorbing collection-coarse indexing through later calls and
-  reborrows. Signature lifetime elision alone does not establish this relation;
-  primitive scalar and recursively primitive fixed-array local origins are
-  caller-isolated and publish no write. Continue with other representable
-  relational candidates;
-  non-bijective or computed cyclic rebinding remains opaque. Do not restore an
-  authored `stores` clause.
+- **R5:** continue exact inferred may-write summaries and relational candidates.
+  Complete statement/value frames and transitive boundary wrappers preserve
+  facts outside their writes; opaque frames remain conservative fences. Named
+  state SCCs solve finite exact frames when write-capable parameters traverse
+  bijective permutations. Stable local mutable aliases substitute exact
+  `self`/parameter origins through acyclic graphs and SCC equations, including
+  direct stable rebinding: the rebound name takes the replacement origin while
+  earlier reborrows keep their established origin. Member suffixes remain exact;
+  indexing coarsens to the nearest collection and that coarsening is absorbing.
+  A one-expression free or attached helper may relate a returned `&mut` place
+  to one explicit mutable-reference parameter; receiver-backed, computed, or
+  nontrivial results remain opaque. Escaped aliases, reference-bearing/computed
+  local roots, unrepresentable rebinding, and non-bijective cyclic transport
+  also remain fences. Signature lifetime elision alone establishes no relation.
+  Continue with other representable candidates; do not restore authored
+  `stores` clauses.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   private ranking witnesses into public identity.
-- **GR6:** finish qualification/trust consumers and their artifact rows.
+- **GR6:** finish qualification/trust consumers and their artifact rows. The
+  durable trust report now copies each routed provider entry/result claim with
+  exact plan fingerprint, requirement, subject, authority flow, semantic
+  domain, carry policy, predicate-discharge requirement, and grant provenance;
+  continue with consumers that still lack exact blast-radius rows.
 
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.

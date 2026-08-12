@@ -3027,6 +3027,37 @@ fn accepts_static_persistent_copy_across_attached_transparent_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_stable_rebound_alias_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            first: i32;
+            second: i32;
+        }
+
+        machine Main::touch_second(&mut self) {
+            let alias: &mut i32 = &mut self.first;
+            alias = &mut self.second;
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_second();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a direct stable alias replacement publishes its replacement origin's frame");
+}
+
+#[test]
 fn accepts_same_place_reassignment_from_static_persistent_storage() {
     let source = r#"
         data Main {
