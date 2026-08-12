@@ -41,3 +41,6 @@ omega-state-storage = { path = "../omega-state-storage" }
 omega-state-values = { path = "../omega-state-values" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+
+[dev-dependencies]
+psi-source = { path = "../../../psi-rs/foundation/psi-source" }

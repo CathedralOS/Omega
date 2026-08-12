@@ -22,7 +22,11 @@ pub(crate) fn resolve_branch_expression_handle(
             ) {
                 resolved_target
             } else {
-                expression_table.insert(ExpressionNode::Mutable(resolved_target))
+                insert_rebuilt_expression(
+                    expression_table,
+                    expression,
+                    ExpressionNode::Mutable(resolved_target),
+                )
             }
         }
         ExpressionNode::Indexed(indexed) => {
@@ -33,10 +37,11 @@ pub(crate) fn resolve_branch_expression_handle(
             );
             let index =
                 resolve_branch_expression_handle(indexed.index, branch_bindings, expression_table);
-            expression_table.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                collection,
-                index,
-            }))
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Indexed(TableIndexedExpression { collection, index }),
+            )
         }
         ExpressionNode::Member(member) => {
             let receiver = resolve_branch_expression_handle(
@@ -44,26 +49,33 @@ pub(crate) fn resolve_branch_expression_handle(
                 branch_bindings,
                 expression_table,
             );
-            expression_table.insert(ExpressionNode::Member(TableMemberExpression {
-                receiver,
-                member_symbol: member.member_symbol,
-                member: member.member,
-                case_variant: member.case_variant,
-            }))
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member,
+                    case_variant: member.case_variant,
+                }),
+            )
         }
         ExpressionNode::Name(path) => branch_bindings
             .iter()
             .find(|binding| branch_binding_matches_table_path(binding, expression_table, &path))
             .map(|binding| {
-                if path.members.count() == 0 {
+                if path.members.count() <= 1 {
                     binding.expression
                 } else {
-                    expression_table.insert_copy_with_member_suffix(
+                    let suffixed = expression_table.insert_copy_with_member_suffix(
                         binding.expression,
                         path.members,
                         path.member_symbols,
                         1,
-                    )
+                    );
+                    expression_table
+                        .set_source_span(suffixed, expression_table.source_span(expression));
+                    suffixed
                 }
             })
             .unwrap_or(expression),
@@ -72,17 +84,23 @@ pub(crate) fn resolve_branch_expression_handle(
                 resolve_branch_expression_handle(binary.left, branch_bindings, expression_table);
             let right =
                 resolve_branch_expression_handle(binary.right, branch_bindings, expression_table);
-            expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
-                left,
-                operator: binary.operator,
-                right,
-            }))
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }),
+            )
         }
         ExpressionNode::Cast(cast) => {
             let value =
                 resolve_branch_expression_handle(cast.value, branch_bindings, expression_table);
-            expression_table.insert(ExpressionNode::Cast(
-                psi_checked_trees::expression::TableCastExpression {
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Cast(psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -92,8 +110,8 @@ pub(crate) fn resolve_branch_expression_handle(
                     semantic_domain_symbol: cast.semantic_domain_symbol,
                     semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
-                },
-            ))
+                }),
+            )
         }
         ExpressionNode::Call(call) => {
             let receiver = if call.receiver.is_valid() {
@@ -108,16 +126,18 @@ pub(crate) fn resolve_branch_expression_handle(
                     resolve_branch_expression_handle(argument, branch_bindings, expression_table);
                 expression_table.set_expression_handle_at_offset(arguments, offset, resolved);
             }
-            expression_table.insert(ExpressionNode::Call(
-                psi_checked_trees::expression::TableCallExpression {
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Call(psi_checked_trees::expression::TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
-                },
-            ))
+                }),
+            )
         }
         _ => expression,
     }
@@ -143,11 +163,15 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 aliases,
                 expression_table,
             );
-            expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
-                left,
-                operator: binary.operator,
-                right,
-            }))
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }),
+            )
         }
         ExpressionNode::Cast(cast) => {
             let value = resolve_runtime_branch_alias_expression_handle(
@@ -156,8 +180,10 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 aliases,
                 expression_table,
             );
-            expression_table.insert(ExpressionNode::Cast(
-                psi_checked_trees::expression::TableCastExpression {
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Cast(psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -167,8 +193,8 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                     semantic_domain_symbol: cast.semantic_domain_symbol,
                     semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
-                },
-            ))
+                }),
+            )
         }
         ExpressionNode::Call(call) => {
             let receiver = if call.receiver.is_valid() {
@@ -192,16 +218,18 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 );
                 expression_table.set_expression_handle_at_offset(arguments, offset, resolved);
             }
-            expression_table.insert(ExpressionNode::Call(
-                psi_checked_trees::expression::TableCallExpression {
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Call(psi_checked_trees::expression::TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
-                },
-            ))
+                }),
+            )
         }
         ExpressionNode::Mutable(target) => {
             let resolved_target = resolve_runtime_branch_alias_expression_handle(
@@ -216,7 +244,11 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
             ) {
                 resolved_target
             } else {
-                expression_table.insert(ExpressionNode::Mutable(resolved_target))
+                insert_rebuilt_expression(
+                    expression_table,
+                    expression,
+                    ExpressionNode::Mutable(resolved_target),
+                )
             }
         }
         ExpressionNode::Indexed(TableIndexedExpression { collection, index }) => {
@@ -232,10 +264,11 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 aliases,
                 expression_table,
             );
-            expression_table.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                collection,
-                index,
-            }))
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Indexed(TableIndexedExpression { collection, index }),
+            )
         }
         ExpressionNode::Member(member) => {
             let receiver = resolve_runtime_branch_alias_expression_handle(
@@ -244,32 +277,53 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 aliases,
                 expression_table,
             );
-            expression_table.insert(ExpressionNode::Member(TableMemberExpression {
-                receiver,
-                member_symbol: member.member_symbol,
-                member: member.member,
-                case_variant: member.case_variant,
-            }))
+            insert_rebuilt_expression(
+                expression_table,
+                expression,
+                ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member,
+                    case_variant: member.case_variant,
+                }),
+            )
         }
         ExpressionNode::Name(path) => aliases
             .iter()
             .rev()
             .find(|alias| alias.source_key == source_key && alias_matches_table_path(alias, &path))
             .map(|alias| {
-                if path.members.count() > 0 {
-                    expression_table.insert_copy_with_member_suffix(
+                if path.members.count() > 1 {
+                    let suffixed = expression_table.insert_copy_with_member_suffix(
                         alias.expression,
                         path.members,
                         path.member_symbols,
                         1,
-                    )
+                    );
+                    expression_table
+                        .set_source_span(suffixed, expression_table.source_span(expression));
+                    suffixed
                 } else {
+                    // A bare name reuses the alias expression itself. Its
+                    // authored span belongs to the replacement and must not
+                    // be overwritten with the use-site name span.
                     alias.expression
                 }
             })
             .unwrap_or(expression),
         _ => expression,
     }
+}
+
+pub(super) fn insert_rebuilt_expression(
+    table: &mut ExpressionTable,
+    original: ExpressionHandle,
+    expression: ExpressionNode,
+) -> ExpressionHandle {
+    let source_span = table.source_span(original);
+    let rebuilt = table.insert(expression);
+    table.set_source_span(rebuilt, source_span);
+    rebuilt
 }
 
 fn branch_binding_matches_table_path(
@@ -308,4 +362,51 @@ fn alias_matches_table_path(alias: &RuntimeBranchAlias, path: &TableNamePath) ->
     alias.parameter_symbol.is_valid()
         && path.head_symbol.is_valid()
         && alias.parameter_symbol == path.head_symbol
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_checked_trees::expression::{BinaryOperator, Expression, NamePath};
+    use psi_source::{SourceId, SourceSpan, Span};
+    use psi_symbols::SymbolHandle;
+
+    fn span(start: usize, end: usize) -> SourceSpan {
+        SourceSpan::new(SourceId(1), Span::new(start, end))
+    }
+
+    #[test]
+    fn branch_binding_rebuild_preserves_wrapper_and_replacement_spans() {
+        let parameter_symbol = SymbolHandle::from_arena_index(3);
+        let mut table = ExpressionTable::new();
+        let replacement = table.insert_tree(&Expression::Boolean(true));
+        table.set_source_span(replacement, span(10, 11));
+        let use_site = table.insert_tree(&Expression::Name(NamePath::resolved(
+            vec!["value".into()],
+            parameter_symbol,
+            parameter_symbol,
+        )));
+        table.set_source_span(use_site, span(20, 25));
+        let right = table.insert_tree(&Expression::Boolean(false));
+        let wrapper = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: use_site,
+            operator: BinaryOperator::And,
+            right,
+        }));
+        table.set_source_span(wrapper, span(20, 29));
+        let mut bindings = BranchParameterBindings::new();
+        bindings.push(BranchParameterBinding {
+            parameter_symbol,
+            parameter_name: "value".into(),
+            expression: replacement,
+        });
+
+        let resolved = resolve_branch_expression_handle(wrapper, &bindings, &mut table);
+        let ExpressionNode::Binary(binary) = table.expression(resolved) else {
+            panic!("resolved expression must remain binary");
+        };
+        assert_eq!(table.source_span(resolved), span(20, 29));
+        assert_eq!(table.source_span(binary.left), span(10, 11));
+        assert_ne!(table.source_span(binary.left), span(20, 25));
+    }
 }

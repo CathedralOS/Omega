@@ -419,7 +419,11 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             }
             RuntimeResolvedExpressionHandle {
                 source_key: resolved_source_key,
-                expression: alias_expressions.insert(ExpressionNode::ArrayLiteral(copied_values)),
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::ArrayLiteral(copied_values),
+                ),
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -437,13 +441,15 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             );
             RuntimeResolvedExpressionHandle {
                 source_key: left.source_key,
-                expression: alias_expressions.insert(ExpressionNode::Binary(
-                    psi_checked_trees::expression::TableBinaryExpression {
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::Binary(psi_checked_trees::expression::TableBinaryExpression {
                         left: left.expression,
                         operator: binary.operator,
                         right: right.expression,
-                    },
-                )),
+                    }),
+                ),
             }
         }
         ExpressionNode::Cast(cast) => {
@@ -455,8 +461,10 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             );
             RuntimeResolvedExpressionHandle {
                 source_key: resolved.source_key,
-                expression: alias_expressions.insert(ExpressionNode::Cast(
-                    psi_checked_trees::expression::TableCastExpression {
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::Cast(psi_checked_trees::expression::TableCastExpression {
                         value: resolved.expression,
                         target_type: cast.target_type,
                         target_label: cast.target_label,
@@ -466,8 +474,8 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         semantic_domain_symbol: cast.semantic_domain_symbol,
                         semantic_domain_id: cast.semantic_domain_id,
                         form: cast.form,
-                    },
-                )),
+                    }),
+                ),
             }
         }
         ExpressionNode::Call(call) => {
@@ -503,8 +511,10 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             }
             RuntimeResolvedExpressionHandle {
                 source_key: resolved_source_key,
-                expression: alias_expressions.insert(ExpressionNode::Call(
-                    psi_checked_trees::expression::TableCallExpression {
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::Call(psi_checked_trees::expression::TableCallExpression {
                         receiver: receiver
                             .map(|resolved| resolved.expression)
                             .unwrap_or_else(ExpressionHandle::invalid),
@@ -513,8 +523,8 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         machine_arguments: call.machine_arguments.clone(),
                         arguments: copied_arguments,
                         operational_acknowledgement: call.operational_acknowledgement,
-                    },
-                )),
+                    }),
+                ),
             }
         }
         ExpressionNode::Mutable(target) => {
@@ -526,7 +536,11 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             );
             RuntimeResolvedExpressionHandle {
                 source_key: resolved.source_key,
-                expression: alias_expressions.insert(ExpressionNode::Mutable(resolved.expression)),
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::Mutable(resolved.expression),
+                ),
             }
         }
         ExpressionNode::Indexed(TableIndexedExpression { collection, index }) => {
@@ -540,12 +554,14 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 resolve_runtime_alias_binding_handle(index, source_key, aliases, alias_expressions);
             RuntimeResolvedExpressionHandle {
                 source_key: collection.source_key,
-                expression: alias_expressions.insert(ExpressionNode::Indexed(
-                    TableIndexedExpression {
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::Indexed(TableIndexedExpression {
                         collection: collection.expression,
                         index: index.expression,
-                    },
-                )),
+                    }),
+                ),
             }
         }
         ExpressionNode::Member(member) => {
@@ -557,14 +573,16 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             );
             RuntimeResolvedExpressionHandle {
                 source_key: receiver.source_key,
-                expression: alias_expressions.insert(ExpressionNode::Member(
-                    psi_checked_trees::expression::TableMemberExpression {
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::Member(psi_checked_trees::expression::TableMemberExpression {
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
                         case_variant: member.case_variant.clone(),
-                    },
-                )),
+                    }),
+                ),
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -593,13 +611,17 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             }
             RuntimeResolvedExpressionHandle {
                 source_key: resolved_source_key,
-                expression: alias_expressions.insert(ExpressionNode::StructLiteral(
-                    psi_checked_trees::expression::TableStructLiteral {
-                        type_name: struct_literal.type_name.clone(),
-                        case_name: struct_literal.case_name.clone(),
-                        fields: copied_fields,
-                    },
-                )),
+                expression: insert_rebuilt_expression(
+                    alias_expressions,
+                    expression,
+                    ExpressionNode::StructLiteral(
+                        psi_checked_trees::expression::TableStructLiteral {
+                            type_name: struct_literal.type_name.clone(),
+                            case_name: struct_literal.case_name.clone(),
+                            fields: copied_fields,
+                        },
+                    ),
+                ),
             }
         }
         ExpressionNode::Name(path) => aliases
@@ -618,14 +640,20 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 );
                 RuntimeResolvedExpressionHandle {
                     source_key: resolved.source_key,
-                    expression: if path.members.count() > 0 {
-                        alias_expressions.insert_copy_with_member_suffix(
+                    expression: if path.members.count() > 1 {
+                        let suffixed = alias_expressions.insert_copy_with_member_suffix(
                             resolved.expression,
                             path.members,
                             path.member_symbols,
                             1,
-                        )
+                        );
+                        alias_expressions
+                            .set_source_span(suffixed, alias_expressions.source_span(expression));
+                        suffixed
                     } else {
+                        // A bare name reuses the alias expression itself. Its
+                        // authored span belongs to the replacement and must not
+                        // be overwritten with the use-site name span.
                         resolved.expression
                     },
                 }
@@ -639,6 +667,17 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             expression,
         },
     }
+}
+
+fn insert_rebuilt_expression(
+    table: &mut ExpressionTable,
+    original: ExpressionHandle,
+    expression: ExpressionNode,
+) -> ExpressionHandle {
+    let source_span = table.source_span(original);
+    let rebuilt = table.insert(expression);
+    table.set_source_span(rebuilt, source_span);
+    rebuilt
 }
 
 /// Cycle guard for the binding-substitution walks below. A SELF-REFERENTIAL
@@ -1459,4 +1498,60 @@ fn append_member_suffix(expression: &Expression, suffix: &[Identifier]) -> Expre
         }));
     }
     result
+}
+
+#[cfg(test)]
+mod source_span_tests {
+    use super::*;
+    use psi_checked_trees::expression::{BinaryOperator, Expression, NamePath};
+    use psi_source::{SourceId, SourceSpan, Span};
+
+    fn span(start: usize, end: usize) -> SourceSpan {
+        SourceSpan::new(SourceId(1), Span::new(start, end))
+    }
+
+    #[test]
+    fn runtime_alias_rebuild_preserves_wrapper_and_replacement_spans() {
+        let source_key = StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(2),
+            segment_index: 0,
+        };
+        let parameter_symbol = SymbolHandle::from_arena_index(3);
+        let mut table = ExpressionTable::new();
+        let replacement = table.insert_tree(&Expression::Boolean(true));
+        table.set_source_span(replacement, span(10, 11));
+        let use_site = table.insert_tree(&Expression::Name(NamePath::resolved(
+            vec!["value".into()],
+            parameter_symbol,
+            parameter_symbol,
+        )));
+        table.set_source_span(use_site, span(20, 25));
+        let right = table.insert_tree(&Expression::Boolean(false));
+        table.set_source_span(right, span(28, 29));
+        let wrapper = table.insert(ExpressionNode::Binary(
+            psi_checked_trees::expression::TableBinaryExpression {
+                left: use_site,
+                operator: BinaryOperator::And,
+                right,
+            },
+        ));
+        table.set_source_span(wrapper, span(20, 29));
+        let aliases = [RuntimeAliasBinding {
+            source_key,
+            parameter_symbol,
+            parameter_name: "value".into(),
+            expression_source_key: source_key,
+            expression: replacement,
+        }];
+
+        let resolved =
+            resolve_runtime_alias_binding_handle(wrapper, source_key, &aliases, &mut table);
+        let ExpressionNode::Binary(binary) = table.expression(resolved.expression) else {
+            panic!("resolved expression must remain binary");
+        };
+        assert_eq!(table.source_span(resolved.expression), span(20, 29));
+        assert_eq!(table.source_span(binary.left), span(10, 11));
+        assert_ne!(table.source_span(binary.left), span(20, 25));
+    }
 }
