@@ -131,6 +131,59 @@ fn numbered_entry_claim_path_round_trips_and_enters_semantic_identity() {
 }
 
 #[test]
+fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
+    let baseline = structural_effect_fixture();
+    let mut module = baseline.clone();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    fields[1].identity = "#7".to_owned();
+    fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(3),
+        identity: "#9".to_owned(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(2)),
+    });
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims[0].field_path = vec!["#7".to_owned()];
+        machine.entry_claims.push(EntryClaim {
+            claim: claim_id(2),
+            input: machine.structural_parameters[0].place,
+            field_path: vec!["#9".to_owned()],
+        });
+    }
+    let OperationKind::CallUnit {
+        claim_transfers, ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    claim_transfers.push(ClaimTransfer {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+    let OperationKind::BoundaryCallUnit {
+        claim_settlements, ..
+    } = &mut module.machines[1].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    claim_settlements.push(ClaimSettlement {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+
+    let bytes = encode_module(&module).expect("canonical sibling claim set should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_ne!(
+        semantic_fingerprint(&module).unwrap(),
+        semantic_fingerprint(&baseline).unwrap(),
+        "the complete sibling claim set enters terminal semantic identity"
+    );
+}
+
+#[test]
 fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
     let mut opaque_relevant = structural_effect_fixture();
     let StructuralTypeShape::Record { fields } = &mut opaque_relevant.structural_types[0].shape;

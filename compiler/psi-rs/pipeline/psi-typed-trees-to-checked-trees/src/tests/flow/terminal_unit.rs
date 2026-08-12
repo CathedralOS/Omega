@@ -296,6 +296,81 @@ fn retains_numbered_record_field_custody_for_unit_call_closure() {
 }
 
 #[test]
+fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
+    let checked = checked(
+        r#"
+        data Token [linear] { value: u64; }
+        data Envelope { #7 left: Token; #9 right: Token; }
+
+        domain Envelope::Pending;
+
+        boundary machine Envelope::settle(self)
+        reaches PortIo
+        requires
+            self in Envelope::Pending
+        ensures true;
+
+        data Helper {}
+
+        machine Helper::run(envelope: Envelope in Pending)
+        reaches PortIo
+        {
+            envelope.settle();
+        }
+
+        data Root {}
+
+        machine Root::enter(envelope: Envelope in Pending)
+        reaches PortIo
+        {
+            Helper::run(envelope);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("multi-field aggregate root plan");
+    let helper = plans
+        .for_machine(machine_named(&checked, "run"))
+        .expect("multi-field aggregate helper plan");
+    for machine in [root, helper] {
+        assert_eq!(
+            machine.structural_parameters[0].multiplicity,
+            Multiplicity::Affine
+        );
+        assert_eq!(machine.entry_claims.len(), 2);
+        assert_eq!(machine.entry_claims[0].field_path, ["#7"]);
+        assert_eq!(machine.entry_claims[1].field_path, ["#9"]);
+    }
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        claim_transfers, ..
+    } = &root.operations[0]
+    else {
+        panic!("root should transfer both sibling claims to helper")
+    };
+    assert_eq!(claim_transfers.len(), 2);
+    assert!(
+        claim_transfers
+            .iter()
+            .all(|transfer| transfer.argument_index == 0)
+    );
+    let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        claim_settlements, ..
+    } = &helper.operations[0]
+    else {
+        panic!("helper should settle both sibling claims at the boundary")
+    };
+    assert_eq!(claim_settlements.len(), 2);
+    assert!(
+        claim_settlements
+            .iter()
+            .all(|settlement| settlement.argument_index == 0)
+    );
+}
+
+#[test]
 fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
     let checked = checked(
         r#"

@@ -205,8 +205,11 @@ Remaining:
   canonical encoding, verification, interpretation, direct Unit transfer, and
   boundary settlement; invalid, erased, overlapping, noncanonical, or
   call-mismatched paths reject, and numbered fields use the same canonical
-  `#<id>` identity in structural shapes and claim paths. Add remaining aggregate
-  and result-bearing custody,
+  `#<id>` identity in structural shapes and claim paths. Multiple disjoint
+  sibling fields inside one affine record now cross checking, terminal
+  production, canonical identity, verification, interpretation, direct Unit
+  transfer, and verifier-derived boundary settlement as one complete claim set.
+  Add deeper/indexed aggregate and result-bearing custody,
   cleanup, returned transfer, loops, suspension, and scoped ordering as complete
   vertical slices. Ranked
   tail-recursive call graphs stay rejected until their tail-position and
