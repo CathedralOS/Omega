@@ -21,6 +21,7 @@ mod place;
 mod reach;
 mod state;
 mod statements;
+mod terminal_cleanup;
 mod terminal_debug;
 mod terminal_scalar;
 mod terminal_unit;
@@ -75,6 +76,7 @@ pub(crate) use place::{
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
+pub(crate) use terminal_cleanup::build_checked_structural_control_cleanup_plans;
 pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
 pub(crate) use terminal_scalar::{
     build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,

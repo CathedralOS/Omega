@@ -137,6 +137,10 @@ pub struct FlowFacts {
     /// General source-handle-free structural/Unit effect plans. These are
     /// populated after checked ownership and carry recording succeeds.
     pub terminal_unit_effects: super::CheckedUnitEffectPlans,
+    /// Whole-parameter no-code cleanup rows for supported ordinary structural
+    /// transitions. These are populated only after multiplicity checking has
+    /// recorded the authoritative state-exit permission events.
+    pub terminal_structural_control_cleanups: super::CheckedStructuralControlCleanupPlans,
 }
 
 impl FlowFacts {
@@ -159,6 +163,8 @@ impl FlowFacts {
             terminal_machines: super::CheckedTerminalMachineSelections::default(),
             terminal_debug: super::CheckedTerminalDebugPlans::default(),
             terminal_unit_effects: super::CheckedUnitEffectPlans::default(),
+            terminal_structural_control_cleanups:
+                super::CheckedStructuralControlCleanupPlans::default(),
         }
     }
 }

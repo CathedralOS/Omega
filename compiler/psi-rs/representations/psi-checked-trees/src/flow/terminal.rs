@@ -132,6 +132,58 @@ pub struct CheckedScalarSuccessor {
     pub argument_count: u32,
 }
 
+/// Source-handle-free no-code cleanup evidence for ordinary structural
+/// control edges. This is intentionally narrower than the language's complete
+/// `EdgeCleanupPlan`: it names only whole, claim-free affine parameters whose
+/// checked state-exit events can be realized as terminal-Psi trivial discards.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralControlCleanupPlans {
+    pub states: Vec<CheckedStructuralControlStateCleanupPlan>,
+}
+
+impl CheckedStructuralControlCleanupPlans {
+    pub fn for_state(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    ) -> Option<&CheckedStructuralControlStateCleanupPlan> {
+        self.states
+            .iter()
+            .find(|plan| plan.machine == machine && plan.state == state)
+    }
+
+    pub fn for_edge(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+    ) -> Option<&CheckedStructuralControlEdgeCleanupPlan> {
+        self.for_state(machine, state)?
+            .edges
+            .iter()
+            .find(|edge| edge.statement_ordinal == statement_ordinal)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralControlStateCleanupPlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    /// One row per supported ordinary named transition, in source statement
+    /// order. Conditional arms therefore retain their exact arm coordinate.
+    pub edges: Vec<CheckedStructuralControlEdgeCleanupPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralControlEdgeCleanupPlan {
+    pub statement_ordinal: u32,
+    pub target_state: SymbolHandle,
+    /// Source-state parameter positions in reverse declaration order. A later
+    /// terminal producer resolves these positions against its independently
+    /// checked structural signature before assigning terminal `PlaceId`s.
+    pub trivial_affine_discard_parameter_positions: Vec<u32>,
+}
+
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.

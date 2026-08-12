@@ -188,8 +188,12 @@ Remaining:
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
   arguments are materialized; each ordered conditional successor carries its
   own independently selected subset under the same rule. Omega consumes both
-  forms without emitting an operation. Structural control-edge production
-  still requires its checked structural control plan.
+  forms without emitting an operation. Structural control-edge production now
+  has its first checked prerequisite: exact source-state/statement/target rows
+  retain reverse-order whole-parameter affine discards after subtracting
+  checked transfers, while affine locals, projections, claims, and incomplete
+  evidence publish no partial row. Terminal production still must resolve
+  those positions against its exact structural signature and transfer map.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned
@@ -444,7 +448,10 @@ reach or trust, and private proof improvements do not change public identity.
   transfer-map commitment. Add reverse-declaration cleanup, contextual cleanup
   contract checking, structural partial-value cleanup, nominal-drop
   partial-move rejection, repeated-cycle resource composition, and
-  conservation/backend-ledger reporting.
+  conservation/backend-ledger reporting. Checked structural control facts now
+  retain the narrow whole-parameter, claim-free affine prerequisite per exact
+  ordinary edge; it is not yet the complete `EdgeCleanupPlan` or conservation
+  witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
