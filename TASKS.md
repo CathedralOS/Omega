@@ -407,7 +407,8 @@ checked-result arithmetic decision listed below.
 ### Lifetimes, dynamic traits, and build-time evaluation
 
 - Finish outlives constraints, persistent/parameter-backed owners, aggregate
-  borrow propagation, runtime indices, loan-root rebasing, and exact R5 facts.
+  borrow propagation, runtime-index expressions beyond exact immutable
+  local/state-parameter forwarding, loan-root rebasing, and exact R5 facts.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier

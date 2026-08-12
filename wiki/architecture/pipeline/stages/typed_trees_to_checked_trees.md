@@ -129,10 +129,13 @@ Current ownership is:
   must-analysis: every predecessor must carry the exact path, and the field
   symbol rebases it independently of each state's receiver parameter. Stable
   leaf facts can accumulate over several states and survive disjoint sibling
-  mutation. Overlap, a dynamic index, a missing predecessor fact, or an opaque
-  statement call clears the affected shortcut. Complete R5 statement- and
-  value-call frames preserve stable paths when their may-write sets are empty
-  or disjoint and invalidate only overlapping paths. Internal wrappers compose
+  mutation. An immutable local or state-parameter runtime index also rebases
+  across a named edge when forwarded directly into an immutable target
+  parameter. Mutable/computed indices, a missing predecessor fact, overlap, or
+  an opaque statement call clear the affected shortcut. Complete R5 statement-
+  and value-call frames preserve stable paths when their may-write sets are
+  empty or disjoint and invalidate only overlapping paths. Internal wrappers
+  compose
   nested boundary receiver/out-argument frames. State cycles keep exact frames
   through reordered primitive or shared-reference parameters, while rebinding
   a write-capable parameter remains conservative. Stable mutable-alias chains
