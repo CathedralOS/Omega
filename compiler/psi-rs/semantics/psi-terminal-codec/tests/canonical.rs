@@ -829,7 +829,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     },
                 }],
                 entry_claims: vec![EntryClaim {
-                    claim: claim_id(2),
+                    claim: claim_id(1),
                     input: callee_place,
                 }],
                 published_service_ceiling: vec![service],
@@ -859,7 +859,7 @@ fn structural_effect_fixture() -> TerminalModule {
                                     place: callee_place,
                                 }],
                                 claim_settlements: vec![ClaimSettlement {
-                                    claim: claim_id(2),
+                                    claim: claim_id(1),
                                     argument_index: 0,
                                 }],
                                 requirement_obligations: Vec::new(),
