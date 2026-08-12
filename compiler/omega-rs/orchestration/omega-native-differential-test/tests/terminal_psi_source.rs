@@ -1,6 +1,6 @@
-//! Real-source proof that the transitional producer emits a self-contained
-//! terminal-Psi module: frontend trees are dropped before verification and
-//! execution.
+//! Real-source proof that Psi emits a self-contained terminal module: frontend
+//! trees are dropped before canonical decoding, verification, interpretation,
+//! and Omega lowering.
 
 use omega_compiler::compile_to_checked;
 use omega_executable_installation::{

@@ -7,7 +7,7 @@ This stage turns encoded machine bytes, data bytes, layout facts, and host ABI i
 The clean terminal-Psi lane enters the same object model through
 `omega-terminal-image-emission`. It consumes `TerminalMachineCodePlan` directly,
 retains the exact terminal semantic identity and per-function Psi provenance,
-and deliberately does not reconstruct the legacy `EncodedMachineCode` carrier.
+and does not reconstruct an `EncodedMachineCode` carrier.
 Its scalar slice owns canonical-order text functions, their symbols, and typed
 internal-call sites. Object construction accepts those sites only when their
 operation identities occur in the function's retained Psi provenance and the
