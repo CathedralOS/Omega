@@ -2764,6 +2764,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         &mut self.value
     }
 
+    machine Main::write_then_return_attached_receiver(&mut self) -> &mut u64 {
+        self.other = 4;
+        &mut self.value
+    }
+
     machine write_then_return(value: &mut u64) -> &mut u64 {
         value = 4;
         value
@@ -2830,6 +2835,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::attached_receiver_result_alias(&mut self) {
         let alias: &mut u64 = self.return_attached_receiver();
+        alias = 3;
+    }
+
+    machine Main::nontrivial_attached_receiver_result_alias(&mut self) {
+        let alias: &mut u64 = self.write_then_return_attached_receiver();
         alias = 3;
     }
 
@@ -2984,6 +2994,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::attached_projected_call_result_alias",
             "self.cell.value",
         ),
+        ("Main::attached_receiver_result_alias", "self.value"),
         ("Main::named_alias_cycle", "self.value"),
         ("Main::named_indexed_alias_cycle", "self.cells"),
         ("Main::named_alias_multistate_cycle", "self.value"),
@@ -3017,7 +3028,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::nontrivial_call_result_alias",
         "Main::nontrivial_call_rebound_alias",
         "Main::computed_local_collection_origin",
-        "Main::attached_receiver_result_alias",
+        "Main::nontrivial_attached_receiver_result_alias",
         "duplicate_parameter_alias_cycle",
         "Main::named_alias_cross_state_local",
     ] {

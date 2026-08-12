@@ -303,12 +303,12 @@ customer-shaped compiler concept is introduced.
   earlier reborrows keep their established origin. Member suffixes remain exact;
   indexing coarsens to the nearest collection and that coarsening is absorbing.
   A one-expression free or attached helper may relate a returned `&mut` place
-  to one explicit mutable-reference parameter; receiver-backed, computed, or
-  nontrivial results remain opaque. Escaped aliases, reference-bearing/computed
-  local roots, unrepresentable rebinding, and non-bijective cyclic transport
-  also remain fences. Signature lifetime elision alone establishes no relation.
-  Continue with other representable candidates; do not restore authored
-  `stores` clauses.
+  to one mutable-reference parameter, including an attached helper's actual
+  receiver; computed or nontrivial results remain opaque. Escaped aliases,
+  reference-bearing/computed local roots, unrepresentable rebinding, and
+  non-bijective cyclic transport also remain fences. Signature lifetime elision
+  alone establishes no relation. Continue with other representable candidates;
+  do not restore authored `stores` clauses.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
@@ -318,7 +318,9 @@ customer-shaped compiler concept is introduced.
   durable trust report now copies each routed provider entry/result claim with
   exact plan fingerprint, requirement, subject, authority flow, semantic
   domain, carry policy, predicate-discharge requirement, and grant provenance;
-  continue with consumers that still lack exact blast-radius rows.
+  the qualification artifact also retains the canonical requirement overload
+  identity and predicate-body status beside its readable label. Continue with
+  consumers that still lack exact blast-radius rows.
 
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.

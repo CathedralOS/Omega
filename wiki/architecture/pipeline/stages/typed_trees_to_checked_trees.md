@@ -148,13 +148,13 @@ Current ownership is:
   alias into a primitive scalar or recursively primitive fixed-array local is
   caller-isolated and contributes no published write; computed or
   reference-bearing local roots remain opaque. A free or attached helper whose
-  entire body returns one terminal place rooted in one explicit
-  mutable-reference parameter composes exact member suffixes or absorbing
-  collection-coarse indexing onto that argument's origin through its call
-  result and later transparent chains. An attached receiver is not itself a
-  result origin at this rung. Computed or nontrivial results remain opaque;
-  signature lifetime elision alone is not relational frame evidence. An
-  unsummarized body falls back to its
+  entire body returns one terminal place rooted in one mutable-reference
+  parameter composes exact member suffixes or absorbing collection-coarse
+  indexing onto that argument's origin through its call result and later
+  transparent chains. For an attached helper, its actual receiver supplies the
+  caller origin when the result is rooted in `self`. Computed or nontrivial
+  results remain opaque; signature lifetime elision alone is not relational
+  frame evidence. An unsummarized body falls back to its
   receiver plus every potentially exclusive place argument.
   Frames whose places cannot be represented remain all-facts fences. Other
   writes into attached or machine-owned persistent storage remain fail-closed
