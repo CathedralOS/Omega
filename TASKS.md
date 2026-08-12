@@ -454,9 +454,12 @@ checked-result arithmetic decision listed below.
 - Extend repeated encode/decode to `Vec<T>` after allocator obligations land.
   Packed scalar decode into `&[T]` remains unsupported because variable-width
   encodings cannot form a zero-copy scalar view.
-- Connect retained semantic artifacts to loader/provider execution; implement
-  trusted/PCC and final-footprint validators; complete target W^X/coherence
-  reporting and uninstall/replacement joins.
+- The retained selected provider plan, sealed provider execution, exact
+  installed entry, and post-handoff writer context now join to the matching AOT
+  fragment. Consume a linear mapped, pinned, writable, unpublished destination
+  carrier to execute that prepared writer; implement trusted/PCC and
+  final-footprint validators; complete target W^X/coherence reporting and
+  uninstall/replacement joins.
 - Keep arbitrary runtime bytes-to-code, JIT, and raw executable addresses
   unsupported.
 

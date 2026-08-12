@@ -65,8 +65,9 @@ pub use program_storage_entry::{
     install_program_storage_entry_roots,
 };
 pub use provider_plans::{
-    AdmittedExternalRootEntryFactHandoff, SelectedExternalRootEntryFactBinding,
-    SelectedExternalRootProviderPlan, selected_external_root_entry_fact_bindings,
+    AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
+    SelectedExternalRootEntryFactBinding, SelectedExternalRootProviderPlan,
+    bind_external_root_post_handoff_writer_invocation, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};

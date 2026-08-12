@@ -20,6 +20,54 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
+/// A generated writer whose exact AOT fragment is joined to one admitted
+/// external-root execution and its provider-populated invocation context.
+/// This is the last address-free orchestration seam before a platform provider
+/// installs and invokes the fragment from the final artifact.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BoundExternalRootPostHandoffWriterInvocation {
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+}
+
+impl BoundExternalRootPostHandoffWriterInvocation {
+    pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
+        &self.lowered
+    }
+
+    pub const fn prepared(
+        &self,
+    ) -> &omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation {
+        &self.prepared
+    }
+}
+
+/// Join an AOT-lowered writer fragment to provider-execution preparation that
+/// already checked selected closure, installed entry, symbolic sources, and
+/// concrete destination placement.
+pub fn bind_external_root_post_handoff_writer_invocation(
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+) -> Result<BoundExternalRootPostHandoffWriterInvocation, psi_diagnostics::Diagnostic> {
+    if prepared.architecture() != lowered.fragment().target().architecture {
+        return Err(psi_diagnostics::Diagnostic::error(format!(
+            "external-root post-handoff writer architecture {:?} does not match lowered fragment architecture {:?}",
+            prepared.architecture(),
+            lowered.fragment().target().architecture
+        )));
+    }
+    if prepared.invocation() != lowered.invocation()
+        || prepared.context().normalized_fragment_fingerprint()
+            != lowered.fragment().normalized_plan_fingerprint()
+        || !prepared.context().binds_invocation(lowered.invocation())
+    {
+        return Err(psi_diagnostics::Diagnostic::error(
+            "external-root provider preparation does not bind the exact lowered post-handoff writer invocation",
+        ));
+    }
+    Ok(BoundExternalRootPostHandoffWriterInvocation { lowered, prepared })
+}
+
 /// Static bridge from one selected external-root `accepts` row to the exact
 /// checked entry fact that the runtime occurrence must discharge.
 ///
@@ -220,6 +268,33 @@ impl SelectedExternalRootEntryFactBinding {
 }
 
 impl SelectedExternalRootProviderPlan {
+    /// Join this retained compiler selection to one admitted provider
+    /// execution and its exact post-handoff entry-writer invocation.
+    ///
+    /// The selected-plan fingerprint remains identity rather than authority;
+    /// the sealed execution and installed-code resolver provide the authority.
+    /// Matching it here prevents accidental closure substitution between
+    /// selection and writer preparation.
+    pub fn prepare_post_handoff_entry_writer(
+        &self,
+        execution: &omega_external_roots::ProviderExecution,
+        installed_code: &omega_executable_installation::InstalledCode,
+        writer: &psi_layout_plans::PostHandoffWriterPlan,
+        destination_len: usize,
+        destination_site: psi_layout_plans::PlacementSite,
+    ) -> Result<
+        omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+        omega_external_roots::ExternalRootDiagnostic,
+    > {
+        execution.prepare_post_handoff_entry_writer(
+            self.identity,
+            installed_code,
+            writer,
+            destination_len,
+            destination_site,
+        )
+    }
+
     /// Lower the compiler-owned accepted claims for one exact requirement into
     /// the provider-neutral runtime-ledger representation. External-root
     /// construction must use this retained selection rather than restating
