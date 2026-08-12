@@ -192,6 +192,14 @@ guard/value control plan exists. The complete `EdgeCleanupPlan`, contextual
 cleanup contracts, repeated-cycle composition, and the retained whole-edge
 conservation witness remain CML4 work.
 
+Scalar-result materialization does not change that ordering. A first attached
+one-state source slice now evaluates one checked closed landed integer literal,
+then performs exact reverse-declaration cleanup of its claim-free affine
+structural parameters on the scalar return edge. The producer rechecks the
+signature and cleanup row before assigning terminal places. Computed results,
+mixed scalar/structural namespaces, locals, claims, and richer exits remain
+fail-closed rather than weakening the frontier model.
+
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
 consumes. One unambiguous moved input preserves its origin into the result;

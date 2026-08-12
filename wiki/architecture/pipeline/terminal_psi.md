@@ -190,6 +190,18 @@ fail closed; conditional cleanup facts alone are not a substitute for a checked
 source-independent guard and value plan. The terminal verifier remains
 responsible for reconstructing the emitted cleanup frontier.
 
+The first nonempty scalar-return source path composes the same cleanup evidence
+with an attached, one-state signature containing only claim-free affine
+structural parameters and one explicitly landed closed integer literal return.
+The checked row carries the exact structural signature, scalar result carrier,
+return coordinate, and reverse-declaration cleanup positions. Production
+revalidates that the checked scalar expression is still the closed literal,
+materializes it before the return edge, resolves cleanup positions to structural
+places, and emits the existing verified scalar `Return`. Computed or Boolean
+results, scalar locals, mixed scalar/structural parameter namespaces, contracts,
+claims, effects, and multi-state control remain outside this source slice; none
+is represented by smuggling structural custody through scalar parameters.
+
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
 register placement, ABI classes, concrete storage regions, instructions, and
