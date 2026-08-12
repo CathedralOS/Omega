@@ -42800,6 +42800,10 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    "arithmetic/bounded_max_call",
+    "arithmetic/float_unit_ratio_compile",
+    "arithmetic/bounded_return_literal",
+    "arithmetic/exact_integer_cast_proven",
     "capabilities/uses_caller_folder",
     "capabilities/uses_caller_capability_requires",
     "core/float_meaning_core_surface",
@@ -48079,11 +48083,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_transparent_record_state_result",
     "ownership/linear_aggregate_state_result",
     "arithmetic/bare_name_scopes",
-    "arithmetic/bounded_max_call",
-    "arithmetic/float_unit_ratio_compile",
-    "arithmetic/bounded_return_literal",
     "arithmetic/const_fold_overflow_compiles",
-    "arithmetic/exact_integer_cast_proven",
     "arithmetic/runtime_i64_min_literal_exit",
     "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "constants/runtime_scoped_const_exit",
