@@ -507,7 +507,7 @@ fn validate_struct_literal(
     for erased in &declared_erased {
         if !authored.iter().any(|field| field.name == erased.name) {
             diagnostics.push(Diagnostic::error(format!(
-                "construction of `{}` omits erased field `{}`; erased bindings still require an explicit proof term (automatic nullary construction is not implemented yet)",
+                "construction of `{}` omits erased field `{}`; supply an explicit proof term because no unique accessible nullary constructor determines this binding",
                 definition.name, erased.name
             )));
         }

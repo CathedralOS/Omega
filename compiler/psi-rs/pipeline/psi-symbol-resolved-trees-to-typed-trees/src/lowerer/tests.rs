@@ -4,6 +4,88 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
+    let source = r#"
+        data Evidence {
+            case Only;
+            case WithPayload(value: i32);
+        }
+        data Certified {
+            value: i32;
+            proof [erased]: Evidence;
+        }
+        machine certify() -> Certified {
+            Certified { value: 7 }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let evidence = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Evidence")
+        .expect("Evidence definition");
+    let only = typed
+        .data_members(evidence)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Only" =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+        .expect("Only variant");
+    let literal = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::StructLiteral(literal)
+                if literal.type_name.as_str() == "Certified" =>
+            {
+                Some(literal)
+            }
+            _ => None,
+        })
+        .expect("Certified literal");
+    let fields = typed.expression_table.struct_fields(literal.fields);
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["value", "proof"]
+    );
+    let proof = &fields[1];
+    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+        typed.expression_table.expression(proof.value)
+    else {
+        panic!("omitted proof should elaborate to a semantic name term");
+    };
+    assert_eq!(
+        typed
+            .expression_table
+            .name_path_members(path.members)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["Evidence", "Only"]
+    );
+    assert_eq!(path.head_symbol, evidence.symbol);
+    assert_eq!(path.symbol, only.symbol);
+    assert_eq!(
+        typed
+            .expression_table
+            .name_path_member_symbols(path.member_symbols),
+        [evidence.symbol, only.symbol]
+    );
+}
+
+#[test]
 fn preserves_field_relevance_through_resolved_and_typed_trees() {
     let source = r#"
         data Certified {

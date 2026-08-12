@@ -3363,7 +3363,11 @@ fn expression_establishes_obligation(
                 })
             })
     ) {
-        return false;
+        // A payloadless case has no obligation for a conditional payload
+        // frontier, but constructing a data type declared `[linear]` still
+        // establishes that type's root obligation. The latter arrives with an
+        // empty relative path; case/payload claims retain at least one segment.
+        return relative_path.is_empty();
     }
 
     // Calls and boundary results have unknown active cases. Every case path is

@@ -285,14 +285,18 @@ accessible nullary constructor; the compiler does not invoke a general
 inhabitance judgment or synthesize a zero/default value. Ordinary authored
 field defaults remain ordinary defaults.
 
-The current executable slice requires the erased initializer explicitly; the
-visible-nullary-constructor omission rule remains to be implemented. Native
-erasure currently admits non-generic transparent records, sums, and mixed
-common-field/case shapes. Erased payloads do not change tags or case numbering;
-they remain visible to semantic exhaustiveness and obligation checking. The
-compiler fails closed for generic data, plan-laid and placed views, wire/codec
-and ABI faces, and data with attached machines until each consumer has an
-erased-stripped representation.
+For currently resolved and nameable non-generic checked-shape holders and
+evidence types, the executable slice elaborates an omitted erased initializer
+only when exactly one payloadless constructor with no common fields determines
+the term. The semantic typed tree receives that constructor term before proof
+and multiplicity checking. Ambiguous, absent, generic, or otherwise ineligible
+constructors still require an explicit term; omission never invokes a default
+or general inhabitance search. Native erasure admits non-generic transparent
+records, sums, and mixed common-field/case shapes. Erased payloads do not change
+tags or case numbering; they remain visible to semantic exhaustiveness and
+obligation checking. The compiler fails closed for generic data, plan-laid and
+placed views, wire/codec and ABI faces, and data with attached machines until
+each consumer has an erased-stripped representation.
 
 Runtime layout, ABI classification, codec shape, and placement offsets use the
 erased-stripped form. Nominal type identity and semantic fingerprints retain

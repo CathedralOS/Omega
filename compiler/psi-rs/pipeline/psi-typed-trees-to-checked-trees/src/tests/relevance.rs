@@ -79,6 +79,159 @@ fn construction_still_requires_erased_initializer() {
 }
 
 #[test]
+fn unique_nullary_constructor_supplies_omitted_erased_initializer() {
+    lower_typed_trees(typed(
+        r#"
+        data Nat {
+            case Zero;
+            case Succ(previous: Nat);
+        }
+        data Certified { value: i32; proof [erased]: Nat; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7 };
+            certified.value
+        }
+        "#,
+    ))
+    .expect("the unique nullary constructor should supply the erased term");
+}
+
+#[test]
+fn selected_case_payload_gets_unique_nullary_erased_initializer() {
+    lower_typed_trees(typed(
+        r#"
+        data Evidence { case Only; case WithPayload(value: i32); }
+        data Certified {
+            case Proven(value: i32, proof [erased]: Evidence);
+            case Unproven(value: i32, reason [erased]: i32);
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified::Proven { value: 7 };
+            0
+        }
+        "#,
+    ))
+    .expect("only the selected case's omitted erased payload should elaborate");
+}
+
+#[test]
+fn ambiguous_nullary_constructors_do_not_supply_an_erased_initializer() {
+    rejected(
+        r#"
+        data Evidence { case First; case Second; }
+        data Certified { value: i32; proof [erased]: Evidence; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7 };
+            certified.value
+        }
+        "#,
+        "no unique accessible nullary constructor",
+    );
+}
+
+#[test]
+fn payload_only_evidence_does_not_supply_an_erased_initializer() {
+    rejected(
+        r#"
+        data Evidence { case WithPayload(value: i32); }
+        data Certified { value: i32; proof [erased]: Evidence; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7 };
+            certified.value
+        }
+        "#,
+        "no unique accessible nullary constructor",
+    );
+}
+
+#[test]
+fn nullary_case_with_common_fields_does_not_supply_an_erased_initializer() {
+    rejected(
+        r#"
+        data Evidence { code: i32; case Only; }
+        data Certified { value: i32; proof [erased]: Evidence; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7 };
+            certified.value
+        }
+        "#,
+        "no unique accessible nullary constructor",
+    );
+}
+
+#[test]
+fn generic_evidence_does_not_supply_an_erased_initializer() {
+    rejected(
+        r#"
+        data Evidence<T> { case Only; }
+        data Certified { value: i32; proof [erased]: Evidence<i32>; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7 };
+            certified.value
+        }
+        "#,
+        "no unique accessible nullary constructor",
+    );
+}
+
+#[test]
+fn ambiguous_nullary_evidence_remains_legal_when_explicitly_supplied() {
+    lower_typed_trees(typed(
+        r#"
+        data Evidence { case First; case Second; }
+        data Certified { value: i32; proof [erased]: Evidence; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified {
+                value: 7,
+                proof: Evidence::Second,
+            };
+            certified.value
+        }
+        "#,
+    ))
+    .expect("an explicit term should resolve ambiguous nullary evidence");
+}
+
+#[test]
+fn synthesized_erased_linear_evidence_retains_its_obligation() {
+    rejected(
+        r#"
+        data Receipt [linear] { case Issued; }
+        data Certified { proof [erased]: Receipt; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified {};
+            0
+        }
+        "#,
+        "linear value `certified.proof` reaches scope exit",
+    );
+}
+
+#[test]
+fn explicit_erased_linear_nullary_evidence_retains_its_obligation() {
+    rejected(
+        r#"
+        data Receipt [linear] { case Issued; }
+        data Certified { proof [erased]: Receipt; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { proof: Receipt::Issued };
+            0
+        }
+        "#,
+        "linear value `certified.proof` reaches scope exit",
+    );
+}
+
+#[test]
 fn runtime_projection_of_erased_field_is_rejected() {
     rejected(
         r#"
