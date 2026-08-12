@@ -1897,6 +1897,73 @@ fn boundary_witness_survives_disjoint_internal_call_frame() {
 }
 
 #[test]
+fn boundary_witness_survives_disjoint_recast_local_call_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            other: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_other_through_recast();
+            self.small = self.n;
+        }
+
+        machine Main::touch_other_through_recast(&mut self) {
+            let view: &mut f32 = &mut self.other as &mut f32;
+            view = 1.0;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("an exact mutable-recast frame should preserve a disjoint boundary range witness");
+}
+
+#[test]
+fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            small: u32 [0..=8];
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_n_through_recast();
+            self.small = self.n;
+        }
+
+        machine Main::touch_n_through_recast(&mut self) {
+            let view: &mut f32 = &mut self.n as &mut f32;
+            view = 9.0;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an overlapping mutable-recast frame must invalidate the range witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_local_alias_call_frame() {
     let source = r#"
         boundary trait Firmware {
