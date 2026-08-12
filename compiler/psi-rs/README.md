@@ -54,8 +54,8 @@ Current roots:
   reach, synchronous invocation summaries, and capability-flow facts;
 - `representations/psi-checked-trees`: checked proof, borrow, flow, reach,
   value-origin, and admissibility evidence;
-- `representations/psi-terminal`: the in-memory terminal semantic module and
-  its first integer-constant / jump / return operation vocabulary;
+- `representations/psi-terminal`: the self-contained terminal semantic module,
+  closed operation vocabulary, contracts, claims, and proof-facing identities;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
 - `pipeline/psi-tokens-to-syntax-trees`: the Psi-owned unresolved Omega parser;
 - `pipeline/psi-syntax-trees-to-symbol-resolved-trees`: Psi-owned name lookup,
@@ -64,9 +64,9 @@ Current roots:
   compatibility, and signature normalization;
 - `pipeline/psi-typed-trees-to-checked-trees`: Psi-owned semantic checking and
   checked-fact construction;
-- `pipeline/psi-checked-trees-to-terminal`: the first fail-closed executable
-  source producer plus checked content-conservation, reshuffle, and direct
-  partition-composition translation into terminal Psi;
+- `pipeline/psi-checked-trees-to-terminal`: fail-closed vertical-slice
+  production from checked semantics into terminal Psi, including current
+  scalar/control/call/crash and content-evidence slices;
 - `semantics/psi-types`: unresolved source type-surface analysis;
 - `semantics/psi-validation`: target-neutral cross-semantic source validation;
 - `semantics/psi-proof`: source proof-surface collection, obligation planning,
