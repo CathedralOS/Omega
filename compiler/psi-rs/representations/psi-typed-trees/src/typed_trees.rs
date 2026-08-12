@@ -903,13 +903,17 @@ impl TypedTrees {
     /// envelope, never a nested struct). `Some` only when every current-era
     /// field is a plain stage 2 scalar: a String body is runtime-unbounded
     /// and a doubly-nested body is a deeper composition, so both make the
-    /// caller reject with its own diagnostic.
+    /// caller reject with its own diagnostic. Erased fields retain schema
+    /// identity but do not contribute a tag, value, or boundedness condition.
     pub fn wire_schema_scalar_body_worst_case(&self, schema: &wire::WireSchema) -> Option<usize> {
         let mut worst_case_bytes = 0usize;
         for member in self.wire_members(schema.members) {
             let wire::WireMember::Field(field) = member else {
                 continue;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let scalar = self
                 .primitive_type_reference(field.type_reference)
                 .and_then(wire::WireScalarEncoding::for_primitive)?;
@@ -1473,9 +1477,10 @@ impl DerefMut for TypedTrees {
 mod tests {
     use crate::{
         TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine,
-        name::Identifier, operator, trait_definition,
+        name::Identifier, operator, trait_definition, types, wire,
     };
     use psi_arena::HandleSpan;
+    use psi_language_core::BindingRelevance;
     use psi_symbols::SymbolTable;
 
     #[test]
@@ -1531,5 +1536,29 @@ mod tests {
             trees.signature_invokes.span_or_empty(signature_invokes)[0].as_str(),
             "Console.write"
         );
+    }
+
+    #[test]
+    fn erased_fields_do_not_contribute_to_wire_scalar_body_size() {
+        let mut trees = TypedTrees::default();
+        let unsupported = trees
+            .type_reference_table
+            .insert(types::TypeReferenceNode::Named {
+                symbol: Default::default(),
+                name: Identifier::generated("Unsupported"),
+            });
+        let members = trees.append_wire_members(vec![wire::WireMember::Field(wire::WireField {
+            number: 127,
+            name: Identifier::generated("proof"),
+            relevance: BindingRelevance::Erased,
+            type_reference: unsupported,
+        })]);
+        let schema = wire::WireSchema {
+            name: Identifier::generated("Message"),
+            members,
+            ..wire::WireSchema::default()
+        };
+
+        assert_eq!(trees.wire_schema_scalar_body_worst_case(&schema), Some(0));
     }
 }

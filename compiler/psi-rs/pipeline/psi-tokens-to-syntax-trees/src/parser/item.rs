@@ -1,6 +1,8 @@
 use crate::parser::capability::parse_capability_definition;
 use crate::parser::const_item::parse_const_definition;
-use crate::parser::data::{parse_boundary_data_definition, parse_data_definition};
+use crate::parser::data::{
+    parse_boundary_data_definition, parse_data_definition, parse_field_relevance_brackets,
+};
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
@@ -607,6 +609,7 @@ fn parse_wire_data_member<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::Hash, "#")?;
     let (number, input) = input.take_identity()?;
     let (name, input) = input.take_identifier()?;
+    let (relevance, input) = parse_field_relevance_brackets(input)?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     // A wire field may be a borrowed view (`&[u8]`): the zero-copy raw-bytes
     // field that decodes as a window into the buffer rather than owning a copy.
@@ -617,6 +620,7 @@ fn parse_wire_data_member<'tokens, 'source>(
         WireDataMember::Field(WireDataField {
             number,
             name,
+            relevance,
             type_reference,
         }),
         input,

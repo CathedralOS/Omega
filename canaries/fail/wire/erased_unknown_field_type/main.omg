@@ -1,0 +1,9 @@
+// Erasure removes the current codec placement, not the semantic type from the
+// schema. Historical schema identities must still name a resolvable type.
+data Message {
+    #0 proof [erased]: MissingEvidence;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

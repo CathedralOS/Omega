@@ -863,8 +863,15 @@ fn push_wire_case_table(output: &mut String, cases: &[WireCaseReportEntry], reti
             } else {
                 for field in &case.payload_fields {
                     output.push_str(&format!(
-                        "    #{} {}: {}\n",
-                        field.number, field.name, field.type_display
+                        "    #{} {}{}: {}\n",
+                        field.number,
+                        field.name,
+                        if field.relevance.is_erased() {
+                            " [erased]"
+                        } else {
+                            ""
+                        },
+                        field.type_display
                     ));
                 }
             }
@@ -1779,8 +1786,15 @@ fn push_wire_field_table(output: &mut String, fields: &[WireFieldReportEntry], r
     } else {
         for field in fields {
             output.push_str(&format!(
-                "  {} {} {}\n",
-                field.number, field.name, field.type_display
+                "  {} {}{} {}\n",
+                field.number,
+                field.name,
+                if field.relevance.is_erased() {
+                    " [erased]"
+                } else {
+                    ""
+                },
+                field.type_display
             ));
         }
     }
@@ -1896,7 +1910,21 @@ impl WireTrustClass {
 pub struct WireFieldReportEntry {
     pub number: u64,
     pub name: String,
+    pub relevance: WireFieldRelevance,
     pub type_display: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WireFieldRelevance {
+    #[default]
+    Relevant,
+    Erased,
+}
+
+impl WireFieldRelevance {
+    pub fn is_erased(self) -> bool {
+        matches!(self, Self::Erased)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -2237,9 +2265,37 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     use super::{
-        ArtifactWriter, build_backend_surface_report, external_root_records_manifest_json,
-        value_placement_json,
+        ArtifactWriter, WireFieldRelevance, WireFieldReportEntry, build_backend_surface_report,
+        external_root_records_manifest_json, push_wire_field_table, value_placement_json,
     };
+
+    #[test]
+    fn wire_field_table_marks_erased_semantic_members() {
+        let mut output = String::new();
+        push_wire_field_table(
+            &mut output,
+            &[
+                WireFieldReportEntry {
+                    number: 1,
+                    name: "value".to_owned(),
+                    relevance: WireFieldRelevance::Relevant,
+                    type_display: "u32".to_owned(),
+                },
+                WireFieldReportEntry {
+                    number: 7,
+                    name: "proof".to_owned(),
+                    relevance: WireFieldRelevance::Erased,
+                    type_display: "Evidence".to_owned(),
+                },
+            ],
+            &[],
+        );
+
+        assert_eq!(
+            output,
+            "fields:\n  1 value u32\n  7 proof [erased] Evidence\n"
+        );
+    }
 
     #[test]
     fn value_placement_json_retains_indirect_copy_geometry() {

@@ -35,8 +35,9 @@ pub(crate) fn validate_wire_schemas(
 /// A schema that reaches ITSELF through nested message fields (directly or
 /// through siblings) can never have a finite worst-case encoding, so the
 /// cycle is a hard error at the declaration -- not a call-site rejection.
-/// Only CURRENT-era fields participate: version blocks snapshot history and
-/// are never encoded by the current encoder.
+/// Only physically relevant CURRENT-era fields participate: version blocks
+/// snapshot history and erased fields retain semantic identity, but neither
+/// is encoded by the current encoder.
 fn validate_nested_schema_cycles(
     program: &TypedTrees,
     schema: &WireSchema,
@@ -61,6 +62,9 @@ fn nested_references_reach<'program>(
         let WireMember::Field(field) = member else {
             continue;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         let Some(child) = program.wire_field_nested_schema(field) else {
             continue;
         };
@@ -233,6 +237,9 @@ fn validate_scope_field_types(
             field.type_reference,
             diagnostics,
         );
+        if field.relevance.is_erased() {
+            continue;
+        }
 
         // Bounded repeated carriers (`[T; N]` and `FixedVec<T, N>`) give the
         // generated realization a finite worst-case byte/work budget. A bare
@@ -547,6 +554,9 @@ fn validate_wire_encode_call(
         let WireMember::Field(field) = member else {
             continue;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         // A bounded repeated scalar carrier packs LENGTH-delimited: tag +
         // byte-length varint + back-to-back element varints (protobuf's
         // packed encoding). Its capacity bounds it statically, so it
@@ -913,6 +923,9 @@ fn validate_wire_decode_call(
         let WireMember::Field(field) = member else {
             continue;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         // Mirrors the encoder's repeated gate: a bounded scalar carrier decodes as a
         // LENGTH-delimited packed payload (bounds-checked loop capped at the
         // declared capacity); non-scalar elements reject.
@@ -1264,6 +1277,9 @@ fn validate_nested_value_field(
         let WireMember::Field(child_field) = member else {
             continue;
         };
+        if child_field.relevance.is_erased() {
+            continue;
+        }
         let Some(child_value_field) =
             program
                 .data_members(child_value_data)
@@ -1404,4 +1420,54 @@ fn named_data_definition<'program>(
         .data_definitions()
         .iter()
         .find(|data| data.name == *name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_language_core::BindingRelevance;
+    use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::types::TypeReferenceNode;
+
+    fn self_referential_schema(relevance: BindingRelevance) -> TypedTrees {
+        let mut program = TypedTrees::default();
+        let self_reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: Default::default(),
+                name: Identifier::generated("Recursive"),
+            });
+        let members = program.append_wire_members(vec![WireMember::Field(WireField {
+            number: 0,
+            name: Identifier::generated("next"),
+            relevance,
+            type_reference: self_reference,
+        })]);
+        program.push_wire_schema(WireSchema {
+            name: Identifier::generated("Recursive"),
+            members,
+            ..WireSchema::default()
+        });
+        program
+    }
+
+    #[test]
+    fn erased_nested_field_does_not_form_a_physical_schema_cycle() {
+        let program = self_referential_schema(BindingRelevance::Erased);
+        let mut diagnostics = Vec::new();
+
+        validate_nested_schema_cycles(&program, &program.wire_schemas()[0], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn relevant_nested_field_still_forms_a_physical_schema_cycle() {
+        let program = self_referential_schema(BindingRelevance::Relevant);
+        let mut diagnostics = Vec::new();
+
+        validate_nested_schema_cycles(&program, &program.wire_schemas()[0], &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+    }
 }

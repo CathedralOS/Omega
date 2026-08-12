@@ -108,6 +108,7 @@ impl Default for WireMember {
 pub struct WireField {
     pub number: u64,
     pub name: Identifier,
+    pub relevance: psi_language_core::BindingRelevance,
     pub type_reference: TypeReferenceHandle,
 }
 
@@ -116,6 +117,7 @@ impl Default for WireField {
         Self {
             number: 0,
             name: Identifier::default(),
+            relevance: Default::default(),
             type_reference: TypeReferenceHandle::invalid(),
         }
     }

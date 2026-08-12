@@ -1,0 +1,52 @@
+use omega::language::std::console;
+
+data Evidence { case Only; case Step(previous: Evidence); }
+data Certificate { case Unique; }
+data CertifiedMessage {
+    #0 counter: u32;
+    #1 proof [erased]: Evidence;
+    #2 flag: bool;
+    #3 certificate [erased]: Certificate;
+}
+
+data WireVerdict { case Invalid; case Sound; }
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    written: u64;
+    read: u64;
+    verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    let value: CertifiedMessage = CertifiedMessage {
+        counter: 70,
+        proof: Evidence::Only,
+        flag: true,
+        // The unique erased certificate is elaborated from exact context.
+    };
+    CertifiedMessage::encode(&value, &mut self.buffer, &mut self.written);
+    let decoded: CertifiedMessage = CertifiedMessage {
+        counter: 0,
+        proof: Evidence::Only,
+        flag: false,
+        // Decode consumes no bytes for the elaborated erased certificate.
+    };
+    CertifiedMessage::decode(
+        &mut decoded,
+        &self.buffer,
+        &mut self.read,
+        &mut self.verdict,
+    );
+    transition self.verdict == WireVerdict::Sound
+        && self.written == 5
+        && self.read == 5
+        && decoded.counter == 70
+        && decoded.flag
+    {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

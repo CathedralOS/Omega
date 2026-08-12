@@ -31,6 +31,7 @@ fn lower_wire_members(
                 typed::wire::WireMember::Field(typed::wire::WireField {
                     number: field.number,
                     name: crate::name::lower_name(&field.name),
+                    relevance: field.relevance,
                     type_reference: lower_type_reference_into_table(
                         lowerer,
                         &field.type_reference,

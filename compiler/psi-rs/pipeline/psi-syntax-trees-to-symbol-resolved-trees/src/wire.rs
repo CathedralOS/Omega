@@ -49,7 +49,7 @@ pub(crate) fn data_definition_from_wire_schema(
                 identity: Some(field.number),
                 symbol: SymbolHandle::invalid(),
                 name: field.name.clone(),
-                relevance: Default::default(),
+                relevance: field.relevance,
                 type_reference: field.type_reference.clone(),
             }),
             _ => None,
@@ -103,6 +103,7 @@ fn lower_wire_members(
             syntax::item::WireDataMember::Field(field) => WireMember::Field(WireField {
                 number: field.number,
                 name: crate::name::lower_name(&field.name),
+                relevance: field.relevance,
                 type_reference: lower_type_reference_handle(
                     lowerer,
                     syntax_trees,

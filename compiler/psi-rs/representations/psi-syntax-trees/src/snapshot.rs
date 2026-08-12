@@ -386,6 +386,7 @@ pub enum WireDataMemberSnapshot {
     Field {
         number: u64,
         name: IdentifierSnapshot,
+        relevance: &'static str,
         type_reference: TypeReferenceSnapshot,
     },
     Reserved {
@@ -1095,6 +1096,7 @@ fn snapshot_wire_data_members(
             WireDataMember::Field(field) => WireDataMemberSnapshot::Field {
                 number: field.number,
                 name: snapshot_identifier(&field.name),
+                relevance: snapshot_binding_relevance(field.relevance),
                 type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
             },
             WireDataMember::Reserved(reserved) => WireDataMemberSnapshot::Reserved {

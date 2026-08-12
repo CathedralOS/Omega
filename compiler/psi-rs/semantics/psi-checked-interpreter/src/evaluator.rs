@@ -2385,6 +2385,9 @@ impl<'program> Evaluator<'program> {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
                 fields.push((
                     field.name.as_str().to_owned(),
@@ -2765,6 +2768,9 @@ impl<'program> Evaluator<'program> {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let target_type = psi_typed_trees::wire::data_field_type(
                 self.program,
                 value_type,
@@ -9477,6 +9483,9 @@ fn wire_nested_scalar_fields(
         let WireMember::Field(field) = member else {
             continue;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         let scalar = program
             .primitive_type_reference(field.type_reference)
             .and_then(WireScalarEncoding::for_primitive)
@@ -9514,6 +9523,9 @@ fn wire_nested_decode_scalar_fields(
         let WireMember::Field(field) = member else {
             continue;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         let target_type =
             psi_typed_trees::wire::data_field_type(program, value_type, field.name.as_str())
                 .ok_or_else(|| {
