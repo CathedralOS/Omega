@@ -1,3 +1,4 @@
 machine build(b: &mut Build) {
     b.freestanding = true;
+    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
