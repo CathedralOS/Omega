@@ -3160,7 +3160,7 @@ fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
             first: &'first mut Message,
             second: &'second mut Message
         ) -> &'second mut Message {
-            let selected: &mut Message = &mut first;
+            let mut selected: &mut Message = &mut first;
             selected = identity_message(second);
             selected
         }

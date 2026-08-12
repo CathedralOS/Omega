@@ -2854,6 +2854,29 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_mutable_local_alias(value: &mut u64) -> &mut u64 {
+        let mut alias: &mut u64 = &mut value;
+        alias
+    }
+
+    machine return_rebound_mutable_local_alias<'first, 'second>(
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'second mut u64 {
+        let mut alias: &mut u64 = &mut first;
+        alias = &mut second;
+        alias
+    }
+
+    machine return_call_rebound_mutable_local_alias<'first, 'second>(
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'second mut u64 {
+        let mut alias: &mut u64 = &mut first;
+        alias = call_then_return(second);
+        alias
+    }
+
     machine return_rebound_alias<'first, 'second>(
         first: &'first mut u64,
         second: &'second mut u64
@@ -2977,6 +3000,23 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::discarded_call_helper_result(&mut self) {
         let alias: &mut u64 = return_after_discarded_call(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::mutable_local_alias_helper_result(&mut self) {
+        let alias: &mut u64 = return_mutable_local_alias(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::rebound_mutable_local_alias_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_rebound_mutable_local_alias(&mut self.value, &mut self.other);
+        alias = 3;
+    }
+
+    machine Main::call_rebound_mutable_local_alias_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_call_rebound_mutable_local_alias(&mut self.value, &mut self.other);
         alias = 3;
     }
 
@@ -3209,6 +3249,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::nontrivial_call_rebound_alias", "self.other"),
         ("Main::isolated_scratch_helper_result", "self.value"),
         ("Main::pure_expression_helper_result", "self.value"),
+        ("Main::mutable_local_alias_helper_result", "self.value"),
+        (
+            "Main::rebound_mutable_local_alias_helper_result",
+            "self.other",
+        ),
         ("Main::rebound_helper_result", "self.other"),
         ("Main::pre_rebind_helper_result", "self.value"),
         ("Main::call_rebound_helper_result", "self.other"),
@@ -3290,6 +3335,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::reference_scratch_helper_result",
         "Main::call_scratch_helper_result",
         "Main::discarded_call_helper_result",
+        "Main::call_rebound_mutable_local_alias_helper_result",
         "Main::escaping_call_rebound_helper_result",
         "Main::escaping_call_then_result_alias",
         "duplicate_parameter_alias_cycle",

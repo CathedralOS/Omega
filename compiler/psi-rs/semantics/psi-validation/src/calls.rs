@@ -1717,8 +1717,8 @@ fn stable_alias_place_origin(
 /// Recover one deliberately structural value-call relation. The helper may be
 /// free or attached, but must be acyclic at the result surface, return `&mut`,
 /// and have one terminal result expression rooted in one mutable-reference
-/// parameter. A prefix may contain caller-isolated scratch locals and immutable
-/// mutable-reference locals that forward direct places from that parameter, an
+/// parameter. A prefix may contain caller-isolated scratch locals and local
+/// mutable-reference bindings that forward direct places from that parameter, an
 /// earlier such local, or another structurally transparent helper. Effect-free
 /// value-shaped assignments may write through those places or scratch locals
 /// without changing their origins; the ordinary frame summary still publishes
@@ -1844,9 +1844,6 @@ fn transparent_callee_result_origin(
                             return None;
                         }
                         continue;
-                    }
-                    if local.is_mutable {
-                        return None;
                     }
                     let TypeReferenceNode::Reference {
                         is_mutable: true, ..
