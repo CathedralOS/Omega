@@ -181,10 +181,13 @@ admission. For fully lowered Unit closures, Omega's emitter retains exact
 code-positioned frame, argument/shadow, and link evidence. Object construction
 validates those instructions, derives numeric local and caller-live peaks, and
 composes the acyclic call-closure peak by maximum over sequential calls. The
-call-free, branch-free scalar slice similarly retains exact ordered frame and
-temporary-stack mutations; object construction decodes and replays them, rejects
-unclaimed mutations or control flow, and requires a balanced return. Scalar
-calls and conditional control-flow joins remain outside this first scalar slice.
+branch-free scalar slice similarly retains exact ordered frame and
+temporary-stack mutations. Its typed direct calls additionally retain exact
+outbound and AArch64 link-register evidence; object construction decodes and
+replays the instructions, derives caller-live bytes even with pending
+temporaries, and composes the same acyclic closure. It rejects missing, forged,
+untyped, cyclic, or unaccounted evidence. Conditional control-flow joins remain
+outside this scalar slice.
 The result excludes external entry adapter and interrupt-arrival state; it is not
 yet an external-root `StackPlan` or provider receipt.
 

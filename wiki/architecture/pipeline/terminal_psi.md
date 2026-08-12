@@ -448,11 +448,13 @@ fuel evidence carries no provider receipt.
 closure and proof bundle, recomputes and validates its acyclic entry
 certificate, and publishes the exact terminal identity, schedule, entry, and
 ceiling. This is build-time semantic evidence, not installed-root evidence:
-the native terminal Unit slice now retains and validates emitter-derived local
-peaks plus exact caller-live stack at each typed internal-call relocation and
-can compose that acyclic closure below function entry. External adapter/
-interrupt-arrival state, other terminal function forms, provider admission,
-and exact installation binding are not yet part of that theorem, so the
+the native terminal Unit and branch-free scalar slices now retain exact
+emitter evidence that object construction validates and replays to derive
+local peaks plus caller-live stack at each typed internal-call relocation and
+compose that acyclic closure below function entry. Conditional scalar control
+flow, external adapter/interrupt-arrival state, other terminal function forms,
+provider admission, and exact installation binding are not yet part of that
+theorem, so the
 inspection surface still makes no installed-root WCSU claim.
 
 ## Implementation queue
