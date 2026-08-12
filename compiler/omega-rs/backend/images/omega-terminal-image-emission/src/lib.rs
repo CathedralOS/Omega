@@ -30,9 +30,9 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
-    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarConditionalCondition, TerminalScalarControlFlowEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
@@ -785,6 +785,7 @@ fn validate_scalar_stack(
         });
     }
     if let TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        condition,
         branch_offset,
         branch_byte_count,
         false_arm_offset,
@@ -796,6 +797,7 @@ fn validate_scalar_stack(
             bytes,
             calls,
             evidence,
+            condition,
             branch_offset,
             branch_byte_count,
             false_arm_offset,
@@ -1033,6 +1035,7 @@ fn validate_top_level_two_return_scalar_stack(
     bytes: &[u8],
     calls: &[omega_terminal_machine_code::TerminalInternalCallRelocation],
     evidence: &TerminalScalarStackEvidence,
+    condition: TerminalScalarConditionalCondition,
     branch_offset: usize,
     branch_byte_count: usize,
     false_arm_offset: usize,
@@ -1086,6 +1089,7 @@ fn validate_top_level_two_return_scalar_stack(
     }
     validate_scalar_conditional_branch(
         architecture,
+        condition,
         machine,
         bytes,
         branch_offset,
@@ -1101,11 +1105,11 @@ fn validate_top_level_two_return_scalar_stack(
         false,
         &mut claimed,
         &mut call_sites,
-        false,
+        condition == TerminalScalarConditionalCondition::Expression,
         evidence,
         &mut validated_calls,
     )?;
-    if prefix_peak != 0 {
+    if condition == TerminalScalarConditionalCondition::Parameter && prefix_peak != 0 {
         return Err(TerminalObjectError::InvalidScalarConditionalEvidence {
             machine,
             offset: branch_offset,
@@ -1149,7 +1153,7 @@ fn validate_top_level_two_return_scalar_stack(
     }
     Ok((
         TerminalObjectScalarStack {
-            local_peak_bytes: true_peak.max(false_peak),
+            local_peak_bytes: prefix_peak.max(true_peak).max(false_peak),
             stack_alignment: evidence.stack_alignment,
         },
         validated_calls,
@@ -1158,6 +1162,7 @@ fn validate_top_level_two_return_scalar_stack(
 
 fn validate_scalar_conditional_branch(
     architecture: Architecture,
+    condition: TerminalScalarConditionalCondition,
     machine: MachineId,
     bytes: &[u8],
     branch_offset: usize,
@@ -1195,8 +1200,18 @@ fn validate_scalar_conditional_branch(
                 .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
                 .map(u32::from_le_bytes)
                 .ok_or_else(invalid)?;
-            if encoded & 0xff00_0000 != 0x3400_0000 {
-                return Err(invalid());
+            match condition {
+                TerminalScalarConditionalCondition::Parameter
+                    if encoded & 0xff00_0000 != 0x3400_0000 =>
+                {
+                    return Err(invalid());
+                }
+                TerminalScalarConditionalCondition::Expression
+                    if encoded & 0xff00_001f != 0x5400_0000 =>
+                {
+                    return Err(invalid());
+                }
+                _ => {}
             }
             let immediate = ((encoded >> 5) & 0x7ffff) as i32;
             let displacement = (immediate << 13 >> 13) * 4;
@@ -1312,7 +1327,9 @@ fn replay_scalar_conditional_region(
                     instruction.mnemonic(),
                     iced_x86::Mnemonic::Add | iced_x86::Mnemonic::Sub
                 ) && instruction.op0_register()
-                    == iced_x86::Register::RSP;
+                    == iced_x86::Register::RSP
+                    || instruction.mnemonic() == iced_x86::Mnemonic::Lea
+                        && instruction.op0_register() == iced_x86::Register::RSP;
                 if stack_mutation {
                     let mutation = claimed.remove(&offset).ok_or(
                         TerminalObjectError::UnclaimedScalarStackMutation { machine, offset },
@@ -1586,6 +1603,12 @@ fn validate_x86_scalar_mutation(
                 && bytes.get(offset..offset.saturating_add(instruction.len()))
                     == Some(x86_64_stack_adjustment(byte_size, true).as_slice())
         }
+        TerminalScalarStackMutationKind::X86ReleasePreservingFlags { byte_size } => {
+            instruction.mnemonic() == iced_x86::Mnemonic::Lea
+                && instruction.op0_register() == iced_x86::Register::RSP
+                && bytes.get(offset..offset.saturating_add(instruction.len()))
+                    == Some(x86_64_stack_release_preserving_flags(byte_size).as_slice())
+        }
         TerminalScalarStackMutationKind::X86Push => {
             instruction.mnemonic() == iced_x86::Mnemonic::Push
                 && instruction.op0_kind() == iced_x86::OpKind::Register
@@ -1638,6 +1661,9 @@ fn replay_scalar_mutation(
     let (allocate, byte_size) = match kind {
         TerminalScalarStackMutationKind::Allocate { byte_size } => (true, byte_size),
         TerminalScalarStackMutationKind::Release { byte_size } => (false, byte_size),
+        TerminalScalarStackMutationKind::X86ReleasePreservingFlags { byte_size } => {
+            (false, byte_size)
+        }
         TerminalScalarStackMutationKind::X86Push => (true, 8),
         TerminalScalarStackMutationKind::X86Pop => (false, 8),
     };
@@ -1966,6 +1992,16 @@ fn x86_64_stack_adjustment(byte_size: u32, add: bool) -> Vec<u8> {
         vec![0x48, 0x83, if add { 0xc4 } else { 0xec }, byte_size as u8]
     } else {
         let mut bytes = vec![0x48, 0x81, if add { 0xc4 } else { 0xec }];
+        bytes.extend_from_slice(&byte_size.to_le_bytes());
+        bytes
+    }
+}
+
+fn x86_64_stack_release_preserving_flags(byte_size: u32) -> Vec<u8> {
+    if byte_size <= i8::MAX as u32 {
+        vec![0x48, 0x8d, 0x64, 0x24, byte_size as u8]
+    } else {
+        let mut bytes = vec![0x48, 0x8d, 0xa4, 0x24];
         bytes.extend_from_slice(&byte_size.to_le_bytes());
         bytes
     }

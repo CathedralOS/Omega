@@ -216,15 +216,22 @@ pub struct TerminalScalarStackEvidence {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalScalarControlFlowEvidence {
     Linear,
-    /// One top-level Boolean-parameter branch followed by two independently
-    /// returning, call-free linear integer arms. The true arm begins directly
-    /// after the branch and ends where the false arm begins; the false arm
-    /// ends at the function boundary.
+    /// One top-level Boolean branch followed by two independently returning
+    /// linear integer arms. The true arm begins directly after the branch and
+    /// ends where the false arm begins; the false arm ends at the function
+    /// boundary.
     TopLevelTwoReturn {
+        condition: TerminalScalarConditionalCondition,
         branch_offset: usize,
         branch_byte_count: usize,
         false_arm_offset: usize,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalScalarConditionalCondition {
+    Parameter,
+    Expression,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,6 +245,7 @@ pub struct TerminalScalarStackMutation {
 pub enum TerminalScalarStackMutationKind {
     Allocate { byte_size: u32 },
     Release { byte_size: u32 },
+    X86ReleasePreservingFlags { byte_size: u32 },
     X86Push,
     X86Pop,
 }
