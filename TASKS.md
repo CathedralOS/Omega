@@ -324,7 +324,9 @@ customer-shaped compiler concept is introduced.
   identity and predicate-body status beside its readable label. Continue with
   consumers that still lack exact blast-radius rows. Provider-slot grants now
   resolve through the selected closure, so lock/report/runtime admission bind
-  the same plan and leave unselected candidates dev-active.
+  the same plan and leave unselected candidates dev-active. Selected provider
+  schemas, rows, adapter dispatch, and calling-plan lookup now require exact
+  nonempty overload identities; no name-only singleton compatibility remains.
 
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.

@@ -241,7 +241,7 @@ mod tests {
                 methods: vec![ServiceMethod {
                     name: method.into(),
                     requirement_owner: format!("{name}Service"),
-                    requirement_identity: String::new(),
+                    requirement_identity: format!("{name}Service::{method}"),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
                     entry_claims: Vec::new(),
@@ -257,7 +257,7 @@ mod tests {
             },
             rows: vec![ProviderPlanRow {
                 method: method.into(),
-                requirement_identity: String::new(),
+                requirement_identity: format!("{name}Service::{method}"),
                 binding: ProviderBinding::CheckedAdapter {
                     machine: format!("{name}Provider::{method}"),
                 },
@@ -342,6 +342,31 @@ mod tests {
     }
 
     #[test]
+    fn selection_rejects_name_only_requirement_rows() {
+        let mut incomplete = candidate("Incomplete", "run");
+        incomplete.rows[0].requirement_identity.clear();
+        assert!(
+            SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&incomplete),
+                std::slice::from_ref(&incomplete.name),
+            )
+            .expect_err("name-only provider rows must not enter the selected closure")
+            .contains("no exact requirement identity")
+        );
+
+        let mut incomplete = candidate("IncompleteSchema", "run");
+        incomplete.schema.methods[0].requirement_identity.clear();
+        assert!(
+            SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&incomplete),
+                std::slice::from_ref(&incomplete.name),
+            )
+            .expect_err("name-only provider schema methods must not enter the selected closure")
+            .contains("no exact requirement identity")
+        );
+    }
+
+    #[test]
     fn opaque_selection_survives_a_checked_wrapper_as_attributed_incompleteness() {
         let checked_wrapper = candidate("CheckedWrapper", "read");
         let mut opaque_leaf = candidate("OpaqueLeaf", "read_raw");
@@ -388,7 +413,7 @@ mod tests {
         .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
             provider_plan_identity: plan_identity,
             method: "read".into(),
-            requirement_identity: String::new(),
+            requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::Import {
                 library: "vendor-storage".into(),
                 symbol: "read".into(),
@@ -433,7 +458,7 @@ mod tests {
         .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
             provider_plan_identity: plan_identity,
             method: "read".into(),
-            requirement_identity: String::new(),
+            requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::Import {
                 library: "platform".into(),
                 symbol: "read".into(),
@@ -492,7 +517,7 @@ mod tests {
         .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
             provider_plan_identity: closed_identity,
             method: "read".into(),
-            requirement_identity: String::new(),
+            requirement_identity: closed.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::Import {
                 library: "closed-platform".into(),
                 symbol: "read".into(),
@@ -545,7 +570,7 @@ mod tests {
         let candidate = crate::OpaqueExecutableAdmissionCandidate {
             provider_plan_identity: plan_identity,
             method: "read".into(),
-            requirement_identity: String::new(),
+            requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::Import {
                 library: "other".into(),
                 symbol: "read".into(),

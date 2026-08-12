@@ -79,13 +79,10 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
                 .iter()
                 .find(|signature| {
                     signature.name.as_str() == method_name
-                        && (requirement_identity.is_empty()
-                            || typed
-                                .normalized_trait_requirement_overload_identity(
-                                    definition, signature,
-                                )
-                                .identity()
-                                == requirement_identity)
+                        && typed
+                            .normalized_trait_requirement_overload_identity(definition, signature)
+                            .identity()
+                            == requirement_identity
                 })
         })?
     }) else {

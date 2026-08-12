@@ -98,13 +98,10 @@ pub(crate) fn rewrite_adapter_calls(
                 .iter()
                 .find(|signature| {
                     signature.name == *requirement
-                        && (selected_row.requirement_identity.is_empty()
-                            || typed
-                                .normalized_trait_requirement_overload_identity(
-                                    definition, signature,
-                                )
-                                .identity()
-                                == selected_row.requirement_identity)
+                        && typed
+                            .normalized_trait_requirement_overload_identity(definition, signature)
+                            .identity()
+                            == selected_row.requirement_identity
                 })
                 .map(|signature| typed.state_signature_parameters(signature).len());
             let actual_parameters = typed.state_parameters(entry_state);
@@ -121,11 +118,7 @@ pub(crate) fn rewrite_adapter_calls(
             let leaf_name = machine.name.as_str().to_owned();
             if let Some(existing) = adapters.iter().find(|row| {
                 row.trait_leaf == trait_leaf
-                    && if selected_row.requirement_identity.is_empty() {
-                        row.requirement == requirement.as_str()
-                    } else {
-                        row.requirement_identity == selected_row.requirement_identity
-                    }
+                    && row.requirement_identity == selected_row.requirement_identity
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "requirement `{trait_leaf}::{}` has two checked adapters \
@@ -357,9 +350,6 @@ fn adapter_matches_call(
 ) -> bool {
     if row.trait_leaf != trait_leaf || row.requirement != target_name {
         return false;
-    }
-    if row.requirement_identity.is_empty() {
-        return true;
     }
     typed.traits().iter().any(|definition| {
         typed
