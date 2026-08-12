@@ -170,8 +170,15 @@ independent canonical reverse-declaration subset of the same eligible
 parameters. Verification removes exactly those places from the corresponding
 successor frontier; interpretation charges the selected edge and materializes
 its scalar arguments before committing the no-code disposal. The primitive-only
-scalar source producer emits canonical empty lists; structural control-edge
-production waits for a checked structural control plan.
+scalar source producer emits canonical empty lists. Checked facts now retain an
+exact source-state, transition-statement, and target-state row for each
+supported structural jump or conditional arm, together with the
+reverse-declaration positions of its claim-free affine parameter discards.
+States needing affine-local, projected, nominal, or claim-bearing cleanup fail
+closed without a partial row. Terminal structural control production can consume
+these rows once its exact structural state signature and transfer map are
+carried alongside them; the terminal verifier remains responsible for
+reconstructing the emitted cleanup frontier.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

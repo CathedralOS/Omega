@@ -177,9 +177,13 @@ transitions, and wrappers; ambiguous or bodyless targets fail closed.
 
 Platform-entry writes, dispatch/state-call arguments, and synthesized
 continuations obey the same event and provenance rules. Affine exits run in
-reverse declaration order. Explicit per-edge cleanup plans, contextual cleanup
-contracts, repeated-cycle composition, and the retained whole-edge
-conservation witness remain CML4 work.
+reverse declaration order. Checked facts retain the first per-edge cleanup
+subset for ordinary named transitions: each exact source-state/statement/target
+row names the whole, claim-free affine parameter positions discarded on that
+arm after subtracting checked transfers. Locals, projections, nominal cleanup,
+and any otherwise incomplete shape publish no partial row. The complete
+`EdgeCleanupPlan`, contextual cleanup contracts, repeated-cycle composition,
+and the retained whole-edge conservation witness remain CML4 work.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
