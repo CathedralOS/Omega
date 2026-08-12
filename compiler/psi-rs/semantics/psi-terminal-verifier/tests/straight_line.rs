@@ -2563,6 +2563,30 @@ fn identity_reshuffles_fail_closed_when_malformed() {
         validate_module(&wrong_input).expect_err("input must denote parameter entry content"),
         ModuleError::ContentEntryClaimRequiresEntryParameter(ClaimId::new(1).expect("claim"))
     );
+
+    let (mut reordered, _, _) = identity_reshuffle_module();
+    let machine = &mut reordered.machines[0];
+    machine.content_entry_claims[0].input.segments =
+        vec![ContentPlaceSegment::Field("left".to_owned())];
+    machine.content_identity_reshuffles[0].input.segments =
+        vec![ContentPlaceSegment::Field("left".to_owned())];
+    machine.content_identity_reshuffles[0].output.segments =
+        vec![ContentPlaceSegment::Field("left".to_owned())];
+    let mut second_binding = machine.content_entry_claims[0].clone();
+    second_binding.claim = ClaimId::new(2).expect("second claim");
+    second_binding.input.segments = vec![ContentPlaceSegment::Field("right".to_owned())];
+    machine.content_entry_claims.push(second_binding);
+    let mut second_reshuffle = machine.content_identity_reshuffles[0].clone();
+    second_reshuffle.claim = ClaimId::new(2).expect("second claim");
+    second_reshuffle.input.segments = vec![ContentPlaceSegment::Field("right".to_owned())];
+    second_reshuffle.output.segments = vec![ContentPlaceSegment::Field("right".to_owned())];
+    machine
+        .content_identity_reshuffles
+        .insert(0, second_reshuffle);
+    assert_eq!(
+        validate_module(&reordered).expect_err("semantic axiom indices require canonical claims"),
+        ModuleError::NonCanonicalContentIdentityReshuffles(MachineId::new(90).expect("machine"))
+    );
 }
 
 fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {

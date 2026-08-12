@@ -2105,6 +2105,15 @@ fn validate_content_identity_reshuffles(
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
 ) -> Result<(), ModuleError> {
+    if machine
+        .content_identity_reshuffles
+        .windows(2)
+        .any(|pair| pair[0].claim >= pair[1].claim)
+    {
+        return Err(ModuleError::NonCanonicalContentIdentityReshuffles(
+            machine.id,
+        ));
+    }
     let mut claims = BTreeSet::<ClaimId>::new();
     let mut inputs = BTreeSet::<ContentStructuralPlace>::new();
     let mut outputs = BTreeSet::<ContentStructuralPlace>::new();
@@ -3984,6 +3993,7 @@ pub enum ModuleError {
     ContentIdentityClaimHasNoEntryBinding(ClaimId),
     ContentIdentityEntryBindingMismatch(ClaimId),
     NonCanonicalContentIdentityProjectionOrder(ClaimId),
+    NonCanonicalContentIdentityReshuffles(MachineId),
     ContentIdentityReshuffleRequiresEntryParameter(ClaimId),
     ContentIdentityReshuffleRequiresCurrentResult(ClaimId),
     DuplicateContentIdentityInput(ContentStructuralPlace),
