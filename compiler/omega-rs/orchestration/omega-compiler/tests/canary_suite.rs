@@ -460,19 +460,7 @@ fn linux_x64_recent_encoder_canaries_compile() {
             canary_name.replace('/', "-"),
             std::process::id()
         ));
-        let _ = fs::remove_dir_all(&scratch);
-        let src_dir = scratch.join("src");
-        fs::create_dir_all(&src_dir).expect("scratch src dir");
-        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(src_dir.join("build.omg"), "target linux_x64 {\n}\n")
-            .expect("write build manifest");
-        compile(CompileOptions {
-            root_path: src_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some("linux_x64".to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|error| {
+        compile_single_file_hosted_main(&canary, &scratch, "linux_x64").unwrap_or_else(|error| {
             panic!("{canary_name} should cross-compile for linux_x64: {error:?}")
         });
         let elf =
