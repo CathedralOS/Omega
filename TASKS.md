@@ -71,7 +71,10 @@ Remaining:
   lowering/runtime defects exposed by documented sample execution separately
   from entry selection. The Linux x64 shift/saturation/UTF-8 encoder cohort now
   compiles each compatible receiver-bound fixture through the exact hosted
-  entry helper while retaining its emitted-byte assertions. Final composition of firmware
+  entry helper while retaining its emitted-byte assertions. The external-leaf
+  syscall provider canary likewise uses exact hosted roots for both Linux x64
+  and AArch64 while retaining trust, footprint, and syscall-byte assertions.
+  Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real

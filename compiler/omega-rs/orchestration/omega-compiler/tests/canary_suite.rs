@@ -704,20 +704,9 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
 fn external_leaf_syscall_reaches_linux_x64_backend() {
     let canary = pass_canary("providers/external_leaf_syscall_compile");
     let scratch = std::env::temp_dir().join(format!("omega-via-syscall-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&scratch);
-    let src_dir = scratch.join("src");
     let build_dir = scratch.join("out");
-    fs::create_dir_all(&src_dir).expect("scratch src dir");
-    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target linux_x64 {\n}\n")
-        .expect("write linux target manifest");
-    compile(CompileOptions {
-        root_path: src_dir.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
+    compile_single_file_hosted_main(&canary, &scratch, "linux_x64")
+        .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
 
     let trust = fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("external-leaf syscall trust report should be emitted");
@@ -754,20 +743,9 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
 
     let arm_scratch =
         std::env::temp_dir().join(format!("omega-via-syscall-arm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&arm_scratch);
-    let arm_src = arm_scratch.join("src");
     let arm_out = arm_scratch.join("out");
-    fs::create_dir_all(&arm_src).expect("arm scratch src dir");
-    fs::copy(canary.join("main.omg"), arm_src.join("main.omg")).expect("copy arm canary");
-    fs::write(arm_src.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write arm linux target manifest");
-    compile(CompileOptions {
-        root_path: arm_src.join("main.omg"),
-        build_dir: Some(arm_out.clone()),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
+    compile_single_file_hosted_main(&canary, &arm_scratch, "linux_arm64")
+        .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
     let arm_elf =
         fs::read(arm_out.join("omega-program")).expect("external-leaf arm syscall ELF emitted");
     let arm_footprints = fs::read_to_string(arm_out.join("08_boundary_footprints.json"))
