@@ -39821,7 +39821,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             .expect("copy format-conversion canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write format-conversion target manifest");
         compile(CompileOptions {
@@ -39863,7 +39863,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         "maximum unsigned64 to binary32",
         "maximum unsigned64 to binary64",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x2796_51cb_7ccd_80ee;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x86a8_3192_a4b4_9cc5;
 
     let canary = pass_canary("float/runtime_named_integer_to_float_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -39969,7 +39969,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
             .expect("copy integer-to-float canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write integer-to-float target manifest");
         compile(CompileOptions {
@@ -40011,7 +40011,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         "unsigned negative-input saturation",
         "NaN saturation to zero",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x297c_b8ce_8d1a_dc1c;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc61d_f241_e39d_6649;
 
     let canary = pass_canary("float/runtime_named_float_to_integer_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -40148,7 +40148,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
             .expect("copy float-to-integer canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write float-to-integer target manifest");
         compile(CompileOptions {
