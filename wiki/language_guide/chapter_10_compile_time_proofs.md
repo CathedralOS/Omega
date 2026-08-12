@@ -886,7 +886,11 @@ Working rules:
 - **Blast radius is reported.** The trust report names which conclusions
   rest on which boundary machines; facts derived without touching one stay
   in the unconditional tier, visibly. Export status is irrelevant — the
-  report sees every grant, private or public.
+  report sees every grant, private or public. Routed provider qualifications
+  remain equally specific: their rows bind the exact provider-plan
+  fingerprint and requirement to the accepted parameter or returned result,
+  authority flow, domain, carry policy, predicate-discharge requirement, and
+  grant provenance.
 - **The grant row is the language's `unsafe`.** A granted false statement
   can corrupt anything proofs protect — bounds, domains, and through
   corrupted memory, everything downstream. Reach restrictions cannot be waived by

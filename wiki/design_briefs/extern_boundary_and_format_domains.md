@@ -109,7 +109,10 @@ participate in provider-plan identity. The external-root selection bridge
 copies those rows beside that identity, and the qualification artifact reports
 them with the selected-plan receipt. The row records what an admitted external
 entry may supply; only the matching concrete entry receipt establishes a source
-fact for one invocation.
+fact for one invocation. The durable trust report copies the same normalized
+provider-schema claims rather than parsing type displays: exact plan
+fingerprint, requirement, parameter/result subject, authority flow, semantic
+domain, carry policy, predicate-discharge requirement, and grant provenance.
 
 Checked-adapter dispatch consumes that retained carrier as well. Only an exact
 `CheckedAdapter` row in the selected plan may rewrite the corresponding

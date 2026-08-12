@@ -1,14 +1,11 @@
-//! GR5 (the chapter-10 carrier's report surface): one trust-report row per
-//! admitted semantic commitment. Today's rows are the SEALED-DOMAIN
-//! INTRODUCTIONS: every domain declared in the compilation unit is
-//! own-package and dev-active (grant locality v1, mirroring the
-//! MintAuthority consult in psi-validation's recasts), so each carries
-//! the standing warning until GR3's root grants land and flip its
-//! provenance. Progress profiles, accepted facts, and provider plans join
-//! as their consumers wire in (GR6).
+//! GR5/GR6 (the chapter-10 carrier's report surface): one trust-report row per
+//! admitted semantic commitment, plus exact routed qualification rows copied
+//! from normalized provider schemas. Domain introductions, accepted facts,
+//! provider plans, and their qualification blast radius retain root-grant or
+//! dev-active provenance; the latter carries a standing warning.
 
 use crate::pipeline::compile_options::CompileOptions;
-use omega_artifacts::{ArtifactWriter, TrustReport, TrustReportRow};
+use omega_artifacts::{ArtifactWriter, TrustQualificationRow, TrustReport, TrustReportRow};
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
@@ -27,6 +24,11 @@ pub(super) fn write_trust_report(
         let granted = root_grants
             .iter()
             .any(|grant| grant == &plan.name || grant == leaf);
+        let provenance = if granted {
+            "root grant (build.omg)"
+        } else {
+            "own-package (dev-active)"
+        };
         let covered = plan
             .schema
             .methods
@@ -40,13 +42,44 @@ pub(super) fn write_trust_report(
                 plan.identity_fingerprint(),
                 plan.schema.methods.len()
             ),
-            provenance: if granted {
-                "root grant (build.omg)".to_owned()
-            } else {
-                "own-package (dev-active)".to_owned()
-            },
+            provenance: provenance.to_owned(),
             standing_warning: !granted,
         });
+        for method in &plan.schema.methods {
+            for claim in &method.entry_claims {
+                report.qualifications.push(TrustQualificationRow {
+                    provider_plan: plan.name.clone(),
+                    provider_plan_fingerprint: plan.identity_fingerprint(),
+                    requirement: method.requirement_identity.clone(),
+                    method: method.name.clone(),
+                    subject: format!("parameter:{}", claim.parameter_index),
+                    authority_flow: claim.authority_flow.as_str().to_owned(),
+                    domain: claim.domain.clone(),
+                    effective_carry: claim.effective_carry.to_string(),
+                    predicate_discharge_required: claim.predicate_body.is_present(),
+                    provenance: provenance.to_owned(),
+                    standing_warning: !granted,
+                });
+            }
+            for claim in &method.result_claims {
+                // ServiceResultClaim contains only bodyless routed results;
+                // predicate-bearing establishment is deliberately absent from
+                // this generic provider-result carrier.
+                report.qualifications.push(TrustQualificationRow {
+                    provider_plan: plan.name.clone(),
+                    provider_plan_fingerprint: plan.identity_fingerprint(),
+                    requirement: method.requirement_identity.clone(),
+                    method: method.name.clone(),
+                    subject: "result".to_owned(),
+                    authority_flow: "returns".to_owned(),
+                    domain: claim.domain.clone(),
+                    effective_carry: claim.effective_carry.to_string(),
+                    predicate_discharge_required: false,
+                    provenance: provenance.to_owned(),
+                    standing_warning: !granted,
+                });
+            }
+        }
     }
     for domain in typed.domain_definitions() {
         if !domain.semantic_id.is_valid() {
