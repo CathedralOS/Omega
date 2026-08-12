@@ -192,6 +192,82 @@ fn unit_calls_preserve_exact_content_claim_shape() {
 }
 
 #[test]
+fn content_only_affine_claims_require_explicit_transfer_and_settlement() {
+    let mut module = hard_root_module();
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        machine.entry_claims.clear();
+    }
+    module.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    module.machines[0].content_entry_claims = vec![content_entry_claim(place_id(1))];
+    module.machines[1].content_entry_claims = vec![content_entry_claim(place_id(2))];
+    validate_module(&module).expect("content-only affine custody transfers and settles explicitly");
+
+    let mut untransferred = module.clone();
+    unit_call_mut(&mut untransferred).clear();
+    assert_eq!(
+        validate_module(&untransferred).unwrap_err(),
+        ModuleError::UnitCallClaimTransferCountMismatch {
+            operation: operation_id(1),
+            expected: 1,
+            actual: 0,
+        }
+    );
+
+    let mut unsettled = module.clone();
+    boundary_call_mut(&mut unsettled).0.clear();
+    assert_eq!(
+        validate_module(&unsettled).unwrap_err(),
+        ModuleError::BoundaryClaimSettlementMismatch(operation_id(3))
+    );
+
+    for machine in &mut module.machines {
+        machine.content_entry_claims[0].input.segments =
+            vec![ContentPlaceSegment::Field("left".to_owned())];
+        let mut second = content_entry_claim(machine.structural_parameters[0].place);
+        second.claim = claim_id(2);
+        second.input.segments = vec![ContentPlaceSegment::Field("right".to_owned())];
+        machine.content_entry_claims.push(second);
+    }
+    unit_call_mut(&mut module).push(ClaimTransfer {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+    boundary_call_mut(&mut module).0.push(ClaimSettlement {
+        claim: claim_id(2),
+        argument_index: 0,
+    });
+    validate_module(&module)
+        .expect("disjoint content claims may share one structural argument and transfer exactly");
+}
+
+#[test]
+fn content_claim_identity_cannot_refine_a_different_structural_root() {
+    let mut module = hard_root_module();
+    let mut second_parameter = structural_parameter(place_id(10));
+    second_parameter.position = 1;
+    second_parameter.multiplicity = StructuralMultiplicity::Affine;
+    module.machines[0]
+        .structural_parameters
+        .push(second_parameter);
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place_id(10),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+    module.machines[0].content_entry_claims = vec![content_entry_claim(place_id(10))];
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::ContentEntryClaimStructuralBindingMismatch(claim_id(1))
+    );
+}
+
+#[test]
 fn boundary_call_checks_qualification_settlement_and_obligation_absence() {
     let mut missing_qualification = hard_root_module();
     missing_qualification.machines[1].structural_parameters[0]
