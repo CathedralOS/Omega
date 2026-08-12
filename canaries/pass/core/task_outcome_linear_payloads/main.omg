@@ -1,15 +1,14 @@
 use omega::language::core::task;
 
-// TR2b: generic outcome payloads preserve the multiplicity of their concrete
+// Generic outcome payloads preserve the multiplicity of their concrete
 // substitutions. Returned(Receipt), Rejected(Receipt), and Started(Task<T>)
-// each transfer one live obligation; Cancelled carries none.
+// each transfer one live obligation; Cancelled carries none. The explicit Task
+// value exercises multiplicity only, not provider establishment or custody.
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
 machine Task::settle<T>(self) {}
 
-data Main {}
-
-machine Main::main(&mut self) -> i32 {
+machine check_task_outcome_payloads() -> i32 {
     let returned_receipt: Receipt = Receipt { code: 7 };
     let returned: TaskOutcome<Receipt> =
         TaskOutcome::Returned { value: returned_receipt };

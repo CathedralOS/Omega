@@ -3,9 +3,7 @@ use omega::language::core::task;
 // FAIL canary: substituting a linear result into TaskOutcome<T> cannot launder
 // the live Returned payload through the nominally affine generic sum.
 data Receipt [linear] { code: i32; }
-data Main {}
-
-machine Main::main(&mut self) -> i32 {
+machine lose_returned_payload() -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
     let outcome: TaskOutcome<Receipt> =
         TaskOutcome::Returned { value: receipt };
