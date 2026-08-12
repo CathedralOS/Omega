@@ -1,4 +1,5 @@
-// An enum-attached machine matching BARE `self` (the enum-method idiom):
+// An enum-attached machine with omitted erased evidence matching BARE `self`
+// (the enum-method idiom):
 // `transition self { Signal::Green -> .. }` inside `Signal::go_value(&self)`,
 // called as `self.s.go_value()`. The guard subject resolves to the attached
 // value's TAG at the receiver's storage base
@@ -9,7 +10,8 @@
 // leg guards against always-first-arm coincidence.
 // exit 70 = all legs right; 71..74 name the leg.
 use omega::language::std::console;
-data Signal { case Red; case Amber; case Green; }
+data Evidence { case Only; }
+data Signal { proof [erased]: Evidence; case Red; case Amber; case Green; }
 machine Signal::go_value(&self) -> i32 {
     transition self {
         Signal::Green -> g()

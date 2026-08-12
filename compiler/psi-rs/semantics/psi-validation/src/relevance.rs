@@ -3,7 +3,7 @@
 //!
 //! The executable slice supports transparent records and sums, plus closed
 //! synthesized generic-record instances at explicitly typed local
-//! initializers, and closed plain records whose attached machines are ordinary
+//! initializers, and closed plain data whose attached machines are ordinary
 //! checked bodies. The full semantic tree remains intact for proofs and
 //! ownership; native lowering later strips erased literal fields from its
 //! private runtime expression graph and attached-machine storage/topology.
@@ -210,11 +210,11 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
     validate_unresolved_erased_generic_uses(program, diagnostics);
 }
 
-/// The first attached-machine relevance slice is deliberately narrower than
-/// ordinary erased data.  A plain, closed record can share the same
-/// erased-stripped field sequence between its value layout and each checked
-/// attached machine. Generic templates have no runtime storage and are checked
-/// at each synthesized closed use. Case-bearing self storage and admitted or
+/// The attached-machine relevance slice is deliberately narrower than ordinary
+/// erased data. A plain, closed record or case-bearing value can share the same
+/// erased-stripped field sequence, case tag, and payload overlay between its
+/// value layout and each checked attached machine. Generic templates have no
+/// runtime storage and are checked at each synthesized closed use. Admitted and
 /// boundary providers need additional representation or evidence rules and
 /// therefore remain behind the existing fail-closed fence.
 fn supports_erased_attached_machine_record(
@@ -223,8 +223,10 @@ fn supports_erased_attached_machine_record(
 ) -> bool {
     if definition.supply_mode != DataSupplyMode::CheckedShape
         || !program.data_type_parameters(definition).is_empty()
-        || DataDefinition::shape_kind_from_members(program.data_members(definition))
-            != DataShapeKind::Record
+        || !matches!(
+            DataDefinition::shape_kind_from_members(program.data_members(definition)),
+            DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
+        )
         || program
             .plan_laid_layouts
             .iter()

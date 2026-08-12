@@ -325,18 +325,18 @@ fn erased_record_with_generic_attached_machine_remains_fenced() {
 }
 
 #[test]
-fn case_bearing_erased_data_with_attached_machine_remains_fenced() {
-    rejected(
+fn case_bearing_erased_data_with_attached_machine_is_accepted() {
+    lower_typed_trees(typed(
         r#"
         data Certified {
             proof [erased]: i32;
-            case Valid;
+            case Valid(case_proof [erased]: i32);
             case Invalid;
         }
         machine Certified::read(&self) -> i32 { 0 }
         "#,
-        "data with attached machines",
-    );
+    ))
+    .expect("closed checked case-bearing data may use an erased-stripped attached machine");
 }
 
 #[test]
