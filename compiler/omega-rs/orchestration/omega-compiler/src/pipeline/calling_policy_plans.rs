@@ -532,7 +532,6 @@ fn call_signature_from_typed(
         .iter()
         .filter(|parameter| !parameter.is_self)
     {
-        reject_erased_boundary_data(typed, parameter.type_reference, bindings)?;
         let (_, root) = value_shape_from_type(
             typed,
             parameter.type_reference,
@@ -544,7 +543,6 @@ fn call_signature_from_typed(
         parameters.push(root);
     }
     let result = if signature.return_type.is_valid() {
-        reject_erased_boundary_data(typed, signature.return_type, bindings)?;
         let (_, root) = value_shape_from_type(
             typed,
             signature.return_type,
@@ -563,114 +561,6 @@ fn call_signature_from_typed(
         parameters,
         result,
     })
-}
-
-fn reject_erased_boundary_data(
-    typed: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    bindings: &[TraitTypeBinding],
-) -> Result<(), String> {
-    let Some((data_name, field_names)) =
-        erased_data_in_type(typed, type_reference, bindings, &mut Vec::new())
-    else {
-        return Ok(());
-    };
-    Err(format!(
-        "boundary value data `{data_name}` has `[erased]` field(s) `{}`, but erased-stripped ABI classification is not implemented yet",
-        field_names.join("`, `")
-    ))
-}
-
-fn erased_data_in_type(
-    typed: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-    bindings: &[TraitTypeBinding],
-    visiting: &mut Vec<psi_symbols::SymbolHandle>,
-) -> Option<(String, Vec<String>)> {
-    if !type_reference.is_valid() {
-        return None;
-    }
-    type_reference = substituted_type_reference(typed, type_reference, bindings);
-    match typed.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        }
-        | TypeReferenceNode::FixedArray {
-            element_type: referee,
-            ..
-        }
-        | TypeReferenceNode::Slice {
-            element_type: referee,
-        } => erased_data_in_type(typed, *referee, bindings, visiting),
-        TypeReferenceNode::Named { symbol, name } => typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol || definition.name == *name)
-            .and_then(|definition| {
-                erased_data_in_definition(typed, definition, bindings, visiting)
-            }),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            arguments,
-            ..
-        } => typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *base_symbol || definition.name == *base_name)
-            .and_then(|definition| erased_data_in_definition(typed, definition, bindings, visiting))
-            .or_else(|| {
-                typed
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .find_map(|argument| erased_data_in_type(typed, *argument, bindings, visiting))
-            }),
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => None,
-    }
-}
-
-fn erased_data_in_definition(
-    typed: &TypedTrees,
-    definition: &psi_typed_trees::data::DataDefinition,
-    bindings: &[TraitTypeBinding],
-    visiting: &mut Vec<psi_symbols::SymbolHandle>,
-) -> Option<(String, Vec<String>)> {
-    let erased_fields = typed
-        .data_members(definition)
-        .iter()
-        .flat_map(|member| match member {
-            psi_typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            psi_typed_trees::data::DataMember::Variant(variant) => {
-                typed.data_payload_fields(variant)
-            }
-        })
-        .filter(|field| field.relevance.is_erased())
-        .map(|field| field.name.as_str().to_owned())
-        .collect::<Vec<_>>();
-    if !erased_fields.is_empty() {
-        return Some((definition.name.as_str().to_owned(), erased_fields));
-    }
-    if visiting.contains(&definition.symbol) {
-        return None;
-    }
-    visiting.push(definition.symbol);
-    let nested = typed.data_members(definition).iter().find_map(|member| {
-        let fields = match member {
-            psi_typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            psi_typed_trees::data::DataMember::Variant(variant) => {
-                typed.data_payload_fields(variant)
-            }
-        };
-        fields
-            .iter()
-            .find_map(|field| erased_data_in_type(typed, field.type_reference, bindings, visiting))
-    });
-    visiting.pop();
-    nested
 }
 
 fn value_shape_from_type(

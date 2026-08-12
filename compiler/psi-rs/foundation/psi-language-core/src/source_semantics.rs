@@ -16,7 +16,7 @@ pub enum Multiplicity {
 /// Relevance is deliberately independent of the binding's type and
 /// multiplicity. An erased binding remains part of semantic identity and the
 /// proof calculus even though later lowering omits its runtime representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum BindingRelevance {
     /// An ordinary binding with runtime representation.
     #[default]

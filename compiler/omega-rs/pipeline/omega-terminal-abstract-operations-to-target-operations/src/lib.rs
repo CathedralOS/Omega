@@ -1630,7 +1630,10 @@ fn structural_shape(
     let mut byte_size = 0_u32;
     let mut alignment = 1_u16;
     for field in fields {
-        let field_shape = match field.field_type {
+        if field.relevance.is_erased() {
+            continue;
+        }
+        let field_shape = match &field.field_type {
             StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
             StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                 let size = integer.bits().div_ceil(8);
@@ -1638,7 +1641,12 @@ fn structural_shape(
                 ValueShape::integer(size, field_alignment)
             }
             StructuralFieldType::Structural(nested) => {
-                structural_shape(nested, declarations, cache, active)?
+                structural_shape(*nested, declarations, cache, active)?
+            }
+            StructuralFieldType::Erased { .. } => {
+                return Err(LoweringError::RelevantOpaqueStructuralField(
+                    structural_type,
+                ));
             }
         };
         alignment = alignment.max(field_shape.alignment);
@@ -1648,6 +1656,9 @@ fn structural_shape(
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
     }
     byte_size = align_up_u32(byte_size, u32::from(alignment));
+    if byte_size == 0 {
+        return Err(LoweringError::EmptyStructuralType(structural_type));
+    }
     let byte_size = u16::try_from(byte_size)
         .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?;
     let shape = ValueShape::integer(byte_size, alignment);
@@ -3938,6 +3949,7 @@ pub enum LoweringError {
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),
+    RelevantOpaqueStructuralField(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeBoolean(ValueId),
@@ -4067,8 +4079,17 @@ mod tests {
                     .map(|id| StructuralFieldDeclaration {
                         id: StructuralFieldId::new(id).unwrap(),
                         identity: format!("field_{id}"),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
                         field_type: StructuralFieldType::Scalar(u64_type),
                     })
+                    .chain(std::iter::once(StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(6).unwrap(),
+                        identity: "proof".into(),
+                        relevance: psi_terminal::BindingRelevance::Erased,
+                        field_type: StructuralFieldType::Erased {
+                            type_identity: "named(name(example::Evidence))".into(),
+                        },
+                    }))
                     .collect(),
             },
         }];

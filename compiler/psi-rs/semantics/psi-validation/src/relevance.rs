@@ -10,7 +10,7 @@
 
 use psi_diagnostics::Diagnostic;
 use psi_language_core::BindingRelevance;
-use psi_language_semantics::{DataSupplyMode, MachineSupplyMode};
+use psi_language_semantics::DataSupplyMode;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
@@ -186,26 +186,6 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
     }
 
     validate_unresolved_erased_generic_uses(program, diagnostics);
-
-    for machine in program.machines().iter().filter(|machine| {
-        matches!(
-            machine.supply_mode,
-            MachineSupplyMode::Boundary | MachineSupplyMode::ExternalRealization { .. }
-        )
-    }) {
-        for state in program.machine_states(machine) {
-            let mentions_erased =
-                program.state_parameters(state).iter().any(|parameter| {
-                    type_mentions_erased_record(program, parameter.type_reference)
-                }) || type_mentions_erased_record(program, state.return_type);
-            if mentions_erased {
-                diagnostics.push(Diagnostic::error(format!(
-                    "boundary ABI state `{}::{}` mentions data with `[erased]` fields, but erased-stripped ABI classification is not implemented yet",
-                    machine.name, state.name
-                )));
-            }
-        }
-    }
 }
 
 /// The first attached-machine relevance slice is deliberately narrower than
@@ -805,10 +785,6 @@ fn field_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DataFi
     })
 }
 
-fn type_mentions_erased_record(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    type_mentions_erased_record_inner(program, handle, &mut Vec::new())
-}
-
 fn unresolved_erased_generic_base(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
@@ -857,81 +833,4 @@ fn unresolved_erased_generic_base(
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => None,
     }
-}
-
-fn type_mentions_erased_record_inner(
-    program: &TypedTrees,
-    handle: TypeReferenceHandle,
-    visiting: &mut Vec<u32>,
-) -> bool {
-    if !handle.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Named { symbol, name } => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol || definition.name == *name)
-            .is_some_and(|definition| data_contains_erased_record(program, definition, visiting)),
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_mentions_erased_record_inner(program, *referee, visiting)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_mentions_erased_record_inner(program, *base_type, visiting)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            type_mentions_erased_record_inner(program, *element_type, visiting)
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            arguments,
-            ..
-        } => {
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| {
-                    definition.symbol == *base_symbol || definition.name == *base_name
-                })
-                .is_some_and(|definition| {
-                    data_contains_erased_record(program, definition, visiting)
-                })
-                || program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .any(|argument| type_mentions_erased_record_inner(program, *argument, visiting))
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => false,
-    }
-}
-
-fn data_contains_erased_record(
-    program: &TypedTrees,
-    definition: &DataDefinition,
-    visiting: &mut Vec<u32>,
-) -> bool {
-    if !erased_fields(program, definition).is_empty() {
-        return true;
-    }
-    let identity = definition.symbol.arena_index();
-    if visiting.contains(&identity) {
-        return false;
-    }
-    visiting.push(identity);
-    let contains = program.data_members(definition).iter().any(|member| {
-        let fields = match member {
-            DataMember::Field(field) => std::slice::from_ref(field),
-            DataMember::Variant(variant) => program.data_payload_fields(variant),
-        };
-        fields
-            .iter()
-            .any(|field| type_mentions_erased_record_inner(program, field.type_reference, visiting))
-    });
-    visiting.pop();
-    contains
 }

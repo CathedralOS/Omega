@@ -200,6 +200,15 @@ SSE aggregate class under SysV AMD64, or be indirect under a policy that require
 that result. Classification is recursive and semantic; equal byte size alone
 does not imply equal ABI class.
 
+An `[erased]` record field remains part of the semantic type and proof identity,
+but contributes no public ABI field, offset, size, alignment, register/stack
+fragment, or transfer. The normalized policy graph and native classifiers omit
+such fields recursively for fixed non-generic records, while terminal Psi keeps
+an opaque row containing the exact erased type identity. A record whose fields
+are all erased has no by-value ABI carrier and rejects. This rule does not extend
+the graph vocabulary: case-bearing data and unresolved generic aggregates remain
+unclassifiable until their own public ABI shapes are specified.
+
 `BoundarySignature` presents that structure as a bounded flat graph rather than
 as recursively embedded values: parameter and result roots index `ValueShape`
 nodes; fixed-array nodes name their element root and count; record nodes name a

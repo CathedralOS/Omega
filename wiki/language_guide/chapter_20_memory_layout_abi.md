@@ -153,9 +153,17 @@ contained-machine topology of closed, non-generic plain records when every
 attached machine is an ordinary checked body with no unresolved machine
 parameters. Erased common and payload fields are omitted without changing the
 tag prefix, variant order, or case numbering. Ambiguous unresolved generic
-uses, explicit placement plans, ABI faces, and attached
+uses, explicit placement plans, and attached
 machines outside that exact checked-record cohort remain rejected until their
 representation classifiers consume the same erased-stripped form.
+
+For public ABI faces, fixed non-generic record parameters and results retain
+their erased bindings in semantic and terminal-Psi identity but recursively
+omit those bindings from the calling-policy shape graph, native aggregate
+class, register/stack transfers, and result reconstruction. An all-erased record
+still has no representable by-value ABI shape. Case-bearing and unresolved
+generic aggregates remain outside the current public calling-policy shape
+vocabulary independently of relevance.
 
 Padding is not semantic data. Proofs and wire protocols must not rely on
 uninitialized padding bytes.

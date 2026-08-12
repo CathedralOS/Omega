@@ -1520,6 +1520,7 @@ name = "psi-terminal"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+ "psi-language-core",
 ]
 
 [[package]]

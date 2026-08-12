@@ -300,15 +300,34 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
                     field: field.id,
                 });
             }
+            match &field.field_type {
+                StructuralFieldType::Erased { type_identity }
+                    if !field.relevance.is_erased() || type_identity.is_empty() =>
+                {
+                    return Err(ModuleError::InvalidErasedStructuralField {
+                        structural_type: declaration.id,
+                        field: field.id,
+                    });
+                }
+                StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                    if field.relevance.is_erased() =>
+                {
+                    return Err(ModuleError::InvalidErasedStructuralField {
+                        structural_type: declaration.id,
+                        field: field.id,
+                    });
+                }
+                _ => {}
+            }
         }
     }
     for declaration in &module.structural_types {
         let StructuralTypeShape::Record { fields } = &declaration.shape;
         for field in fields {
-            if let StructuralFieldType::Structural(target) = field.field_type
-                && !types.contains_key(&target)
+            if let StructuralFieldType::Structural(target) = &field.field_type
+                && !types.contains_key(target)
             {
-                return Err(ModuleError::UnknownStructuralType(target));
+                return Err(ModuleError::UnknownStructuralType(*target));
             }
         }
     }
@@ -485,8 +504,8 @@ fn validate_structural_type_graph(
         let declaration = types[&id];
         let StructuralTypeShape::Record { fields } = &declaration.shape;
         for field in fields {
-            if let StructuralFieldType::Structural(target) = field.field_type {
-                visit(target, types, active, complete)?;
+            if let StructuralFieldType::Structural(target) = &field.field_type {
+                visit(*target, types, active, complete)?;
             }
         }
         active.remove(&id);
@@ -3861,6 +3880,10 @@ pub enum ModuleError {
     DuplicateStructuralType(StructuralTypeId),
     InvalidStructuralTypeIdentity(StructuralTypeId),
     InvalidStructuralFieldIdentity {
+        structural_type: StructuralTypeId,
+        field: psi_core::StructuralFieldId,
+    },
+    InvalidErasedStructuralField {
         structural_type: StructuralTypeId,
         field: psi_core::StructuralFieldId,
     },

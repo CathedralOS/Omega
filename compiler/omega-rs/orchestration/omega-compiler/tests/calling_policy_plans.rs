@@ -1149,14 +1149,134 @@ fn rejected_calling_relationship_is_a_compile_diagnostic() {
 }
 
 #[test]
-fn erased_boundary_requirement_data_is_rejected_before_policy_evaluation() {
-    let source = POLICY.replace(
-        "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
-        "data Certified { value: i32; proof [erased]: i32; }\n\nboundary trait Tick: Calling<NoResultPolicy> {\n    machine tick(value: Certified);\n}",
-    );
-    let main_path = write_program("erased-boundary-requirement", &source);
+fn source_policy_receives_erased_stripped_nested_record_parameters_and_results() {
+    let source = r#"
+use omega::language::std::calling;
+
+data Evidence { case Only; }
+data Inner {
+    byte: u8;
+    proof [erased]: Evidence;
+}
+data Certified {
+    head: u16;
+    witness [erased]: Evidence;
+    inner: Inner;
+    tail: u32;
+}
+
+data ErasedRecordPolicy { }
+ErasedRecordPolicyCallingPolicy: ErasedRecordPolicy satisfies CallingPolicy;
+
+machine ErasedRecordPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 && signature.has_result {
+        true -> outer(signature, signature.parameters[0], signature.result)
+        _ -> wrong()
+    }
+
+    state outer(signature: BoundarySignature, root: u64, result: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::Record { first_field, field_count } -> outer_fields(signature, result, root, first_field, field_count)
+            _ -> wrong()
+        }
+    }
+
+    state outer_fields(
+        signature: BoundarySignature,
+        result: u64,
+        root: u64,
+        first: u64,
+        count: u64
+    ) -> BoundaryPlanResult {
+        transition count == 3
+            && signature.shapes[root].byte_size == 8
+            && signature.shapes[root].alignment == 4
+            && signature.fields[first].byte_offset == 0
+            && signature.fields[first + 1].byte_offset == 2
+            && signature.fields[first + 2].byte_offset == 4 {
+            true -> inner(signature, result, signature.fields[first + 1].shape)
+            _ -> wrong()
+        }
+    }
+
+    state inner(signature: BoundarySignature, result: u64, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::Record { first_field, field_count } -> inner_fields(signature, result, root, first_field, field_count)
+            _ -> wrong()
+        }
+    }
+
+    state inner_fields(
+        signature: BoundarySignature,
+        result: u64,
+        root: u64,
+        first: u64,
+        count: u64
+    ) -> BoundaryPlanResult {
+        transition count == 1
+            && signature.shapes[root].byte_size == 1
+            && signature.shapes[root].alignment == 1
+            && signature.fields[first].byte_offset == 0 {
+            true -> result_record(signature, result)
+            _ -> wrong()
+        }
+    }
+
+    state result_record(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::Record { first_field, field_count } -> result_fields(signature, root, first_field, field_count)
+            _ -> wrong()
+        }
+    }
+
+    state result_fields(
+        signature: BoundarySignature,
+        root: u64,
+        first: u64,
+        count: u64
+    ) -> BoundaryPlanResult {
+        transition count == 3
+            && signature.shapes[root].byte_size == 8
+            && signature.shapes[root].alignment == 4
+            && signature.fields[first].byte_offset == 0
+            && signature.fields[first + 1].byte_offset == 2
+            && signature.fields[first + 2].byte_offset == 4 {
+            true -> observed()
+            _ -> wrong()
+        }
+    }
+
+    state observed() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "erased-stripped nested records observed",
+            },
+        }
+    }
+
+    state wrong() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "erased-stripped record mismatch",
+            },
+        }
+    }
+}
+
+boundary trait Probe: Calling<ErasedRecordPolicy> {
+    machine inspect(value: Certified) -> Certified;
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let main_path = write_program("erased-boundary-record", source);
     let diagnostics = compile_to_checked(&main_path, None)
-        .expect_err("an erased boundary value must fail before calling-policy evaluation");
+        .expect_err("the observing policy deliberately rejects after checking its input graph");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1164,21 +1284,25 @@ fn erased_boundary_requirement_data_is_rejected_before_policy_evaluation() {
         .join("\n");
 
     assert!(
-        rendered.contains("boundary value data `Certified` has `[erased]` field(s) `proof`")
-            && rendered.contains("erased-stripped ABI classification is not implemented yet"),
-        "unexpected diagnostics:\n{rendered}"
+        rendered.contains("erased-stripped nested records observed"),
+        "policy did not observe the erased-stripped recursive graph:\n{rendered}"
     );
+    assert!(
+        !rendered.contains("erased-stripped record mismatch"),
+        "{rendered}"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
 
 #[test]
-fn erased_boundary_data_is_rejected_for_a_checked_body_provider() {
+fn erased_case_data_remains_rejected_as_an_unclassified_sum_shape() {
     let source = POLICY.replace(
         "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
-        "data Certified { value: i32; proof [erased]: i32; }\n\nboundary trait Tick: Calling<NoResultPolicy> {\n    machine tick(&mut self, value: Certified);\n}\n\ndata TickProvider { count: i32; }\nTickProviderTick: TickProvider satisfies Tick;\nmachine TickProvider::tick(&mut self, value: Certified) satisfies Tick::tick {\n    self.count = value.value;\n}",
+        "data Evidence { case Only; }\ndata Choice { case None; case Some(value: i32, proof [erased]: Evidence); }\n\nboundary trait Tick: Calling<NoResultPolicy> {\n    machine tick(value: Choice);\n}",
     );
-    let main_path = write_program("erased-checked-provider", &source);
+    let main_path = write_program("erased-boundary-sum", &source);
     let diagnostics = compile_to_checked(&main_path, None)
-        .expect_err("a checked provider must not materialize erased boundary data");
+        .expect_err("case-bearing data has no public calling-policy graph shape yet");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -1186,10 +1310,14 @@ fn erased_boundary_data_is_rejected_for_a_checked_body_provider() {
         .join("\n");
 
     assert!(
-        rendered.contains("boundary value data `Certified` has `[erased]` field(s) `proof`")
-            && rendered.contains("erased-stripped ABI classification is not implemented yet"),
+        rendered.contains("case data `Choice` is not yet classifiable as a boundary value"),
         "unexpected diagnostics:\n{rendered}"
     );
+    assert!(
+        !rendered.contains("erased-stripped ABI classification is not implemented yet"),
+        "the retired blanket relevance fence should not mask the sum-shape diagnostic:\n{rendered}"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
 
 #[test]

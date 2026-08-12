@@ -1,0 +1,30 @@
+use omega::language::core::float_operations;
+
+// Evidence is semantic-only. The erased-stripped Pair is still a two-member
+// AAPCS64 HFA and must feed d0/d1 from one aggregate source place.
+data Evidence {
+    case Only;
+}
+
+data Pair {
+    first: f64;
+    proof [erased]: Evidence;
+    second: f64;
+}
+
+boundary trait HfaImport {
+    machine call(pair: Pair) -> i64;
+}
+
+machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via Binding::DllImport("libSystem.B.dylib", "omega_hfa_probe");
+
+data Main {
+    foreign: HfaImport;
+    pair: Pair;
+    result: i64;
+}
+
+machine Main::main(&mut self) {
+    self.pair = Pair { first: 1.0, second: 2.0 };
+    self.result = self.foreign.call(self.pair);
+}

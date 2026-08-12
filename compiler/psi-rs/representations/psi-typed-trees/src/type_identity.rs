@@ -166,7 +166,30 @@ impl TypedTrees {
         NormalizedTypeIdentity(normalize_type_reference(
             self,
             type_reference,
-            &TypeIdentityContext { binders },
+            &TypeIdentityContext {
+                binders,
+                substitutions: &[],
+            },
+        ))
+    }
+
+    /// Binder-aware identity after replacing exact type-parameter symbols with
+    /// concrete type references. This is used when a closed structural
+    /// instance retains the semantic identity of an erased field whose type is
+    /// intentionally absent from the executable layout vocabulary.
+    pub fn normalized_type_identity_with_binders_and_substitutions(
+        &self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> NormalizedTypeIdentity {
+        NormalizedTypeIdentity(normalize_type_reference(
+            self,
+            type_reference,
+            &TypeIdentityContext {
+                binders,
+                substitutions,
+            },
         ))
     }
 
@@ -463,6 +486,7 @@ fn declared_domain_name(
 #[derive(Default)]
 struct TypeIdentityContext<'binders> {
     binders: &'binders [(SymbolHandle, String)],
+    substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
 }
 
 impl TypeIdentityContext<'_> {
@@ -502,6 +526,17 @@ fn normalize_type_reference(
     type_reference: TypeReferenceHandle,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+        && let Some((_, replacement)) = context
+            .substitutions
+            .iter()
+            .rev()
+            .find(|(candidate, _)| candidate == symbol)
+        && *replacement != type_reference
+    {
+        return normalize_type_reference(program, *replacement, context);
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             referee,

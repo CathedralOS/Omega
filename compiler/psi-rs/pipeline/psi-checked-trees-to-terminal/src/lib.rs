@@ -2256,10 +2256,16 @@ fn lower_unit_structural_types(
                     CheckedUnitStructuralFieldType::Structural { type_identity } => {
                         StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?)
                     }
+                    CheckedUnitStructuralFieldType::Erased { type_identity } => {
+                        StructuralFieldType::Erased {
+                            type_identity: type_identity.clone(),
+                        }
+                    }
                 };
                 Ok(StructuralFieldDeclaration {
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: field.identity.clone(),
+                    relevance: field.relevance,
                     field_type,
                 })
             })
@@ -7372,10 +7378,20 @@ mod tests {
             structural_types: vec![
                 psi_checked_trees::CheckedUnitStructuralTypePlan {
                     identity: "example::Acknowledgement".to_owned(),
-                    fields: vec![psi_checked_trees::CheckedUnitStructuralFieldPlan {
-                        identity: "sequence".to_owned(),
-                        field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
-                    }],
+                    fields: vec![
+                        psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                            identity: "sequence".to_owned(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
+                        },
+                        psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                            identity: "proof".to_owned(),
+                            relevance: psi_terminal::BindingRelevance::Erased,
+                            field_type: CheckedUnitStructuralFieldType::Erased {
+                                type_identity: "named(name(example::Evidence))".to_owned(),
+                            },
+                        },
+                    ],
                 },
                 psi_checked_trees::CheckedUnitStructuralTypePlan {
                     identity: "example::Helper".to_owned(),
@@ -7516,6 +7532,19 @@ mod tests {
             [1, 2, 3]
         );
         assert_eq!(module.structural_domains[0].id, structural_domain_id(1));
+        let acknowledgement = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.identity == "example::Acknowledgement")
+            .expect("acknowledgement structural type");
+        let StructuralTypeShape::Record { fields } = &acknowledgement.shape;
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[1].relevance, psi_terminal::BindingRelevance::Erased);
+        assert!(matches!(
+            &fields[1].field_type,
+            StructuralFieldType::Erased { type_identity }
+                if type_identity == "named(name(example::Evidence))"
+        ));
         assert_eq!(module.services[0].id, service_id(1));
         assert_eq!(module.services[0].identity, "PortIo");
         assert_eq!(module.boundary_machines[0].id, boundary_machine_id(1));

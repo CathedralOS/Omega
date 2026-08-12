@@ -1069,20 +1069,34 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            let field_type = match scalar_type(self.program, field.type_reference, &substitutions) {
-                Some(primitive) => CheckedUnitStructuralFieldType::Scalar(primitive),
-                None => {
-                    let Some(nested) = self.add_type(field.type_reference, binders, &substitutions)
-                    else {
-                        self.in_progress.remove(&identity);
-                        return None;
-                    };
-                    if nested == identity {
-                        self.in_progress.remove(&identity);
-                        return None;
-                    }
-                    CheckedUnitStructuralFieldType::Structural {
-                        type_identity: nested,
+            let field_type = if field.relevance.is_erased() {
+                CheckedUnitStructuralFieldType::Erased {
+                    type_identity: self
+                        .program
+                        .normalized_type_identity_with_binders_and_substitutions(
+                            field.type_reference,
+                            binders,
+                            &substitutions,
+                        )
+                        .into_string(),
+                }
+            } else {
+                match scalar_type(self.program, field.type_reference, &substitutions) {
+                    Some(primitive) => CheckedUnitStructuralFieldType::Scalar(primitive),
+                    None => {
+                        let Some(nested) =
+                            self.add_type(field.type_reference, binders, &substitutions)
+                        else {
+                            self.in_progress.remove(&identity);
+                            return None;
+                        };
+                        if nested == identity {
+                            self.in_progress.remove(&identity);
+                            return None;
+                        }
+                        CheckedUnitStructuralFieldType::Structural {
+                            type_identity: nested,
+                        }
                     }
                 }
             };
@@ -1091,6 +1105,7 @@ impl<'program> ShapeCollector<'program> {
                     .identity
                     .map(|identity| format!("#{identity}"))
                     .unwrap_or_else(|| field.name.as_str().to_owned()),
+                relevance: field.relevance,
                 field_type,
             });
         }
