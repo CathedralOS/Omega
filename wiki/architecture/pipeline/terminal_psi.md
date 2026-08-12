@@ -271,6 +271,16 @@ artifact-core scaffolding rather than a source-visible unit-entry or Cathedral
 hard-root claim. Attached roots, linear custody, provider/port effects, and
 native unit realization remain gated on their complete vertical slices.
 
+Normal scalar returns carry the exact canonical list of live unclaimed affine
+parameters to discard; the list is empty when no cleanup is required.
+Verification reconstructs that list in reverse parameter declaration order.
+Interpretation charges the return edge and materializes the scalar result before
+performing these no-code discards, so sponsor exhaustion cannot partially commit
+the exit. Omega consumes the verified cleanup metadata without emitting a target
+instruction. The current scalar source producer has primitive-only signatures
+and therefore emits an empty list; mixed structural/scalar production remains a
+separate vertical slice.
+
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends
 on them. Concrete proposition and operation vocabularies are then co-designed

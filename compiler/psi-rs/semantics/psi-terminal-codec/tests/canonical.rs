@@ -37,7 +37,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "b0acc1e2c3e67866962381d36dd2e61599c7f7ee40d3bfd8206577530a898947"
+        "1d709b96d0fff2154dd1905269f7f30124659fd985c69363786c01a40a5e1c00"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -86,6 +86,35 @@ fn unit_return_affine_discard_round_trips_canonically() {
     *trivial_affine_discards = vec![callee_place];
 
     let bytes = encode_module(&module).expect("explicit affine discard should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn scalar_return_affine_discard_round_trips_canonically() {
+    let mut module = structural_effect_fixture();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.blocks[0].operations.clear();
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(50),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(51),
+        scalar_type: ScalarType::Boolean,
+    });
+    let place = machine.structural_parameters[0].place;
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(101),
+        value: value_id(50),
+        trivial_affine_discards: vec![place],
+    };
+    module.entry = machine.id;
+    module.machines = vec![machine];
+
+    let bytes = encode_module(&module).expect("scalar affine discard should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -445,6 +474,7 @@ fn structural_declarations_do_not_bypass_semantic_graph_validation() {
 
     let mut malformed = module.clone();
     malformed.machines[0].blocks[1].terminator = Terminator::Return {
+        trivial_affine_discards: Vec::new(),
         edge: edge_id(2),
         value: unknown,
     };
@@ -1197,6 +1227,7 @@ fn fixture() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(2),
                         value: value_id(3),
                     },
@@ -1309,6 +1340,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Return {
+                    trivial_affine_discards: Vec::new(),
                     edge: edge_id(80),
                     value: value_id(80),
                 },
@@ -1519,6 +1551,7 @@ fn call_fixture() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(100),
                         value: value_id(101),
                     },
@@ -1548,6 +1581,7 @@ fn call_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(101),
                         value: value_id(103),
                     },

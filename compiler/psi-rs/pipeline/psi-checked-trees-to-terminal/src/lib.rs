@@ -4635,7 +4635,11 @@ fn emit_reserved_boolean_value_blocks(
                 .checked_add(1)
                 .expect("reserved Boolean return edge identity advances");
             let terminator = match exit {
-                LoweredBooleanDecisionExit::Return => Terminator::Return { edge, value },
+                LoweredBooleanDecisionExit::Return => Terminator::Return {
+                    trivial_affine_discards: Vec::new(),
+                    edge,
+                    value,
+                },
                 LoweredBooleanDecisionExit::Jump { target } => Terminator::Jump {
                     edge,
                     target,
@@ -5875,7 +5879,11 @@ fn build_scalar_graph_module(
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
                         .expect("carried Boolean return edge identity advances");
-                    Terminator::Return { edge, value }
+                    Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
+                        edge,
+                        value,
+                    }
                 }
                 LoweredScalarBranchTerminator::Conditional {
                     condition,
@@ -6256,7 +6264,11 @@ fn build_scalar_graph_module(
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
                         .expect("scalar graph return edge identities advance");
-                    Terminator::Return { edge, value }
+                    Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
+                        edge,
+                        value,
+                    }
                 }
             }
             LoweredScalarBranchTerminator::Crash(crash) => {
@@ -8059,7 +8071,7 @@ mod tests {
                 .id,
             value_id(identity_base + 2)
         );
-        let Terminator::Return { edge, value } = machine.blocks[0].terminator else {
+        let Terminator::Return { edge, value, .. } = machine.blocks[0].terminator else {
             panic!("the fixture should retain its scalar return")
         };
         assert_eq!(edge, edge_id(identity_base + 1));

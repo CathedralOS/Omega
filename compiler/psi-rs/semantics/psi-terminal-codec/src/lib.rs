@@ -1720,10 +1720,21 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(*argument);
             }
         }
-        Terminator::Return { edge, value } => {
+        Terminator::Return {
+            edge,
+            value,
+            trivial_affine_discards,
+        } => {
             writer.u8(2);
             writer.id(*edge);
             writer.id(*value);
+            writer.len(
+                "scalar return trivial affine discards",
+                trivial_affine_discards.len(),
+            )?;
+            for place in trivial_affine_discards {
+                writer.id(*place);
+            }
         }
         Terminator::ReturnUnit {
             edge,
@@ -2970,6 +2981,7 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         2 => Terminator::Return {
             edge: reader.id("EdgeId")?,
             value: reader.id("ValueId")?,
+            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
         },
         3 => Terminator::Conditional {
             condition: reader.id("ValueId")?,

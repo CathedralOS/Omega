@@ -1,6 +1,6 @@
 use psi_core::{
     BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ServiceId, ValueId,
+    PlaceId, ScalarType, ServiceId, ValueId,
 };
 use psi_terminal::{CrashCause, Operation, OperationKind, Terminator, ValueDeclaration};
 use psi_terminal_fuel::{
@@ -112,10 +112,16 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     let return_edge = Terminator::Return {
         edge: edge_id(2),
         value: value_id(1),
+        trivial_affine_discards: Vec::new(),
     };
     let unit_return_edge = Terminator::ReturnUnit {
         edge: edge_id(4),
         trivial_affine_discards: Vec::new(),
+    };
+    let scalar_cleanup_edge = Terminator::Return {
+        edge: edge_id(5),
+        value: value_id(1),
+        trivial_affine_discards: vec![place_id(1)],
     };
     let crash_edge = Terminator::Crash {
         edge: edge_id(3),
@@ -132,6 +138,11 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         TerminalFuelSchedule::CURRENT.terminator_units(&unit_return_edge),
         1,
         "a value-less normal return has one explicit edge unit"
+    );
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.terminator_units(&scalar_cleanup_edge),
+        1,
+        "a scalar return with no-code affine cleanup has one explicit edge unit"
     );
     let mut meter = TerminalFuelMeter::unbounded();
 
@@ -217,4 +228,8 @@ fn edge_id(raw: u64) -> EdgeId {
 
 fn value_id(raw: u64) -> ValueId {
     ValueId::new(raw).expect("test value identity is nonzero")
+}
+
+fn place_id(raw: u64) -> PlaceId {
+    PlaceId::new(raw).unwrap()
 }

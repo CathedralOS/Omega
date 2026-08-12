@@ -1157,7 +1157,11 @@ impl TerminalExecution {
                     self.current = successor.target;
                     self.next_operation = 0;
                 }
-                Terminator::Return { value, .. } => {
+                Terminator::Return {
+                    value,
+                    trivial_affine_discards,
+                    ..
+                } => {
                     let machine = self.machines.get(&self.current_machine).ok_or(
                         TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
                     )?;
@@ -1174,6 +1178,13 @@ impl TerminalExecution {
                         .get(value)
                         .copied()
                         .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
+                    for place in trivial_affine_discards {
+                        if self.structural_values.remove(place).is_none() {
+                            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                *place,
+                            ));
+                        }
+                    }
                     if let Some(caller) = self.call_stack.pop() {
                         let SuspendedCallResult::Scalar(result_value) = caller.result else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
