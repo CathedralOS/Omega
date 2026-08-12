@@ -268,6 +268,31 @@ fn content_claim_identity_cannot_refine_a_different_structural_root() {
 }
 
 #[test]
+fn unit_call_content_custody_must_name_a_structural_argument() {
+    let mut module = hard_root_module();
+    module.machines[1].structural_parameters.clear();
+    module.machines[1].entry_claims.clear();
+    module.machines[1].content_entry_claims = vec![content_entry_claim(place_id(2))];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.clear();
+    claim_transfers.clear();
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::UnitCallClaimHasNoStructuralArgument {
+            operation: operation_id(1),
+            claim: claim_id(1),
+        }
+    );
+}
+
+#[test]
 fn boundary_call_checks_qualification_settlement_and_obligation_absence() {
     let mut missing_qualification = hard_root_module();
     missing_qualification.machines[1].structural_parameters[0]
