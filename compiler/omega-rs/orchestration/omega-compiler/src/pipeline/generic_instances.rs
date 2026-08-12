@@ -544,6 +544,7 @@ pub(crate) fn desugar_generic_data_instances(
 
     relabel_closed_data_uses_in_annotated_locals(syntax, &synthesized_origins);
     relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized_origins);
+    relabel_closed_data_uses_in_exact_calls_and_returns(syntax, &synthesized_origins);
     relabel_closed_sum_memberships_from_local_types(syntax, &synthesized_origins);
     let unique_sum_instances = synthesized_sum_instances
         .into_iter()
@@ -691,6 +692,139 @@ fn relabel_closed_data_uses_in_exact_assignments(
                     syntax,
                     assignment.value,
                     expected_type,
+                    synthesized_origins,
+                );
+            }
+        }
+    }
+}
+
+/// Closed callable signatures provide exact contextual types without inferring
+/// from literal fields. Restrict this pass to uniquely named free machines;
+/// overload and receiver selection remain resolver-owned and fail closed here.
+fn relabel_closed_data_uses_in_exact_calls_and_returns(
+    syntax: &mut SyntaxTrees,
+    synthesized_origins: &HashMap<String, String>,
+) {
+    let mut signatures = HashMap::<String, Option<Vec<TypeReferenceHandle>>>::new();
+    for item in syntax.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        if !machine.type_parameters.is_empty() || machine.attached_data.is_some() {
+            continue;
+        }
+        let Some(entry) = syntax.tables.items.state_handles(machine.states).first() else {
+            continue;
+        };
+        let parameters = syntax
+            .tables
+            .items
+            .state_parameters(syntax.tables.items.state(*entry).parameters)
+            .iter()
+            .map(|parameter| {
+                syntax
+                    .tables
+                    .items
+                    .state_parameter(*parameter)
+                    .type_reference
+            })
+            .collect::<Vec<_>>();
+        signatures
+            .entry(machine.name.as_str().to_owned())
+            .and_modify(|signature| *signature = None)
+            .or_insert(Some(parameters));
+    }
+
+    let concrete_states = syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
+            _ => None,
+        })
+        .flat_map(|machine| syntax.tables.items.state_handles(machine.states))
+        .copied()
+        .collect::<Vec<_>>();
+    for state_handle in concrete_states {
+        let state = syntax.tables.items.state(state_handle).clone();
+        let statements = syntax.tables.items.statements(state.statements).to_vec();
+        let final_statement = statements.last().copied();
+        for statement in &statements {
+            match syntax.tables.statements.statement(*statement) {
+                StatementNode::Expression(value)
+                    if state.return_type.is_valid() && Some(*statement) == final_statement =>
+                {
+                    relabel_data_literal_for_expected_type(
+                        syntax,
+                        *value,
+                        state.return_type,
+                        synthesized_origins,
+                    );
+                }
+                StatementNode::Call(call) if call.receiver.is_empty() => {
+                    let Some(Some(parameters)) = signatures.get(call.target.as_str()) else {
+                        continue;
+                    };
+                    let arguments = syntax
+                        .tables
+                        .statements
+                        .expression_handles(call.arguments)
+                        .to_vec();
+                    for (argument, expected_type) in arguments.into_iter().zip(parameters) {
+                        relabel_data_literal_for_expected_type(
+                            syntax,
+                            argument,
+                            *expected_type,
+                            synthesized_origins,
+                        );
+                    }
+                }
+                StatementNode::Transition(transition) => {
+                    for target in [transition.target, transition.continuation] {
+                        if !target.is_valid() {
+                            continue;
+                        }
+                        if let psi_syntax_trees::statement::TransitionTargetNode::Value(value) =
+                            syntax.tables.statements.transition_target(target)
+                        {
+                            relabel_data_literal_for_expected_type(
+                                syntax,
+                                *value,
+                                state.return_type,
+                                synthesized_origins,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut reachable = HashSet::new();
+        for statement in statements {
+            collect_statement_expression_handles(syntax, statement, &mut reachable);
+        }
+        let calls = syntax
+            .expressions
+            .iter_expressions()
+            .filter(|(handle, _)| reachable.contains(&handle.arena_index()))
+            .filter_map(|(_, expression)| match expression {
+                ExpressionNode::Call(call) if !call.receiver.is_valid() => {
+                    Some((call.target.clone(), call.arguments))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (target, arguments) in calls {
+            let Some(Some(parameters)) = signatures.get(target.as_str()) else {
+                continue;
+            };
+            let arguments = syntax.expressions.expression_handles(arguments).to_vec();
+            for (argument, expected_type) in arguments.into_iter().zip(parameters) {
+                relabel_data_literal_for_expected_type(
+                    syntax,
+                    argument,
+                    *expected_type,
                     synthesized_origins,
                 );
             }
@@ -4406,13 +4540,27 @@ mod tests {
     }
 
     #[test]
-    fn distinct_closed_generic_sums_keep_untyped_call_literal_fail_closed() {
-        rejected(
+    fn distinct_closed_generic_sums_use_unique_exact_call_parameter() {
+        checked(
             r#"
             data Evidence { case Only; }
             data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
             data Holder { boolean: Maybe<bool>; }
             machine take(value: Maybe<i32>) -> i32 { 0 }
+            machine run() -> i32 { take(Maybe::Some { value: 7 }) }
+            "#,
+        )
+        .expect("the unique call parameter should select Maybe<i32>");
+    }
+
+    #[test]
+    fn overloaded_generic_sum_call_literal_remains_fail_closed() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
+            machine take(value: Maybe<i32>) -> i32 { 1 }
+            machine take(value: Maybe<bool>) -> i32 { 2 }
             machine run() -> i32 { take(Maybe::Some { value: 7 }) }
             "#,
             "construction of erased generic data `Maybe` is unsupported in this context",
@@ -4473,8 +4621,8 @@ mod tests {
     }
 
     #[test]
-    fn bare_erased_generic_literal_in_return_context_is_rejected() {
-        rejected(
+    fn bare_erased_generic_literal_uses_exact_return_context() {
+        checked(
             r#"
             data Evidence { case Only; }
             data Box<T> { value: T; proof [erased]: Evidence; }
@@ -4482,13 +4630,13 @@ mod tests {
                 Box { value: 7 }
             }
             "#,
-            "construction of erased generic data `Box` is unsupported in this context",
-        );
+        )
+        .expect("an exact return type should select the closed record identity");
     }
 
     #[test]
-    fn bare_erased_generic_literal_in_call_context_is_rejected() {
-        rejected(
+    fn bare_erased_generic_literal_uses_exact_call_context() {
+        checked(
             r#"
             data Evidence { case Only; }
             data Box<T> { value: T; proof [erased]: Evidence; }
@@ -4497,8 +4645,8 @@ mod tests {
                 consume(Box { value: 7 })
             }
             "#,
-            "construction of erased generic data `Box` is unsupported in this context",
-        );
+        )
+        .expect("a unique exact parameter should select the closed record identity");
     }
 
     #[test]

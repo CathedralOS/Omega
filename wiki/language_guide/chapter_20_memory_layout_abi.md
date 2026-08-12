@@ -146,8 +146,8 @@ occupies hardware bytes.
 
 The implemented native slice currently applies that rule to non-generic
 transparent record, sum, and mixed common-field/case layout, plus closed
-synthesized generic-record instances selected by explicit local or assignment
-destinations and exact closed pure or mixed generic-sum instances. It also applies to the
+synthesized generic-record instances selected by explicit local, assignment,
+unique free-call, or return destinations and exact closed pure or mixed generic-sum instances. It also applies to the
 machine storage and runtime
 contained-machine topology of closed, non-generic plain records when every
 attached machine is an ordinary checked body with no unresolved machine

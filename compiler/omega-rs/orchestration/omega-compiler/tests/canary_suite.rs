@@ -47764,6 +47764,32 @@ fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
 }
 
 #[test]
+fn generic_erased_literals_use_exact_call_and_return_contexts() {
+    let canary = pass_canary("generics/runtime_generic_exact_call_return_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("exact call/return contexts should reach checked semantics");
+    assert_eq!(interpret(&checked, &[]).exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-generic-exact-call-return-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("exact call/return contexts should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run exact call/return generic canary");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(output.status.code(), Some(70));
+}
+
+#[test]
 fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
     let main_path = canary.join("main.omg");
