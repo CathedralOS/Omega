@@ -46247,6 +46247,47 @@ fn integer_measured_nat_induction_canary_compiles() {
 }
 
 #[test]
+fn proof_joint_scc_ranking_canaries_reach_checked_semantics() {
+    let canary = pass_canary("termination/proof_non_tail_joint_machine_cycle_compile");
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed to reach checked semantics:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    for (name, expected) in [
+        (
+            "termination/proof_joint_machine_cycle_nondecreasing",
+            "does not structurally decrease",
+        ),
+        (
+            "termination/proof_joint_machine_cycle_unmeasured",
+            "unmeasured proof machine",
+        ),
+    ] {
+        let canary = fail_canary(name);
+        let diagnostics = check_canary(&canary)
+            .expect_err("an invalid proof-machine SCC must reject in checked semantics");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected),
+            "{} rejected with the wrong diagnostic:\n{combined}",
+            canary.display()
+        );
+    }
+}
+
+#[test]
 fn exact_float_to_int_proof_canaries() {
     let canary = pass_canary("float/float_to_int_exact_proofs_exit");
     compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
