@@ -112,14 +112,14 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                 OperationKind::BoundaryCallUnit {
                     boundary,
                     structural_arguments,
-                    claim_settlements,
+                    completion_receipts,
                     ..
                 } => {
                     operations.push(TerminalAbstractOperation::BoundaryCallUnit {
                         psi_operation: operation.id,
                         boundary,
                         structural_arguments,
-                        claim_settlements,
+                        completion_receipts,
                     });
                 }
                 OperationKind::PortWrite {

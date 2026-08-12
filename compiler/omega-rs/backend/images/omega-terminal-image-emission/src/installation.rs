@@ -11,7 +11,7 @@ use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
     ProfileDecisionId, ServiceId,
 };
-use psi_terminal::{ClaimSettlement, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_terminal::{CompletionReceipt, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
 
@@ -457,10 +457,10 @@ pub fn encode_terminal_installation_record(
         }
         push_u32(
             &mut bytes,
-            u32::try_from(settlement.claim_settlements.len())
-                .map_err(|_| TerminalInstallationError::TooManyClaimSettlements)?,
+            u32::try_from(settlement.completion_receipts.len())
+                .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?,
         );
-        for claim in &settlement.claim_settlements {
+        for claim in &settlement.completion_receipts {
             push_u64(&mut bytes, claim.claim.get());
             push_u32(&mut bytes, claim.argument_index);
         }
@@ -697,13 +697,13 @@ pub fn decode_terminal_installation_record(
             );
         }
         let claim_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManyClaimSettlements)?;
+            .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?;
         if claim_count > reader.remaining() / 12 {
             return Err(TerminalInstallationError::UnexpectedEnd);
         }
-        let mut claim_settlements = Vec::with_capacity(claim_count);
+        let mut completion_receipts = Vec::with_capacity(claim_count);
         for _ in 0..claim_count {
-            claim_settlements.push(ClaimSettlement {
+            completion_receipts.push(CompletionReceipt {
                 claim: ClaimId::new(reader.u64()?)
                     .ok_or(TerminalInstallationError::ZeroSettlementIdentity("ClaimId"))?,
                 argument_index: reader.u32()?,
@@ -717,7 +717,7 @@ pub fn decode_terminal_installation_record(
                 provider_execution,
                 realization,
                 argument_places,
-                claim_settlements,
+                completion_receipts,
                 operation_ordinal,
                 code_offset,
             },
@@ -1167,7 +1167,7 @@ pub enum TerminalInstallationError {
     TooManyPortEffects,
     TooManyBoundarySettlements,
     TooManySettlementArguments,
-    TooManyClaimSettlements,
+    TooManyCompletionReceipts,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
     FuelAttributionOffsetNotRepresentable,

@@ -10,7 +10,7 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimSettlement, ClaimTransfer, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -176,7 +176,7 @@ pub enum TerminalTargetUnitOperation {
         provider_execution: TerminalProviderExecutionBinding,
         realization: TerminalMetadataOnlyPortRealization,
         argument_places: Vec<PlaceId>,
-        claim_settlements: Vec<ClaimSettlement>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     Return {
         psi_edge: EdgeId,

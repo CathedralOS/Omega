@@ -12,7 +12,7 @@ use psi_core::{
     PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, CrashCause, EntryClaim,
+    Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
     OperationKind, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     TerminalMachineResult, Terminator,
 };
@@ -125,7 +125,7 @@ pub enum TerminalEffect {
         operation: OperationId,
         boundary: BoundaryMachineId,
         structural_arguments: Vec<TerminalStructuralValue>,
-        claim_settlements: Vec<ClaimSettlement>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     PortWrite {
         operation: OperationId,
@@ -437,7 +437,7 @@ impl TerminalExecution {
                     OperationKind::BoundaryCallUnit {
                         boundary,
                         structural_arguments,
-                        claim_settlements,
+                        completion_receipts,
                         ..
                     } => {
                         if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
@@ -455,17 +455,17 @@ impl TerminalExecution {
                             &arguments,
                         )?;
                         validate_boundary_requirements(boundary_declaration, &arguments)?;
-                        let remaining_claims = settle_claims(
+                        let remaining_claims = complete_claims(
                             &self.live_claims,
                             &structural_arguments,
-                            &claim_settlements,
+                            &completion_receipts,
                             &boundary_declaration.structural_parameters,
                         )?;
                         let effect = TerminalEffect::BoundaryCallUnit {
                             operation: operation.id,
                             boundary,
                             structural_arguments: arguments,
-                            claim_settlements,
+                            completion_receipts,
                         };
                         handler.handle_effect(&effect).map_err(|rejection| {
                             TerminalInterpretError::EffectRejected {
@@ -1518,10 +1518,10 @@ fn validate_boundary_requirements(
     Ok(())
 }
 
-fn settle_claims(
+fn complete_claims(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     caller_arguments: &[StructuralArgument],
-    settlements: &[ClaimSettlement],
+    receipts: &[CompletionReceipt],
     _boundary_parameters: &[StructuralParameterDeclaration],
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
     let expected = caller_arguments
@@ -1535,24 +1535,24 @@ fn settle_claims(
         .collect::<BTreeSet<_>>();
     let mut remaining = caller_claims.clone();
     let mut actual = BTreeSet::new();
-    for settlement in settlements {
-        if !actual.insert((settlement.argument_index, settlement.claim))
-            || !expected.contains(&(settlement.argument_index, settlement.claim))
+    for receipt in receipts {
+        if !actual.insert((receipt.argument_index, receipt.claim))
+            || !expected.contains(&(receipt.argument_index, receipt.claim))
         {
-            return Err(TerminalInterpretError::ClaimSettlementMismatch);
+            return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
         let argument = caller_arguments
-            .get(settlement.argument_index as usize)
-            .ok_or(TerminalInterpretError::ClaimSettlementMismatch)?;
+            .get(receipt.argument_index as usize)
+            .ok_or(TerminalInterpretError::CompletionReceiptMismatch)?;
         let claim = remaining
-            .remove(&settlement.claim)
-            .ok_or(TerminalInterpretError::ClaimSettlementMismatch)?;
+            .remove(&receipt.claim)
+            .ok_or(TerminalInterpretError::CompletionReceiptMismatch)?;
         if claim.place != Some(argument.place) {
-            return Err(TerminalInterpretError::ClaimSettlementMismatch);
+            return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
     }
     if actual != expected {
-        return Err(TerminalInterpretError::ClaimSettlementMismatch);
+        return Err(TerminalInterpretError::CompletionReceiptMismatch);
     }
     Ok(remaining)
 }
@@ -1663,7 +1663,7 @@ pub enum TerminalInterpretError {
         domain: StructuralDomainId,
     },
     ClaimTransferMismatch,
-    ClaimSettlementMismatch,
+    CompletionReceiptMismatch,
     VerifiedEntryMachineMissing,
     VerifiedCallTargetMissing(MachineId),
     VerifiedBoundaryMachineMissing(BoundaryMachineId),

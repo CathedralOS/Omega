@@ -338,7 +338,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     psi_operation: settlement_operation,
                     boundary,
                     structural_arguments: Vec::new(),
-                    claim_settlements: Vec::new(),
+                    completion_receipts: Vec::new(),
                 },
                 TerminalAbstractOperation::ReturnUnit {
                     psi_edge: EdgeId::new(1).unwrap(),

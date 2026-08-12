@@ -33,8 +33,8 @@ use psi_core::{
     StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
-    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement,
-    ClaimTransfer, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
+    CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
@@ -262,8 +262,9 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
                     ));
                 }
                 OperationKind::BoundaryCallUnit {
-                    claim_settlements, ..
-                } if !strictly_increasing(claim_settlements.iter().copied()) => {
+                    completion_receipts,
+                    ..
+                } if !strictly_increasing(completion_receipts.iter().copied()) => {
                     return Err(CodecError::NonCanonicalOrder(
                         "boundary claim settlements by claim and argument index",
                     ));
@@ -660,7 +661,7 @@ fn validate_operation_foundation(
         OperationKind::BoundaryCallUnit {
             boundary,
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             ..
         } => {
             if operation.result != OperationResult::Unit {
@@ -684,7 +685,7 @@ fn validate_operation_foundation(
             validate_claim_indices(
                 machine,
                 structural_arguments,
-                claim_settlements
+                completion_receipts
                     .iter()
                     .map(|settlement| (settlement.claim, settlement.argument_index)),
             )?;
@@ -1468,14 +1469,14 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             OperationKind::BoundaryCallUnit {
                 boundary,
                 structural_arguments,
-                claim_settlements,
+                completion_receipts,
                 requirement_obligations,
             } => {
                 writer.u8(35);
                 writer.id(boundary);
                 encode_structural_arguments(writer, &structural_arguments)?;
-                writer.len("boundary claim settlements", claim_settlements.len())?;
-                for settlement in claim_settlements {
+                writer.len("boundary claim settlements", completion_receipts.len())?;
+                for settlement in completion_receipts {
                     writer.id(settlement.claim);
                     writer.u32(settlement.argument_index);
                 }
@@ -2942,8 +2943,8 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             35 => OperationKind::BoundaryCallUnit {
                 boundary: reader.id("BoundaryMachineId")?,
                 structural_arguments: decode_structural_arguments(reader)?,
-                claim_settlements: decode_counted(reader, |reader| {
-                    Ok(ClaimSettlement {
+                completion_receipts: decode_counted(reader, |reader| {
+                    Ok(CompletionReceipt {
                         claim: reader.id("ClaimId")?,
                         argument_index: reader.u32()?,
                     })

@@ -480,7 +480,7 @@ fn emit_unit_body(
                 provider_execution,
                 realization,
                 argument_places,
-                claim_settlements,
+                completion_receipts,
             } => {
                 operation_site = Some(*psi_operation);
                 boundary_settlements.push(TerminalBoundarySettlementRecord {
@@ -489,7 +489,7 @@ fn emit_unit_body(
                     provider_execution: (*provider_execution).into(),
                     realization: *realization,
                     argument_places: argument_places.clone(),
-                    claim_settlements: claim_settlements.clone(),
+                    completion_receipts: completion_receipts.clone(),
                     operation_ordinal,
                     code_offset: bytes.len(),
                 });
@@ -5050,7 +5050,7 @@ mod tests {
                                 provider_execution,
                                 realization,
                                 argument_places: Vec::new(),
-                                claim_settlements: Vec::new(),
+                                completion_receipts: Vec::new(),
                             },
                             TerminalTargetUnitOperation::Return {
                                 psi_edge: leaf_return,

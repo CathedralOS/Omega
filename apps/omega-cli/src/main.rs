@@ -389,7 +389,7 @@ fn write_operation_summary(
         OperationKind::BoundaryCallUnit {
             boundary,
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             ..
         } => {
             let identity = module
@@ -400,7 +400,7 @@ fn write_operation_summary(
                 .unwrap_or("unknown");
             writeln!(
                 output,
-                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCallUnit boundary=boundary:{} boundary_identity={} arguments={} settlements={}",
+                "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCallUnit boundary=boundary:{} boundary_identity={} arguments={} completion_receipts={}",
                 operation.id.get(),
                 boundary.get(),
                 identity,
@@ -409,10 +409,10 @@ fn write_operation_summary(
                         .iter()
                         .map(|argument| format!("place:{}", argument.place.get()))
                 ),
-                format_ids(claim_settlements.iter().map(|settlement| format!(
+                format_ids(completion_receipts.iter().map(|receipt| format!(
                     "claim:{}->argument:{}",
-                    settlement.claim.get(),
-                    settlement.argument_index
+                    receipt.claim.get(),
+                    receipt.argument_index
                 )))
             )
             .expect("writing to a String cannot fail");

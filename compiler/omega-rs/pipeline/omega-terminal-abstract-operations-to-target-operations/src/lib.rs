@@ -1504,7 +1504,7 @@ fn lower_unit_function(
                 psi_operation,
                 boundary,
                 structural_arguments,
-                claim_settlements,
+                completion_receipts,
             } => {
                 let binding = settlements
                     .get(boundary)
@@ -1542,7 +1542,7 @@ fn lower_unit_function(
                         .iter()
                         .map(|argument| argument.place)
                         .collect(),
-                    claim_settlements: claim_settlements.clone(),
+                    completion_receipts: completion_receipts.clone(),
                 });
                 provenance.operations.push(*psi_operation);
             }
@@ -4266,7 +4266,7 @@ mod tests {
                         psi_operation: settlement_operation,
                         boundary,
                         structural_arguments: Vec::new(),
-                        claim_settlements: Vec::new(),
+                        completion_receipts: Vec::new(),
                     },
                     TerminalAbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(1).unwrap(),

@@ -4,7 +4,7 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
     EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -180,7 +180,7 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
             operation: operation_id(3),
             boundary: boundary_id(1),
             structural_arguments: vec![argument],
-            claim_settlements: vec![ClaimSettlement {
+            completion_receipts: vec![CompletionReceipt {
                 claim: claim_id(1),
                 argument_index: 0,
             }],
@@ -287,11 +287,11 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
         &handler.effects[0],
         TerminalEffect::BoundaryCallUnit {
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             ..
         } if structural_arguments == &[argument]
-            && claim_settlements == &[
-                ClaimSettlement { claim: claim_id(1), argument_index: 0 },
+            && completion_receipts == &[
+                CompletionReceipt { claim: claim_id(1), argument_index: 0 },
             ]
     ));
 }
@@ -341,12 +341,13 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         argument_index: 0,
     });
     let OperationKind::BoundaryCallUnit {
-        claim_settlements, ..
+        completion_receipts,
+        ..
     } = &mut module.machines[1].blocks[0].operations[0].kind
     else {
         unreachable!()
     };
-    claim_settlements.push(ClaimSettlement {
+    completion_receipts.push(CompletionReceipt {
         claim: claim_id(2),
         argument_index: 0,
     });
@@ -369,12 +370,12 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         &handler.effects[0],
         TerminalEffect::BoundaryCallUnit {
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             ..
         } if structural_arguments == &[argument]
-            && claim_settlements == &[
-                ClaimSettlement { claim: claim_id(1), argument_index: 0 },
-                ClaimSettlement { claim: claim_id(2), argument_index: 0 },
+            && completion_receipts == &[
+                CompletionReceipt { claim: claim_id(1), argument_index: 0 },
+                CompletionReceipt { claim: claim_id(2), argument_index: 0 },
             ]
     ));
 }
@@ -459,6 +460,26 @@ fn structural_runtime_mismatches_and_effect_rejection_fail_closed() {
             TerminalInterpretError::EffectRejected { operation, .. }
         )) if operation == operation_id(3)
     ));
+
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural_value(44)],
+    )
+    .expect("verified effect artifact should start");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert!(matches!(
+        execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        Err(TerminalInterpretError::EffectRejected { operation, .. })
+            if operation == operation_id(3)
+    ));
+    assert!(execution.effects().is_empty());
+    assert_eq!(
+        execution.live_claim_frontier().collect::<Vec<_>>(),
+        [claim_id(1)]
+    );
 }
 
 #[derive(Default)]
@@ -612,7 +633,7 @@ fn effect_module() -> TerminalModule {
                         kind: OperationKind::BoundaryCallUnit {
                             boundary: boundary_id(1),
                             structural_arguments: vec![StructuralArgument { place: place_id(2) }],
-                            claim_settlements: vec![ClaimSettlement {
+                            completion_receipts: vec![CompletionReceipt {
                                 claim: claim_id(1),
                                 argument_index: 0,
                             }],

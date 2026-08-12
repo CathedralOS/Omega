@@ -93,14 +93,14 @@ fn assign_function(
                         provider_execution,
                         realization,
                         argument_places,
-                        claim_settlements,
+                        completion_receipts,
                     } => TerminalAssignedUnitOperation::BoundarySettlement {
                         psi_operation: *psi_operation,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
                         realization: *realization,
                         argument_places: argument_places.clone(),
-                        claim_settlements: claim_settlements.clone(),
+                        completion_receipts: completion_receipts.clone(),
                     },
                     TerminalTargetUnitOperation::Return { psi_edge } => {
                         TerminalAssignedUnitOperation::Return {

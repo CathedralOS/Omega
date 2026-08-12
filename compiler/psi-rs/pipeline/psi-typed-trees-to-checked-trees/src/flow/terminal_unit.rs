@@ -336,7 +336,7 @@ fn build_call_operation(
             target_contract_fingerprint: target_contract.fingerprint,
             service_reach: call.service_reach.clone(),
             structural_arguments,
-            claim_settlements: transfers,
+            completion_receipts: transfers,
         })
     } else {
         Some(CheckedUnitEffectOperationPlan::CallUnit {

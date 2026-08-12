@@ -10,7 +10,7 @@ use omega_terminal_target_operations::{
 use psi_core::{
     BoundaryMachineId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ServiceId,
 };
-use psi_terminal::{ClaimSettlement, TerminalPsiIdentity};
+use psi_terminal::{CompletionReceipt, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachineCodePlan {
@@ -73,7 +73,7 @@ pub struct TerminalBoundarySettlementRecord {
     pub provider_execution: TerminalProviderExecutionRecord,
     pub realization: TerminalMetadataOnlyPortRealization,
     pub argument_places: Vec<PlaceId>,
-    pub claim_settlements: Vec<ClaimSettlement>,
+    pub completion_receipts: Vec<CompletionReceipt>,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.
     pub operation_ordinal: usize,

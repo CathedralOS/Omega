@@ -267,13 +267,17 @@ Owners:
 
 - Finish foreign-storage custody and provider-view invalidation. Borrowed
   custody ends at return; durable retention consumes an owned claim and ends
-  through a receipt. The checker now accepts only one compatible consumed input
+  through a receipt. Successful bodyless terminal boundary calls now retain the
+  exact verifier-derived completion-receipt set through canonical encoding,
+  interpretation, native lowering, machine-code evidence, and installation;
+  provider rejection records no receipt and leaves custody live. The checker
+  accepts only one compatible consumed input
   for inferred post-return custody and rejects borrow-only sources. Ambiguous
   multiple-owned sources are accepted only when an exact authored equality
   relates one whole input entry projection directly to the whole current result
   projection in the same content algebra; partition/subplace equations and
-  borrowed selections remain fail-closed. Connect the terminal completion
-  receipt.
+  borrowed selections remain fail-closed. Extend this closure to result-bearing
+  boundary calls and provider-view invalidation.
 - **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
   representation and initialization transition are settled, carry the exact
   view through foreign signatures, calling plans, borrow checking, and both
