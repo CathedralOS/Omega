@@ -1,6 +1,6 @@
 use omega_artifacts::{
     BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
-    UncheckedBoundaryPolicy,
+    CapabilityBlastRadiusFlow, UncheckedBoundaryPolicy,
 };
 use omega_effects::build_boundary_provider_approval_registry;
 use psi_arena::HandleSpan;
@@ -57,7 +57,7 @@ pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checke
                     trait_definition.symbol,
                     CapabilityFlowKind::Derives,
                 ),
-                propagated_flows: propagated_flow_lines(checked, trait_definition.symbol),
+                flows: capability_flow_rows(checked, trait_definition.symbol),
             });
     }
 }
@@ -75,22 +75,25 @@ fn capability_verb_count(
         .count()
 }
 
-/// Provenance lines for authority-flow verbs that reached a state through a
-/// nested helper call rather than a direct boundary call, e.g.
-/// `Main::main acquires via Vault::expose`.
-fn propagated_flow_lines(checked: &CheckedTrees, capability_symbol: SymbolHandle) -> Vec<String> {
+/// Structured flow rows retain every exact checked site. Rendering belongs to
+/// the artifact writer; display text is not reconstructed as an identity.
+fn capability_flow_rows(
+    checked: &CheckedTrees,
+    capability_symbol: SymbolHandle,
+) -> Vec<CapabilityBlastRadiusFlow> {
     checked
         .facts
         .capabilities
         .flows()
-        .filter(|flow| flow.capability_symbol == capability_symbol && flow.is_propagated())
-        .map(|flow| {
-            format!(
-                "{} {} via {}",
-                state_path(checked, flow.state_symbol),
-                flow.kind.as_str(),
-                state_path(checked, flow.via_state_symbol),
-            )
+        .filter(|flow| flow.capability_symbol == capability_symbol)
+        .map(|flow| CapabilityBlastRadiusFlow {
+            state: state_path(checked, flow.state_symbol),
+            authority_flow: flow.kind.as_str().to_owned(),
+            statement_index: flow.statement_index,
+            call_ordinal: flow.call_ordinal,
+            via_state: flow
+                .is_propagated()
+                .then(|| state_path(checked, flow.via_state_symbol)),
         })
         .collect()
 }

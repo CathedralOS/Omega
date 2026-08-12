@@ -5364,25 +5364,25 @@ fn capability_manifest_reports_authority_flow_verbs() {
 }
 
 #[test]
-fn capability_flows_propagate_through_nested_helpers() {
+fn capability_flows_retain_exact_direct_and_propagated_sites() {
     // Capability facts must follow returns/derives/acquires across nested calls,
     // not just direct boundary calls: a helper that mints or derives authority
     // and returns it flows the same verb up to its caller, and the boundary
     // report records the helper as provenance.
-    for (canary_name, propagated_lines) in [
+    for (canary_name, propagated_routes) in [
         (
             "capabilities/acquires_through_helper_return",
             // The second line shows the verb traveling a further call level: the
             // entry machine acquires through the mid-level helper, which acquired
             // through the boundary-touching helper.
             &[
-                "Backup::stage acquires via Vault::pick",
-                "Main::main acquires via Backup::stage",
+                ("Backup::stage", "acquires", "Vault::pick"),
+                ("Main::main", "acquires", "Backup::stage"),
             ][..],
         ),
         (
             "capabilities/derives_through_helper",
-            &["Worker::open_main_log derives via Worker::open_log"][..],
+            &[("Worker::open_main_log", "derives", "Worker::open_log")][..],
         ),
     ] {
         let canary = pass_canary(canary_name);
@@ -5412,11 +5412,23 @@ fn capability_flows_propagate_through_nested_helpers() {
 
         let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
             .expect("boundary report should be written");
-        for propagated_line in propagated_lines {
+        assert!(
+            boundary.lines().any(|line| line.contains(" at statement ")
+                && line.contains(" call ")
+                && line.ends_with(" direct")),
+            "boundary report for {canary_name} should retain direct checked flow sites\n{boundary}"
+        );
+        for (state, authority_flow, via_state) in propagated_routes {
+            let site_prefix = format!("`{state}` {authority_flow} at statement ");
+            let route_suffix = format!(" via `{via_state}`");
             assert!(
-                boundary.contains(propagated_line),
-                "boundary report for {canary_name} should record the nested-helper provenance \
-                 line `{propagated_line}`\n{boundary}"
+                boundary.lines().any(|line| {
+                    line.contains(&site_prefix)
+                        && line.contains(" call ")
+                        && line.ends_with(&route_suffix)
+                }),
+                "boundary report for {canary_name} should retain exact propagated site \
+                 `{site_prefix}…{route_suffix}`\n{boundary}"
             );
         }
 
