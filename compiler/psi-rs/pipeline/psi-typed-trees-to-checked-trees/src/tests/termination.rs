@@ -2345,7 +2345,7 @@ fn write_frame_composes_transparent_helpers_in_exclusive_cycles() {
         value = 2;
     }
 
-    machine opaque_identity(value: &mut u64) -> &mut u64 {
+    machine write_then_identity(value: &mut u64) -> &mut u64 {
         write(value);
         value
     }
@@ -2358,11 +2358,11 @@ fn write_frame_composes_transparent_helpers_in_exclusive_cycles() {
         }
     }
 
-    machine opaque_helper_cycle(value: &mut u64) {
+    machine write_through_helper_cycle(value: &mut u64) {
         transition { _ -> cycle(value) }
         state cycle(item: &mut u64) {
             item = 1;
-            transition { _ -> cycle(opaque_identity(item)) }
+            transition { _ -> cycle(write_then_identity(item)) }
         }
     }
 
@@ -2400,12 +2400,15 @@ fn write_frame_composes_transparent_helpers_in_exclusive_cycles() {
         Some(["$P0".to_owned()].as_slice()),
         "a transparent identity helper preserves the cycle's exact root permutation"
     );
-    for name in ["opaque_helper_cycle", "duplicate_transparent_cycle"] {
-        assert!(
-            !frame(name).is_complete(),
-            "{name} must remain opaque without an exact bijection"
-        );
-    }
+    assert_eq!(
+        frame("write_through_helper_cycle").complete_paths(),
+        Some(["$P0".to_owned()].as_slice()),
+        "a write-through helper publishes its write without obscuring the cycle's root permutation"
+    );
+    assert!(
+        !frame("duplicate_transparent_cycle").is_complete(),
+        "duplicate_transparent_cycle must remain opaque without an exact bijection"
+    );
 }
 
 #[test]
@@ -3511,6 +3514,10 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::isolated_write_statement_call_helper_result",
             "self.value",
         ),
+        (
+            "Main::mixed_write_statement_call_helper_result",
+            "self.value",
+        ),
         ("Main::pure_expression_helper_result", "self.value"),
         ("Main::recast_write_helper_result", "self.value"),
         (
@@ -3638,7 +3645,6 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::reference_scratch_helper_result",
         "Main::impure_call_scratch_helper_result",
         "Main::mixed_write_call_scratch_helper_result",
-        "Main::mixed_write_statement_call_helper_result",
         "Main::nested_call_scratch_helper_result",
         "Main::discarded_call_helper_result",
         "Main::effectful_recast_write_helper_result",
@@ -3866,6 +3872,11 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         value
     }
 
+    machine return_after_binding_reborrow_statement_call(value: &mut u64) -> &mut u64 {
+        write_value(&mut value);
+        value
+    }
+
     machine Main::direct_view(&mut self) {
         let view: &mut [u64] = self.cells.as_mut_slice();
         view[0] = 1;
@@ -3905,6 +3916,12 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         alias = 1;
     }
 
+    machine Main::binding_reborrow_statement_call(&mut self) {
+        let alias: &mut u64 =
+            return_after_binding_reborrow_statement_call(&mut self.value);
+        alias = 1;
+    }
+
     machine Main::discarded_shared_slice_view(&mut self) {
         let alias: &mut u64 =
             return_after_discarded_shared_slice_view(&mut self.value, self.cells);
@@ -3927,6 +3944,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         "Main::discarded_slice_view",
         "Main::discarded_shared_slice_view",
         "Main::empty_statement_call",
+        "Main::write_statement_call",
     ] {
         let machine = typed
             .machines()
@@ -3947,6 +3965,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
                     "Main::discarded_slice_view"
                         | "Main::discarded_shared_slice_view"
                         | "Main::empty_statement_call"
+                        | "Main::write_statement_call"
                 ) {
                     "self.value"
                 } else {
@@ -3993,20 +4012,23 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         "an opaque recursive statement argument must retain a whole-receiver fence"
     );
 
-    let write_statement_call = typed
+    let binding_reborrow_statement_call = typed
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == "Main::write_statement_call")
-        .expect("write statement-call caller");
-    let write_statement_call_entry = typed
-        .machine_states(write_statement_call)
+        .find(|machine| machine.name.as_str() == "Main::binding_reborrow_statement_call")
+        .expect("binding-reborrow statement-call caller");
+    let binding_reborrow_statement_call_entry = typed
+        .machine_states(binding_reborrow_statement_call)
         .first()
-        .expect("write statement-call caller entry state");
+        .expect("binding-reborrow statement-call caller entry state");
     assert!(
         !resolver
-            .inferred_state_write_frame(write_statement_call, write_statement_call_entry)
+            .inferred_state_write_frame(
+                binding_reborrow_statement_call,
+                binding_reborrow_statement_call_entry,
+            )
             .is_complete(),
-        "a write-capable statement call must keep the helper relation opaque"
+        "an explicit mutable-reference binding reborrow must keep the helper relation opaque"
     );
 }
 

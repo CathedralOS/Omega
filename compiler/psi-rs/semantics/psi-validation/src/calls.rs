@@ -2098,7 +2098,8 @@ fn transparent_callee_result_origin(
                         call,
                         symbols,
                         active_states,
-                        &isolated_local_roots,
+                        parameters,
+                        &local_aliases,
                     ) => {}
                 _ => return None,
             }
@@ -2171,25 +2172,30 @@ fn isolated_local_initializer_preserves_transparent_result(
 }
 
 /// One direct Unit statement call is neutral to a returned-place relation when
-/// its inferred frame is complete and writes only previously established
-/// caller-isolated scratch locals. Explicitly discarded value results,
-/// effectful arguments, and every caller-visible or opaque frame remain fences.
+/// its inferred frame is complete and no argument exposes a mutable-reference
+/// binding for rebinding. Writes through references passed by value may change
+/// their contents, but cannot redirect the established origin. Explicitly
+/// discarded value results, effectful arguments, binding reborrows, and opaque
+/// frames remain fences.
 fn statement_call_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     call: &TableCall,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
-    isolated_local_roots: &[String],
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
 ) -> bool {
     if call.discards_result {
         return false;
     }
     let arguments = program.statement_table.expression_handles(call.arguments);
-    if arguments
-        .iter()
-        .any(|argument| expression_is_effectful_for_transparent_result(program, *argument))
-    {
+    if arguments.iter().any(|argument| {
+        expression_is_effectful_for_transparent_result(program, *argument)
+            || expression_reborrows_transparent_alias_binding(
+                program, *argument, parameters, aliases,
+            )
+    }) {
         return false;
     }
 
@@ -2225,13 +2231,80 @@ fn statement_call_preserves_transparent_result(
             arguments,
         )
     })
-    .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))
-    .is_some_and(|written| {
-        written.iter().all(|path| {
-            let (root, _) = split_place_root(path);
-            isolated_local_roots.iter().any(|local| local == root)
-        })
-    })
+    .is_some()
+}
+
+fn expression_reborrows_transparent_alias_binding(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let visit =
+        |child| expression_reborrows_transparent_alias_binding(program, child, parameters, aliases);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            let reborrows_binding = frame_place_path(program, *inner).is_some_and(|place| {
+                let (root, suffix) = split_place_root(&place.path);
+                if !suffix.is_empty() {
+                    return false;
+                }
+                let root_symbol = frame_place_root_symbol(program, *inner);
+                parameters.iter().any(|parameter| {
+                    matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        TypeReferenceNode::Reference {
+                            is_mutable: true,
+                            ..
+                        }
+                    ) && (root_symbol == Some(parameter.symbol)
+                        || parameter.is_self && root == "self"
+                        || root == parameter.name.as_str())
+                }) || aliases.iter().any(|(name, symbol, _)| {
+                    root_symbol
+                        .is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol)
+                        || root == name
+                })
+            });
+            reborrows_binding || visit(*inner)
+        }
+        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && visit(call.receiver))
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| visit(*argument))
+        }
+        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
+        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| visit(*element)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| visit(field.value)),
+        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
 }
 
 fn parameter_relative_alias_position(

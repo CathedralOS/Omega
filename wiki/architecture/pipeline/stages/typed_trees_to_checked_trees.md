@@ -156,11 +156,12 @@ Current ownership is:
   including through a structurally transparent helper result or as a direct
   statement-call argument. An effect-free discarded value expression derived
   from either `as_slice()` or `as_mut_slice()` is neutral to a helper's
-  returned-place relation. One direct Unit statement call whose complete frame
-  writes only into earlier caller-isolated scratch locals is likewise neutral;
-  an empty frame is the degenerate case. Explicitly discarded call results,
-  effectful arguments, and statement calls with any write outside those isolated
-  roots or opaque frames remain fences.
+  returned-place relation. One direct Unit statement call with a complete frame
+  is likewise neutral when its arguments do not expose a mutable-reference
+  binding for rebinding: writes through references passed by value change their
+  contents without redirecting their origins. Explicitly discarded call results,
+  effectful arguments, explicit binding reborrows, and opaque frames remain
+  fences.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call
@@ -180,12 +181,12 @@ Current ownership is:
   those origins, including exact transparent call-produced targets, without
   changing the relation; their ordinary exact frames remain published, and
   effect-free discarded expressions and direct Unit statement calls with
-  complete local-only frames are neutral. A direct helper-local alias rebind
+  complete non-rebinding frames are neutral. A direct helper-local alias rebind
   updates that local's origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
-  rebinding, explicitly discarded call results, caller-visible or opaque
-  statement calls, opaque or recursive result producers,
+  rebinding, explicitly discarded call results, statement calls with binding
+  reborrows or opaque frames, opaque or recursive result producers,
   effectful index computations (including stable-alias and terminal
   returned-place indexes), and other computed initializers remain opaque. For an
   attached helper, its actual receiver supplies the caller origin when the
