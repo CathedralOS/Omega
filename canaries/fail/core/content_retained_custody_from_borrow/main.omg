@@ -29,7 +29,3 @@ boundary trait Writer {
     ensures
         result in PendingWrite::Retained;
 }
-
-data Main {}
-
-machine Main::main(&mut self) {}
