@@ -155,9 +155,10 @@ Owners:
 Remaining:
 
 - **PSIIR.** Extend terminal Psi beyond general blocks, positional scalar direct
-  calls, and guarded in-module call-crash continuations. Add aggregates,
-  structural/content call effects, cleanup, transfer, boundaries, loops,
-  suspension, and scoped ordering as complete vertical slices. Ranked
+  calls, guarded in-module call-crash continuations, and the accepted Unit
+  structural/content call slice. Add aggregate and result-bearing custody,
+  cleanup, returned transfer, loops, suspension, and scoped ordering as complete
+  vertical slices. Ranked
   tail-recursive call graphs stay rejected until their tail-position and
   ranking evidence is terminal and verifier-owned. Retire checked/source-tree
   consumers as each slice moves. Nothing below terminal Psi may depend on
