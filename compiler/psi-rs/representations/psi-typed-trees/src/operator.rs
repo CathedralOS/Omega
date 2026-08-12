@@ -43,13 +43,11 @@ pub fn resolve_named_call<'program>(
     argument_count: usize,
     has_value_receiver: bool,
 ) -> Option<&'program OperatorDefinition> {
-    if target_symbol.is_valid()
-        && let Some(operator) = program
+    if target_symbol.is_valid() {
+        return program
             .operators()
             .iter()
-            .find(|operator| operator.symbol == target_symbol)
-    {
-        return Some(operator);
+            .find(|operator| operator.symbol == target_symbol);
     }
 
     let mut candidates = program.operators().iter().filter(|operator| {
@@ -66,13 +64,11 @@ pub fn resolve_named_expression_call<'program>(
     program: &'program TypedTrees,
     call: &crate::expression::TableCallExpression,
 ) -> Option<&'program OperatorDefinition> {
-    if call.target_symbol.is_valid()
-        && let Some(operator) = program
+    if call.target_symbol.is_valid() {
+        return program
             .operators()
             .iter()
-            .find(|operator| operator.symbol == call.target_symbol)
-    {
-        return Some(operator);
+            .find(|operator| operator.symbol == call.target_symbol);
     }
     let candidates = named_expression_call_candidates(program, call);
     let [selected] = candidates.as_slice() else {
@@ -89,6 +85,13 @@ pub fn named_expression_call_candidates<'program>(
     program: &'program TypedTrees,
     call: &crate::expression::TableCallExpression,
 ) -> Vec<&'program OperatorDefinition> {
+    if call.target_symbol.is_valid() {
+        return program
+            .operators()
+            .iter()
+            .filter(|operator| operator.symbol == call.target_symbol)
+            .collect();
+    }
     let mut static_segments = Vec::new();
     let has_value_receiver = if !call.receiver.is_valid() {
         false
@@ -158,6 +161,13 @@ pub fn named_statement_call_candidates<'program>(
     program: &'program TypedTrees,
     call: &crate::statement::TableCall,
 ) -> Vec<&'program OperatorDefinition> {
+    if call.target_symbol.is_valid() {
+        return program
+            .operators()
+            .iter()
+            .filter(|operator| operator.symbol == call.target_symbol)
+            .collect();
+    }
     let receiver = program.statement_table.name_path_members(call.receiver);
     let is_static_namespace = call.receiver_symbol.is_valid()
         && (program
