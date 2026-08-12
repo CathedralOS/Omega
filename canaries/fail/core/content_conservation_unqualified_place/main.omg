@@ -28,7 +28,3 @@ pub trait InvalidSplit {
             Owned::content(&result.right),
         );
 }
-
-data Main {}
-
-machine Main::main(&mut self) {}
