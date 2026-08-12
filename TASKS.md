@@ -194,7 +194,11 @@ Remaining:
 
 - **PSIIR.** Extend terminal Psi beyond general blocks, positional scalar direct
   calls, guarded in-module call-crash continuations, and the accepted Unit
-  structural/content call slice. Add aggregate and result-bearing custody,
+  structural/content call slice. Record-field linear custody inside an affine
+  aggregate now retains a stable entry-claim path through source checking,
+  canonical encoding, verification, interpretation, direct Unit transfer, and
+  boundary settlement; invalid, erased, overlapping, noncanonical, or
+  call-mismatched paths reject. Add remaining aggregate and result-bearing custody,
   cleanup, returned transfer, loops, suspension, and scoped ordering as complete
   vertical slices. Ranked
   tail-recursive call graphs stay rejected until their tail-position and

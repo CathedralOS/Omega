@@ -236,6 +236,66 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
 }
 
 #[test]
+fn retains_record_field_custody_for_unit_call_closure() {
+    let checked = checked(
+        r#"
+        data Token [linear] { value: u64; }
+        data Envelope { token: Token; }
+
+        domain Envelope::Pending;
+
+        boundary machine Envelope::settle(self)
+        reaches PortIo
+        requires
+            self in Envelope::Pending
+        ensures true;
+
+        data Helper {}
+
+        machine Helper::run(envelope: Envelope in Pending)
+        reaches PortIo
+        {
+            envelope.settle();
+        }
+
+        data Root {}
+
+        machine Root::enter(envelope: Envelope in Pending)
+        reaches PortIo
+        {
+            Helper::run(envelope);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("aggregate-custody root plan");
+    let helper = plans
+        .for_machine(machine_named(&checked, "run"))
+        .expect("aggregate-custody helper plan");
+    assert_eq!(root.entry_claims.len(), 1);
+    assert_eq!(root.entry_claims[0].field_path, ["token"]);
+    assert_eq!(helper.entry_claims.len(), 1);
+    assert_eq!(helper.entry_claims[0].field_path, ["token"]);
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        claim_transfers, ..
+    } = &root.operations[0]
+    else {
+        panic!("root should transfer aggregate custody to helper")
+    };
+    assert_eq!(claim_transfers.len(), 1);
+    let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+        claim_settlements, ..
+    } = &helper.operations[0]
+    else {
+        panic!("helper should settle aggregate custody at the boundary")
+    };
+    assert_eq!(claim_settlements.len(), 1);
+}
+
+#[test]
 fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
     let checked = checked(
         r#"

@@ -1351,7 +1351,11 @@ fn bind_entry_claims(
                     entry_claim.claim,
                     LiveClaim {
                         place: Some(parameter.place),
-                        multiplicity: Some(parameter.multiplicity),
+                        multiplicity: Some(if entry_claim.field_path.is_empty() {
+                            parameter.multiplicity
+                        } else {
+                            StructuralMultiplicity::Linear
+                        }),
                     },
                 )
                 .is_some()
@@ -1452,7 +1456,11 @@ fn transfer_claims(
                     entry_claim.claim,
                     LiveClaim {
                         place: Some(parameter.place),
-                        multiplicity: Some(parameter.multiplicity),
+                        multiplicity: Some(if entry_claim.field_path.is_empty() {
+                            parameter.multiplicity
+                        } else {
+                            StructuralMultiplicity::Linear
+                        }),
                     },
                 )
                 .is_some()

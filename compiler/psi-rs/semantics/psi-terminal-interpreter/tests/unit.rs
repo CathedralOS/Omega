@@ -93,7 +93,7 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
             boundary: boundary_id(1),
             structural_arguments: vec![argument],
             claim_settlements: vec![ClaimSettlement {
-                claim: claim_id(2),
+                claim: claim_id(1),
                 argument_index: 0,
             }],
         },
@@ -269,6 +269,7 @@ fn effect_module() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: place_id(1),
+                    field_path: Vec::new(),
                 }],
                 published_service_ceiling: vec![service],
                 content_entry_claims: Vec::new(),
@@ -321,8 +322,9 @@ fn effect_module() -> TerminalModule {
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![structural_place(place_id(2))],
                 entry_claims: vec![EntryClaim {
-                    claim: claim_id(2),
+                    claim: claim_id(1),
                     input: place_id(2),
+                    field_path: Vec::new(),
                 }],
                 published_service_ceiling: Vec::new(),
                 content_entry_claims: Vec::new(),
@@ -339,7 +341,7 @@ fn effect_module() -> TerminalModule {
                             boundary: boundary_id(1),
                             structural_arguments: vec![StructuralArgument { place: place_id(2) }],
                             claim_settlements: vec![ClaimSettlement {
-                                claim: claim_id(2),
+                                claim: claim_id(1),
                                 argument_index: 0,
                             }],
                             requirement_obligations: Vec::new(),
