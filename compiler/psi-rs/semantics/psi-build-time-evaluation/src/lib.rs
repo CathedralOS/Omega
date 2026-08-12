@@ -21,3 +21,44 @@ pub use layout_plans::{compute_layout_plan, normalized_schema_identity};
 pub use placed_views::{PlacedViewRecord, desugar_placed_views, validate_placed_view_plans};
 pub use plan_laid::{PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types};
 pub use wire_plans::compute_wire_plans;
+
+/// Target-neutral syntax elaboration that must finish before name resolution.
+///
+/// Target selection remains an Omega orchestration concern and may run on the
+/// returned syntax after this service has finished owning language-level
+/// elaboration.
+pub struct PreResolutionEvaluation {
+    pub syntax_trees: psi_syntax_trees::SyntaxTrees,
+    pub placed_view_records: Vec<PlacedViewRecord>,
+    pub plan_laid_records: Vec<PlanLaidRecord>,
+}
+
+pub fn evaluate_pre_resolution(
+    syntax_trees: psi_syntax_trees::SyntaxTrees,
+) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
+    let mut syntax_trees = evaluate_const_generic_calls(syntax_trees)?;
+    psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax_trees)?;
+    let placed_view_records = desugar_placed_views(&mut syntax_trees)?;
+    let mut syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax_trees)?;
+    let plan_laid_records = desugar_plan_laid_value_types(&mut syntax_trees)?;
+    Ok(PreResolutionEvaluation {
+        syntax_trees,
+        placed_view_records,
+        plan_laid_records,
+    })
+}
+
+/// Apply the target-neutral build-time services that normalize typed trees
+/// before checking. Target ABI/provider realization deliberately follows this
+/// entry in Omega.
+pub fn evaluate_pre_check(
+    typed: &mut psi_typed_trees::TypedTrees,
+    plan_laid_records: &[PlanLaidRecord],
+    placed_view_records: &[PlacedViewRecord],
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    evaluate_const_array_lengths(typed)?;
+    evaluate_const_domain_facts(typed)?;
+    compute_plan_laid_layouts(typed, plan_laid_records)?;
+    validate_placed_view_plans(typed, placed_view_records)?;
+    compute_wire_plans(typed)
+}

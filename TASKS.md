@@ -250,10 +250,11 @@ Remaining:
   derivation, authored codec-policy evaluation/agreement, and encode-obligation
   recording now live in the same Psi service. Plan-laid type desugaring and
   `Placed<P, T>` probe/evaluate/exact-accessor synthesis now form paired Psi
-  pre-resolution/post-typing services; the in-place
-  generic syntax elaborator is private. Finish moving the remaining target-neutral
-  probe/conveyor sequencing out of
-  `omega-compiler` before
+  pre-resolution/post-typing services. Ownership-taking Psi pre-resolution and
+  pre-check conveyors now sequence the complete target-neutral build-time
+  phases; target-machine filtering and ABI/provider realization remain Omega.
+  The in-place generic syntax elaborator is private. Continue shrinking any
+  remaining target-neutral probe sequencing in `omega-compiler` before
   expanding computed, chained, dynamic-receiver, unresolved generic,
   non-checked-supply, or unresolved-machine-parameter contexts. This is an
   engineering migration, not a language-design blocker: Omega must consume

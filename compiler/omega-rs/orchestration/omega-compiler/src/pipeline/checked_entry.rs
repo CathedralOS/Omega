@@ -90,16 +90,10 @@ fn compile_to_checked_inner(
     // provider; only the native-image pipeline substitutes target providers.
     let (_source_file_count, mut syntax) =
         source_files_to_syntax_trees_for_engine(root_path, target_name, false, &mut timings)?;
-    syntax.syntax_trees =
-        psi_build_time_evaluation::evaluate_const_generic_calls(syntax.syntax_trees)?;
-    psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax.syntax_trees)?;
-    let placed_view_records =
-        psi_build_time_evaluation::desugar_placed_views(&mut syntax.syntax_trees)?;
-    // PLAN-LAID VALUE TYPES (layouts L4), desugar half -- exactly as the full
-    // `compile` pipeline does.
-    syntax.syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax.syntax_trees)?;
-    let plan_laid_records =
-        psi_build_time_evaluation::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
+    let evaluated = psi_build_time_evaluation::evaluate_pre_resolution(syntax.syntax_trees)?;
+    syntax.syntax_trees = evaluated.syntax_trees;
+    let placed_view_records = evaluated.placed_view_records;
+    let plan_laid_records = evaluated.plan_laid_records;
     // TARGET-SCOPED MACHINES -- exactly as the full `compile` pipeline does:
     // the interpreter runs the SELECTED target's implementations.
     let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(
@@ -121,16 +115,11 @@ fn compile_to_checked_inner(
     let syntax_trees = syntax.syntax_trees.clone();
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
-    // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
-    // checking, exactly as the full `compile` pipeline does.
-    psi_build_time_evaluation::evaluate_const_array_lengths(&mut typed)?;
-    psi_build_time_evaluation::evaluate_const_domain_facts(&mut typed)?;
-    // PLAN-LAID VALUE TYPES, plan half: evaluate + validate + record.
-    psi_build_time_evaluation::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
-    psi_build_time_evaluation::validate_placed_view_plans(&mut typed, &placed_view_records)?;
-    // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
-    // the same derived plans the codec selection consumes.
-    psi_build_time_evaluation::compute_wire_plans(&mut typed)?;
+    psi_build_time_evaluation::evaluate_pre_check(
+        &mut typed,
+        &plan_laid_records,
+        &placed_view_records,
+    )?;
     let _boundary_calling_plan_realizations =
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
     let computed_build_config =
