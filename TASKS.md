@@ -201,9 +201,11 @@ Remaining:
   the x86 native realization now retain Unit return, structural custody,
   service-qualified port effects, exact admitted provider-execution evidence,
   and metadata-only claim settlement without duplicating the hardware effect.
-  Cathedral's legacy timer-root canary pins the source-produced closure. Finish
-  the production installation/admission composition and add trusted inserted
-  native metering. Native Unit artifacts and canonical installation payloads
+  Cathedral's legacy timer-root canary pins the source-produced closure. The
+  same ledger-created provider execution now authorizes target lowering and
+  supplies the exact canonical installation closure; raw plan identities cannot
+  substitute. Add trusted inserted native metering. Native Unit artifacts and
+  canonical installation payloads
   already retain the current fuel schedule, logical units, semantic site, and
   exact byte interval—including zero-byte settlements—so charging must consume
   those rows rather than rediscovering attribution from instructions. Implement

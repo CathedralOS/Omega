@@ -163,33 +163,71 @@ pub struct TerminalInstalledFunction {
 
 /// Build the canonical installation record for an emitted image.
 ///
-/// Provider-plan order is not semantic, so construction sorts it. Duplicate
-/// identities reject rather than silently changing a malformed provider
-/// closure into a set.
+/// This convenience path succeeds only when the image has no provider-backed
+/// settlements. Effectful images must use the admission-bearing constructor.
 pub fn build_terminal_installation_record(
     image: &TerminalExecutableImage,
     profile_decision: ProfileDecisionId,
-    selected_provider_plans: impl IntoIterator<Item = SelectedProviderPlanIdentity>,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
+    build_terminal_installation_record_with_provider_executions(image, profile_decision, [])
+}
+
+/// Build an installation record from the same ledger-owned provider
+/// executions consumed by effectful terminal lowering.
+///
+/// The execution closure must match the image's retained settlement evidence
+/// exactly. Numeric provider-plan identities are derived here and cannot be
+/// supplied independently by the caller.
+pub fn build_terminal_installation_record_with_provider_executions<'execution>(
+    image: &TerminalExecutableImage,
+    profile_decision: ProfileDecisionId,
+    provider_executions: impl IntoIterator<Item = &'execution omega_external_roots::ProviderExecution>,
 ) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
         .ok_or(TerminalInstallationError::MissingCompilerTextValidation)?;
-    let mut selected_provider_plans = selected_provider_plans.into_iter().collect::<Vec<_>>();
-    selected_provider_plans.sort_unstable();
-    if let Some(duplicate) = selected_provider_plans
-        .windows(2)
-        .find(|pair| pair[0] == pair[1])
-        .map(|pair| pair[0])
-    {
-        return Err(TerminalInstallationError::DuplicateProviderPlan(duplicate));
+    let mut admitted_executions = std::collections::BTreeSet::new();
+    let mut selected_provider_plans = std::collections::BTreeSet::new();
+    for execution in provider_executions {
+        let admitted = execution.terminal_binding();
+        if !admitted_executions.insert((
+            admitted.provider_plan(),
+            admitted.provider_execution_identity(),
+            admitted.provider_execution_fingerprint(),
+            admitted.normalized_root_identity(),
+            admitted.boundary_contract_fingerprint(),
+        )) {
+            return Err(TerminalInstallationError::DuplicateProviderExecution);
+        }
+        selected_provider_plans.insert(
+            SelectedProviderPlanIdentity::new(admitted.provider_plan())
+                .ok_or(TerminalInstallationError::ZeroProviderPlan)?,
+        );
+    }
+    let required_executions = image
+        .boundary_settlements()
+        .iter()
+        .map(|installed| {
+            let execution = installed.settlement.provider_execution;
+            (
+                execution.provider_plan,
+                execution.provider_execution_identity,
+                execution.provider_execution_fingerprint,
+                execution.normalized_root_identity,
+                execution.boundary_contract_fingerprint,
+            )
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    if admitted_executions != required_executions {
+        return Err(TerminalInstallationError::ProviderExecutionClosureMismatch);
     }
     let record = TerminalInstallationRecord {
         terminal_psi: image.terminal_psi(),
         target: image.target(),
         subsystem: image.subsystem(),
         profile_decision,
-        selected_provider_plans,
+        selected_provider_plans: selected_provider_plans.into_iter().collect(),
         functions: image
             .functions()
             .iter()
@@ -795,7 +833,7 @@ fn validate_record_shape(
         .iter()
         .map(|settlement| settlement.settlement.provider_execution.provider_plan)
         .collect::<std::collections::BTreeSet<_>>();
-    if !required.is_subset(&selected) {
+    if required != selected {
         return Err(TerminalInstallationError::ProviderSettlementClosureMismatch);
     }
     if record.functions.is_empty() {
@@ -1121,7 +1159,7 @@ pub enum TerminalInstallationError {
     TargetPointerFactNotRepresentable,
     ZeroProfileDecision,
     ZeroProviderPlan,
-    DuplicateProviderPlan(SelectedProviderPlanIdentity),
+    DuplicateProviderExecution,
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
@@ -1164,6 +1202,7 @@ pub enum TerminalInstallationError {
         operation: OperationId,
     },
     ProviderSettlementClosureMismatch,
+    ProviderExecutionClosureMismatch,
     NonCanonicalBoundarySettlementOrder,
     DuplicateBoundarySettlementOperation {
         machine: MachineId,

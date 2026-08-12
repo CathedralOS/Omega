@@ -9580,7 +9580,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let installation = build_terminal_installation_record(
         &image,
         ProfileDecisionId::new(1).expect("source installation profile decision"),
-        [],
     )
     .expect("source image should produce a typed installation record");
     validate_terminal_installation_record(&installation, &image)

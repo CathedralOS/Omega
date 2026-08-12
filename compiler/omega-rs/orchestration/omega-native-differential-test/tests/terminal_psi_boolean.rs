@@ -202,7 +202,6 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
     let installation = build_terminal_installation_record(
         &image,
         ProfileDecisionId::new(2).expect("Boolean installation profile decision"),
-        [],
     )
     .expect("Boolean image should produce an installation record");
     validate_terminal_installation_record(&installation, &image)
@@ -382,7 +381,6 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
     let installation = build_terminal_installation_record(
         &image,
         ProfileDecisionId::new(3).expect("wrapping-add installation profile decision"),
-        [],
     )
     .expect("wrapping-add image should produce an installation record");
     validate_terminal_installation_record(&installation, &image)
@@ -562,7 +560,6 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
     let installation = build_terminal_installation_record(
         &image,
         ProfileDecisionId::new(4).expect("saturating-add installation profile decision"),
-        [],
     )
     .expect("saturating-add image should produce an installation record");
     validate_terminal_installation_record(&installation, &image)
