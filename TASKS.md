@@ -210,9 +210,10 @@ Remaining:
   exact byte interval—including zero-byte settlements—so charging must consume
   those rows rather than rediscovering attribution from instructions. Inserted
   native metering is design-blocked on the sponsor counter, exhaustion transfer,
-  and resumable continuation ABI in owner Q6. Implement the full AAPCS64
-  Unit-call ABI before enabling that target. Keep WCET and wall-clock conversion
-  separate.
+  and resumable continuation ABI in owner Q6. AAPCS64 Unit calls now preserve
+  aligned owned parameter homes, caller-copy aggregates, stack arguments, and
+  the link register across typed internal calls. Keep WCET and wall-clock
+  conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation. Explicit
   relevance supersedes “recursive means proof-only”; non-layoutable `Type`

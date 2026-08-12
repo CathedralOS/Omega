@@ -402,10 +402,11 @@ object and installation validation reject missing, reordered, byte-drifted, or
 raw-number-only realizations. Production construction consumes the same
 ledger-owned `ProviderExecution` values used by target lowering and requires
 their closure to match the emitted settlements exactly; decoded payloads remain
-non-authoritative audit projections. The current x86-64 lane stages structural
-parameters into owned entry homes before effects or calls. AAPCS64 Unit calls
-remain rejected until their full aggregate, stack, link-register, and alignment
-path lands.
+non-authoritative audit projections. Both native lanes stage structural
+parameters into aligned owned entry homes before effects or calls. AAPCS64 Unit
+calls preserve `x30`, keep `sp` 16-byte aligned, marshal direct register and
+stack fragments, and create the normalized caller copy for indirect by-value
+aggregates before passing its address.
 
 Native Unit artifacts and the canonical installation payload retain one
 logical-fuel attribution row for every emitted operation and return edge:
