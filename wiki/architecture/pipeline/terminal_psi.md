@@ -453,12 +453,15 @@ emitter evidence that object construction validates and replays to derive
 local peaks plus caller-live stack at each typed internal-call relocation and
 compose that acyclic closure below function entry. Conditional scalar control
 flow is limited to one exact two-terminal-arm shape: a top-level Boolean
-parameter branch with two direct linear integer returns, replayed independently
-by maximum. Typed scalar calls within either arm reuse the exact call evidence
-and closure composition. Expression conditions, nesting, reconvergence,
-crashes in arms, external adapter/interrupt-arrival state, other terminal
-function forms, provider admission, and exact installation binding are not
-yet part of that theorem, so the
+parameter or linear Boolean-expression condition with two direct linear
+integer returns. The balanced expression prefix and both arms replay
+independently and compose by maximum; exact x86 flag-preserving release and
+AArch64 expression-branch encodings are validated. Typed scalar calls in the
+prefix or either arm reuse the exact call evidence and closure composition.
+Nesting, reconvergence, crashes in arms, division/remainder expressions,
+external adapter/interrupt-arrival state, other terminal function forms,
+provider admission, and exact installation binding are not yet part of that
+theorem, so the
 inspection surface still makes no installed-root WCSU claim.
 
 ## Implementation queue

@@ -21,9 +21,10 @@ use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
-    TerminalScalarCallStackEvidence, TerminalScalarControlFlowEvidence,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
+    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -230,32 +231,36 @@ fn emit_function(
             when_true,
             when_false,
             ..
-        } => match architecture {
-            Architecture::Aarch64 => {
-                let fragment = emit_aarch64_conditional_integer_expression_control(
+        } => {
+            let fragment = match architecture {
+                Architecture::Aarch64 => emit_aarch64_conditional_integer_expression_control(
                     condition_frame,
                     condition,
                     *scalar_type,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
-            }
-            Architecture::X86_64 => {
-                let fragment = emit_x86_64_conditional_integer_expression_control(
+                )?,
+                Architecture::X86_64 => emit_x86_64_conditional_integer_expression_control(
                     condition_frame,
                     condition,
                     *scalar_type,
                     when_true,
                     when_false,
                     target,
-                )?;
-                internal_calls = fragment.internal_calls;
-                fragment.bytes
+                )?,
+            };
+            scalar_stack_eligible = linear_boolean_expression(condition)
+                && direct_linear_integer_arm(when_true)
+                && direct_linear_integer_arm(when_false);
+            if scalar_stack_eligible {
+                scalar_control_flow = fragment
+                    .conditional
+                    .expect("top-level integer expression conditional retains its branch evidence");
             }
-        },
+            internal_calls = fragment.internal_calls;
+            fragment.bytes
+        }
         TerminalAssignedOperation::ReturnBooleanConditionalControl {
             condition_source,
             condition_location,
@@ -1387,6 +1392,7 @@ fn emit_x86_64_conditional_integer_control(
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
     fragment.conditional = Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        condition: TerminalScalarConditionalCondition::Parameter,
         branch_offset,
         branch_byte_count: 6,
         false_arm_offset,
@@ -1474,12 +1480,22 @@ fn emit_x86_64_conditional_integer_expression_control(
     let false_fragment = emit_x86_64_integer_control(scalar_type, &when_false.control, target)?;
     let displacement = i32::try_from(true_fragment.bytes.len())
         .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&[0x0f, 0x84]); // jz false arm
     bytes.extend_from_slice(&displacement.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
-        conditional: None,
+        conditional: Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+            condition: TerminalScalarConditionalCondition::Expression,
+            branch_offset,
+            branch_byte_count: 6,
+            false_arm_offset,
+        }),
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -1638,6 +1654,7 @@ fn emit_aarch64_conditional_integer_control(
         .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment::without_calls(bytes);
     fragment.conditional = Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        condition: TerminalScalarConditionalCondition::Parameter,
         branch_offset,
         branch_byte_count: 4,
         false_arm_offset,
@@ -1733,11 +1750,21 @@ fn emit_aarch64_conditional_integer_expression_control(
         return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
     }
     let branch_equal = 0x5400_0000_u32 | ((branch_words as u32) << 5); // b.eq false
+    let branch_offset = bytes.len();
     bytes.extend_from_slice(&branch_equal.to_le_bytes());
+    let false_arm_offset = bytes
+        .len()
+        .checked_add(true_fragment.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
     let mut fragment = EmissionFragment {
         bytes,
         internal_calls,
-        conditional: None,
+        conditional: Some(TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+            condition: TerminalScalarConditionalCondition::Expression,
+            branch_offset,
+            branch_byte_count: 4,
+            false_arm_offset,
+        }),
     };
     fragment.append(true_fragment)?;
     fragment.append(false_fragment)?;
@@ -4643,6 +4670,17 @@ fn collect_scalar_stack_evidence(
                             byte_size: x86_adjustment_immediate(bytes, offset, instruction.len())?,
                         })
                     }
+                    iced_x86::Mnemonic::Lea
+                        if instruction.op0_register() == iced_x86::Register::RSP =>
+                    {
+                        Some(TerminalScalarStackMutationKind::X86ReleasePreservingFlags {
+                            byte_size: x86_preserving_release_immediate(
+                                bytes,
+                                offset,
+                                instruction.len(),
+                            )?,
+                        })
+                    }
                     iced_x86::Mnemonic::Push => Some(TerminalScalarStackMutationKind::X86Push),
                     iced_x86::Mnemonic::Pop => Some(TerminalScalarStackMutationKind::X86Pop),
                     _ => None,
@@ -4690,6 +4728,32 @@ fn collect_scalar_stack_evidence(
         control_flow,
         stack_alignment: 16,
     })
+}
+
+fn x86_preserving_release_immediate(
+    bytes: &[u8],
+    offset: usize,
+    byte_count: usize,
+) -> Result<u32, EmissionError> {
+    let instruction = bytes
+        .get(offset..offset.saturating_add(byte_count))
+        .ok_or(EmissionError::ScalarStackInstructionEncodingInvalid)?;
+    match instruction {
+        [0x48, 0x8d, 0x64, 0x24, immediate] if *immediate != 0 && *immediate <= i8::MAX as u8 => {
+            Ok(u32::from(*immediate))
+        }
+        [0x48, 0x8d, 0xa4, 0x24, immediate @ ..] if immediate.len() == 4 => {
+            let byte_size = u32::from_le_bytes(
+                immediate
+                    .try_into()
+                    .map_err(|_| EmissionError::ScalarStackInstructionEncodingInvalid)?,
+            );
+            (byte_size > i8::MAX as u32)
+                .then_some(byte_size)
+                .ok_or(EmissionError::ScalarStackInstructionEncodingInvalid)
+        }
+        _ => Err(EmissionError::ScalarStackInstructionEncodingInvalid),
+    }
 }
 
 fn x86_adjustment_immediate(
@@ -5982,6 +6046,7 @@ mod tests {
         assert_eq!(
             x86_stack.control_flow,
             TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                condition: TerminalScalarConditionalCondition::Parameter,
                 branch_offset: 4,
                 branch_byte_count: 6,
                 false_arm_offset: 19,
@@ -6013,6 +6078,7 @@ mod tests {
         assert_eq!(
             aarch64_stack.control_flow,
             TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                condition: TerminalScalarConditionalCondition::Parameter,
                 branch_offset: 0,
                 branch_byte_count: 4,
                 false_arm_offset: 28,
@@ -6151,6 +6217,42 @@ mod tests {
             None,
             "branch-producing call arguments remain outside this slice"
         );
+    }
+
+    #[test]
+    fn expression_conditional_retains_typed_call_in_linear_condition_prefix() {
+        for (target, argument_register) in [
+            (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
+            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+        ] {
+            let emitted = emit_machine_code(&calling_expression_condition_plan(
+                target,
+                argument_register,
+            ))
+            .expect("emit expression-condition call");
+            let caller = &emitted.functions[0];
+            assert!(matches!(
+                caller
+                    .scalar_stack
+                    .as_ref()
+                    .expect("expression-condition call stack evidence")
+                    .control_flow,
+                TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                    condition: TerminalScalarConditionalCondition::Expression,
+                    ..
+                }
+            ));
+            assert_eq!(caller.internal_calls.len(), 1);
+            assert!(caller.internal_calls[0].scalar_stack.is_some());
+            if target.architecture == Architecture::X86_64 {
+                assert!(caller.scalar_stack.as_ref().unwrap().mutations.iter().any(
+                    |mutation| matches!(
+                        mutation.kind,
+                        TerminalScalarStackMutationKind::X86ReleasePreservingFlags { .. }
+                    )
+                ));
+            }
+        }
     }
 
     #[test]
@@ -7539,6 +7641,74 @@ mod tests {
                         condition: call(1, 10),
                         when_true: arm(1, 3, 2, 11),
                         when_false: arm(2, 4, 3, 12),
+                    },
+                },
+                TerminalTargetFunction {
+                    machine: callee,
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::ReturnBooleanParameter {
+                        psi_edge: EdgeId::new(5).unwrap(),
+                        source_value: parameter,
+                        parameter_index: 0,
+                        location: TerminalScalarParameterLocation::Register(argument_register),
+                    },
+                },
+            ],
+        }
+    }
+
+    fn calling_expression_condition_plan(
+        target: NativeTarget,
+        argument_register: MachineRegister,
+    ) -> TerminalTargetOperationPlan {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let caller = MachineId::new(1).unwrap();
+        let callee = MachineId::new(2).unwrap();
+        let parameter = ValueId::new(1).unwrap();
+        let arm = |edge, return_edge, source_value, value| TerminalTargetConditionalIntegerArm {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            control: Box::new(TerminalTargetIntegerControl::Return {
+                psi_return_edge: EdgeId::new(return_edge).unwrap(),
+                source_value: ValueId::new(source_value).unwrap(),
+                expression: TerminalTargetIntegerExpression::Immediate {
+                    source_value: ValueId::new(source_value).unwrap(),
+                    value: IntegerValue::Unsigned(value),
+                },
+            }),
+        };
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: caller,
+            functions: vec![
+                TerminalTargetFunction {
+                    machine: caller,
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::ReturnIntegerExpressionConditionalControl {
+                        condition_source: ValueId::new(2).unwrap(),
+                        condition: TerminalTargetBooleanExpression::Call {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            source_value: ValueId::new(2).unwrap(),
+                            callee,
+                            arguments: vec![TerminalTargetCallArgument {
+                                scalar_type: psi_core::ScalarType::Boolean,
+                                location: TerminalScalarParameterLocation::Register(
+                                    argument_register,
+                                ),
+                                expression: TerminalTargetScalarExpression::Boolean(
+                                    TerminalTargetBooleanExpression::Parameter {
+                                        source_value: parameter,
+                                        parameter_index: 0,
+                                        location: TerminalScalarParameterLocation::Register(
+                                            argument_register,
+                                        ),
+                                    },
+                                ),
+                            }],
+                        },
+                        scalar_type,
+                        when_true: arm(1, 3, 3, 1),
+                        when_false: arm(2, 4, 4, 2),
                     },
                 },
                 TerminalTargetFunction {

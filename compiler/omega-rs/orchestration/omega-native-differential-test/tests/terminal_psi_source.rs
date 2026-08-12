@@ -27,9 +27,9 @@ use omega_terminal_assigned_target_operations::{
 };
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, build_terminal_installation_record, build_terminal_object_artifact,
-    decode_terminal_installation_record, emit_terminal_executable_image,
-    emit_terminal_object_container, encode_terminal_installation_record,
-    validate_terminal_installation_record,
+    decode_terminal_installation_record, derive_terminal_stack_demand,
+    emit_terminal_executable_image, emit_terminal_object_container,
+    encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
@@ -5379,6 +5379,14 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
         let machine_code = emit_machine_code(&assigned)
             .expect("computed Boolean integer-graph machine code should emit");
         assert!(!machine_code.functions[0].bytes.is_empty());
+        assert!(
+            machine_code.functions[0].scalar_stack.is_some(),
+            "linear expression condition and direct integer-return arms should retain scalar stack evidence"
+        );
+        let artifact = build_terminal_object_artifact(&machine_code)
+            .expect("computed Boolean integer-graph scalar evidence should validate");
+        derive_terminal_stack_demand(&artifact, machine_code.entry)
+            .expect("computed Boolean integer-graph stack demand should compose");
     }
 }
 
