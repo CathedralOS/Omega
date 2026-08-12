@@ -1774,9 +1774,10 @@ fn stable_assignment_target_path(
 /// mutable-reference bindings that forward direct places from that parameter, an
 /// earlier such local, or another structurally transparent helper. Value-shaped
 /// assignments with effect-free right-hand sides may write through those
-/// places, scratch locals, or exact transparent call-produced targets without
-/// changing their origins; the ordinary frame summary still publishes
-/// caller-visible writes. Effect-free discarded expressions are also neutral.
+/// places, scratch locals, validated mutable recast aliases with effect-free
+/// sources, or exact transparent call-produced targets without changing their
+/// origins; the ordinary frame summary still publishes caller-visible writes.
+/// Effect-free discarded expressions are also neutral.
 /// A direct stable alias rebind updates only that local; prior reborrows retain
 /// their established origins. Explicit arguments and an attached helper's
 /// actual receiver both supply exact caller origins. This is body evidence, not
@@ -2211,6 +2212,19 @@ fn parameter_relative_place_origin(
             symbols,
             active_states,
         ),
+        ExpressionNode::Cast(cast)
+            if cast.form.is_recast()
+                && !expression_is_effectful_for_transparent_result(program, cast.value) =>
+        {
+            parameter_relative_place_origin(
+                program,
+                cast.value,
+                parameters,
+                aliases,
+                symbols,
+                active_states,
+            )
+        }
         _ => None,
     }
 }
