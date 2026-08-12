@@ -170,7 +170,7 @@ pub(super) fn normalized_schema_identity(
     }
 
     let mut hash = 0xcbf29ce484222325u64;
-    bytes(&mut hash, b"omega.schema.v1");
+    bytes(&mut hash, b"omega.schema.v2");
     let members = typed.data_members(data);
     let mut fields = members
         .iter()
@@ -195,6 +195,13 @@ pub(super) fn normalized_schema_identity(
     uint(&mut hash, fields.len() as u64);
     for (position, field) in fields.iter().enumerate() {
         member_name(&mut hash, field.identity, field.name.as_str(), position);
+        byte(
+            &mut hash,
+            match field.relevance {
+                psi_language_core::BindingRelevance::Relevant => 0,
+                psi_language_core::BindingRelevance::Erased => 1,
+            },
+        );
         text(
             &mut hash,
             typed.display_type_reference(field.type_reference).as_str(),
@@ -214,6 +221,13 @@ pub(super) fn normalized_schema_identity(
                 field.identity,
                 field.name.as_str(),
                 payload_position,
+            );
+            byte(
+                &mut hash,
+                match field.relevance {
+                    psi_language_core::BindingRelevance::Relevant => 0,
+                    psi_language_core::BindingRelevance::Erased => 1,
+                },
             );
             text(
                 &mut hash,
@@ -898,4 +912,38 @@ fn validate_integer_decode_range(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalized_schema_identity;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn semantic_schema_identity_distinguishes_common_and_payload_field_relevance() {
+        let source = r#"
+            data CommonRelevant { proof: i32; }
+            data CommonErased { proof [erased]: i32; }
+            data PayloadRelevant { case Certified(proof: i32); }
+            data PayloadErased { case Certified(proof [erased]: i32); }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let identity = |name: &str| {
+            let data = typed
+                .data_definitions()
+                .iter()
+                .find(|data| data.name.as_str() == name)
+                .expect("data definition");
+            normalized_schema_identity(&typed, data)
+        };
+
+        assert_ne!(identity("CommonRelevant"), identity("CommonErased"));
+        assert_ne!(identity("PayloadRelevant"), identity("PayloadErased"));
+    }
 }

@@ -1,6 +1,6 @@
 use super::{ItemSnapshot, SyntaxTreesSnapshot, TypeReferenceSnapshot};
 use crate::identifier::Identifier;
-use crate::item::{DataDefinition, DataField, DataMember, Item};
+use crate::item::{DataDefinition, DataField, DataMember, DataVariant, Item};
 use crate::syntax_trees::SyntaxTrees;
 use crate::types::TypeReferenceNode;
 
@@ -82,4 +82,52 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         .snapshot_json_pretty()
         .expect("snapshot json should serialize");
     assert!(json.contains("\"root_items\""));
+}
+
+#[test]
+fn variant_snapshot_retains_payload_only_erased_field() {
+    let mut syntax_trees = SyntaxTrees::new(Default::default());
+    let evidence_type = syntax_trees
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("Evidence")));
+    let payload = syntax_trees.items.append_data_payload_field(DataField {
+        identity: Some(7),
+        name: Identifier::generated("proof"),
+        relevance: psi_language_core::BindingRelevance::Erased,
+        type_reference: evidence_type,
+    });
+    let member = syntax_trees
+        .items
+        .append_data_member(DataMember::Variant(DataVariant {
+            identity: Some(3),
+            name: Identifier::generated("Certified"),
+            payload: psi_arena::HandleSpan::from_parts(payload, 1),
+            retired_payload_identities: Vec::new(),
+        }));
+    syntax_trees.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("Envelope"),
+        supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: psi_arena::HandleSpan::empty(),
+        properties: crate::item::DataProperties::default(),
+        quotient: None,
+        where_facts: psi_arena::HandleSpan::empty(),
+        members: psi_arena::HandleSpan::from_parts(member, 1),
+    }));
+
+    let snapshot = syntax_trees.snapshot();
+    let ItemSnapshot::Data { members, .. } = &snapshot.root_items[0] else {
+        panic!("data snapshot");
+    };
+    let super::DataMemberSnapshot::Variant { payload, .. } = &members[0] else {
+        panic!("variant snapshot");
+    };
+    assert_eq!(payload.len(), 1);
+    assert_eq!(payload[0].name.text, "proof");
+    assert_eq!(payload[0].relevance, "erased");
+    assert_eq!(payload[0].identity, Some(7));
+    assert!(matches!(
+        &payload[0].type_reference,
+        TypeReferenceSnapshot::Named { name } if name.text == "Evidence"
+    ));
 }
