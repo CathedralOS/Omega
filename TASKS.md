@@ -74,6 +74,9 @@ Remaining:
   entry helper while retaining its emitted-byte assertions. The external-leaf
   syscall provider canary likewise uses exact hosted roots for both Linux x64
   and AArch64 while retaining trust, footprint, and syscall-byte assertions.
+  The static integer-dispatch guard cohort now uses the same exact hosted root
+  path on native x64 and cross-compiled Linux AArch64 while retaining its
+  target-specific footprint evidence.
   Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.

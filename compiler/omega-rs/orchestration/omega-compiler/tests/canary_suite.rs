@@ -1173,18 +1173,13 @@ fn contract_canary_visualizes_flow_contract_summaries() {
 #[test]
 fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("control_flow/runtime_integer_literal_dispatch_exit");
-    let host_dir = std::env::temp_dir().join(format!(
+    let host_scratch = std::env::temp_dir().join(format!(
         "omega-static-guard-footprint-host-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&host_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(host_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("integer literal dispatch should compile for the host");
+    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+        .expect("integer literal dispatch should compile for the host");
+    let host_dir = host_scratch.join("out");
     let host_footprint = fs::read_to_string(host_dir.join("08_boundary_footprints.json"))
         .expect("host static-guard footprint evidence should be written");
     assert!(
@@ -1193,27 +1188,15 @@ fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
             && host_footprint.contains("\"enumeration_complete\": false"),
         "x86-64 dispatch must retain its static guard evidence without claiming completeness"
     );
-    let _ = fs::remove_dir_all(&host_dir);
+    let _ = fs::remove_dir_all(&host_scratch);
 
     let arm_scratch = std::env::temp_dir().join(format!(
         "omega-static-guard-footprint-arm-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&arm_scratch);
-    let arm_source = arm_scratch.join("src");
     let arm_output = arm_scratch.join("out");
-    fs::create_dir_all(&arm_source).expect("create AArch64 guard source directory");
-    fs::copy(canary.join("main.omg"), arm_source.join("main.omg"))
-        .expect("copy AArch64 guard canary");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write AArch64 guard target");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_output.clone()),
-        target_name: Some("linux_arm64".into()),
-        write_output: true,
-    })
-    .expect("integer literal dispatch should cross-compile for AArch64");
+    compile_single_file_hosted_main(&canary, &arm_scratch, "linux_arm64")
+        .expect("integer literal dispatch should cross-compile for AArch64");
     let arm_footprint = fs::read_to_string(arm_output.join("08_boundary_footprints.json"))
         .expect("AArch64 static-guard footprint evidence should be written");
     assert!(
