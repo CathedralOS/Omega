@@ -3136,6 +3136,47 @@ fn accepts_static_persistent_copy_across_local_index_alias_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_mutable_slice_view_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: [u64; 2];
+        }
+
+        machine return_slice(cells: &mut [u64; 2]) -> &mut [u64] {
+            let view: &mut [u64] = cells.as_mut_slice();
+            view
+        }
+
+        machine Main::touch_code(&mut self) {
+            let view: &mut [u64] = return_slice(&mut self.code);
+            transition view.len > 0 {
+                true -> write(view)
+                false -> {}
+            }
+
+            state write(&mut self, view: &mut [u64]) {
+                view[0] = 7;
+            }
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a mutable slice view preserves its backing array's disjoint frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_recast_local_frame() {
     let source = r#"
         data Message {

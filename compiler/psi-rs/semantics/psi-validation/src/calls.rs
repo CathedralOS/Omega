@@ -1580,10 +1580,11 @@ struct FramePlaceOrigin {
 /// Caller-isolated locals are also stable origins, but remain local-only and
 /// therefore disappear from the published caller frame. A structurally
 /// transparent value call preserves such an origin just as it preserves a
-/// caller-visible parameter origin. A validated mutable recast is address
-/// identity, so an effect-free recast source preserves the same origin. Direct
-/// parameter-relative member and effect-free indexed projections compose the
-/// same exact/coarse path algebra. Other computed results stay opaque.
+/// caller-visible parameter origin. The compiler-owned `as_mut_slice` view
+/// preserves its receiver's storage origin. A validated mutable recast is
+/// address identity, so an effect-free recast source preserves the same origin.
+/// Direct parameter-relative member and effect-free indexed projections compose
+/// the same exact/coarse path algebra. Other computed results stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
@@ -1631,15 +1632,28 @@ fn stable_alias_expression_origin(
             symbols,
             allow_isolated_local,
         ),
-        ExpressionNode::Call(call) => transparent_call_result_origin(
-            program,
-            call,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            symbols,
-            allow_isolated_local,
-        ),
+        ExpressionNode::Call(call) => {
+            if call_is_transparent_mutable_slice_view(program, call) {
+                return stable_alias_expression_origin(
+                    program,
+                    call.receiver,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    symbols,
+                    allow_isolated_local,
+                );
+            }
+            transparent_call_result_origin(
+                program,
+                call,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+            )
+        }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
@@ -2210,14 +2224,26 @@ fn parameter_relative_place_origin(
                 parameter_symbol: parent.parameter_symbol,
             })
         }
-        ExpressionNode::Call(call) => parameter_relative_call_result_origin(
-            program,
-            call,
-            parameters,
-            aliases,
-            symbols,
-            active_states,
-        ),
+        ExpressionNode::Call(call) => {
+            if call_is_transparent_mutable_slice_view(program, call) {
+                return parameter_relative_place_origin(
+                    program,
+                    call.receiver,
+                    parameters,
+                    aliases,
+                    symbols,
+                    active_states,
+                );
+            }
+            parameter_relative_call_result_origin(
+                program,
+                call,
+                parameters,
+                aliases,
+                symbols,
+                active_states,
+            )
+        }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
@@ -2350,6 +2376,18 @@ fn expression_is_effectful_for_transparent_result(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
+}
+
+fn call_is_transparent_mutable_slice_view(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+) -> bool {
+    call.target.as_str() == "as_mut_slice"
+        && call.receiver.is_valid()
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .is_empty()
 }
 
 fn frame_place_root_symbol(
