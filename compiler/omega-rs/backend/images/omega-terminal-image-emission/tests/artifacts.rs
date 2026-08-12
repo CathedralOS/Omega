@@ -774,6 +774,22 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
         })
     );
 
+    let mut crash_arm = aarch64.clone();
+    crash_arm.functions[0].bytes[4..8].copy_from_slice(&0xd420_0000_u32.to_le_bytes()); // brk #0
+    crash_arm.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .mutations
+        .remove(0);
+    assert_eq!(
+        build_terminal_object_artifact(&crash_arm),
+        Err(TerminalObjectError::NonLinearScalarControlFlow {
+            machine: machine_id(1),
+            offset: 4,
+        })
+    );
+
     let mut missing_return = aarch64.clone();
     missing_return.functions[0].bytes[12..16].copy_from_slice(&0xd503_201f_u32.to_le_bytes());
     assert_eq!(
