@@ -146,13 +146,14 @@ occupies hardware bytes.
 
 The implemented native slice currently applies that rule to non-generic
 transparent record, sum, and mixed common-field/case layout, plus closed
-synthesized generic-record instances selected by explicitly typed local
-initializers. It also applies to the machine storage and runtime
+synthesized generic-record instances selected by explicit local or assignment
+destinations and exact closed generic-sum instances. It also applies to the
+machine storage and runtime
 contained-machine topology of closed, non-generic plain records when every
 attached machine is an ordinary checked body with no unresolved machine
 parameters. Erased common and payload fields are omitted without changing the
-tag prefix, variant order, or case numbering. Unresolved generic uses, generic
-sums, explicit layout/placement plans, wire/codec faces, ABI faces, and attached
+tag prefix, variant order, or case numbering. Ambiguous unresolved generic
+uses, explicit placement plans, wire/codec faces, ABI faces, and attached
 machines outside that exact checked-record cohort remain rejected until their
 representation classifiers consume the same erased-stripped form.
 

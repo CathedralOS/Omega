@@ -47673,6 +47673,61 @@ fn plan_laid_erased_field_is_semantic_but_not_physical() {
 }
 
 #[test]
+fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
+    let canary = pass_canary("generics/runtime_distinct_closed_erased_sums_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("distinct closed erased sums should reach checked semantics");
+
+    for expected in ["Maybe<i32>", "Maybe<bool>"] {
+        let definition = checked
+            .typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == expected)
+            .unwrap_or_else(|| panic!("missing exact synthesized identity {expected}"));
+        let some = checked
+            .typed
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                psi_typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == "Some" =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+            .expect("Some variant");
+        assert!(
+            checked
+                .typed
+                .data_payload_fields(some)
+                .iter()
+                .any(|field| { field.name.as_str() == "proof" && field.relevance.is_erased() })
+        );
+    }
+    assert_eq!(interpret(&checked, &[]).exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-distinct-closed-erased-sums-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("distinct closed erased sums should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run distinct closed erased sums canary");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(output.status.code(), Some(70));
+}
+
+#[test]
 fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
     let main_path = canary.join("main.omg");

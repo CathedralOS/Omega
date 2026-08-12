@@ -289,27 +289,30 @@ For currently resolved and nameable checked-shape holders and non-generic
 evidence types, the executable slice elaborates an omitted erased initializer
 only when exactly one payloadless constructor with no common fields determines
 the term. Holders may also be closed synthesized generic records when the
-instance is selected by an explicitly typed local initializer; this contextual
-record elaboration does not infer type arguments from fields or extend to call,
-assignment, or return literals. Pure generic sums admit one exact closed
-instance per generic base in the executable slice. A closed type-reference
-position selects that identity, after which constructor and pattern paths use
-it consistently; nested concrete generic payload records reach the same
-synthesis fixpoint. The semantic typed tree receives the constructor term
+instance is selected by an explicitly typed local initializer or direct exact
+assignment; this contextual record elaboration does not infer type arguments
+from fields or extend to call or return literals. Pure generic sums admit
+multiple exact closed instances per generic base in the executable slice. A
+closed annotated local or direct assignment destination selects construction
+identity; an exact local, parameter, or attached-self-field subject selects
+destructure identity. Other bare constructor contexts retain the unique-
+instance fallback and fail closed when more than one identity is possible.
+Nested concrete generic payload records reach the same synthesis fixpoint. The
+semantic typed tree receives the constructor term
 before proof and multiplicity checking. Ambiguous, absent, generic, or
 otherwise ineligible evidence constructors still require an explicit term;
 omission never invokes a default or general inhabitance search. Native erasure
 admits non-generic transparent records, sums, mixed common-field/case shapes,
-those closed generic-record instances, and the single-instance pure generic-sum
-cohort. Closed, non-generic plain records may
+those closed generic-record instances, and the exact closed generic-sum cohort.
+Closed, non-generic plain records may
 also have attached machines when every attachment is an ordinary checked body
 with no unresolved machine parameters. Their machine storage and runtime
 contained-machine topology use the erased-stripped fields, while semantic
 ownership and proof obligations retain every field. Erased payloads do not
 change tags or case numbering; they remain visible to semantic exhaustiveness
 and obligation checking. The compiler fails closed for unresolved generic uses,
-a second distinct closed instance of one generic sum, mixed common-field/case
-generic data, plan-laid and placed views, wire/codec and ABI faces, and attached
+ambiguous generic record/sum construction contexts, mixed common-field/case
+generic data, placed views, wire/codec and ABI faces, and attached
 machines over generic or case-bearing data, non-checked supply modes, or
 unresolved machine parameters.
 
