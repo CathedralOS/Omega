@@ -25,6 +25,8 @@ use omega_core::parallel::WorkerPool;
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
+const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     compile_with_policy(options, ExecutableTcbBuildPolicy::default())
 }
@@ -48,13 +50,19 @@ pub fn compile_with_policy(
     // lazily, so ordinary inputs pay nothing. A genuine panic (a compiler bug)
     // is re-raised on the calling thread, preserving today's crash-on-bug
     // behavior.
-    const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+    run_on_compile_thread(move || {
+        Compiler::with_executable_tcb_policy(options, executable_tcb_policy).compile()
+    })
+}
+
+pub(super) fn run_on_compile_thread<T>(work: impl FnOnce() -> T + Send + 'static) -> T
+where
+    T: Send + 'static,
+{
     std::thread::Builder::new()
         .name("omega-compile".to_owned())
         .stack_size(COMPILE_STACK_SIZE)
-        .spawn(move || {
-            Compiler::with_executable_tcb_policy(options, executable_tcb_policy).compile()
-        })
+        .spawn(work)
         .expect("failed to spawn compiler thread")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
