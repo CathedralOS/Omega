@@ -226,20 +226,26 @@ Remaining:
   and typed trees plus their snapshots. The executable slice supports
   non-generic transparent records, sums, and mixed common-field/case shapes,
   plus closed synthesized generic-record instances selected by explicitly typed
-  local initializers (including nested concrete record fields):
+  local initializers (including nested concrete record fields), and
+  non-generic plain `CheckedShape` records whose attached machines are closed
+  ordinary checked bodies:
   construction elaborates an omitted exact common or selected-case erased
   binding only when a currently resolved/nameable non-generic evidence type has
   exactly one payloadless constructor and no common fields, while checked
   validation forbids runtime reads/writes/effects through it; proof,
   multiplicity, exhaustiveness, case identity, and semantic identity retain it;
   the legacy proof-only classifier ignores erased containment; and the
-  checked/runtime expression boundary plus record/case layout omit the field and
-  its initializer subtree without renumbering variants. Ambiguous, absent,
-  generic, and otherwise ineligible evidence remains explicit-term-required.
+  checked/runtime expression boundary plus record/case layout and eligible
+  attached-machine layout omit the field and its initializer subtree without
+  renumbering variants; erased attached fields also create no runtime
+  contained-machine topology. Ambiguous, absent, generic, and otherwise
+  ineligible evidence remains explicit-term-required.
   Expand this without compatibility scaffolding to generic-sum construction and
   runtime use, unresolved generic construction contexts beyond annotated locals,
-  plan-laid and placed views, wire/codec and ABI classification, and data with
-  attached machines; all of those shapes currently fail closed at use sites.
+  plan-laid and placed views, wire/codec and ABI classification, and attached
+  machines over generic or case-bearing data, non-checked supply modes, or
+  unresolved machine parameters; all of those shapes currently fail closed at
+  use sites.
   Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
   Do not infer carrier relation roles from relevance.
@@ -408,8 +414,11 @@ reach or trust, and private proof improvements do not change public identity.
   likewise retains and replays exact frame and temporary-stack mutations,
   validates typed direct-call outbound/link evidence against those mutations,
   derives caller-live bytes with pending temporaries, and joins the same
-  acyclic closure. Extend that sealed accounting to conditional control-flow
-  stacks, the external entry
+  acyclic closure. One bounded scalar CFG shape is also sealed: a top-level
+  Boolean-parameter conditional with two direct, call-free linear integer
+  return arms, whose exact branch is validated and whose arms replay
+  independently by maximum. Extend that accounting to expression conditions,
+  nested/reconvergent conditionals, calls or crashes in arms, the external entry
   adapter, and installed-root/provider admission before treating it as a full
   root `StackPlan`.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with

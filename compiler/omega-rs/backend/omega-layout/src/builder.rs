@@ -561,7 +561,9 @@ impl<'program> LayoutBuilder<'program> {
                 self.program
                     .data_members(definition)
                     .iter()
-                    .filter(|member| matches!(member, DataMember::Field(_)))
+                    .filter(|member| {
+                        matches!(member, DataMember::Field(field) if !field.relevance.is_erased())
+                    })
                     .count()
             })
             .unwrap_or(0);
@@ -579,6 +581,9 @@ impl<'program> LayoutBuilder<'program> {
                 let DataMember::Field(field) = member else {
                     continue;
                 };
+                if field.relevance.is_erased() {
+                    continue;
+                }
 
                 fields.push(PlannedField {
                     symbol: field.symbol,
@@ -1246,6 +1251,44 @@ mod tests {
                 .map(|field| (field.name.as_str(), field.offset))
                 .collect::<Vec<_>>(),
             [("head", 0), ("tail", 1)]
+        );
+    }
+
+    #[test]
+    fn attached_machine_layout_excludes_erased_record_fields() {
+        let checked = checked(
+            r#"
+            data Packed {
+                head: u8;
+                proof [erased]: u64;
+                tail: u16;
+            }
+            machine Packed::read(&self) -> u8 { self.head }
+            "#,
+        );
+
+        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let data = plan
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Packed")
+            .expect("Packed data layout");
+        let machine = plan
+            .machine_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Packed::read")
+            .expect("Packed::read machine layout");
+
+        assert_eq!(machine.layout, data.layout);
+        assert_eq!(
+            plan.fields
+                .span_or_empty(machine.fields)
+                .iter()
+                .map(|field| (field.name.as_str(), field.offset))
+                .collect::<Vec<_>>(),
+            [("head", 0), ("tail", 2)]
         );
     }
 

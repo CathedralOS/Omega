@@ -247,6 +247,98 @@ fn runtime_projection_of_erased_field_is_rejected() {
 }
 
 #[test]
+fn checked_attached_machine_accepts_erased_record_and_reads_material_self_field() {
+    lower_typed_trees(typed(
+        r#"
+        data Certified { value: i32; proof [erased]: i32; }
+        machine Certified::read(&self) -> i32 { self.value }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7, proof: 11 };
+            certified.read()
+        }
+        "#,
+    ))
+    .expect("a closed checked record may use its erased-stripped attached machine");
+}
+
+#[test]
+fn checked_attached_machine_rejects_runtime_erased_self_projection() {
+    rejected(
+        r#"
+        data Certified { value: i32; proof [erased]: i32; }
+        machine Certified::leak(&self) -> i32 { self.proof }
+        "#,
+        "erased field `proof` has no runtime value",
+    );
+}
+
+#[test]
+fn erased_linear_field_on_attached_record_retains_its_obligation() {
+    rejected(
+        r#"
+        data Receipt [linear] { case Issued; }
+        data Certified { value: i32; proof [erased]: Receipt; }
+        machine Certified::read(&self) -> i32 { self.value }
+        data Main {}
+        machine Main::run() -> i32 {
+            let certified: Certified = Certified { value: 7 };
+            certified.read()
+        }
+        "#,
+        "linear value `certified.proof` reaches scope exit",
+    );
+}
+
+#[test]
+fn generic_erased_record_with_attached_machine_remains_fenced() {
+    rejected(
+        r#"
+        data Box<T> { value: T; proof [erased]: i32; }
+        machine Box::read<T>(&self) -> i32 { 0 }
+        "#,
+        "data with attached machines",
+    );
+}
+
+#[test]
+fn erased_record_with_generic_attached_machine_remains_fenced() {
+    rejected(
+        r#"
+        data Certified { value: i32; proof [erased]: i32; }
+        machine Certified::read<T>(&self, ignored: T) -> i32 { self.value }
+        "#,
+        "data with attached machines",
+    );
+}
+
+#[test]
+fn case_bearing_erased_data_with_attached_machine_remains_fenced() {
+    rejected(
+        r#"
+        data Certified {
+            proof [erased]: i32;
+            case Valid;
+            case Invalid;
+        }
+        machine Certified::read(&self) -> i32 { 0 }
+        "#,
+        "data with attached machines",
+    );
+}
+
+#[test]
+fn boundary_attached_machine_on_erased_record_remains_fenced() {
+    rejected(
+        r#"
+        data Certified { value: i32; proof [erased]: i32; }
+        boundary machine Certified::read(&self) -> i32;
+        "#,
+        "data with attached machines",
+    );
+}
+
+#[test]
 fn exact_case_payload_accepts_explicit_erased_initializer() {
     lower_typed_trees(typed(
         r#"

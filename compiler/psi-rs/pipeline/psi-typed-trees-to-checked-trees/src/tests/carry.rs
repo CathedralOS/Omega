@@ -1002,6 +1002,49 @@ fn contained_topology_groups_fields_and_all_attached_machine_targets() {
 }
 
 #[test]
+fn erased_attached_data_field_does_not_create_contained_machine_topology() {
+    let checked = lower(
+        r#"
+        data Leaf {}
+        machine Leaf::read(&self) -> i32 { transition { _ -> 1 } }
+        data Root {
+            material_leaf: Leaf;
+            proof_leaf [erased]: Leaf;
+        }
+        machine Root::run(&mut self) {}
+        data Main {}
+        machine Main::run(&mut self) {}
+        "#,
+    )
+    .expect("erased attached field topology");
+    let root = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::run")
+        .expect("Root::run");
+    let fields = checked
+        .facts
+        .carry
+        .contained_fields_for_machine(root.symbol);
+
+    assert_eq!(fields.len(), 1);
+    let material = checked
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| checked.data_members(definition))
+        .find_map(|member| match member {
+            psi_checked_trees::data::DataMember::Field(field)
+                if field.name.as_str() == "material_leaf" =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .expect("material_leaf");
+    assert_eq!(fields[0].field, material.symbol);
+}
+
+#[test]
 fn activation_wide_carry_joins_contained_machine_subtree() {
     let checked = lower(
         r#"

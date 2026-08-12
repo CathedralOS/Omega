@@ -52,6 +52,9 @@ fn build_contained_machine_topology(
                 let psi_typed_trees::data::DataMember::Field(field) = member else {
                     continue;
                 };
+                if field.relevance.is_erased() {
+                    continue;
+                }
                 let data_symbol = program.type_reference_symbol(field.type_reference);
                 let Some(field_data) = program
                     .data_definitions()
