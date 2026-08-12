@@ -1,0 +1,43 @@
+// Source-valid aggregate/member crash contract paired with the accepted
+// scalar terminal-Psi crash slice. Checked semantics retain the member route;
+// terminal production must fail closed until aggregate values and field
+// projections have verifier-owned terminal meaning.
+data CrashFlags {
+    dangerous: bool;
+}
+
+machine scalar_guarded(flag: bool) -> bool
+requires true == true
+ensures true == true
+crashes Trap
+    flag
+{
+    transition flag {
+        true -> scalar_fail()
+        _ -> scalar_succeed()
+    }
+
+    state scalar_fail() -> bool {
+        crash Trap;
+    }
+
+    state scalar_succeed() -> bool { false }
+}
+
+machine member_guarded(flags: CrashFlags) -> bool
+requires true == true
+ensures true == true
+crashes Trap
+    flags.dangerous
+{
+    transition flags.dangerous {
+        true -> member_fail()
+        _ -> member_succeed()
+    }
+
+    state member_fail() -> bool {
+        crash Trap;
+    }
+
+    state member_succeed() -> bool { false }
+}

@@ -80,12 +80,18 @@ use std::{
 #[cfg(unix)]
 static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 
-fn source_canary() -> PathBuf {
+fn terminal_source_canary(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
         .expect("omega-native-differential-test lives under compiler/omega-rs/orchestration")
-        .join("canaries/pass/terminal_psi/integer_control_contract/main.omg")
+        .join("canaries/pass/terminal_psi")
+        .join(name)
+        .join("main.omg")
+}
+
+fn source_canary() -> PathBuf {
+    terminal_source_canary("integer_control_contract")
 }
 
 fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
@@ -1175,6 +1181,36 @@ fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
         .expect("a false staged guard should return")
         .value(),
         TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(false)),
+    );
+}
+
+#[test]
+fn aggregate_member_crash_contract_fails_closed_at_terminal_production() {
+    let canary = terminal_source_canary("member_crash_contract_boundary");
+    let checked = compile_to_checked(&canary, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "aggregate/member crash-contract boundary should reach checked semantics:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let scalar = lower_machine(&checked, "scalar_guarded")
+        .expect("the paired scalar crash contract should lower to terminal Psi");
+    verify_module(
+        &scalar.semantic_module,
+        &scalar.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the paired scalar crash contract should verify from its artifact");
+
+    assert_eq!(
+        lower_machine(&checked, "member_guarded")
+            .expect_err("aggregate/member crash predicates must remain fail-closed"),
+        LoweringError::Unsupported("machine has no source-independent checked scalar control plan")
     );
 }
 
@@ -8640,12 +8676,19 @@ fn source_boolean_state_chain_binding_preserves_short_circuit_control() {
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
-    assert_eq!(
-        lower_machine(&checked, "Main::main").expect_err("attached main must fail closed"),
-        LoweringError::Unsupported(
-            "attached machines are not in the current terminal-Psi source slice"
-        )
+    let attached_unit = lower_machine(&checked, "Main::main")
+        .expect("empty attached Unit machines are in the structural terminal-Psi slice");
+    assert!(
+        attached_unit.semantic_module.machines[0]
+            .attachment
+            .is_some()
     );
+    verify_module(
+        &attached_unit.semantic_module,
+        &attached_unit.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the attached Unit artifact should verify without producer state");
     assert_eq!(
         lower_machine(&checked, "terminal_closed_integer_chain_wrong_contract")
             .expect_err("closed chain with an unrelated contract must fail closed"),
