@@ -249,8 +249,9 @@ Remaining:
   exact closed instances per generic base (including nested concrete payload
   records and constructor/pattern uses selected by exact local, assignment,
   parameter, or self-field context), and
-  non-generic plain `CheckedShape` records whose attached machines are closed
-  ordinary checked bodies:
+  plain `CheckedShape` records whose attached machines are closed ordinary
+  checked bodies, including closed synthesized generic-record instances whose
+  bodyful methods are cloned and fully substituted:
   construction elaborates an omitted exact common or selected-case erased
   binding only when a currently resolved/nameable non-generic evidence type has
   exactly one payloadless constructor and no common fields, while checked
@@ -270,9 +271,9 @@ Remaining:
   parameter signature. Parameter-distinct overloads and non-direct or dynamic
   receiver selection remain resolver-owned and fail closed. Expand this without
   compatibility scaffolding to those remaining contexts and attached machines
-  over generic
-  or case-bearing data, non-checked supply modes, or unresolved machine
-  parameters. Plan-laid values now omit erased bindings from physical Schema
+  over unresolved generic uses or case-bearing data, non-checked supply modes,
+  or unresolved machine parameters. Plan-laid values now omit erased bindings
+  from physical Schema
   reflection, validated plan entries, native/interpreter layouts, recasts, and
   latent ABI classification while the synthetic semantic value and normalized
   schema identity retain their terms, obligations, and relevance. `Placed<P,
