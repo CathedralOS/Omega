@@ -78,11 +78,11 @@ Remaining:
   targets too; negative recast diagnostics and the entry-agnostic checked/
   artifact canary cohort plus the broad sample source-compatibility sweep use
   production checked-only compilation. Backend `Main::main` discovery is
-  deleted. The shared macOS native-filesystem source cohort now stages each
-  canary into an isolated project with an exact `macos_arm64::ProgramEntry`
-  binding and uses production compilation; heterogeneous generated filesystem
-  probes retain the explicitly named legacy test-entry seam until their source
-  builders are migrated.
+  deleted. The macOS native filesystem, generated-filesystem, float, ObjC/GUI,
+  and directly executed sample cohort now stages each complete source project
+  into an isolated tree, merges an exact `macos_arm64::ProgramEntry` binding
+  into its build root, and uses production compilation while preserving project
+  assets and GUI subsystem configuration.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
