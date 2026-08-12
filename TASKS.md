@@ -311,7 +311,8 @@ customer-shaped compiler concept is introduced.
   its terminal result may follow a prefix of effect-free caller-isolated scratch
   locals and direct local `&mut` aliases, including mutable bindings and results
   of other structurally transparent helpers.
-  Effect-free value-shaped assignments may write through those origins without
+  Value-shaped assignments with effect-free right-hand sides may write through
+  those origins, including exact transparent call-produced targets, without
   changing the relation, while their ordinary frames remain published;
   effect-free discarded expressions are neutral. A direct helper-local alias
   rebind updates that name's origin without redirecting prior reborrows; a
