@@ -1,5 +1,5 @@
-// CONTAINER instances (generics Phase 2 slice 1, 2026-07-08): Box<i32> +
-// Box<bool> COEXISTING, each with the attached method stored() -- the
+// CONTAINER instances: Box<i32> + Box<bool> COEXISTING, each with an erased
+// evidence field and the attached method stored() -- the
 // generic-instance desugar clones each BODIED attached machine per data
 // instance (snapshot copy + watermark substitution of Named(T); the clone's
 // full-path NAME and attached_data both rewrite to the synthetic record),
@@ -8,8 +8,10 @@
 // surfaces (stdlib Vec<T>) stay type-check-only; generic TEMPLATE machines
 // are skipped by the layout builder.
 use omega::language::std::console;
+data Evidence { case Only; }
 data Box<T> {
     value: T;
+    proof [erased]: Evidence;
 }
 machine Box::stored<T>(&self) -> T {
     transition { _ -> (self.value) }
