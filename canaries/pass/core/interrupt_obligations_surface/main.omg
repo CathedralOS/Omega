@@ -2,9 +2,7 @@ use omega::language::core::interrupt;
 
 // Provider code supplies the opaque values. Checked handlers can only settle
 // them through the consuming operations whose reaches remain explicit.
-data Main {}
-
-machine Main::settle(
+machine settle(
     guard: InterruptMaskGuard in Active,
     acknowledgement: InterruptAcknowledgement in Pending
 )
@@ -13,5 +11,3 @@ reaches MachineControl + PortIo
     guard.restore();
     acknowledgement.complete();
 }
-
-machine Main::main(&mut self) {}

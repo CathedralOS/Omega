@@ -1,12 +1,8 @@
 use omega::language::core::interrupt;
 
-data Main {}
-
-machine Main::complete_twice(acknowledgement: InterruptAcknowledgement in Pending)
+machine complete_twice(acknowledgement: InterruptAcknowledgement in Pending)
 reaches PortIo
 {
     acknowledgement.complete();
     acknowledgement.complete();
 }
-
-machine Main::main(&mut self) {}

@@ -1,8 +1,6 @@
 use omega::language::core::interrupt;
 
-data Main {}
-
-machine Main::main(&mut self)
+machine explicit_qualification_cannot_mint_guard()
 reaches MachineControl
 {
     let raw: InterruptMaskGuard = InterruptMaskGuard {
