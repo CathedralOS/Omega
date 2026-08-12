@@ -444,6 +444,13 @@ Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi
 fuel evidence carries no provider receipt.
 
+`omega inspect-terminal --machine <qualified>` verifies the selected terminal
+closure and proof bundle, recomputes and validates its acyclic entry
+certificate, and publishes the exact terminal identity, schedule, entry, and
+ceiling. This is build-time semantic evidence, not installed-root evidence:
+until native artifacts retain sealed emitter-derived stack/call facts and exact
+installation binding, the inspection surface makes no WCSU claim.
+
 ## Implementation queue
 
 [`TASKS.md`](../../../TASKS.md) owns remaining terminal-Psi work. Temporary

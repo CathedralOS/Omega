@@ -603,6 +603,22 @@ impl Compiler {
         let backend_surface =
             build_backend_surface_report(&checked.program, entry_machine_name.as_deref());
 
+        // A check-only compilation with no selected runtime root ends at
+        // checked semantics. Requiring an entry merely to produce the
+        // frontend artifacts would turn `--check` into implicit execution
+        // policy; callers that need native validation either select an exact
+        // `ProgramEntry` or use the explicit legacy test-entry seam.
+        if !self.options.write_output && entry_machine_name.is_none() {
+            write_pipeline_shell(&self.options)?;
+            return Ok(CompileReport {
+                root_path: self.options.root_path,
+                source_file_count,
+                wrote_output: false,
+                program_storage_entry: None,
+                build_evaluation_usage,
+            });
+        }
+
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;
         write_state_graph_snapshot(&self.options, &state_graph)?;
         let control_flow = state_graph_to_control_flow(state_graph, &mut timings)?;

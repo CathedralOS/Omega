@@ -43934,6 +43934,25 @@ fn production_compile_rejects_an_unrooted_legacy_entry() {
 }
 
 #[test]
+fn production_check_accepts_entry_agnostic_semantic_corpus() {
+    let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
+    let build_dir = unique_no_output_build_dir();
+    let report = production_compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("check-only compilation must not require or infer a runtime entry");
+
+    assert!(!report.wrote_output);
+    assert_eq!(report.program_storage_entry, None);
+    assert!(build_dir.join("04_typed_trees.json").is_file());
+    assert!(build_dir.join("05_machine_contracts.json").is_file());
+    let _ = fs::remove_dir_all(build_dir);
+}
+
+#[test]
 fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() {
     for (canary_name, target) in [
         (

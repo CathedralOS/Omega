@@ -208,8 +208,11 @@ Remaining:
   closure: low reference verifier, checked derivation, or explicitly trusted
   Psi verifier. A Psi kernel port alone is insufficient.
 - **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
-  add attributed response outcomes only when terminal wait/foreign edges can
-  derive them. Inserted native metering must consume the installed exact-site
+  the generic terminal inspection path now independently verifies a selected
+  source closure and publishes its recomputed acyclic entry certificate, with
+  Cathedral's first timer root pinning that evidence. Add attributed response
+  outcomes only when terminal wait/foreign edges can derive them. Inserted native
+  metering must consume the installed exact-site
   attribution rows, but is design-blocked on the sponsor counter, exhaustion
   transfer, and resumable continuation ABI in owner Q6. Keep WCET and wall-clock
   conversion separate.

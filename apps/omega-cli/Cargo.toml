@@ -14,4 +14,7 @@ omega-compiler = { path = "../../compiler/omega-rs/orchestration/omega-compiler"
 omega-core = { path = "../../compiler/omega-rs/foundation/omega-core" }
 psi-checked-trees-to-terminal = { path = "../../compiler/psi-rs/pipeline/psi-checked-trees-to-terminal" }
 psi-core = { path = "../../compiler/psi-rs/foundation/psi-core" }
+psi-proof-kernel = { path = "../../compiler/psi-rs/semantics/psi-proof-kernel" }
 psi-terminal = { path = "../../compiler/psi-rs/representations/psi-terminal" }
+psi-terminal-fixed-fuel = { path = "../../compiler/psi-rs/semantics/psi-terminal-fixed-fuel" }
+psi-terminal-verifier = { path = "../../compiler/psi-rs/semantics/psi-terminal-verifier" }
