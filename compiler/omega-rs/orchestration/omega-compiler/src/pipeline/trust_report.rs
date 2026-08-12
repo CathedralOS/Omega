@@ -25,10 +25,16 @@ pub(super) fn write_trust_report(
         let selected = selected_provider_plans
             .iter()
             .any(|selected| selected == &plan.name);
-        let granted = selected
-            && root_grants
-                .iter()
-                .any(|grant| grant == &plan.name || grant == leaf);
+        let grant_selectors = selected
+            .then(|| {
+                root_grants
+                    .iter()
+                    .filter(|grant| *grant == &plan.name || *grant == leaf)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let granted = !grant_selectors.is_empty();
         let provenance = if granted {
             "root grant (build.omg)"
         } else {
@@ -67,6 +73,7 @@ pub(super) fn write_trust_report(
                     effective_carry: claim.effective_carry.to_string(),
                     predicate_discharge_required: claim.predicate_body.is_present(),
                     provenance: provenance.to_owned(),
+                    grant_selectors: grant_selectors.clone(),
                     standing_warning: !granted,
                 });
             }
@@ -85,6 +92,7 @@ pub(super) fn write_trust_report(
                     effective_carry: claim.effective_carry.to_string(),
                     predicate_discharge_required: false,
                     provenance: provenance.to_owned(),
+                    grant_selectors: grant_selectors.clone(),
                     standing_warning: !granted,
                 });
             }

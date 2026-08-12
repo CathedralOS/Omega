@@ -335,6 +335,8 @@ customer-shaped compiler concept is introduced.
   durable trust report now copies each routed provider entry/result claim with
   exact plan fingerprint, requirement, subject, authority flow, semantic
   domain, carry policy, predicate-discharge requirement, and grant provenance;
+  granted rows also retain the exact authored root-grant selectors that
+  activated the selected plan, while unselected candidates retain none;
   the qualification artifact also retains the canonical requirement overload
   identity and predicate-body status beside its readable label. Continue with
   consumers that still lack exact blast-radius rows. Provider-slot grants now

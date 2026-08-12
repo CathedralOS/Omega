@@ -674,7 +674,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {}",
+                "- provider plan: {} [{:016x}] -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 row.requirement_identity,
@@ -689,6 +689,11 @@ impl ArtifactWriter {
                     "none"
                 },
                 row.provenance,
+                if row.grant_selectors.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.grant_selectors.join(", ")
+                },
             ));
             if row.standing_warning {
                 output.push_str(" [STANDING WARNING: dev-active until the final build grants its provider plan]");
@@ -1985,6 +1990,10 @@ pub struct TrustQualificationRow {
     pub effective_carry: String,
     pub predicate_discharge_required: bool,
     pub provenance: String,
+    /// Exact authored root-grant selectors that activated this selected plan.
+    /// The provider-plan fingerprint above remains the selected semantic
+    /// identity; these strings retain its source-level grant provenance.
+    pub grant_selectors: Vec<String>,
     pub standing_warning: bool,
 }
 
