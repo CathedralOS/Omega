@@ -29,8 +29,7 @@ observed — here, the machine's return.
 Working interpretation:
 
 - A write the checker can prove domain-preserving changes nothing: every
-  fact stays standing. This is the common case and every landed
-  range-checked store.
+  fact stays standing. This includes every proven range-checked store.
 - A write it cannot prove opens a **window** on the place: the domain is
   suspended there, and the flow facts record what was actually written.
 - A window must close — the domain re-proven from the flow facts — at the
