@@ -183,9 +183,10 @@ Current ownership is:
   Value-shaped assignments may write through those origins without changing
   the relation when the right-hand side is effect-free or a typed
   non-reference direct-call tree through depth two with complete frames;
-  nested-call writes remain published. Reference-valued, deeper,
-  binding-reborrow, recursive, or opaque right-hand sides keep their existing
-  relational handling or fence. Targets include exact transparent
+  sibling branches are admitted independently and all nested-call writes remain
+  published. One deeper, binding-reborrow, recursive, or opaque branch fences
+  the whole right-hand side; reference-valued roots keep their existing
+  relational handling. Targets include exact transparent
   call-produced places. An indexed target may use the same complete,
   non-rebinding direct-call tree through depth two; its collection-coarse write
   and every index-call write remain published. Deeper, binding-reborrow,
