@@ -307,12 +307,12 @@ customer-shaped compiler concept is introduced.
   collection coarsening absorbs all later suffixes through aliases, calls, and
   transitions, including direct member-after-index origins. Rebinding,
   named/reference-bearing local origins, computed collection origins,
-  projected/nontrivial call results, and named-SCC alias transport remain
+  computed/nontrivial call results, and named-SCC alias transport remain
   opaque. A call-produced chain is representable only through a free helper
-  whose entire body is one terminal expression directly forwarding one
-  mutable-reference parameter; the result inherits that argument's exact or
-  collection-coarse origin through later calls and reborrows. Signature
-  lifetime elision alone does not establish this relation;
+  whose entire body is one terminal place rooted in one mutable-reference
+  parameter; the result composes that argument's exact origin with exact member
+  suffixes or absorbing collection-coarse indexing through later calls and
+  reborrows. Signature lifetime elision alone does not establish this relation;
   primitive scalar and recursively primitive fixed-array local origins are
   caller-isolated and publish no write. Continue with other representable
   relational candidates;

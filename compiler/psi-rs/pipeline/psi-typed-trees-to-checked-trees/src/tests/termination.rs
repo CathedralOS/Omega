@@ -2741,6 +2741,15 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         &mut cells[0].value
     }
 
+    machine project_value(cell: &mut Cell) -> &mut u64 {
+        &mut cell.value
+    }
+
+    machine write_then_return(value: &mut u64) -> &mut u64 {
+        value = 4;
+        value
+    }
+
     machine Main::call_rebound_alias(&mut self) {
         let alias: &mut u64 = &mut self.value;
         overwrite_alias_binding(&mut alias);
@@ -2782,6 +2791,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::projected_call_result_alias(&mut self) {
         let alias: &mut u64 = project_cell_value(&mut self.cell_items);
+        alias = 3;
+    }
+
+    machine Main::exact_projected_call_result_alias(&mut self) {
+        let alias: &mut u64 = project_value(&mut self.cell);
+        alias = 3;
+    }
+
+    machine Main::nontrivial_call_result_alias(&mut self) {
+        let alias: &mut u64 = write_then_return(&mut self.value);
         alias = 3;
     }
 
@@ -2885,6 +2904,8 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::call_produced_member_after_index_alias",
             "self.cell_items",
         ),
+        ("Main::projected_call_result_alias", "self.cell_items"),
+        ("Main::exact_projected_call_result_alias", "self.cell.value"),
     ] {
         let machine = typed
             .machines()
@@ -2913,7 +2934,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",
-        "Main::projected_call_result_alias",
+        "Main::nontrivial_call_result_alias",
         "Main::computed_local_collection_origin",
         "Main::named_alias_cycle",
         "Main::named_indexed_alias_cycle",

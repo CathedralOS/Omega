@@ -330,11 +330,12 @@ publishes `self.cells`; the member after the index cannot narrow the collection.
 That coarsening remains absorbing through later alias projections, member
 writes, calls, and transitions. A call result inherits its argument's exact or
 collection-coarse origin only when a free helper's entire body is one terminal
-expression directly forwarding one mutable-reference parameter. That relation
-composes through later transparent calls and reborrows; lifetime elision by
-itself is insufficient. Potential rebinding, local or computed collection
-origins, projected or nontrivial call results, and transport through a named
-state SCC remain opaque, except that primitive scalar and recursively primitive
+place rooted in one mutable-reference parameter. Exact member suffixes compose;
+an indexed result coarsens at its nearest collection and stays absorbing through
+later transparent calls and reborrows. Lifetime elision by itself is
+insufficient. Potential rebinding, local or computed collection origins,
+computed or nontrivial call results, and transport through a named state SCC
+remain opaque, except that primitive scalar and recursively primitive
 fixed-array locals are caller-isolated: writes through their exact or
 collection-coarse aliases disappear from the caller-visible frame. Named,
 reference-bearing, generic, and call-produced local roots do not receive that
