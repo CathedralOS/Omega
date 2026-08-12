@@ -1715,15 +1715,16 @@ fn stable_alias_place_origin(
 /// Recover one deliberately structural value-call relation. The helper may be
 /// free or attached, but must be acyclic at the result surface, return `&mut`,
 /// and have one terminal result expression rooted in one mutable-reference
-/// parameter. A prefix of immutable mutable-reference locals may forward direct
-/// places from that parameter, an earlier such local, or another structurally
-/// transparent helper. Call-free value-shaped assignments may write through
-/// those places without changing their origins; the ordinary frame summary
-/// still publishes those writes. Explicit arguments and an attached helper's
-/// actual receiver both supply exact caller origins. This is body evidence, not
-/// lifetime elision: a reference-shaped assignment, nested/statement call,
-/// recursive helper relation, named-state route, or alternate result fails
-/// closed.
+/// parameter. A prefix may contain caller-isolated scratch locals and immutable
+/// mutable-reference locals that forward direct places from that parameter, an
+/// earlier such local, or another structurally transparent helper. Effect-free
+/// value-shaped assignments may write through those places or scratch locals
+/// without changing their origins; the ordinary frame summary still publishes
+/// caller-visible writes. Explicit arguments and an attached helper's actual
+/// receiver both supply exact caller origins. This is body evidence, not
+/// lifetime elision: a reference-bearing scratch local, reference-shaped
+/// assignment, nested/statement call, recursive helper relation, named-state
+/// route, or alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1831,19 +1832,26 @@ fn transparent_callee_result_origin(
         for statement in prefix {
             match statement {
                 StatementNode::LocalData(local) => {
-                    if local.is_mutable
-                        || !matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(local.type_reference),
-                            TypeReferenceNode::Reference {
-                                is_mutable: true,
-                                ..
-                            }
-                        )
-                    {
+                    if type_is_caller_isolated_local(program, local.type_reference) {
+                        if expression_is_effectful_for_transparent_result(
+                            program,
+                            local.initial_value,
+                        ) {
+                            return None;
+                        }
+                        continue;
+                    }
+                    if local.is_mutable {
                         return None;
                     }
+                    let TypeReferenceNode::Reference {
+                        is_mutable: true, ..
+                    } = program
+                        .type_reference_table
+                        .type_reference(local.type_reference)
+                    else {
+                        return None;
+                    };
                     let origin = parameter_relative_place_origin(
                         program,
                         local.initial_value,
@@ -1855,14 +1863,18 @@ fn transparent_callee_result_origin(
                     local_aliases.push((local.name.as_str().to_owned(), local.symbol, origin));
                 }
                 StatementNode::Assignment(assignment)
-                    if !expression_contains_call(program, assignment.target)
-                        && !expression_contains_call(program, assignment.value)
-                        && !expression_may_rebind_mutable_alias(
-                            program,
-                            callee_machine,
-                            callee_state,
-                            assignment.value,
-                        ) => {}
+                    if !expression_is_effectful_for_transparent_result(
+                        program,
+                        assignment.target,
+                    ) && !expression_is_effectful_for_transparent_result(
+                        program,
+                        assignment.value,
+                    ) && !expression_may_rebind_mutable_alias(
+                        program,
+                        callee_machine,
+                        callee_state,
+                        assignment.value,
+                    ) => {}
                 _ => return None,
             }
         }
@@ -2044,42 +2056,49 @@ fn parameter_relative_call_result_origin(
     })
 }
 
-fn expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn expression_is_effectful_for_transparent_result(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
     if !expression.is_valid() {
         return false;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            expression_contains_call(program, atomic.value)
-                || expression_contains_call(program, atomic.result)
-        }
-        ExpressionNode::Call(_) => true,
+        ExpressionNode::Atomic(_) | ExpressionNode::Call(_) => true,
         ExpressionNode::Binary(binary) => {
-            expression_contains_call(program, binary.left)
-                || expression_contains_call(program, binary.right)
+            expression_is_effectful_for_transparent_result(program, binary.left)
+                || expression_is_effectful_for_transparent_result(program, binary.right)
         }
-        ExpressionNode::Cast(cast) => expression_contains_call(program, cast.value),
+        ExpressionNode::Cast(cast) => {
+            expression_is_effectful_for_transparent_result(program, cast.value)
+        }
         ExpressionNode::Indexed(indexed) => {
-            expression_contains_call(program, indexed.collection)
-                || expression_contains_call(program, indexed.index)
+            expression_is_effectful_for_transparent_result(program, indexed.collection)
+                || expression_is_effectful_for_transparent_result(program, indexed.index)
         }
-        ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
-        ExpressionNode::Mutable(inner) => expression_contains_call(program, *inner),
-        ExpressionNode::Unary(unary) => expression_contains_call(program, unary.operand),
+        ExpressionNode::Member(member) => {
+            expression_is_effectful_for_transparent_result(program, member.receiver)
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_is_effectful_for_transparent_result(program, *inner)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_is_effectful_for_transparent_result(program, unary.operand)
+        }
         ExpressionNode::ArrayLiteral(elements) => program
             .expression_table
             .expression_handles(*elements)
             .iter()
-            .any(|element| expression_contains_call(program, *element)),
+            .any(|element| expression_is_effectful_for_transparent_result(program, *element)),
         ExpressionNode::Range(range) => {
-            expression_contains_call(program, range.start)
-                || expression_contains_call(program, range.end)
+            expression_is_effectful_for_transparent_result(program, range.start)
+                || expression_is_effectful_for_transparent_result(program, range.end)
         }
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .any(|field| expression_contains_call(program, field.value)),
+            .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)

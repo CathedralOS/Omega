@@ -153,8 +153,9 @@ Current ownership is:
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call
   result and later transparent chains. The terminal place may follow a prefix
-  of direct immutable local `&mut` aliases, including results of other
-  structurally transparent helpers. Call-free value-shaped assignments may
+  of effect-free caller-isolated scratch locals and direct immutable local `&mut`
+  aliases, including results of other structurally transparent helpers.
+  Effect-free value-shaped assignments may
   write through those origins without changing the relation; their ordinary
   exact frames remain published. Reference-shaped assignments,
   nested/statement calls, computed initializers, and recursive helper relations
