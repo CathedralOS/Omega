@@ -1308,6 +1308,7 @@ dependencies = [
 name = "psi-build-time-evaluation"
 version = "0.1.0"
 dependencies = [
+ "psi-arena",
  "psi-checked-interpreter",
  "psi-diagnostics",
  "psi-effects",

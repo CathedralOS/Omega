@@ -18,7 +18,7 @@ use psi_typed_trees::expression::{
 };
 use psi_typed_trees::types::PrimitiveType;
 
-use psi_build_time_evaluation::BuildTimeAdmissionPlan;
+use crate::BuildTimeAdmissionPlan;
 
 struct PendingMembership {
     fact: Handle<ProofFact>,
@@ -29,7 +29,7 @@ struct PendingMembership {
 
 /// Evaluate direct `machine(self)` facts for literal memberships copied
 /// into synthesized const-generic data definitions.
-pub(super) fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut pending = Vec::new();
     for data in typed.data_definitions() {
         // The unspecialized template has no angle-bracket spelling and must
