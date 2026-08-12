@@ -266,7 +266,7 @@ pub enum CheckedUnitEffectOperationPlan {
         target_contract_fingerprint: u64,
         service_reach: ServiceReachSummary,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        claim_settlements: Vec<CheckedUnitClaimTransferPlan>,
+        completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
     },
     PortWrite {
         coordinate: CheckedUnitCallCoordinate,

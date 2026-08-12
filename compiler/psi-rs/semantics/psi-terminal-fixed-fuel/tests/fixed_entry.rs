@@ -524,7 +524,7 @@ fn unit_effect_fixture() -> TerminalModule {
                         kind: OperationKind::BoundaryCallUnit {
                             boundary: boundary_id(1),
                             structural_arguments: Vec::new(),
-                            claim_settlements: Vec::new(),
+                            completion_receipts: Vec::new(),
                             requirement_obligations: Vec::new(),
                         },
                     }],

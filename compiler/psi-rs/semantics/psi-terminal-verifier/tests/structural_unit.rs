@@ -6,7 +6,7 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, MachineContract, Operation, OperationKind, OperationResult,
     ServiceDeclaration, StructuralArgument, StructuralDomainDeclaration,
@@ -234,7 +234,7 @@ fn unit_call_transfers_complete_canonical_sibling_claim_set() {
         claim: claim_id(2),
         argument_index: 0,
     });
-    boundary_call_mut(&mut module).0.push(ClaimSettlement {
+    boundary_call_mut(&mut module).0.push(CompletionReceipt {
         claim: claim_id(2),
         argument_index: 0,
     });
@@ -302,7 +302,7 @@ fn structural_calls_preserve_optional_affine_claim_custody() {
     boundary_call_mut(&mut settled_at_boundary).0.clear();
     assert_eq!(
         validate_module(&settled_at_boundary).unwrap_err(),
-        ModuleError::BoundaryClaimSettlementMismatch(operation_id(3))
+        ModuleError::BoundaryCompletionReceiptMismatch(operation_id(3))
     );
 }
 
@@ -387,7 +387,7 @@ fn content_only_affine_claims_require_explicit_transfer_and_settlement() {
     boundary_call_mut(&mut unsettled).0.clear();
     assert_eq!(
         validate_module(&unsettled).unwrap_err(),
-        ModuleError::BoundaryClaimSettlementMismatch(operation_id(3))
+        ModuleError::BoundaryCompletionReceiptMismatch(operation_id(3))
     );
 
     for machine in &mut module.machines {
@@ -402,7 +402,7 @@ fn content_only_affine_claims_require_explicit_transfer_and_settlement() {
         claim: claim_id(2),
         argument_index: 0,
     });
-    boundary_call_mut(&mut module).0.push(ClaimSettlement {
+    boundary_call_mut(&mut module).0.push(CompletionReceipt {
         claim: claim_id(2),
         argument_index: 0,
     });
@@ -420,7 +420,7 @@ fn content_only_affine_claims_require_explicit_transfer_and_settlement() {
     boundary_call_mut(&mut reordered_settlements).0.swap(0, 1);
     assert_eq!(
         validate_module(&reordered_settlements).unwrap_err(),
-        ModuleError::NonCanonicalBoundaryClaimSettlements(operation_id(3))
+        ModuleError::NonCanonicalBoundaryCompletionReceipts(operation_id(3))
     );
 }
 
@@ -541,7 +541,7 @@ fn boundary_call_checks_qualification_settlement_and_obligation_absence() {
     boundary_call_mut(&mut missing_settlement).0.clear();
     assert_eq!(
         validate_module(&missing_settlement).unwrap_err(),
-        ModuleError::BoundaryClaimSettlementMismatch(operation_id(3))
+        ModuleError::BoundaryCompletionReceiptMismatch(operation_id(3))
     );
 
     let mut minted_obligation = hard_root_module();
@@ -563,7 +563,7 @@ fn claims_are_linear_across_unit_operations_and_return() {
         kind: OperationKind::BoundaryCallUnit {
             boundary: boundary_id(1),
             structural_arguments: vec![StructuralArgument { place: place_id(1) }],
-            claim_settlements: vec![ClaimSettlement {
+            completion_receipts: vec![CompletionReceipt {
                 claim: claim_id(1),
                 argument_index: 0,
             }],
@@ -918,7 +918,7 @@ fn affine_structural_arguments_transfer_at_most_once() {
         kind: OperationKind::BoundaryCallUnit {
             boundary: boundary_id(1),
             structural_arguments: vec![StructuralArgument { place: place_id(1) }],
-            claim_settlements: Vec::new(),
+            completion_receipts: Vec::new(),
             requirement_obligations: Vec::new(),
         },
     };
@@ -1179,7 +1179,7 @@ fn hard_root_module() -> TerminalModule {
                     kind: OperationKind::BoundaryCallUnit {
                         boundary: boundary.id,
                         structural_arguments: vec![StructuralArgument { place: place_id(2) }],
-                        claim_settlements: vec![ClaimSettlement {
+                        completion_receipts: vec![CompletionReceipt {
                             claim: claim_id(1),
                             argument_index: 0,
                         }],
@@ -1294,16 +1294,16 @@ fn unit_call_mut(module: &mut TerminalModule) -> &mut Vec<ClaimTransfer> {
 
 fn boundary_call_mut(
     module: &mut TerminalModule,
-) -> (&mut Vec<ClaimSettlement>, &mut Vec<ObligationId>) {
+) -> (&mut Vec<CompletionReceipt>, &mut Vec<ObligationId>) {
     let OperationKind::BoundaryCallUnit {
-        claim_settlements,
+        completion_receipts,
         requirement_obligations,
         ..
     } = &mut module.machines[1].blocks[0].operations[1].kind
     else {
         unreachable!()
     };
-    (claim_settlements, requirement_obligations)
+    (completion_receipts, requirement_obligations)
 }
 
 macro_rules! id_fn {

@@ -469,9 +469,13 @@ pub struct ClaimTransfer {
     pub argument_index: u32,
 }
 
-/// Settle one caller-local live claim through the named boundary argument.
+/// Correlate successful completion of one exact bodyless boundary invocation
+/// with one caller-local live claim and structural argument position.
+///
+/// The receipt becomes effective only after the boundary effect succeeds. A
+/// rejected effect consumes no claim, so it cannot acknowledge completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ClaimSettlement {
+pub struct CompletionReceipt {
     pub claim: ClaimId,
     pub argument_index: u32,
 }
@@ -540,12 +544,13 @@ pub enum OperationKind {
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// Invoke one exact bodyless boundary Unit machine. Settlements name the
-    /// live caller claims consumed by exact structural argument position.
+    /// Invoke one exact bodyless boundary Unit machine. Completion receipts
+    /// name every live caller claim consumed by the successful invocation at
+    /// its exact structural argument position.
     BoundaryCallUnit {
         boundary: BoundaryMachineId,
         structural_arguments: Vec<StructuralArgument>,
-        claim_settlements: Vec<ClaimSettlement>,
+        completion_receipts: Vec<CompletionReceipt>,
         requirement_obligations: Vec<ObligationId>,
     },
     /// Immediate x86 port-space byte output. This first closed variant retains

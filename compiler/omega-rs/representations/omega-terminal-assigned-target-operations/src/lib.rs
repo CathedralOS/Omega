@@ -14,7 +14,7 @@ use psi_core::{
     ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimSettlement, ClaimTransfer, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,7 +152,7 @@ pub enum TerminalAssignedUnitOperation {
         provider_execution: TerminalProviderExecutionBinding,
         realization: TerminalMetadataOnlyPortRealization,
         argument_places: Vec<PlaceId>,
-        claim_settlements: Vec<ClaimSettlement>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     Return {
         psi_edge: EdgeId,

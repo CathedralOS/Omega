@@ -7,8 +7,8 @@ use psi_core::{
     StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement,
-    ClaimTransfer, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
+    CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, MachineContract, Operation,
     OperationKind, OperationResult, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
@@ -252,12 +252,13 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
         argument_index: 0,
     });
     let OperationKind::BoundaryCallUnit {
-        claim_settlements, ..
+        completion_receipts,
+        ..
     } = &mut module.machines[1].blocks[0].operations[1].kind
     else {
         unreachable!()
     };
-    claim_settlements.push(ClaimSettlement {
+    completion_receipts.push(CompletionReceipt {
         claim: claim_id(2),
         argument_index: 0,
     });
@@ -1088,7 +1089,7 @@ fn structural_effect_fixture() -> TerminalModule {
                                 structural_arguments: vec![StructuralArgument {
                                     place: callee_place,
                                 }],
-                                claim_settlements: vec![ClaimSettlement {
+                                completion_receipts: vec![CompletionReceipt {
                                     claim: claim_id(1),
                                     argument_index: 0,
                                 }],

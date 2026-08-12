@@ -1317,7 +1317,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 provider_execution: provider_execution.into(),
                 realization,
                 argument_places: Vec::new(),
-                claim_settlements: Vec::new(),
+                completion_receipts: Vec::new(),
                 operation_ordinal: 1,
                 code_offset: 27,
             }],

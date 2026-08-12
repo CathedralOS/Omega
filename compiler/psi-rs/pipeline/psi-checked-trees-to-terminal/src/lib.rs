@@ -45,7 +45,7 @@ use psi_proof_kernel::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimSettlement, ClaimTransfer,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
     MachineContract, Operation, OperationKind, PropositionApplicationIdentity,
@@ -1837,7 +1837,7 @@ fn lower_attached_unit_closure(
                 CheckedUnitEffectOperationPlan::BoundaryCallUnit {
                     target_machine,
                     structural_arguments,
-                    claim_settlements,
+                    completion_receipts,
                     ..
                 } => {
                     let target = unique_unit_boundary(plans, *target_machine)?;
@@ -1861,7 +1861,7 @@ fn lower_attached_unit_closure(
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     validate_transfer_shape(
                         structural_arguments,
-                        claim_settlements,
+                        completion_receipts,
                         parameters,
                         &target.structural_parameters,
                         &type_ids,
@@ -1879,10 +1879,10 @@ fn lower_attached_unit_closure(
                             structural_arguments,
                             parameters,
                         )?,
-                        claim_settlements: claim_settlements
+                        completion_receipts: completion_receipts
                             .iter()
                             .map(|settlement| {
-                                Ok(ClaimSettlement {
+                                Ok(CompletionReceipt {
                                     claim: lookup_claim_id(
                                         claim_bindings,
                                         settlement.claim_identity,
@@ -7555,7 +7555,7 @@ mod tests {
                                     type_identity: "example::Acknowledgement".to_owned(),
                                 },
                             ],
-                            claim_settlements: vec![
+                            completion_receipts: vec![
                                 psi_checked_trees::CheckedUnitClaimTransferPlan {
                                     claim_identity: unit_claim(helper, helper_state),
                                     argument_index: 0,
@@ -7648,7 +7648,7 @@ mod tests {
         let OperationKind::BoundaryCallUnit {
             boundary,
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             requirement_obligations,
         } = &settlement.kind
         else {
@@ -7656,7 +7656,7 @@ mod tests {
         };
         assert_eq!(*boundary, boundary_machine_id(1));
         assert_eq!(structural_arguments[0].place, place_id(3));
-        assert_eq!(claim_settlements[0].claim, claim_id(1));
+        assert_eq!(completion_receipts[0].claim, claim_id(1));
         assert!(requirement_obligations.is_empty());
         assert!(matches!(
             module.machines[0].blocks[0].terminator,
@@ -7835,12 +7835,13 @@ mod tests {
         let helper = plans.machines[1].machine;
         let helper_state = plans.machines[1].state;
         let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
-            claim_settlements, ..
+            completion_receipts,
+            ..
         } = &mut plans.machines[1].operations[1]
         else {
             unreachable!()
         };
-        claim_settlements.push(psi_checked_trees::CheckedUnitClaimTransferPlan {
+        completion_receipts.push(psi_checked_trees::CheckedUnitClaimTransferPlan {
             claim_identity: unit_claim_at(helper, helper_state, 1),
             argument_index: 0,
         });

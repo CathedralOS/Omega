@@ -509,6 +509,14 @@ unless its contract returns an exact separated subclaim; cancellation requests
 release nothing until a terminal acknowledgement. Reused tokens require
 generations wherever stale foreign copies can survive.
 
+Terminal Psi retains that correlation on successful bodyless boundary calls as
+an exact completion-receipt row `(operation, boundary, argument position,
+claim)`. Verification reconstructs the complete live-claim set for every
+consumed argument and rejects missing, extra, duplicate, reordered, or
+cross-argument receipts. Interpretation and native realization bind the same
+rows to the admitted provider execution. A rejected provider effect records no
+receipt and consumes no custody.
+
 The compiler canaries pin both halves of this ownership split. A synchronous
 fixed-array pointer import releases its ordinary source loan before the next
 owner mutation. Retained custody cannot originate from a borrow; the accepted

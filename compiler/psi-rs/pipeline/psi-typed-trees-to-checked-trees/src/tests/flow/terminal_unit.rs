@@ -216,17 +216,17 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
             coordinate,
             target_machine,
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             ..
         } => {
             assert_eq!(coordinate.statement_index, 1);
             assert_eq!(coordinate.call_ordinal, 0);
             assert_eq!(*target_machine, settle_symbol);
             assert_eq!(structural_arguments.len(), 1);
-            assert_eq!(claim_settlements.len(), 1);
-            assert_eq!(claim_settlements[0].argument_index, 0);
+            assert_eq!(completion_receipts.len(), 1);
+            assert_eq!(completion_receipts[0].argument_index, 0);
             assert_eq!(
-                claim_settlements[0].claim_identity,
+                completion_receipts[0].claim_identity,
                 helper.entry_claims[0].claim_identity
             );
         }
@@ -293,12 +293,13 @@ fn retains_numbered_record_field_custody_for_unit_call_closure() {
     };
     assert_eq!(claim_transfers.len(), 1);
     let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
-        claim_settlements, ..
+        completion_receipts,
+        ..
     } = &helper.operations[0]
     else {
         panic!("helper should settle aggregate custody at the boundary")
     };
-    assert_eq!(claim_settlements.len(), 1);
+    assert_eq!(completion_receipts.len(), 1);
 }
 
 #[test]
@@ -363,14 +364,15 @@ fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
             .all(|transfer| transfer.argument_index == 0)
     );
     let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
-        claim_settlements, ..
+        completion_receipts,
+        ..
     } = &helper.operations[0]
     else {
         panic!("helper should settle both sibling claims at the boundary")
     };
-    assert_eq!(claim_settlements.len(), 2);
+    assert_eq!(completion_receipts.len(), 2);
     assert!(
-        claim_settlements
+        completion_receipts
             .iter()
             .all(|settlement| settlement.argument_index == 0)
     );
@@ -433,12 +435,13 @@ fn retains_nested_record_field_custody_for_unit_call_closure() {
     };
     assert_eq!(claim_transfers.len(), 1);
     let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
-        claim_settlements, ..
+        completion_receipts,
+        ..
     } = &helper.operations[0]
     else {
         panic!("helper should settle nested custody at the boundary")
     };
-    assert_eq!(claim_settlements.len(), 1);
+    assert_eq!(completion_receipts.len(), 1);
 }
 
 #[test]

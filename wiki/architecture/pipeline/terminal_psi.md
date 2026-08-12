@@ -141,10 +141,12 @@ custody as a Boolean property of the containing parameter.
 One affine record argument may therefore carry several disjoint linear sibling
 claims. Source checking retains every sibling, terminal production assigns a
 dense machine-local claim identity to each one, and calls transfer the complete
-canonical set to the callee. Boundary settlement consumes the verifier-derived
-set of live claims attached to each argument, rather than assuming one claim per
-linear boundary parameter. Missing, duplicated, reordered, or path-mismatched
-sibling rows reject before execution.
+canonical set to the callee. A successful bodyless boundary invocation carries
+the verifier-derived completion-receipt set for all live claims attached to each
+exact argument position, rather than assuming one claim per linear parameter.
+Missing, duplicated, reordered, or path-mismatched receipt rows reject before
+execution. The interpreter commits their consumption only after the provider
+effect succeeds; rejection records no receipt and leaves custody live.
 
 A stable record claim path may cross nested relevant record fields. Each
 segment is resolved against the structural type reached by the preceding

@@ -8,7 +8,7 @@ use psi_core::{
     StructuralTypeId, ValueId, content_conservation_fingerprint,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, ContentPartitionComposition,
+    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
     CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, OperationKind,
     PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -1552,7 +1552,7 @@ fn validate_unit_operation_static(
         OperationKind::BoundaryCallUnit {
             boundary,
             structural_arguments,
-            claim_settlements,
+            completion_receipts,
             requirement_obligations,
         } => {
             let boundary = module
@@ -1580,10 +1580,10 @@ fn validate_unit_operation_static(
                 &boundary.published_service_ceiling,
             )?;
             validate_boundary_requirements(machine, boundary, structural_arguments, operation.id)?;
-            validate_boundary_settlements(
+            validate_boundary_completion_receipts(
                 machine,
                 structural_arguments,
-                claim_settlements,
+                completion_receipts,
                 operation.id,
             )?;
         }
@@ -1963,10 +1963,10 @@ fn validate_boundary_requirements(
     Ok(())
 }
 
-fn validate_boundary_settlements(
+fn validate_boundary_completion_receipts(
     caller: &TerminalMachine,
     arguments: &[StructuralArgument],
-    settlements: &[ClaimSettlement],
+    receipts: &[CompletionReceipt],
     operation: OperationId,
 ) -> Result<(), ModuleError> {
     let expected = arguments
@@ -1986,37 +1986,38 @@ fn validate_boundary_settlements(
         .collect::<BTreeSet<_>>();
     let mut actual = BTreeSet::new();
     let mut claims = BTreeSet::new();
-    for settlement in settlements {
-        if !actual.insert((settlement.argument_index, settlement.claim))
-            || !claims.insert(settlement.claim)
+    for receipt in receipts {
+        if !actual.insert((receipt.argument_index, receipt.claim)) || !claims.insert(receipt.claim)
         {
-            return Err(ModuleError::DuplicateBoundaryClaimSettlement(operation));
+            return Err(ModuleError::DuplicateBoundaryCompletionReceipt(operation));
         }
-        let Some(argument) = arguments.get(settlement.argument_index as usize) else {
+        let Some(argument) = arguments.get(receipt.argument_index as usize) else {
             return Err(ModuleError::ClaimActionArgumentOutOfRange {
                 operation,
-                argument_index: settlement.argument_index,
+                argument_index: receipt.argument_index,
             });
         };
-        let Some(claim_input) = claim_input(caller, settlement.claim) else {
+        let Some(claim_input) = claim_input(caller, receipt.claim) else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
-                claim: settlement.claim,
+                claim: receipt.claim,
             });
         };
         if claim_input != argument.place {
             return Err(ModuleError::ClaimActionPlaceMismatch {
                 operation,
-                claim: settlement.claim,
-                argument_index: settlement.argument_index,
+                claim: receipt.claim,
+                argument_index: receipt.argument_index,
             });
         }
     }
     if actual != expected {
-        return Err(ModuleError::BoundaryClaimSettlementMismatch(operation));
+        return Err(ModuleError::BoundaryCompletionReceiptMismatch(operation));
     }
-    if settlements.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(ModuleError::NonCanonicalBoundaryClaimSettlements(operation));
+    if receipts.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(ModuleError::NonCanonicalBoundaryCompletionReceipts(
+            operation,
+        ));
     }
     Ok(())
 }
@@ -2930,8 +2931,9 @@ fn validate_structural_frontier(
                     .map(|transfer| transfer.claim)
                     .collect::<Vec<_>>(),
                 OperationKind::BoundaryCallUnit {
-                    claim_settlements, ..
-                } => claim_settlements
+                    completion_receipts,
+                    ..
+                } => completion_receipts
                     .iter()
                     .map(|settlement| settlement.claim)
                     .collect::<Vec<_>>(),
@@ -4202,9 +4204,9 @@ pub enum ModuleError {
         argument_index: u32,
         domain: StructuralDomainId,
     },
-    DuplicateBoundaryClaimSettlement(OperationId),
-    NonCanonicalBoundaryClaimSettlements(OperationId),
-    BoundaryClaimSettlementMismatch(OperationId),
+    DuplicateBoundaryCompletionReceipt(OperationId),
+    NonCanonicalBoundaryCompletionReceipts(OperationId),
+    BoundaryCompletionReceiptMismatch(OperationId),
     ClaimNotLiveAtOperation {
         operation: OperationId,
         claim: ClaimId,

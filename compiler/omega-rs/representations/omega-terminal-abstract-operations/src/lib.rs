@@ -12,7 +12,7 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ClaimSettlement, ClaimTransfer, CrashCause, EntryClaim,
+    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
     StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration,
     TerminalPsiIdentity,
 };
@@ -96,7 +96,7 @@ pub enum TerminalAbstractOperation {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         structural_arguments: Vec<StructuralArgument>,
-        claim_settlements: Vec<ClaimSettlement>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     PortWrite {
         psi_operation: OperationId,
