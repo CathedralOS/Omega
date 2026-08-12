@@ -1714,11 +1714,12 @@ fn stable_alias_place_origin(
 
 /// Recover one deliberately structural value-call relation. The helper may be
 /// free or attached, but must be acyclic at the result surface, return `&mut`,
-/// and have one terminal result expression that is a direct place rooted in one
-/// mutable-reference parameter. Explicit arguments and an attached helper's
-/// actual receiver both supply exact caller origins. This is body evidence, not
-/// lifetime elision: a computed result, nested call, named-state route, or
-/// alternate result fails closed.
+/// and have one terminal result expression rooted in one mutable-reference
+/// parameter. A prefix of immutable mutable-reference locals may forward direct
+/// places from that parameter or an earlier such local. Explicit arguments and
+/// an attached helper's actual receiver both supply exact caller origins. This
+/// is body evidence, not lifetime elision: an assignment, computed initializer,
+/// nested call, named-state route, or alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1747,27 +1748,47 @@ fn transparent_call_result_origin(
         return None;
     }
 
-    let [StatementNode::Expression(result)] = program
+    let statements = program
         .statement_table
-        .statements(callee_state.statement_nodes)
-    else {
+        .statements(callee_state.statement_nodes);
+    let (StatementNode::Expression(result), prefix) = statements.split_last()? else {
         return None;
     };
 
-    let result_origin = frame_place_path(program, *result)?;
-    let result_root_symbol = frame_place_root_symbol(program, *result)?;
-    let (result_root, result_suffix) = split_place_root(&result_origin.path);
     let parameters = program.state_parameters(callee_state);
-    let receiver_parameter = parameters.iter().find(|parameter| {
-        parameter.is_self
-            && mutable_reference_parameter_matches_result_root(
-                program,
-                parameter,
-                result_root,
-                result_root_symbol,
+    let mut local_aliases = Vec::new();
+    for statement in prefix {
+        let StatementNode::LocalData(local) = statement else {
+            return None;
+        };
+        if local.is_mutable
+            || !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(local.type_reference),
+                TypeReferenceNode::Reference {
+                    is_mutable: true,
+                    ..
+                }
             )
-    });
-    let argument_origin = if receiver_parameter.is_some() {
+        {
+            return None;
+        }
+        let origin = parameter_relative_place_origin(
+            program,
+            local.initial_value,
+            parameters,
+            &local_aliases,
+        )?;
+        local_aliases.push((local.name.as_str().to_owned(), local.symbol, origin));
+    }
+    let result_origin =
+        parameter_relative_place_origin(program, *result, parameters, &local_aliases)?;
+    let result_parameter = parameters
+        .iter()
+        .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
+    let (_, result_suffix) = split_place_root(&result_origin.place.path);
+    let argument_origin = if result_parameter.is_self {
         if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
             return None;
         }
@@ -1785,14 +1806,7 @@ fn transparent_call_result_origin(
             .iter()
             .filter(|parameter| !parameter.is_self)
             .enumerate()
-            .find(|(_, parameter)| {
-                mutable_reference_parameter_matches_result_root(
-                    program,
-                    parameter,
-                    result_root,
-                    result_root_symbol,
-                )
-            })?;
+            .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
         let argument = *program
             .expression_table
             .expression_handles(call.arguments)
@@ -1810,28 +1824,83 @@ fn transparent_call_result_origin(
     Some(match argument_origin.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&argument_origin.path, result_suffix),
-            precision: result_origin.precision,
+            precision: result_origin.place.precision,
         },
         FramePathPrecision::CollectionCoarse => argument_origin,
     })
 }
 
-fn mutable_reference_parameter_matches_result_root(
+#[derive(Debug, Clone)]
+struct ParameterRelativeFrameOrigin {
+    place: FramePlaceOrigin,
+    parameter_symbol: SymbolHandle,
+}
+
+fn parameter_relative_place_origin(
     program: &TypedTrees,
-    parameter: &StateParameter,
-    result_root: &str,
-    result_root_symbol: SymbolHandle,
-) -> bool {
-    matches!(
-        program
-            .type_reference_table
-            .type_reference(parameter.type_reference),
-        TypeReferenceNode::Reference {
-            is_mutable: true,
-            ..
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> Option<ParameterRelativeFrameOrigin> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            parameter_relative_place_origin(program, *inner, parameters, aliases)
         }
-    ) && parameter.name.as_str() == result_root
-        && (parameter.symbol == result_root_symbol || (parameter.is_self && result_root == "self"))
+        ExpressionNode::Indexed(indexed) => {
+            let mut origin =
+                parameter_relative_place_origin(program, indexed.collection, parameters, aliases)?;
+            origin.place.precision = FramePathPrecision::CollectionCoarse;
+            Some(origin)
+        }
+        ExpressionNode::Member(member) => {
+            let mut origin =
+                parameter_relative_place_origin(program, member.receiver, parameters, aliases)?;
+            if origin.place.precision == FramePathPrecision::Exact {
+                origin.place.path = format!("{}.{}", origin.place.path, member.member.as_str());
+            }
+            Some(origin)
+        }
+        ExpressionNode::Name(_) => {
+            let place = frame_place_path(program, expression)?;
+            let root_symbol = frame_place_root_symbol(program, expression);
+            let (root, suffix) = split_place_root(&place.path);
+            if let Some(parameter) = parameters.iter().find(|parameter| {
+                (root_symbol == Some(parameter.symbol) || (parameter.is_self && root == "self"))
+                    && matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        TypeReferenceNode::Reference {
+                            is_mutable: true,
+                            ..
+                        }
+                    )
+            }) {
+                return Some(ParameterRelativeFrameOrigin {
+                    place,
+                    parameter_symbol: parameter.symbol,
+                });
+            }
+            let parent = aliases.iter().find_map(|(name, symbol, origin)| {
+                let exact_symbol = root_symbol
+                    .is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol);
+                let unresolved_name =
+                    root_symbol.is_none_or(|root| !root.is_valid()) && name == root;
+                (exact_symbol || unresolved_name).then_some(origin)
+            })?;
+            Some(ParameterRelativeFrameOrigin {
+                place: match parent.place.precision {
+                    FramePathPrecision::Exact => FramePlaceOrigin {
+                        path: append_place_suffix(&parent.place.path, suffix),
+                        precision: place.precision,
+                    },
+                    FramePathPrecision::CollectionCoarse => parent.place.clone(),
+                },
+                parameter_symbol: parent.parameter_symbol,
+            })
+        }
+        _ => None,
+    }
 }
 
 fn frame_place_root_symbol(
