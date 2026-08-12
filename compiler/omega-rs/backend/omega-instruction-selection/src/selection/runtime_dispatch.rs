@@ -4307,6 +4307,14 @@ fn expression_contains_runtime_float_builtin(
                 input, call,
             )
             .is_some()
+                || crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_binary_float_call_operator_in_table(
+                    input, call,
+                )
+                .is_some()
+                || crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_ternary_float_call_operator_in_table(
+                    input, call,
+                )
+                .is_some()
                 || (call.receiver.is_valid()
                     && expression_contains_runtime_float_builtin(
                         input,
