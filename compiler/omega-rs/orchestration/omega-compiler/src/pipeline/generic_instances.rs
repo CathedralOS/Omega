@@ -39,6 +39,7 @@ use psi_syntax_trees::types::{
 use std::collections::{HashMap, HashSet};
 
 struct GenericData {
+    name: String,
     lifetime_parameters: Vec<Identifier>,
     parameter_names: Vec<String>,
     const_parameter_types: Vec<Option<TypeReferenceHandle>>,
@@ -202,6 +203,7 @@ pub(crate) fn desugar_generic_data_instances(
         generic_data.insert(
             definition.name.as_str().to_string(),
             GenericData {
+                name: definition.name.as_str().to_owned(),
                 lifetime_parameters: definition.lifetime_parameters.clone(),
                 parameter_names,
                 const_parameter_types,
@@ -3021,6 +3023,13 @@ fn base_is_fully_monomorphizable(
     generic_data: &HashMap<String, GenericData>,
     base_info: &GenericData,
 ) -> bool {
+    // Recursive inline data is proof-only. Keep its generic identity intact so
+    // the structural entailment tier continues to see the authored generic
+    // constructors and recursive applications; closed-instance synthesis is
+    // an executable-layout transform, not a proof-data transform.
+    if generic_data_is_recursive(syntax, generic_data, &base_info.name) {
+        return false;
+    }
     let parameters: HashMap<String, TypeReferenceHandle> = base_info
         .parameter_names
         .iter()
@@ -3055,6 +3064,86 @@ fn base_is_fully_monomorphizable(
             DataMember::Retired(_) => true,
             _ => false,
         })
+}
+
+fn generic_data_is_recursive(
+    syntax: &SyntaxTrees,
+    generic_data: &HashMap<String, GenericData>,
+    base: &str,
+) -> bool {
+    fn reaches(
+        syntax: &SyntaxTrees,
+        generic_data: &HashMap<String, GenericData>,
+        current: &str,
+        goal: &str,
+        visited: &mut HashSet<String>,
+    ) -> bool {
+        if !visited.insert(current.to_owned()) {
+            return false;
+        }
+        let Some(definition) = generic_data.get(current) else {
+            return false;
+        };
+        generic_inline_data_edges(syntax, definition)
+            .into_iter()
+            .any(|next| next == goal || reaches(syntax, generic_data, &next, goal, visited))
+    }
+
+    reaches(syntax, generic_data, base, base, &mut HashSet::new())
+}
+
+fn generic_inline_data_edges(syntax: &SyntaxTrees, definition: &GenericData) -> HashSet<String> {
+    fn collect(
+        syntax: &SyntaxTrees,
+        type_reference: TypeReferenceHandle,
+        edges: &mut HashSet<String>,
+    ) {
+        match syntax.tables.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Named(name) => {
+                edges.insert(name.as_str().to_owned());
+            }
+            TypeReferenceNode::Generic {
+                base_name,
+                arguments,
+                ..
+            } => {
+                edges.insert(base_name.as_str().to_owned());
+                for argument in syntax
+                    .tables
+                    .type_references
+                    .type_reference_handles(*arguments)
+                {
+                    collect(syntax, *argument, edges);
+                }
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => collect(syntax, *base_type, edges),
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                collect(syntax, *element_type, edges)
+            }
+            // References and slices are indirection and therefore break the
+            // inline-containment cycle, matching proof-only classification.
+            TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::SelfType
+            | TypeReferenceNode::Unit => {}
+        }
+    }
+
+    let mut edges = HashSet::new();
+    for member in syntax.tables.items.data_members(definition.members) {
+        match member {
+            DataMember::Field(field) => collect(syntax, field.type_reference, &mut edges),
+            DataMember::Variant(variant) => {
+                for field in syntax.tables.items.data_payload_fields(variant.payload) {
+                    collect(syntax, field.type_reference, &mut edges);
+                }
+            }
+            DataMember::Retired(_) => {}
+        }
+    }
+    edges
 }
 
 fn generic_data_shape(syntax: &SyntaxTrees, base_info: &GenericData) -> Option<GenericDataShape> {
@@ -4001,6 +4090,43 @@ mod tests {
             "#,
         )
         .expect("closing one runtime instance must not specialize the generic zero-home lemma");
+    }
+
+    #[test]
+    fn recursive_generic_sum_stays_in_structural_proof_form() {
+        checked(
+            r#"
+            data Seq<T> {
+                case Empty;
+                case Cons(head: T, tail: Seq<T>);
+            }
+            machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
+            terminates by s;
+            {
+                transition s {
+                    Seq::Empty -> (t)
+                    Seq::Cons { head, tail } -> Seq::Cons {
+                        head: head,
+                        tail: append(tail, t)
+                    }
+                }
+            }
+            machine append_empty_right(s: Seq<u64>) -> Seq<u64>
+            terminates by s;
+            ensures
+                append(s, Seq::Empty) == s
+            {
+                transition s {
+                    Seq::Empty -> Seq::Empty
+                    Seq::Cons { head, tail } -> Seq::Cons {
+                        head: head,
+                        tail: append_empty_right(tail)
+                    }
+                }
+            }
+            "#,
+        )
+        .expect("recursive generic proof data must retain its structural entailment form");
     }
 
     #[test]
