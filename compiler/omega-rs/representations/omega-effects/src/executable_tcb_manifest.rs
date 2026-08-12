@@ -1,4 +1,4 @@
-use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use crate::provider_plan::{ProviderBinding, ProviderPlan};
 
 /// Why an executable entry belongs to the manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -496,7 +496,7 @@ pub(crate) fn validate_opaque_executable_admission(
         .iter()
         .filter(|row| {
             row.method == candidate.method
-                && row_requirement_identity(plan, row) == candidate.requirement_identity
+                && row.requirement_identity == candidate.requirement_identity
         })
         .collect::<Vec<_>>();
     let [row] = matching_rows.as_slice() else {
@@ -613,7 +613,7 @@ pub(crate) fn derive_static_manifest(
                 | ProviderBinding::TableFunction { .. } => {
                     let binding = opaque_binding(&row.binding)
                         .expect("opaque binding match arms have an opaque binding");
-                    let requirement_identity = row_requirement_identity(plan, row);
+                    let requirement_identity = row.requirement_identity.clone();
                     let admission = admissions.iter().find(|admission| {
                         let admission = admission.candidate();
                         admission.provider_plan_identity == provider_plan_identity
@@ -697,19 +697,6 @@ fn provider_identity(plan: &ProviderPlan) -> ProviderIdentity {
     }
 }
 
-fn row_requirement_identity(plan: &ProviderPlan, row: &ProviderPlanRow) -> String {
-    if row.requirement_identity.is_empty() {
-        plan.schema
-            .methods
-            .iter()
-            .find(|method| method.name == row.method)
-            .map(|method| method.requirement_identity.clone())
-            .unwrap_or_default()
-    } else {
-        row.requirement_identity.clone()
-    }
-}
-
 fn opaque_binding(binding: &ProviderBinding) -> Option<OpaqueInProcessBinding> {
     match binding {
         ProviderBinding::Import { library, symbol } => Some(OpaqueInProcessBinding::Import {
@@ -742,7 +729,7 @@ fn incomplete_cause(
     row: &crate::provider_plan::ProviderPlanRow,
     binding: OpaqueInProcessBinding,
 ) -> IncompleteCause {
-    let requirement_identity = row_requirement_identity(plan, row);
+    let requirement_identity = row.requirement_identity.clone();
     IncompleteCause::SelectedOpaqueProvider {
         provider_identity: provider_identity(plan),
         provider_plan_identity: plan.identity_fingerprint(),
