@@ -7,11 +7,11 @@
 // dir ops. (These canaries signal success via "PASS: …" on stdout and exit with the
 // final write's byte count, so the assertion is on stdout, not the exit code.)
 #![cfg(target_os = "macos")]
-use omega_compiler::{CompileOptions, compile_with_test_entry};
+use omega_compiler::{CompileOptions, compile as compile_program, compile_with_test_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn compile(
+fn compile_legacy_test_entry(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
     compile_with_test_entry(options, "Main::main")
@@ -26,17 +26,25 @@ fn repo_root() -> PathBuf {
 }
 
 fn compile_run(canary: &str) -> (Option<i32>, String) {
-    let main_path = repo_root()
+    let source_dir = repo_root()
         .join("canaries/pass/filesystem")
-        .join(canary)
-        .join("main.omg");
+        .join(canary);
     let build_dir =
         std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
+    let project_dir = build_dir.join("source");
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
+    std::fs::create_dir_all(&project_dir).expect("create isolated filesystem canary project");
+    std::fs::copy(source_dir.join("main.omg"), project_dir.join("main.omg"))
+        .expect("stage filesystem canary source");
+    std::fs::write(
+        project_dir.join("build.omg"),
+        "target macos_arm64 {\n}\n\nmachine build(b: &mut Build) {\n    b.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
+    )
+    .expect("write exact macOS ProgramEntry binding");
+    compile_program(CompileOptions {
+        root_path: project_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("macos_arm64".to_owned()),
         write_output: true,
     })
     .unwrap_or_else(|d| {
@@ -213,7 +221,7 @@ machine Main::main(&mut self) {{
     std::fs::write(&main_path, source).expect("write multifill probe");
 
     let build_dir = base.join("build");
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -487,7 +495,7 @@ fn sample_file_journal_exits_7() {
     let main_path = repo_root().join("samples/cli/systems/file_journal/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-journal-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -519,7 +527,7 @@ fn sample_note_vault_exits_14() {
     let main_path = repo_root().join("samples/cli/systems/note_vault/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vault-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -547,7 +555,7 @@ fn native_float_arg_exits_4() {
     let main_path = repo_root().join("canaries/pass/float/native_float_arg/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatarg-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -574,7 +582,7 @@ fn native_float_return_exits_4() {
     let main_path = repo_root().join("canaries/pass/float/native_float_return/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatret-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -601,7 +609,7 @@ fn native_float_two_args_exits_5() {
     let main_path = repo_root().join("canaries/pass/float/native_float_two_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-float2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -626,7 +634,7 @@ fn returning_foreign_call_restores_canonical_float_control_state() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-control-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path.clone(),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -655,7 +663,7 @@ fn objc_get_class_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/objc_get_class/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcclass-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -680,7 +688,7 @@ fn objc_alloc_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/objc_alloc/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcalloc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -707,7 +715,7 @@ fn objc_msgsend_scalar_exits_8() {
     let main_path = repo_root().join("canaries/pass/objc/objc_msgsend_scalar/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcscalar-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -734,7 +742,7 @@ fn framework_classes_exits_9() {
     let main_path = repo_root().join("canaries/pass/objc/framework_classes/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-fwclasses-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -759,7 +767,7 @@ fn nsstring_length_exits_5() {
     let main_path = repo_root().join("canaries/pass/objc/nsstring_length/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nsstrlen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -786,7 +794,7 @@ fn cgrect_hfa_exits_6() {
     let main_path = repo_root().join("canaries/pass/objc/cgrect_hfa/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-cgrect-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -814,7 +822,7 @@ fn nswindow_init_exits_3() {
     let main_path = repo_root().join("canaries/pass/objc/nswindow_init/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nswin-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -841,7 +849,7 @@ fn cgimage_blit_exits_4() {
     let main_path = repo_root().join("canaries/pass/objc/cgimage_blit/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-blit-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -869,7 +877,7 @@ fn present_frame_exits_5() {
     let main_path = repo_root().join("canaries/pass/objc/present_frame/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-present-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -897,7 +905,7 @@ fn event_pump_exits_6() {
     let main_path = repo_root().join("canaries/pass/objc/event_pump/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-pump-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -937,7 +945,7 @@ fn gui_backend_valuecall_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_backend_valuecall/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vcgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -966,7 +974,7 @@ fn native_gui_loop_exits_4() {
     let main_path = repo_root().join("canaries/pass/objc/native_gui_loop/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guiloop-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1007,7 +1015,7 @@ fn gui_impl_through_field_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_impl_through_field/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-tfgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1035,7 +1043,7 @@ fn gui_window_i32_args_exits_8() {
     let main_path = repo_root().join("canaries/pass/objc/gui_window_i32_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-i32gui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1069,7 +1077,7 @@ fn macos_gui_module_exits_3() {
     let main_path = repo_root().join("canaries/pass/objc/macos_gui_module/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-macgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1111,7 +1119,7 @@ fn clock_sleep_poll_milliseconds_exits_6() {
     let main_path = repo_root().join("canaries/pass/objc/clock_sleep/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-clocksleep-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1145,7 +1153,7 @@ fn gui_provider_substitution_exits_7() {
     let main_path = repo_root().join("canaries/pass/objc/gui_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guisubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1193,7 +1201,7 @@ fn sample_window_demo_runs_natively_exits_0() {
     let main_path = repo_root().join("samples/gui/window_demo/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-window-demo-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1239,7 +1247,7 @@ fn input_provider_substitution_exits_4() {
     let main_path = repo_root().join("canaries/pass/objc/input_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-inputsubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+    compile_legacy_test_entry(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
         .unwrap_or_else(|d| panic!("input_provider_substitution should compile via the injected MacosInput provider:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
         .output()
@@ -1263,7 +1271,7 @@ fn sample_window_app_renders_natively() {
     let main_path = repo_root().join("samples/gui/window_app/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-window-app-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1313,7 +1321,7 @@ fn saturating_divide_native_exits_7() {
     let main_path = repo_root().join("canaries/pass/arithmetic/saturating_divide_native/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-satdiv-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1342,7 +1350,7 @@ fn sample_windowed_calculator_renders_natively() {
     let main_path = repo_root().join("samples/gui/windowed_calculator/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-calc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+    compile_legacy_test_entry(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
         .unwrap_or_else(|d| panic!("the untouched samples/gui/windowed_calculator should compile to a native mach-o:\n{d:#?}"));
     let mut child = Command::new(build_dir.join("omega-program"))
         .stdin(std::process::Stdio::null())
@@ -1385,7 +1393,7 @@ fn sample_image_viewer_renders_natively() {
     let main_path = sample_dir.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-image-viewer-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_legacy_test_entry(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
