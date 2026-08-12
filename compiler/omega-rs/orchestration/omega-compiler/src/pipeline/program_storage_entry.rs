@@ -331,10 +331,144 @@ impl RecordedProgramStorageInstallation {
         self.roots.installation_record()
     }
 
-    pub fn into_roots(self) -> InstalledProgramStorageRoots {
+    /// Release an installation that does not reserve an attached entry
+    /// receiver. Receiver-bound installations must instead pass through
+    /// [`RecordedProgramStorageInstallation::activate_receiver`], so callers
+    /// cannot bypass the bridge's required ZII construction and exclusive
+    /// activation loan.
+    pub fn into_roots(
+        self,
+    ) -> Result<InstalledProgramStorageRoots, ProgramEntryReceiverActivationError> {
+        if self.roots.receiver_storage.is_some() {
+            return Err(ProgramEntryReceiverActivationError {
+                installation: self,
+                diagnostic: ProgramStorageEntryDiagnostic(
+                    "receiver-bound program storage must be zeroed and activated before its roots are released"
+                        .into(),
+                ),
+            });
+        }
+        Ok(self.roots)
+    }
+
+    /// Bind the exact mapped reservation, construct its checked ZII value, and
+    /// lend it for this one source-entry activation.
+    ///
+    /// The backing slice is deliberately supplied by the installed physical
+    /// bridge: an admitted numeric address alone is not a Rust memory mapping
+    /// and cannot be dereferenced by the compiler. Exact base and length checks
+    /// bind that physical mapping to the conserved reservation before any byte
+    /// is written. Consuming `self` makes this the installation's only route to
+    /// an activation; the returned token keeps the exclusive borrow live until
+    /// the source activation finishes.
+    pub fn activate_receiver(
+        self,
+        mapped_base: u64,
+        mapped_storage: &mut [u8],
+    ) -> Result<ProgramEntryReceiverActivation<'_>, ProgramEntryReceiverActivationError> {
+        let Some(placement) = self
+            .roots
+            .receiver_storage
+            .as_ref()
+            .map(|receiver| receiver.placement.clone())
+        else {
+            return Err(ProgramEntryReceiverActivationError {
+                installation: self,
+                diagnostic: ProgramStorageEntryDiagnostic(
+                    "program-storage installation has no entry receiver to activate".into(),
+                ),
+            });
+        };
+        let expected_length = match usize::try_from(placement.length) {
+            Ok(length) => length,
+            Err(_) => {
+                return Err(ProgramEntryReceiverActivationError {
+                    installation: self,
+                    diagnostic: ProgramStorageEntryDiagnostic(
+                        "entry receiver length does not fit the bridge address model".into(),
+                    ),
+                });
+            }
+        };
+        if mapped_base != placement.base || mapped_storage.len() != expected_length {
+            return Err(ProgramEntryReceiverActivationError {
+                installation: self,
+                diagnostic: ProgramStorageEntryDiagnostic(format!(
+                    "entry receiver mapping must exactly cover 0x{:016x}..0x{:016x}, got base 0x{mapped_base:016x} and {} bytes",
+                    placement.base,
+                    placement.end(),
+                    mapped_storage.len()
+                )),
+            });
+        }
+
+        mapped_storage.fill(0);
+        Ok(ProgramEntryReceiverActivation {
+            roots: self.roots,
+            receiver: mapped_storage,
+        })
+    }
+}
+
+/// The one exclusive source-entry activation of a provisioned receiver.
+///
+/// This token is intentionally non-cloneable. Its lifetime holds the physical
+/// bridge's exact mapped bytes exclusively, while its owned roots keep the
+/// reservation and every conserved remainder alive.
+#[derive(Debug)]
+pub struct ProgramEntryReceiverActivation<'a> {
+    roots: InstalledProgramStorageRoots,
+    receiver: &'a mut [u8],
+}
+
+impl ProgramEntryReceiverActivation<'_> {
+    pub const fn placement(&self) -> &ProgramEntryReceiverPlacementRecord {
+        &self
+            .roots
+            .receiver_storage
+            .as_ref()
+            .expect("receiver activation retains its reserved storage")
+            .placement
+    }
+
+    /// The ZII-initialized occurrence lent as the selected machine's one
+    /// `&mut self` activation.
+    pub fn receiver(&mut self) -> &mut [u8] {
+        self.receiver
+    }
+
+    /// End the source activation and return the installed authority with its
+    /// receiver reservation and all remainders still conserved.
+    pub fn finish(self) -> InstalledProgramStorageRoots {
         self.roots
     }
 }
+
+/// Failed receiver activation retains the recorded installation, allowing the
+/// bridge to correct its mapping without replaying root admission.
+#[derive(Debug)]
+pub struct ProgramEntryReceiverActivationError {
+    installation: RecordedProgramStorageInstallation,
+    diagnostic: ProgramStorageEntryDiagnostic,
+}
+
+impl ProgramEntryReceiverActivationError {
+    pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_installation(self) -> RecordedProgramStorageInstallation {
+        self.installation
+    }
+}
+
+impl std::fmt::Display for ProgramEntryReceiverActivationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramEntryReceiverActivationError {}
 
 /// Report-only identity and geometry of one installed program-storage root.
 /// This value carries no grant and cannot recreate an [`Extent`].
