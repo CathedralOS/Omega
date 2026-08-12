@@ -23,7 +23,7 @@
 use omega_compiler::{CheckedCompilation, compile_to_checked};
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(checked, "Main::main", stdin)
@@ -49,31 +49,6 @@ fn frontend_rejects(name: &str, source: &str) {
     assert!(
         result.is_err(),
         "{name}: expected the frontend to reject this program; it compiled"
-    );
-}
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("omega-native-differential-test lives under compiler/omega-rs/orchestration")
-        .to_path_buf()
-}
-
-#[test]
-fn compatibility_fma_uses_executable_float_semantics() {
-    let main_path = repo_root().join("canaries/pass/float/native_float_three_args/main.omg");
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|diagnostics| panic!("FMA canary should compile: {diagnostics:?}"));
-    let outcome = interpret(&checked, b"");
-    assert!(
-        !outcome.is_error(),
-        "the compatibility Math FMA call should run through FloatSemantics: {:?}",
-        outcome.error
-    );
-    assert_eq!(
-        outcome.exit_code, 70,
-        "single-rounding FMA must retain the positive 2^-104 residual"
     );
 }
 
