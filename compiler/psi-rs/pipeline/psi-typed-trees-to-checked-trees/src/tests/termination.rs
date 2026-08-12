@@ -3751,6 +3751,14 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         value
     }
 
+    machine return_after_discarded_shared_slice_view<'value, 'cells>(
+        value: &'value mut u64,
+        cells: &'cells [u64; 2]
+    ) -> &'value mut u64 {
+        cells.as_slice().len;
+        value
+    }
+
     machine return_after_discarded_user_call(value: &mut u64) -> &mut u64 {
         noop();
         value
@@ -3789,6 +3797,12 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         let alias: &mut u64 = return_after_discarded_user_call(&mut self.value);
         alias = 1;
     }
+
+    machine Main::discarded_shared_slice_view(&mut self) {
+        let alias: &mut u64 =
+            return_after_discarded_shared_slice_view(&mut self.value, self.cells);
+        alias = 1;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -3804,6 +3818,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         "Main::helper_view",
         "Main::statement_view",
         "Main::discarded_slice_view",
+        "Main::discarded_shared_slice_view",
     ] {
         let machine = typed
             .machines()
@@ -3819,7 +3834,10 @@ fn mutable_slice_views_preserve_array_storage_origins() {
                 .inferred_state_write_frame(machine, entry)
                 .complete_paths(),
             Some(
-                [if name == "Main::discarded_slice_view" {
+                [if matches!(
+                    name,
+                    "Main::discarded_slice_view" | "Main::discarded_shared_slice_view"
+                ) {
                     "self.value"
                 } else {
                     "self.cells"
