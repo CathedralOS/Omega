@@ -42479,7 +42479,20 @@ fn float_policy_adapters_retain_differential_results() {
     let mut selected_plan_identities = Vec::new();
     let mut observations = Vec::new();
     let mut cross_builds = std::collections::BTreeSet::new();
-    for (case_name, expected_exit, expected_error) in CASES {
+    let case_filter = std::env::var("OMEGA_FLOAT_POLICY_CASE_FILTER").ok();
+    let selected_cases = CASES
+        .iter()
+        .filter(|(case_name, _, _)| {
+            case_filter
+                .as_deref()
+                .is_none_or(|filter| case_name.contains(filter))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !selected_cases.is_empty(),
+        "OMEGA_FLOAT_POLICY_CASE_FILTER selected no differential cases"
+    );
+    for (case_name, expected_exit, expected_error) in selected_cases.iter().copied() {
         let canary = pass_canary(case_name);
         let main_path = canary.join("main.omg");
         let checked =
@@ -42596,7 +42609,7 @@ fn float_policy_adapters_retain_differential_results() {
                 .expect("copy float-policy canary");
             fs::write(
                 source_dir.join("build.omg"),
-                format!("target {target} {{\n}}\n"),
+                hosted_main_program_entry_build(target),
             )
             .expect("write float-policy target manifest");
             compile(CompileOptions {
@@ -42611,6 +42624,11 @@ fn float_policy_adapters_retain_differential_results() {
             let _ = fs::remove_dir_all(&scratch);
             cross_builds.insert(format!("{case_name}@{target}"));
         }
+    }
+
+    if case_filter.is_some() {
+        assert_eq!(cross_builds.len(), selected_cases.len() * 2);
+        return;
     }
 
     let expected_evidence = [
