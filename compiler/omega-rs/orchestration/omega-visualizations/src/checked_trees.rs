@@ -1354,6 +1354,12 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
             .unwrap_or("<unknown>");
         json.push_str("\n    {\n      \"machine\": ");
         push_json_string(&mut json, name);
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, fact.machine)
+                .expect("activation-wide carry must name an exact owning machine"),
+        );
         json.push_str(",\n      \"analysis_complete\": ");
         json.push_str(if fact.analysis_complete {
             "true"
@@ -3302,6 +3308,7 @@ mod tests {
     #[test]
     fn carry_manifest_keeps_authored_and_effective_policies_separate() {
         let symbol = SymbolHandle::from_arena_index(7);
+        let state_symbol = SymbolHandle::from_arena_index(9);
         let declared = CarryPolicy {
             suspension: CarrySuspension::Forbidden,
             cpu: CarryCpu::Origin,
@@ -3322,11 +3329,20 @@ mod tests {
             effective: CarryPolicy::PERMISSIVE,
         });
         let machine = SymbolHandle::from_arena_index(8);
-        program.typed.push_machine(Machine {
+        let mut machine_definition = Machine {
             symbol: machine,
             name: Identifier::generated("Worker::run"),
             ..Default::default()
-        });
+        };
+        program.typed.push_machine_state(
+            &mut machine_definition,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine_definition);
         program
             .facts
             .carry
@@ -3358,6 +3374,7 @@ mod tests {
             "\"effective\": {\"suspension\": \"allowed\", \"cpu\": \"any\", \"thread\": \"any\", \"address\": \"movable\"}"
         ));
         assert!(json.contains("\"machine\": \"Worker::run\""));
+        assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Worker::run)"));
         assert!(json.contains("\"analysis_complete\": true"));
         assert!(json.contains("\"subtree_machine_count\": 1"));
         assert!(json.contains("\"unnamed_strict_values\": 1"));
