@@ -3073,6 +3073,40 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_local_index_helper_result_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+            code: [u64; 2];
+        }
+
+        machine return_local_index(cells: &mut [u64; 2]) -> &mut u64 {
+            let index: u64 = 0;
+            &mut cells[index]
+        }
+
+        machine Main::touch_code(&mut self) {
+            let alias: &mut u64 = return_local_index(&mut self.code);
+            alias = 7;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_code();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("an effect-free local-index helper result preserves its collection frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_recast_local_frame() {
     let source = r#"
         data Message {
