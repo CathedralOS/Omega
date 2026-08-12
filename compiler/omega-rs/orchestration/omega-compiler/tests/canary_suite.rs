@@ -8266,19 +8266,14 @@ fn runtime_number_to_decimal_exit_canary_runs() {
     // "12345" via divide/modulo + computed carrier byte writes, and assert the
     // carrier equals it. A round-trip proving printable numbers, a serious-app need.
     let canary = pass_canary("text/runtime_number_to_decimal_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-number-to-decimal-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("number-to-decimal canary should compile");
+    let host_scratch = scratch.join("host");
+    compile_single_file_hosted_main(&canary, &host_scratch, native_hosted_target())
+        .expect("number-to-decimal canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(host_scratch.join("out").join(executable_name()))
         .output()
         .expect("number-to-decimal canary should run");
 
@@ -8293,25 +8288,14 @@ fn runtime_number_to_decimal_exit_canary_runs() {
     // The native run above pins AArch64 on Apple Silicon. Also emit the same
     // operation through the x86-64 encoder and relocation path so the indexed
     // destination and converted source stay portable.
-    let x64_source = build_dir.join("linux-x64-src");
-    fs::create_dir_all(&x64_source).expect("number-to-decimal x64 source dir");
-    fs::copy(canary.join("main.omg"), x64_source.join("main.omg"))
-        .expect("copy number-to-decimal canary for x64");
-    fs::write(x64_source.join("build.omg"), "target linux_x64 {\n}\n")
-        .expect("write number-to-decimal x64 manifest");
-    let x64_build = build_dir.join("linux-x64-out");
-    compile(CompileOptions {
-        root_path: x64_source.join("main.omg"),
-        build_dir: Some(x64_build.clone()),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("number-to-decimal canary should cross-compile for linux_x64");
-    let elf =
-        fs::read(x64_build.join("omega-program")).expect("number-to-decimal linux_x64 ELF emitted");
+    let x64_scratch = scratch.join("linux-x64");
+    compile_single_file_hosted_main(&canary, &x64_scratch, "linux_x64")
+        .expect("number-to-decimal canary should cross-compile for linux_x64");
+    let elf = fs::read(x64_scratch.join("out/omega-program"))
+        .expect("number-to-decimal linux_x64 ELF emitted");
     assert_eq!(&elf[..4], b"\x7fELF");
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
