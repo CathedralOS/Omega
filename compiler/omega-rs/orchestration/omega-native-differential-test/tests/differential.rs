@@ -21,6 +21,10 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_NATIVE_STAGE: AtomicU64 = AtomicU64::new(1);
+const NATIVE_DIFFERENTIAL_ENTRY: &str = "omega_native_differential_entry";
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(checked, "Main::main", stdin)
@@ -1147,6 +1151,13 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_machine_frame_index_rmw_exit", 1),
     ("collections/runtime_machine_frame_index_write_exit", 1),
     ("collections/runtime_whole_struct_value_copy_exit", 70),
+    ("collections/constant_nested_index_guard_exit", 1),
+    (
+        "collections/runtime_cross_region_double_indexed_pair_copy_exit",
+        1,
+    ),
+    ("collections/runtime_cross_region_indexed_pair_copy_exit", 1),
+    ("collections/runtime_frame_mixed_index_pair_copy_exit", 1),
     ("expressions/runtime_widened_bitwise_exit", 70),
     ("expressions/runtime_widened_comparison_exit", 70),
     ("filesystem/discarded_self_call_literal_errno_exit", 70),
@@ -1161,9 +1172,16 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/bool_value_call_return_exit", 70),
     ("calls/float_value_call_return_exit", 70),
     ("calls/float_value_call_runtime_arg_exit", 70),
+    ("calls/runtime_pointee_pair_copy_exit", 42),
+    ("calls/runtime_shared_ref_param_copy_exit", 42),
     ("float/runtime_std_is_finite_exit", 70),
     ("float/f32_chain_per_op_rounding_exit", 70),
     ("calls/struct_literal_transition_arg_exit", 70),
+    ("recast/runtime_record_view_exit", 70),
+    ("text/runtime_slice_machine_indexed_string_guard_exit", 72),
+    ("text/runtime_string_append_in_place_exit", 70),
+    ("text/runtime_string_stored_suffix_exit", 193),
+    ("traits/runtime_local_named_dyn_devirtualized_exit", 70),
     ("slices/runtime_indexed_element_copy_write_exit", 70),
     ("filesystem/windows_wrapper_breadth_exit", 70),
     ("filesystem/windows_wrapper_results_exit", 70),
@@ -2572,16 +2590,26 @@ fn try_compile_and_run_native_with_stdin(
     stdin: &[u8],
 ) -> Result<(i32, Vec<u8>, Vec<u8>), String> {
     let build_dir = std::env::temp_dir().join(format!(
-        "omega-interp-diff-{}-{}",
+        "omega-interp-diff-{}-{}-{}",
         canary_name.replace(['/', '\\'], "_"),
-        std::process::id()
+        std::process::id(),
+        NEXT_NATIVE_STAGE.fetch_add(1, Ordering::Relaxed),
     ));
     let _ = fs::remove_dir_all(&build_dir);
+    let source_dir = build_dir.join("source");
+    if let Err(error) = stage_exact_host_entry_project(main_path, &source_dir) {
+        let _ = fs::remove_dir_all(&build_dir);
+        return Err(format!("failed to stage exact host entry: {error}"));
+    }
 
     if let Err(diagnostics) = compile(CompileOptions {
-        root_path: main_path.to_path_buf(),
+        root_path: source_dir.join(
+            main_path
+                .file_name()
+                .expect("differential source has a file name"),
+        ),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some(host_target_name().to_owned()),
         write_output: true,
     }) {
         let _ = fs::remove_dir_all(&build_dir);
@@ -2609,6 +2637,159 @@ fn try_compile_and_run_native_with_stdin(
     let stderr = output.stderr.clone();
     let _ = fs::remove_dir_all(&build_dir);
     Ok((code, stdout, stderr))
+}
+
+fn stage_exact_host_entry_project(main_path: &Path, destination: &Path) -> std::io::Result<()> {
+    copy_project_tree(
+        main_path
+            .parent()
+            .expect("differential source has a project directory"),
+        destination,
+    )?;
+    write_exact_host_entry_adapter(main_path, destination)?;
+    write_exact_host_build(destination)
+}
+
+fn write_exact_host_entry_adapter(main_path: &Path, destination: &Path) -> std::io::Result<()> {
+    let main_source = fs::read_to_string(main_path)?;
+    let signature_start = main_source.find("machine Main::main(").ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "differential source has no Main::main machine",
+        )
+    })?;
+    let signature_end = main_source[signature_start..]
+        .find('{')
+        .map(|offset| signature_start + offset)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "differential Main::main has no body",
+            )
+        })?;
+    let call = if main_source[signature_start..signature_end].contains("->") {
+        "_ = self.main();"
+    } else {
+        "self.main();"
+    };
+    let staged_main = destination.join(
+        main_path
+            .file_name()
+            .expect("differential source has a file name"),
+    );
+    fs::write(
+        staged_main,
+        format!(
+            "{main_source}\n\nmachine Main::{NATIVE_DIFFERENTIAL_ENTRY}(&mut self) {{\n    {call}\n}}\n"
+        ),
+    )
+}
+
+fn copy_project_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        if matches!(entry.file_name().to_str(), Some("build" | "target")) {
+            continue;
+        }
+        let path = entry.path();
+        let target = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_project_tree(&path, &target)?;
+        } else {
+            fs::copy(path, target)?;
+        }
+    }
+    Ok(())
+}
+
+fn write_exact_host_build(project: &Path) -> std::io::Result<()> {
+    let path = project.join("build.omg");
+    let mut source = fs::read_to_string(&path).unwrap_or_default();
+    let target = host_target_name();
+    if !source.contains(&format!("target {target}")) {
+        source.push_str(&format!("\n\ntarget {target} {{\n}}\n"));
+    }
+    let binding = format!(
+        "{}.roots.bind({}::ProgramEntry, Main::{NATIVE_DIFFERENTIAL_ENTRY});",
+        build_parameter_name(&source).unwrap_or("b"),
+        host_root_owner(),
+    );
+    source = replace_host_program_entry_binding(&source, &binding);
+    if !source.contains(&binding) {
+        if let Some(open_brace) = build_machine_open_brace(&source) {
+            source.insert_str(open_brace + 1, &format!("\n    {binding}"));
+        } else {
+            source.push_str(&format!(
+                "\n\nmachine build(b: &mut Build) {{\n    {binding}\n}}\n"
+            ));
+        }
+    }
+    fs::write(path, source)
+}
+
+fn replace_host_program_entry_binding(source: &str, binding: &str) -> String {
+    let marker = format!("{}::ProgramEntry", host_root_owner());
+    let mut replaced = false;
+    let mut lines = Vec::new();
+    for line in source.lines() {
+        if line.contains(".roots.bind(") && line.contains(&marker) {
+            if !replaced {
+                let indent = &line[..line.len() - line.trim_start().len()];
+                lines.push(format!("{indent}{binding}"));
+                replaced = true;
+            }
+        } else {
+            lines.push(line.to_owned());
+        }
+    }
+    let mut rewritten = lines.join("\n");
+    if source.ends_with('\n') {
+        rewritten.push('\n');
+    }
+    rewritten
+}
+
+fn build_machine_open_brace(source: &str) -> Option<usize> {
+    let start = source.find("machine build(")?;
+    source[start..].find('{').map(|offset| start + offset)
+}
+
+fn build_parameter_name(source: &str) -> Option<&str> {
+    let start = source.find("machine build(")?;
+    let signature_end = source[start..].find('{').map(|offset| start + offset)?;
+    let signature = &source[start..signature_end];
+    let type_marker = signature.rfind(": &mut Build")?;
+    let prefix = signature[..type_marker].trim_end();
+    let name_start = prefix
+        .rfind(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+        .map_or(0, |index| index + 1);
+    let name = &prefix[name_start..];
+    (!name.is_empty()).then_some(name)
+}
+
+fn host_target_name() -> &'static str {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos_arm64"
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "linux_arm64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux_x64"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows_x64"
+    } else {
+        panic!("unsupported host profile for native differential execution")
+    }
+}
+
+fn host_root_owner() -> &'static str {
+    match host_target_name() {
+        "macos_arm64" => "macos_arm64",
+        "linux_arm64" => "linux_arm64",
+        "linux_x64" => "linux_x86_64",
+        "windows_x64" => "windows_x86_64",
+        _ => unreachable!("host_target_name returns one hosted target"),
+    }
 }
 
 fn join_diagnostics(diagnostics: &[psi_diagnostics::Diagnostic]) -> String {

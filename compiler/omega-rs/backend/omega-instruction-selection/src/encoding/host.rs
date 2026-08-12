@@ -459,17 +459,21 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     plan_source: HostImportPlan<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let discards_native_result = operation_key.discards_native_result();
     let returns_float = match plan_source {
-        HostImportPlan::Authoritative(plan) => plan.result.as_ref().is_some_and(|result| {
-            matches!(
-                result.shape.class,
-                omega_calling_conventions::ValueClass::Float
-            )
-        }),
+        HostImportPlan::Authoritative(plan) => {
+            !discards_native_result
+                && plan.result.as_ref().is_some_and(|result| {
+                    matches!(
+                        result.shape.class,
+                        omega_calling_conventions::ValueClass::Float
+                    )
+                })
+        }
         HostImportPlan::CompatibilityOracle => operation_key.returns_float(),
     };
     let returns_value = match plan_source {
-        HostImportPlan::Authoritative(plan) => plan.result.is_some(),
+        HostImportPlan::Authoritative(plan) => !discards_native_result && plan.result.is_some(),
         HostImportPlan::CompatibilityOracle => operation_key.returns_value(),
     };
     match target.architecture {
@@ -540,12 +544,19 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
             )
         }
         Architecture::Aarch64 => {
-            let (arguments, result) = normalized_aarch64_import_plan_for_plan(
-                operands,
-                Aarch64ImportResult::None,
-                plan_source,
-            )?;
-            debug_assert!(result.is_none());
+            let result_kind = if discards_native_result
+                && matches!(plan_source, HostImportPlan::Authoritative(plan) if plan.result.is_some())
+            {
+                Aarch64ImportResult::Ignored
+            } else {
+                Aarch64ImportResult::None
+            };
+            let (arguments, result) =
+                normalized_aarch64_import_plan_for_plan(operands, result_kind, plan_source)?;
+            debug_assert_eq!(
+                result.is_some(),
+                result_kind == Aarch64ImportResult::Ignored
+            );
             aarch64::encode_host_call_sequence_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
@@ -642,6 +653,7 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Aarch64ImportResult {
     None,
+    Ignored,
     Integer,
     Float,
     Authored,
@@ -688,6 +700,10 @@ fn normalized_aarch64_host_argument_placements_for_plan<T: InstructionOperandLik
         Aarch64ImportResult::Authored
     } else if operation_key.dereferences_result() {
         Aarch64ImportResult::Integer
+    } else if operation_key.discards_native_result()
+        && matches!(plan_source, HostImportPlan::Authoritative(plan) if plan.result.is_some())
+    {
+        Aarch64ImportResult::Ignored
     } else if let HostImportPlan::Authoritative(plan) = plan_source {
         match plan.result.as_ref().map(|result| result.shape.class) {
             Some(omega_calling_conventions::ValueClass::Float) => Aarch64ImportResult::Float,
@@ -987,7 +1003,7 @@ fn normalized_aarch64_import_plan_from_call_operands_for_plan(
     plan_source: HostImportPlan<'_>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let (result_operand, arguments) = match result_kind {
-        Aarch64ImportResult::None => (None, aarch64_operands),
+        Aarch64ImportResult::None | Aarch64ImportResult::Ignored => (None, aarch64_operands),
         Aarch64ImportResult::Integer
         | Aarch64ImportResult::Float
         | Aarch64ImportResult::Authored => {
@@ -1010,6 +1026,7 @@ fn normalized_aarch64_import_plan_from_call_operands_for_plan(
             .collect::<Result<Vec<_>, _>>()?,
         result: match (result_kind, result_operand) {
             (Aarch64ImportResult::None, None) => None,
+            (Aarch64ImportResult::Ignored, None) => plan_source.result_shape(),
             (Aarch64ImportResult::Integer, Some(operand)) => Some(aarch64_result_shape(
                 operand,
                 false,
@@ -2578,6 +2595,32 @@ mod compatibility_encoder_differential_tests {
                 &void_plan,
             )
             .expect("catalog void import")
+        );
+    }
+
+    #[test]
+    fn retained_console_result_is_validated_but_discarded() {
+        let target = NativeTarget::macos_arm64();
+        let operation = HostOperationKey::from_names("Stdout", "write");
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        let native_plan = plan(target, 3, true);
+
+        assert_eq!(
+            encode_host_call_sequence_no_plan(target, operation, &operands)
+                .expect("compatibility console write"),
+            encode_host_call_sequence_with_plan(target, operation, &operands, &native_plan)
+                .expect("planned console write with discarded native result")
+        );
+        assert_eq!(
+            normalized_aarch64_host_argument_placements_with_plan(
+                operation,
+                &operands,
+                false,
+                &native_plan,
+            )
+            .expect("planned console placements")
+            .len(),
+            3
         );
     }
 }

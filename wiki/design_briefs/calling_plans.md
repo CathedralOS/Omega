@@ -734,7 +734,9 @@ x86-64 and AArch64. Exact argument/result fragments and stack placements survive
 through abstract operations, target operations, layout, emission, and object
 relocations. Composite adapters retain each actual native subcall plan instead
 of substituting their outer semantic signature. A missing, mismatched, or
-incompatible plan fails closed.
+incompatible plan fails closed. When an adapter intentionally discards a native
+status or byte-count result, that result remains part of plan validation and
+footprint accounting but does not manufacture an Omega result storage operand.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

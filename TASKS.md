@@ -82,7 +82,12 @@ Remaining:
   and directly executed sample cohort now stages each complete source project
   into an isolated tree, merges an exact `macos_arm64::ProgramEntry` binding
   into its build root, and uses production compilation while preserving project
-  assets and GUI subsystem configuration.
+  assets and GUI subsystem configuration. The native interpreter differential
+  harness likewise stages each complete project, merges the exact host-owned
+  `ProgramEntry`, selects that target explicitly, and uses production
+  compilation. That migration also closed the AArch64 console-adapter gap:
+  retained `_read`/`_write` plans validate their real native result while the
+  adapter deliberately carries no Omega result place.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry

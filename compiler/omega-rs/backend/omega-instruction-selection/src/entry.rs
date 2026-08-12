@@ -2125,7 +2125,12 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                                 omega_calling_conventions::HostOperation::ReadFile
                             )
                         );
-                    (binding.call_plan().result.is_some() && !win64_composite_io)
+                    let discards_native_result = operation
+                        .operation_key
+                        .discards_native_result();
+                    (binding.call_plan().result.is_some()
+                        && !win64_composite_io
+                        && !discards_native_result)
                         || (binding.call_plan().parameters.len() != selected_operands.len()
                             && !win64_composite_io)
                         || !selected_operands.iter().any(|operand| {

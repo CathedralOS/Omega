@@ -52,7 +52,7 @@ fn external_call_relocation_offset_for_plan<T: InstructionOperandLike>(
     let architecture = target.architecture;
     let authoritative_plan = plan_source.authoritative();
     let returns_value = authoritative_plan
-        .map(|plan| plan.result.is_some())
+        .map(|plan| !operation_key.discards_native_result() && plan.result.is_some())
         .unwrap_or_else(|| operation_key.returns_value());
     if architecture == Architecture::X86_64
         && let Some(site) =

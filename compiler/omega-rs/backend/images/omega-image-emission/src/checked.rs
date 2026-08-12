@@ -856,7 +856,8 @@ fn encode_scalar_parameter_import(
                 omega_calling_conventions::HostOperation::ReadFile
             )
         );
-    let result_operand_count = if win64_composite_io {
+    let discards_native_result = operation_key.discards_native_result();
+    let result_operand_count = if win64_composite_io || discards_native_result {
         0
     } else {
         usize::from(plan.result.is_some())
@@ -883,6 +884,7 @@ fn encode_scalar_parameter_import(
                 || operand.byte_length().is_some()
         })
         || (!win64_composite_io
+            && !discards_native_result
             && plan
                 .result
                 .as_ref()
@@ -980,7 +982,9 @@ fn encode_scalar_parameter_import(
                     &plan.parameters,
                     plan.parameters.len(),
                 );
-            let bytes = if let Some(result) = plan.result.as_ref() {
+            let bytes = if discards_native_result {
+                omega_isa_aarch64::encode_host_call_sequence(argument_operands, &plan.parameters)?
+            } else if let Some(result) = plan.result.as_ref() {
                 let [
                     omega_calling_conventions::ValueLocation::Register {
                         register: result_register,
