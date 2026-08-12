@@ -1442,7 +1442,7 @@ fn check_callable(
             continue;
         };
         let mut borrowed_sources = Vec::new();
-        let mut has_owned_source = false;
+        let mut owned_sources = Vec::new();
 
         for parameter in parameters {
             let mut parameter_domains = Vec::new();
@@ -1475,15 +1475,26 @@ fn check_callable(
             if type_contains_reference(program, parameter.type_reference) {
                 borrowed_sources.push(parameter.name.as_str());
             } else if program.type_multiplicity(parameter.type_reference) == Multiplicity::Linear {
-                has_owned_source = true;
+                owned_sources.push(parameter.name.as_str());
             }
         }
 
-        if borrowed_sources.is_empty() || has_owned_source {
+        if owned_sources.len() == 1 || (owned_sources.is_empty() && borrowed_sources.is_empty()) {
             continue;
         }
 
         let result_name = domain_name(program, result_domain);
+        if owned_sources.len() > 1 {
+            let owned = owned_sources
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            diagnostics.push(Diagnostic::error(format!(
+                "callable `{label}` returns content-bearing custody `{result_name}` with ambiguous compatible consumed inputs {owned}; retained-after-return authority requires one unambiguous owned source or an exact postcondition correspondence",
+            )));
+            continue;
+        }
         let borrowed = borrowed_sources
             .iter()
             .map(|name| format!("`{name}`"))

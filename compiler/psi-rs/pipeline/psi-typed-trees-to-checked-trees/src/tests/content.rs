@@ -363,6 +363,54 @@ fn retained_content_custody_accepts_consumed_owned_source() {
 }
 
 #[test]
+fn retained_content_custody_rejects_ambiguous_owned_sources() {
+    let diagnostics = rejected(
+        r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+
+        data Buffer [linear] {}
+        domain Buffer::Owned;
+        machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        data PendingWrite [linear] {}
+        domain PendingWrite::Retained { Writer::submit; }
+        machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        boundary trait Writer {
+            machine submit(
+                left: Buffer in Buffer::Owned,
+                right: Buffer in Buffer::Owned
+            ) -> PendingWrite
+            ensures
+                result in PendingWrite::Retained;
+        }
+        "#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("returns content-bearing custody `PendingWrite::Retained`")
+                && diagnostic
+                    .message
+                    .contains("ambiguous compatible consumed inputs")
+                && diagnostic.message.contains("`left`, `right`")
+                && diagnostic
+                    .message
+                    .contains("exact postcondition correspondence")
+        }),
+        "ambiguous retained-custody diagnostic: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn checked_facts_infer_exact_content_reshuffles_through_transparent_paths() {
     let source = r#"
         data ByteUnit {}

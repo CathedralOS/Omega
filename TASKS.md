@@ -335,7 +335,10 @@ Owners:
 
 - Finish foreign-storage custody and provider-view invalidation. Borrowed
   custody ends at return; durable retention consumes an owned claim and ends
-  through a receipt.
+  through a receipt. The checker now accepts only one compatible consumed input
+  for inferred post-return custody and rejects borrow-only or ambiguous
+  multiple-owned sources; connect exact authored postcondition correspondence
+  and the terminal completion receipt.
 - **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
   representation and initialization transition are settled, carry the exact
   view through foreign signatures, calling plans, borrow checking, and both
