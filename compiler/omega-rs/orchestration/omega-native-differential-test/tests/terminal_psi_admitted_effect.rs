@@ -5,7 +5,20 @@ use omega_calling_conventions::{
     ProviderExitRealization, RegisterSet, StateFootprintEvidence, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
+use omega_compiler::{
+    SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
+};
+use omega_executable_installation::{
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
+    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
+    InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
+    install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    validate_final_placement,
+};
 use omega_external_roots::*;
+use omega_instruction_selection::lower_post_handoff_writer_fragment;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -27,7 +40,15 @@ use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, MachineId, OperationId,
     ProfileDecisionId, ServiceId,
 };
-use psi_layout_plans::EntryStubId;
+use psi_extents::{
+    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
+    ExtentRootGrant, MappingEraId,
+};
+use psi_layout_plans::{
+    ArtifactInstallationScopeId, ByteOrder, EntryStubId, MaterializationWrite,
+    PlacementAddressRange, PlacementConstraints, PlacementPhase, PlacementSite,
+    PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
+};
 use psi_terminal::{
     BoundaryMachineDeclaration, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
 };
@@ -129,6 +150,99 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         }),
     )
     .expect("provider execution admission");
+
+    let installed_code = install_entry_artifact(entry);
+    let selected_provider = SelectedExternalRootProviderPlan {
+        identity: execution.provider_plan(),
+        schema: Default::default(),
+    };
+    let writer = entry_writer(entry);
+    let wrong_selected_provider = SelectedExternalRootProviderPlan {
+        identity: root_id(56, ProviderPlanId::from_normalized_identity),
+        schema: Default::default(),
+    };
+    assert!(
+        wrong_selected_provider
+            .prepare_post_handoff_entry_writer(
+                &execution,
+                &installed_code,
+                &writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect_err("selected provider closure drift must reject")
+            .0
+            .contains("selected provider plan")
+    );
+    assert!(
+        selected_provider
+            .prepare_post_handoff_entry_writer(
+                &execution,
+                &installed_code,
+                &entry_writer(EntryStubId::from_normalized_identity(13).unwrap()),
+                16,
+                writer_site(0x8000),
+            )
+            .expect_err("writer entry drift must reject")
+            .0
+            .contains("admitted external-root entry")
+    );
+    assert!(
+        selected_provider
+            .prepare_post_handoff_entry_writer(
+                &execution,
+                &installed_code,
+                &writer,
+                16,
+                writer_site(0x8008),
+            )
+            .expect_err("destination placement drift must reject")
+            .0
+            .contains("align")
+    );
+    let drifted_preparation = selected_provider
+        .prepare_post_handoff_entry_writer(
+            &execution,
+            &installed_code,
+            &writer,
+            16,
+            writer_site(0x8000),
+        )
+        .expect("selected provider closure should prepare its exact writer");
+    let drifted_lowering = lower_post_handoff_writer_fragment(
+        NativeTarget::linux_x64(),
+        MachineRegister::X86Rdi,
+        &entry_writer(EntryStubId::from_normalized_identity(13).unwrap()),
+    )
+    .expect("same reusable geometry with a different symbolic entry");
+    assert!(
+        bind_external_root_post_handoff_writer_invocation(drifted_lowering, drifted_preparation,)
+            .expect_err("lowered writer invocation drift must reject")
+            .message
+            .contains("exact lowered post-handoff writer invocation")
+    );
+    let prepared_writer = selected_provider
+        .prepare_post_handoff_entry_writer(
+            &execution,
+            &installed_code,
+            &writer,
+            16,
+            writer_site(0x8000),
+        )
+        .expect("exact writer preparation remains reusable after drift rejection");
+    let lowered_writer = lower_post_handoff_writer_fragment(
+        NativeTarget::linux_x64(),
+        MachineRegister::X86Rdi,
+        &writer,
+    )
+    .expect("AOT writer lowering");
+    let bound_writer =
+        bind_external_root_post_handoff_writer_invocation(lowered_writer, prepared_writer)
+            .expect("lowered fragment and provider preparation should bind");
+    assert_eq!(
+        bound_writer.prepared().provider_execution(),
+        execution.terminal_binding()
+    );
 
     let machine = MachineId::new(1).unwrap();
     let boundary = BoundaryMachineId::new(1).unwrap();
@@ -238,4 +352,153 @@ fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagn
 
 fn fuel_schedule() -> FuelScheduleIdentity {
     FuelScheduleIdentity::new(1).expect("current fuel schedule")
+}
+
+fn entry_writer(entry: EntryStubId) -> PostHandoffWriterPlan {
+    let target = RelocationTarget::Entry(entry);
+    PostHandoffWriterPlan {
+        byte_len: 16,
+        byte_order: ByteOrder::LittleEndian,
+        placement: PlacementConstraints::new(
+            Some(PlacementAddressRange::new(0x8000, 0x9000).unwrap()),
+            16,
+            PlacementPhase::PostHandoff,
+            None,
+            None,
+        )
+        .unwrap(),
+        steps: vec![PostHandoffWriterStep {
+            write: MaterializationWrite {
+                field: "entry".into(),
+                target,
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 64,
+                stored_integer_fit: None,
+            },
+            source: PostHandoffWriterSource::Resolve(target),
+        }],
+    }
+}
+
+fn writer_site(base_address: u64) -> PlacementSite {
+    PlacementSite {
+        base_address,
+        phase: PlacementPhase::PostHandoff,
+        machine_regime: None,
+        installation_scope: None,
+    }
+}
+
+fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
+    fn install_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized installation identity")
+    }
+
+    fn extent_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    let constraints = PlacementConstraints::new(
+        None,
+        16,
+        PlacementPhase::PostHandoff,
+        None,
+        Some(ArtifactInstallationScopeId::from_normalized_identity(61).unwrap()),
+    )
+    .unwrap();
+    let artifact = Artifact::from_canonical_decode(
+        install_id(100, ArtifactId::from_normalized_identity),
+        install_id(110, ArtifactContentId::from_normalized_identity),
+        omega_target::Architecture::X86_64,
+        vec![0; 64],
+        install_id(120, MachineContractSetId::from_normalized_identity),
+        install_id(121, MachineFootprintId::from_normalized_identity),
+        install_id(122, PlacementPlanId::from_normalized_identity),
+        constraints,
+        install_id(123, EntrySetId::from_normalized_identity),
+        vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+        install_id(124, RelocationSetId::from_normalized_identity),
+        Vec::new(),
+    )
+    .unwrap();
+    let admitted = admit_executable(
+        &artifact,
+        ArtifactAdmissionEvidence::from_validator(
+            install_id(125, AdmissionReceiptId::from_normalized_identity),
+            &artifact,
+            true,
+        ),
+    )
+    .unwrap();
+    let rights = ExtentRights::from_normalized_identities([extent_id(
+        130,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152,
+    ])
+    .unwrap();
+    let extent = ExtentRootGrant::from_admitted_provider(
+        issuance,
+        extent_id(160, ExtentLineageId::from_normalized_identity),
+        extent_id(161, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_id(162, ExtentProvenanceId::from_normalized_identity),
+        extent_id(163, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x1000, 4096)
+    .unwrap();
+    let placement = CodePlacementAuthority::from_admitted_provider(
+        install_id(170, CodePlacementId::from_normalized_identity),
+        install_id(61, InstallationScopeId::from_normalized_identity),
+        InstallationAudience::DormantLocal,
+        &extent,
+        rights,
+        constraints,
+        PlacementSite {
+            base_address: 0x1000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: Some(
+                ArtifactInstallationScopeId::from_normalized_identity(61).unwrap(),
+            ),
+        },
+    )
+    .claim(extent)
+    .unwrap();
+    let materialized = materialize_admitted_artifact(&admitted, &placement, |_| None).unwrap();
+    let frozen = materialize_and_freeze(
+        &admitted,
+        placement,
+        materialized.clone(),
+        MaterializationReceipt::from_materialized(
+            &materialized,
+            install_id(171, MachineFootprintId::from_normalized_identity),
+            true,
+        ),
+    )
+    .unwrap();
+    let certificate = FinalValidationCertificate::from_validator(
+        install_id(172, FinalValidationId::from_normalized_identity),
+        &frozen,
+        true,
+    );
+    let validated = validate_final_placement(frozen, &certificate).unwrap();
+    let authority = InstallAuthority::from_admitted_provider(&validated);
+    let receipt = InstallationReceipt::from_provider(
+        install_id(173, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    );
+    install_validated(validated, authority, receipt).unwrap()
 }

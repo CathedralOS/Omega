@@ -1036,8 +1036,13 @@ Materialization resolves only sealed entry/data identities into a private copy.
 Installation separately validates W^X, cache/order visibility, and audience.
 Retirement requires exact realization identity plus quiescence, execute removal,
 restored write authority, and completion facts before returning placement.
-Schema decoding, PCC/final-code validation, provider execution, source linear
-integration, and live replacement remain.
+The selected provider plan and sealed provider execution now prepare an exact
+installed-entry post-handoff writer context and join it to the matching AOT
+fragment. This validates artifact resolution and destination geometry but does
+not mint destination authority. Final invocation still needs a linear mapped,
+pinned, writable, unpublished destination carrier. Schema decoding,
+PCC/final-code validation, source linear integration, and live replacement also
+remain.
 
 This invariant covers every route to execute permission. Translation providers
 require admitted-artifact provenance before deriving an executable mapping,

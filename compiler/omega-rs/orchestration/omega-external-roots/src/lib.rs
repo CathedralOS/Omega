@@ -15,9 +15,14 @@ use omega_calling_conventions::{
     validate_provider_exit_realization, validate_state_footprint,
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
-use omega_executable_installation::{InstalledCode, InstalledCodeContext};
+use omega_executable_installation::{
+    InstalledCode, InstalledCodeContext, ResolvedPostHandoffEntryWriterContext,
+};
 pub use psi_core::FuelScheduleIdentity;
-use psi_layout_plans::EntryStubId;
+use psi_layout_plans::{
+    EntryStubId, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
+    RelocationTarget,
+};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -1447,6 +1452,40 @@ pub struct AdmittedTerminalProviderExecution {
     boundary_contract_fingerprint: u64,
 }
 
+/// One exact provider execution joined to the installed artifact resolver and
+/// the provider-private input for a post-handoff entry writer.
+///
+/// Construction matches the selected provider-plan identity, retains the
+/// execution that already sealed stack/fuel/state root evidence, and rechecks
+/// the installed entry, writer's exact symbolic target set, and concrete
+/// destination placement. The packed numeric context remains opaque and
+/// non-clonable.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PreparedExternalRootPostHandoffWriterInvocation {
+    provider_execution: AdmittedTerminalProviderExecution,
+    architecture: omega_target::Architecture,
+    invocation: PostHandoffWriterInvocationPlan,
+    context: ResolvedPostHandoffEntryWriterContext,
+}
+
+impl PreparedExternalRootPostHandoffWriterInvocation {
+    pub const fn provider_execution(&self) -> AdmittedTerminalProviderExecution {
+        self.provider_execution
+    }
+
+    pub const fn architecture(&self) -> omega_target::Architecture {
+        self.architecture
+    }
+
+    pub const fn invocation(&self) -> &PostHandoffWriterInvocationPlan {
+        &self.invocation
+    }
+
+    pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
+        &self.context
+    }
+}
+
 impl AdmittedTerminalProviderExecution {
     pub const fn provider_plan(&self) -> u64 {
         self.provider_plan
@@ -1561,6 +1600,61 @@ impl ProviderExecution {
         }
     }
 
+    /// Prepare one post-handoff writer invocation only when it contains this
+    /// execution's exact selected entry and is resolved by the same installed
+    /// artifact used by the root's terminal fixed-fuel evidence.
+    ///
+    /// The plan ID is an identity comparison, not authority. The compiler
+    /// orchestration wrapper supplies its retained selection so a later stage
+    /// cannot accidentally substitute a different closure after root
+    /// admission.
+    pub fn prepare_post_handoff_entry_writer(
+        &self,
+        selected_provider_plan: ProviderPlanId,
+        installed_code: &InstalledCode,
+        writer: &PostHandoffWriterPlan,
+        destination_len: usize,
+        destination_site: PlacementSite,
+    ) -> Result<PreparedExternalRootPostHandoffWriterInvocation, ExternalRootDiagnostic> {
+        if selected_provider_plan != self.provider_plan {
+            return Err(ExternalRootDiagnostic(
+                "post-handoff writer selected provider plan does not match the admitted provider execution"
+                    .into(),
+            ));
+        }
+        self.validate_installed_entry_binding(installed_code)?;
+
+        let invocation = writer
+            .lower_reusable_fragment()
+            .map_err(|error| ExternalRootDiagnostic(error.0))?;
+        let selected_entry = RelocationTarget::Entry(self.entry);
+        if !invocation
+            .sources
+            .iter()
+            .any(|source| source.target == selected_entry)
+        {
+            return Err(ExternalRootDiagnostic(
+                "post-handoff writer does not contain the admitted external-root entry".into(),
+            ));
+        }
+
+        let context = installed_code
+            .populate_post_handoff_entry_writer_context(writer, destination_len, destination_site)
+            .map_err(|error| ExternalRootDiagnostic(error.0))?;
+        if !context.binds_invocation(&invocation) {
+            return Err(ExternalRootDiagnostic(
+                "installed artifact resolver context does not bind the exact post-handoff writer invocation"
+                    .into(),
+            ));
+        }
+        Ok(PreparedExternalRootPostHandoffWriterInvocation {
+            provider_execution: self.terminal_binding(),
+            architecture: installed_code.architecture(),
+            invocation,
+            context,
+        })
+    }
+
     pub const fn exit_assurance(&self) -> OpaqueProviderExitAssurance {
         self.exit_assurance
     }
@@ -1589,6 +1683,40 @@ impl ProviderExecution {
                 == candidate.logical_fuel.realization.composition_fingerprint()
             && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt
             && self.effects == candidate.effects
+    }
+
+    fn validate_installed_entry_binding(
+        &self,
+        installed_code: &InstalledCode,
+    ) -> Result<(), ExternalRootDiagnostic> {
+        if installed_code.selected_entry_target(self.entry).is_err() {
+            return Err(ExternalRootDiagnostic(
+                "external-root entry is not in the admitted installed artifact".into(),
+            ));
+        }
+        let root_fuel_summary = self
+            .root_evidence
+            .candidate
+            .logical_fuel
+            .realization
+            .composition_evidence
+            .summaries
+            .get(&self.root_evidence.candidate.logical_fuel.realization.root)
+            .expect("fixed-fuel composition retains its root summary");
+        let fuel_binding_matches = match &root_fuel_summary.local_evidence {
+            FixedFuelLocalEvidence::TerminalEntry(binding) => {
+                validate_installed_terminal_entry_fuel(binding, installed_code, self.entry).is_ok()
+            }
+            FixedFuelLocalEvidence::TerminalSegment(_) => false,
+            FixedFuelLocalEvidence::AdmittedProvider { .. } => true,
+        };
+        if !fuel_binding_matches {
+            return Err(ExternalRootDiagnostic(
+                "terminal fixed-fuel root evidence is not a whole-entry certificate bound to the exact installed code and selected entry"
+                    .into(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -2624,49 +2752,11 @@ impl InstalledRootLedger {
                 admission,
             );
         }
-        if installed_code
-            .selected_entry_target(root.candidate.entry)
-            .is_err()
+        if let Err(diagnostic) = admission
+            .provider_execution_evidence
+            .validate_installed_entry_binding(installed_code)
         {
-            return reject(
-                ExternalRootDiagnostic(
-                    "external-root entry is not in the admitted installed artifact".into(),
-                ),
-                root,
-                slot,
-                admission,
-            );
-        }
-        let root_fuel_summary = root
-            .candidate
-            .logical_fuel
-            .realization
-            .composition_evidence
-            .summaries
-            .get(&root.candidate.logical_fuel.realization.root)
-            .expect("fixed-fuel composition retains its root summary");
-        let fuel_binding_matches = match &root_fuel_summary.local_evidence {
-            FixedFuelLocalEvidence::TerminalEntry(binding) => {
-                validate_installed_terminal_entry_fuel(
-                    binding,
-                    installed_code,
-                    root.candidate.entry,
-                )
-                .is_ok()
-            }
-            FixedFuelLocalEvidence::TerminalSegment(_) => false,
-            FixedFuelLocalEvidence::AdmittedProvider { .. } => true,
-        };
-        if !fuel_binding_matches {
-            return reject(
-                ExternalRootDiagnostic(
-                    "terminal fixed-fuel root evidence is not a whole-entry certificate bound to the exact installed code and selected entry"
-                        .into(),
-                ),
-                root,
-                slot,
-                admission,
-            );
+            return reject(diagnostic, root, slot, admission);
         }
         if admission.root_evidence != root
             || admission.provider_execution_evidence.root_evidence != root
@@ -3182,8 +3272,9 @@ mod tests {
         ExtentRights, ExtentRootGrant, MappingEraId,
     };
     use psi_layout_plans::{
-        ArtifactInstallationScopeId, PlacementAddressRange, PlacementConstraints, PlacementPhase,
-        PlacementSite,
+        ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementAddressRange,
+        PlacementConstraints, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
+        PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
     };
 
     fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
@@ -3492,6 +3583,40 @@ mod tests {
             }),
         )
         .expect("admitted provider exit")
+    }
+
+    fn entry_writer(entry: EntryStubId) -> PostHandoffWriterPlan {
+        let target = RelocationTarget::Entry(entry);
+        PostHandoffWriterPlan {
+            byte_len: 16,
+            byte_order: ByteOrder::LittleEndian,
+            placement: constraints(),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "entry".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source: PostHandoffWriterSource::Resolve(target),
+            }],
+        }
+    }
+
+    fn writer_site(base_address: u64) -> PlacementSite {
+        PlacementSite {
+            base_address,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: Some(
+                ArtifactInstallationScopeId::from_normalized_identity(61)
+                    .expect("installation scope"),
+            ),
+        }
     }
 
     fn install_test_root<'code>(
@@ -4264,6 +4389,65 @@ mod tests {
             isolated.exit_assurance(),
             OpaqueProviderExitAssurance::HardwareIsolation { .. }
         ));
+    }
+
+    #[test]
+    fn provider_execution_prepares_only_its_selected_entry_writer_and_exact_placement() {
+        let entry = entry_id(1001);
+        let code = installed_code(1, entry);
+        let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+        let execution = provider_execution(&validated);
+        let writer = entry_writer(entry);
+        let selected_plan = execution.provider_plan();
+
+        let wrong_plan = root_id(56, ProviderPlanId::from_normalized_identity);
+        let error = execution
+            .prepare_post_handoff_entry_writer(wrong_plan, &code, &writer, 16, writer_site(0x8000))
+            .expect_err("a different selected provider closure must reject");
+        assert!(error.0.contains("selected provider plan"));
+
+        let wrong_writer = entry_writer(entry_id(1002));
+        let error = execution
+            .prepare_post_handoff_entry_writer(
+                selected_plan,
+                &code,
+                &wrong_writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect_err("an admitted artifact sibling is not the selected root entry");
+        assert!(
+            error
+                .0
+                .contains("does not contain the admitted external-root entry")
+        );
+
+        let error = execution
+            .prepare_post_handoff_entry_writer(
+                selected_plan,
+                &code,
+                &writer,
+                16,
+                writer_site(0x8001),
+            )
+            .expect_err("misaligned destination placement must reject");
+        assert!(
+            error.0.contains("align"),
+            "unexpected diagnostic: {error:?}"
+        );
+
+        let prepared = execution
+            .prepare_post_handoff_entry_writer(
+                selected_plan,
+                &code,
+                &writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect("exact selected execution, entry writer, resolver, and placement");
+        assert_eq!(prepared.provider_execution(), execution.terminal_binding());
+        assert_eq!(prepared.architecture(), code.architecture());
+        assert!(prepared.context().binds_invocation(prepared.invocation()));
     }
 
     #[test]
