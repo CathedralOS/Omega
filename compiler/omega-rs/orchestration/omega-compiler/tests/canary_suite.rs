@@ -1111,18 +1111,28 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
 #[test]
 fn contract_canary_visualizes_flow_contract_summaries() {
     let canary = pass_canary("domains/contracts_domain_membership_surface");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-contract-canary-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
+    let source = scratch.join("source");
+    let build_dir = scratch.join("out");
+    fs::create_dir_all(&source).expect("create exact-entry contract canary source directory");
+    fs::copy(canary.join("main.omg"), source.join("main.omg"))
+        .expect("copy contract visualization canary");
+    fs::write(
+        source.join("build.omg"),
+        hosted_main_program_entry_build("macos_arm64"),
+    )
+    .expect("write exact macOS AArch64 ProgramEntry binding");
 
-    compile(CompileOptions {
-        root_path: main_path,
+    let compilation = production_compile(CompileOptions {
+        root_path: source.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("macos_arm64".into()),
         write_output: true,
     })
-    .expect("contract canary should compile with visual artifacts");
+    .expect("exact-root contract canary should compile with visual artifacts");
+    assert!(compilation.wrote_output);
 
     let state_graph = fs::read_to_string(build_dir.join("06_state_graph.html"))
         .expect("state graph visualization should be written");
@@ -1241,7 +1251,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "machine instruction stage should render block-local instruction listings"
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]

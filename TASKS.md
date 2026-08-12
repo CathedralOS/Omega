@@ -99,6 +99,9 @@ Remaining:
   The boundary-trait capability visualization now separates its checked-only
   capability/carry/task evidence from its state-graph/control-flow leg; only the
   latter stages an exact `macos_arm64::ProgramEntry` binding.
+  The contract-flow visualization and final-image evidence canary now stages
+  the same exact macOS AArch64 root and uses production compilation through the
+  complete emission pipeline.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
