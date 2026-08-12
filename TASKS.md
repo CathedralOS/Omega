@@ -253,12 +253,14 @@ Remaining:
   Expand this without compatibility scaffolding to multiple distinct closed
   instances of one generic sum, mixed common-field/case generic data, unresolved
   generic record construction contexts beyond annotated locals, plan-laid
-  values, wire/codec and ABI classification, and attached machines over generic
+  wire/codec and ABI classification, and attached machines over generic
   or case-bearing data, non-checked supply modes, or unresolved machine
-  parameters. Plan-laid physical reflection and layout must omit erased
-  bindings while the synthetic semantic value retains their terms, obligations,
-  and identity. `Placed<P, T>` erased-evidence establishment is design-blocked
-  on owner Q8. All unsupported shapes continue to fail closed at use sites.
+  parameters. Plan-laid values now omit erased bindings from physical Schema
+  reflection, validated plan entries, native/interpreter layouts, recasts, and
+  latent ABI classification while the synthetic semantic value and normalized
+  schema identity retain their terms, obligations, and relevance. `Placed<P,
+  T>` erased-evidence establishment is design-blocked on owner Q8. All
+  unsupported shapes continue to fail closed at use sites.
   Explicit relevance supersedes
   “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
   Do not infer carrier relation roles from relevance.

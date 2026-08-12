@@ -1165,6 +1165,9 @@ fn mutable_record_representation_inner(
             visiting.remove(name);
             return None;
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
         let Some(representation) = mutable_record_type_representation(
             program,
             field.type_reference,

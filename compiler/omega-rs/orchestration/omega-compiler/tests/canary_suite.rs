@@ -47605,6 +47605,74 @@ fn plan_laid_value_field_exit_canary_runs() {
 }
 
 #[test]
+fn plan_laid_erased_field_is_semantic_but_not_physical() {
+    let canary = pass_canary("layouts/runtime_plan_laid_erased_field_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("plan-laid erased field should reach checked semantics");
+
+    let semantic = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Spread16<Certified>")
+        .expect("synthesized plan-laid semantic definition");
+    let semantic_fields = checked.typed.data_members(semantic);
+    assert_eq!(semantic_fields.len(), 3, "semantic identity retains proof");
+    assert!(semantic_fields.iter().any(|member| {
+        matches!(member, psi_typed_trees::data::DataMember::Field(field)
+            if field.name.as_str() == "proof" && field.relevance.is_erased())
+    }));
+
+    let plan = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|plan| plan.data_name == "Spread16<Certified>")
+        .expect("validated physical plan");
+    assert_eq!(plan.offsets, [0, 16], "erased proof has no plan entry");
+    assert_eq!(plan.size, 32);
+
+    let layouts = omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host())
+        .expect("erased-stripped native layout should build");
+    let physical = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.name.as_str() == "Spread16<Certified>")
+        .map(|(_, layout)| layout)
+        .expect("synthesized physical layout");
+    let omega_layout::DataShape::Record { fields } = physical.shape else {
+        panic!("plan-laid value must remain a record");
+    };
+    let physical_fields = layouts.fields.span_or_empty(fields);
+    assert_eq!(
+        physical_fields
+            .iter()
+            .map(|field| (field.name.as_str(), field.offset))
+            .collect::<Vec<_>>(),
+        [("left", 0), ("right", 16)]
+    );
+    assert_eq!(interpret(&checked, &[]).exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-plan-laid-erased-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("plan-laid erased field should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run plan-laid erased-field canary");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(output.status.code(), Some(70));
+}
+
+#[test]
 fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
     let main_path = canary.join("main.omg");

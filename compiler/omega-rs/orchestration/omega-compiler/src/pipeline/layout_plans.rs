@@ -70,6 +70,12 @@ pub(super) fn schema_fields(
         let psi_typed_trees::data::DataMember::Field(field) = member else {
             continue;
         };
+        // Reflection describes physical placement demand. Erased bindings stay
+        // in the semantic data definition and normalized schema identity, but
+        // deliberately receive no field key and no plan entry.
+        if field.relevance.is_erased() {
+            continue;
+        }
         let Some(primitive) = typed.primitive_type_reference(field.type_reference) else {
             return Err(format!(
                 "schema data `{schema_data}` field `{}` is not a primitive; the current layout slice supports primitive fields only",

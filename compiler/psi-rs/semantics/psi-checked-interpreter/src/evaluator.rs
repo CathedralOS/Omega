@@ -7359,6 +7359,9 @@ impl<'program> Evaluator<'program> {
                 visiting.remove(type_name);
                 return Ok(None);
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let Some((size, align)) = self.record_view_type_layout(field.type_reference, visiting)
             else {
                 visiting.remove(type_name);
@@ -7630,6 +7633,9 @@ impl<'program> Evaluator<'program> {
                 visiting.remove(type_name);
                 return None;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let Some(layout) = self.record_view_type_layout(field.type_reference, visiting) else {
                 visiting.remove(type_name);
                 return None;
@@ -7675,6 +7681,9 @@ impl<'program> Evaluator<'program> {
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let layout = self.record_view_type_layout(field.type_reference, &mut HashSet::new())?;
             fields.push((field.name.as_str().to_owned(), field.type_reference));
             layouts.push(layout);

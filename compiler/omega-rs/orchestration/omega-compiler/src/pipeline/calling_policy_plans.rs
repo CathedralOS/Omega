@@ -857,12 +857,17 @@ fn plain_data_value_shape(
         .plan_laid_layouts
         .iter()
         .find(|layout| layout.data_name == definition.name.as_str());
+    let runtime_field_count = typed
+        .data_members(definition)
+        .iter()
+        .filter(|member| matches!(member, psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased()))
+        .count();
     if let Some(layout) = planned_layout
-        && layout.offsets.len() != typed.data_members(definition).len()
+        && layout.offsets.len() != runtime_field_count
     {
         return Err(format!(
             "plan-laid data `{name}` has {} members but its layout publishes {} offsets",
-            typed.data_members(definition).len(),
+            runtime_field_count,
             layout.offsets.len()
         ));
     }
@@ -872,13 +877,17 @@ fn plain_data_value_shape(
     let mut float_member_size = None;
     let mut float_members = 0usize;
     let mut record_fields = Vec::new();
-    for (field_index, member) in typed.data_members(definition).iter().enumerate() {
+    for member in typed.data_members(definition) {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
             visiting.pop();
             return Err(format!(
                 "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"
             ));
         };
+        if field.relevance.is_erased() {
+            continue;
+        }
+        let field_index = record_fields.len();
         let (shape, field_root) = if let Some(stored_integer) = planned_layout.and_then(|layout| {
             layout
                 .integer_fields

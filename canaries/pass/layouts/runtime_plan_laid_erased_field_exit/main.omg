@@ -1,0 +1,89 @@
+// Plan-laid relevance: `proof` remains a semantic field of Certified but is
+// absent from reflected Schema and physical placement. The policy therefore
+// sees two fields and places `right` at byte 16. Interpreter and native reads
+// must agree after a whole-value copy.
+use omega::language::std::console;
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField {
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
+    number: i64;
+    kind: FieldKind;
+}
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan {
+    case At(offset: u64);
+    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data Spread16 { entries: [FieldEntry; 64]; index: u64 in Wrapping; }
+machine Spread16::plan(&mut self, schema: Schema) -> Plan {
+    self.evaluate(schema, 128)
+}
+machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+terminates by fuel;
+{
+    self.index = 0;
+    transition { _ -> fill(schema, fuel) }
+    state fill(&mut self, schema: Schema, fuel: u64 [1..=128]) {
+        transition fuel > 1 && self.index < schema.field_count {
+            true -> place(schema, fuel - 1)
+            _ -> done(schema)
+        }
+    }
+    state place(&mut self, schema: Schema, fuel: u64 [1..=128]) {
+        let offset: u64 = (self.index * 16) as u64;
+        self.entries[self.index] = FieldEntry {
+            key: schema.fields[self.index].key,
+            placement: FieldPlan::At { offset: offset },
+        };
+        self.index = self.index + 1;
+        transition fuel > 1 { true -> fill(schema, fuel - 1) _ -> done(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            entries: self.entries,
+            entry_count: schema.field_count,
+            size_fixed: schema.field_count * 16,
+            size_is_dynamic: false,
+            align: 16,
+        }
+    }
+}
+
+data Evidence { case Only; }
+data Certified {
+    left: u16;
+    proof [erased]: Evidence;
+    right: u32;
+}
+
+data Main {
+    console: Console;
+    value: Spread16<Certified>;
+    twin: Spread16<Certified>;
+}
+
+machine Main::main(&mut self) {
+    self.value.left = 7;
+    self.value.right = 63;
+    self.twin = self.value;
+    transition self.twin.left == 7 && self.twin.right == 63 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

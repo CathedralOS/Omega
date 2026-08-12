@@ -166,13 +166,6 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             ));
         }
         if program
-            .plan_laid_layouts
-            .iter()
-            .any(|plan| plan.data_name == definition.name.as_str())
-        {
-            diagnostics.push(unsupported(definition, &field_names, "plan-laid data"));
-        }
-        if program
             .placed_view_plans
             .iter()
             .any(|plan| plan.data_name == definition.name.as_str())
