@@ -2972,13 +2972,17 @@ fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
             code: i32;
         }
 
-        machine Main::touch_code_cycle(&mut self) {
-            transition { _ -> cycle() }
+        machine identity(value: &mut i32) -> &mut i32 {
+            value
+        }
 
-            state cycle(&mut self) {
-                let alias: &mut i32 = &mut self.code;
-                alias = 7;
-                transition { _ -> cycle() }
+        machine Main::touch_code_cycle(&mut self) {
+            let alias: &mut i32 = &mut self.code;
+            transition { _ -> cycle(alias) }
+
+            state cycle(&mut self, value: &mut i32) {
+                value = 7;
+                transition { _ -> cycle(identity(value)) }
             }
         }
 
@@ -2990,7 +2994,7 @@ fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
     "#;
 
     check_program(source)
-        .expect("an equation-level cyclic alias frame preserves disjoint persistent provenance");
+        .expect("a transparent helper preserves the exact cyclic alias permutation");
 }
 
 #[test]

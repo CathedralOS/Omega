@@ -302,7 +302,8 @@ customer-shaped compiler concept is introduced.
   Complete statement/value frames and transitive boundary wrappers preserve
   facts outside their writes; opaque frames remain conservative fences. Named
   state SCCs solve finite exact frames when write-capable parameters traverse
-  bijective permutations. Stable local mutable aliases substitute exact
+  bijective permutations, including edges forwarded through structurally
+  transparent returned places. Stable local mutable aliases substitute exact
   `self`/parameter origins through acyclic graphs and SCC equations, including
   direct stable rebinding: the rebound name takes the replacement origin while
   earlier reborrows keep their established origin. Member suffixes remain exact;
