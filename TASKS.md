@@ -67,7 +67,7 @@ Remaining:
   termination/ranking proof, const-evaluation rejection, parser rejection,
   predicate-domain declaration/contract-flow, domain alias/import, generic
   declaration/bound/rejection, borrow/lifetime, scalar-constraint, and
-  structural data-shape/pattern, control-flow rejection, expression type/operator,
+  structural data-shape/pattern and wire-schema declaration, control-flow rejection, expression type/operator,
   basic call/result/recursion, suspension/carry, numeric conversion, value construction, Exact arithmetic
   proof/theorem/runtime-use, dependent-contract/frame, domain qualification/operator,
   trait and effect-contract requirement,
