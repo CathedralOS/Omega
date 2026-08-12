@@ -2417,6 +2417,98 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
 }
 
 #[test]
+fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            values: [u32; 2];
+            small: u32 [0..=8];
+        }
+
+        machine make_scratch() -> u32 {
+            0
+        }
+
+        machine values_after_scratch(values: &mut [u32; 2]) -> &mut [u32; 2] {
+            let scratch: u32 = make_scratch();
+            values
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_values_after_scratch();
+            self.small = self.n;
+        }
+
+        machine Main::touch_values_after_scratch(&mut self) {
+            let selected: &mut [u32; 2] = values_after_scratch(&mut self.values);
+            selected[0] = 9;
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a complete empty call frame for isolated scratch must preserve the returned origin",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            n: u32;
+            values: [u32; 2];
+            small: u32 [0..=8];
+        }
+
+        machine overwrite(value: &mut u32) -> u32 {
+            value = 9;
+            0
+        }
+
+        machine values_after_write(
+            values: &mut [u32; 2],
+            witness: &mut u32
+        ) -> &mut [u32; 2] {
+            let scratch: u32 = overwrite(witness);
+            values
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.n);
+            self.touch_values_and_n();
+            self.small = self.n;
+        }
+
+        machine Main::touch_values_and_n(&mut self) {
+            let selected: &mut [u32; 2] =
+                values_after_write(&mut self.values, &mut self.n);
+            selected[0] = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a nonempty scratch-call frame must invalidate its written witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn boundary_witness_survives_disjoint_projected_call_result_frame() {
     let source = r#"
         boundary trait Firmware {

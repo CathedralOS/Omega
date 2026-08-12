@@ -2013,9 +2013,12 @@ fn transparent_callee_result_origin(
             match statement {
                 StatementNode::LocalData(local) => {
                     if type_is_caller_isolated_local(program, local.type_reference) {
-                        if expression_is_effectful_for_transparent_result(
+                        if !isolated_local_initializer_preserves_transparent_result(
                             program,
+                            callee_machine,
                             local.initial_value,
+                            symbols,
+                            active_states,
                         ) {
                             return None;
                         }
@@ -2099,6 +2102,48 @@ fn transparent_callee_result_origin(
     })();
     active_states.pop();
     result
+}
+
+/// A caller-isolated scratch local cannot itself redirect a returned place.
+/// Its initializer may therefore precede a transparent returned-place result
+/// when it is syntactically effect-free, or when it is one direct value call
+/// whose inferred frame is both complete and empty. Keep computed/nested calls
+/// and every write-capable or opaque call fenced: this predicate proves only
+/// that the initializer cannot perturb the returned-place relation.
+fn isolated_local_initializer_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !expression_is_effectful_for_transparent_result(program, expression) {
+        return true;
+    }
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Call(_)
+    ) {
+        return false;
+    }
+
+    let mut diagnostics = Vec::new();
+    let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return false;
+    }
+    let mut written = Vec::new();
+    collect_expression_call_written_paths(
+        program,
+        expression,
+        current_machine,
+        &machine_symbols,
+        symbols,
+        active_states,
+        &mut written,
+    )
+    .is_some()
+        && written.is_empty()
 }
 
 fn parameter_relative_alias_position(

@@ -2922,6 +2922,16 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine impure_scratch(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine return_with_impure_call_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = impure_scratch(value);
+        value
+    }
+
     machine return_after_pure_expression(value: &mut u64) -> &mut u64 {
         value == value;
         value
@@ -3133,6 +3143,11 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::call_scratch_helper_result(&mut self) {
         let alias: &mut u64 = return_with_call_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::impure_call_scratch_helper_result(&mut self) {
+        let alias: &mut u64 = return_with_impure_call_scratch(&mut self.value);
         alias = 3;
     }
 
@@ -3421,6 +3436,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::nontrivial_call_result_alias", "self.value"),
         ("Main::nontrivial_call_rebound_alias", "self.other"),
         ("Main::isolated_scratch_helper_result", "self.value"),
+        ("Main::call_scratch_helper_result", "self.value"),
         ("Main::pure_expression_helper_result", "self.value"),
         ("Main::recast_write_helper_result", "self.value"),
         (
@@ -3546,7 +3562,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::effectful_index_recast_origin",
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",
-        "Main::call_scratch_helper_result",
+        "Main::impure_call_scratch_helper_result",
         "Main::discarded_call_helper_result",
         "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",

@@ -700,8 +700,11 @@ fn relabel_closed_data_uses_in_exact_assignments(
 }
 
 /// Closed callable signatures provide exact contextual types without inferring
-/// from literal fields. Restrict this pass to uniquely named free machines;
-/// overload and receiver selection remain resolver-owned and fail closed here.
+/// from literal fields. Restrict this pass to free machines whose overloads all
+/// agree on one parameter signature. Result-domain overloads deliberately share
+/// that signature, so their arguments have one exact context before the result
+/// destination selects an overload. Parameter-distinct overloads and receiver
+/// selection remain resolver-owned and fail closed here.
 fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
     synthesized_origins: &HashMap<String, String>,
@@ -730,10 +733,17 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
                     .type_reference
             })
             .collect::<Vec<_>>();
-        signatures
-            .entry(machine.name.as_str().to_owned())
-            .and_modify(|signature| *signature = None)
-            .or_insert(Some(parameters));
+        let name = machine.name.as_str().to_owned();
+        if let Some(signature) = signatures.get_mut(&name) {
+            let agrees = signature.as_ref().is_some_and(|prior| {
+                call_context_parameter_types_agree(syntax, prior, &parameters)
+            });
+            if !agrees {
+                *signature = None;
+            }
+        } else {
+            signatures.insert(name, Some(parameters));
+        }
     }
 
     let concrete_states = syntax
@@ -829,6 +839,112 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
                 );
             }
         }
+    }
+}
+
+/// Conservative pre-resolution equality for the expected parameter types that
+/// drive generic-literal relabeling. Handles are arena-local occurrences, so
+/// comparing the handles themselves would make two textually identical
+/// overload signatures look different. Unsupported or expression-bearing
+/// details fail closed rather than broadening contextual inference.
+fn call_context_parameter_types_agree(
+    syntax: &SyntaxTrees,
+    left: &[TypeReferenceHandle],
+    right: &[TypeReferenceHandle],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| call_context_types_agree(syntax, *left, *right))
+}
+
+fn call_context_types_agree(
+    syntax: &SyntaxTrees,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    match (
+        syntax.tables.type_references.type_reference(left),
+        syntax.tables.type_references.type_reference(right),
+    ) {
+        (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => left == right,
+        (TypeReferenceNode::SelfType, TypeReferenceNode::SelfType)
+        | (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
+        (
+            TypeReferenceNode::Reference {
+                referee: left,
+                is_mutable: left_mutable,
+                lifetime: left_lifetime,
+            },
+            TypeReferenceNode::Reference {
+                referee: right,
+                is_mutable: right_mutable,
+                lifetime: right_lifetime,
+            },
+        ) => {
+            left_mutable == right_mutable
+                && left_lifetime == right_lifetime
+                && call_context_types_agree(syntax, *left, *right)
+        }
+        (
+            TypeReferenceNode::Slice { element_type: left },
+            TypeReferenceNode::Slice {
+                element_type: right,
+            },
+        ) => call_context_types_agree(syntax, *left, *right),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: left,
+                length: left_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: right,
+                length: right_length,
+            },
+        ) => left_length == right_length && call_context_types_agree(syntax, *left, *right),
+        (
+            TypeReferenceNode::Generic {
+                base_name: left_base,
+                lifetime_arguments: left_lifetimes,
+                arguments: left_arguments,
+            },
+            TypeReferenceNode::Generic {
+                base_name: right_base,
+                lifetime_arguments: right_lifetimes,
+                arguments: right_arguments,
+            },
+        ) => {
+            left_base == right_base
+                && left_lifetimes == right_lifetimes
+                && call_context_parameter_types_agree(
+                    syntax,
+                    syntax
+                        .tables
+                        .type_references
+                        .type_reference_handles(*left_arguments),
+                    syntax
+                        .tables
+                        .type_references
+                        .type_reference_handles(*right_arguments),
+                )
+        }
+        (
+            TypeReferenceNode::DynamicTrait {
+                name: left_name,
+                conformance: left_conformance,
+            },
+            TypeReferenceNode::DynamicTrait {
+                name: right_name,
+                conformance: right_conformance,
+            },
+        ) => left_name == right_name && left_conformance == right_conformance,
+        // Constraint expressions and pre-evaluated const expressions use
+        // occurrence-specific handles here. Treat them as no consensus until
+        // the normalized typed identity is available.
+        (TypeReferenceNode::Constrained { .. }, TypeReferenceNode::Constrained { .. })
+        | (TypeReferenceNode::ConstExpression(_), TypeReferenceNode::ConstExpression(_)) => false,
+        _ => false,
     }
 }
 
@@ -4551,6 +4667,32 @@ mod tests {
             "#,
         )
         .expect("the unique call parameter should select Maybe<i32>");
+    }
+
+    #[test]
+    fn result_domain_overloads_share_exact_erased_generic_argument_contexts() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
+            data Holder { boolean_box: Box<bool>; boolean_maybe: Maybe<bool>; }
+
+            machine take(boxed: Box<i32>, maybe: Maybe<i32>) -> i32 { 1 }
+            machine take(boxed: Box<i32>, maybe: Maybe<i32>) -> i32 in Saturating {
+                2 as i32 in Saturating
+            }
+
+            machine run() -> i32 {
+                let selected: i32 in Saturating = take(
+                    Box { value: 7 },
+                    Maybe::Some { value: 9 }
+                );
+                selected as i32
+            }
+            "#,
+        )
+        .expect("result-domain overloads should share their exact record/sum parameter context");
     }
 
     #[test]

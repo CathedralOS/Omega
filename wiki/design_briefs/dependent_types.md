@@ -338,8 +338,11 @@ computed or nontrivial call results, and transport through a named state SCC
 remain opaque, except that primitive scalar and recursively primitive
 fixed-array locals are caller-isolated: writes through their exact or
 collection-coarse aliases disappear from the caller-visible frame. Named,
-reference-bearing, generic, and call-produced local roots do not receive that
-exception. Non-bijective, computed, or otherwise unrepresentable
+reference-bearing, and generic local roots do not receive that exception. One
+direct call may initialize a caller-isolated scratch local without obscuring a
+separately returned parameter origin only when the call's inferred frame is
+complete and empty; opaque, recursive, nested-computed, and write-capable calls
+remain fences. Non-bijective, computed, or otherwise unrepresentable
 cyclic rebinding retains only the coarse ownership ceiling; `TASKS.md` R5 owns
 further relational candidates.
 
