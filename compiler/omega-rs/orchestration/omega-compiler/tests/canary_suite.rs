@@ -2384,7 +2384,7 @@ fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts(
             .expect("copy compiler-body direct binary-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body direct binary-write target");
         compile(CompileOptions {
@@ -2476,7 +2476,7 @@ fn compiler_body_frame_indexed_binary_write_footprints_reach_x86_and_aarch64_art
             .expect("copy compiler-body frame-indexed binary-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-indexed binary-write target");
         compile(CompileOptions {
@@ -2523,7 +2523,7 @@ fn compiler_body_frame_base_indexed_binary_write_footprints_reach_x86_and_aarch6
             .expect("copy compiler-body frame-base-indexed binary-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-base-indexed binary-write target");
         compile(CompileOptions {
@@ -2570,7 +2570,7 @@ fn compiler_body_machine_indexed_binary_write_footprints_reach_x86_and_aarch64_a
             .expect("copy compiler-body machine-indexed binary-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed binary-write target");
         compile(CompileOptions {
@@ -2617,7 +2617,7 @@ fn compiler_body_machine_double_indexed_binary_write_footprints_reach_x86_and_aa
             .expect("copy compiler-body machine-double-indexed binary-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-double-indexed binary-write target");
         compile(CompileOptions {

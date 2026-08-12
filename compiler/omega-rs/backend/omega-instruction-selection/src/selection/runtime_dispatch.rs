@@ -4313,15 +4313,23 @@ fn simplify_runtime_local_initializer_handle(
     // are preserved for every role -- but it now selects the DESTINATION
     // landing: the local's declared type is where this value's constants
     // land, CM2).
+    let authored = expressions.to_tree(expression);
     let simplified = simplify_state_expression_for_role(
         input.program,
         machine,
         state,
         statement_index,
         StateValueRole::AssignmentValue,
-        &expressions.to_tree(expression),
+        &authored,
     );
-    Some(expressions.insert_tree(&simplified))
+    // Keep the copied checked-tree node when simplification is a no-op. Its
+    // authored operator spans are the exact bridge back to provider/policy
+    // evidence; reinserting an identical detached tree would erase them.
+    Some(if simplified == authored {
+        expression
+    } else {
+        expressions.insert_tree(&simplified)
+    })
 }
 
 fn local_initializer_handle(
