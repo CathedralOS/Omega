@@ -705,6 +705,9 @@ pub enum Terminator {
         edge: EdgeId,
         target: BlockId,
         arguments: Vec<ValueId>,
+        /// Exact no-code affine discards performed after edge fuel and outgoing
+        /// scalar materialization, in reverse parameter declaration order.
+        trivial_affine_discards: Vec<PlaceId>,
     },
     /// Select exactly one ordered successor from an already-defined Boolean
     /// value. Exhaustiveness and mutual exclusion are structural.

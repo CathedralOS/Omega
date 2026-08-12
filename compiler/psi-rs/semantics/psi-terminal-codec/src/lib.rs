@@ -1712,6 +1712,7 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             edge,
             target,
             arguments,
+            trivial_affine_discards,
         } => {
             writer.u8(1);
             writer.id(*edge);
@@ -1719,6 +1720,13 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             writer.len("jump arguments", arguments.len())?;
             for argument in arguments {
                 writer.id(*argument);
+            }
+            writer.len(
+                "jump trivial affine discards",
+                trivial_affine_discards.len(),
+            )?;
+            for place in trivial_affine_discards {
+                writer.id(*place);
             }
         }
         Terminator::Return {
@@ -2977,6 +2985,7 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 edge,
                 target,
                 arguments,
+                trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
             }
         }
         2 => Terminator::Return {

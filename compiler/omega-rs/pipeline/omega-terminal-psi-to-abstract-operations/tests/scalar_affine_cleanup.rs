@@ -14,7 +14,7 @@ use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_verifier::ProofBundle;
 
 #[test]
-fn omega_consumes_verified_scalar_affine_cleanup_without_emitting_an_operation() {
+fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     let place = place_id(1);
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -61,16 +61,32 @@ fn omega_consumes_verified_scalar_affine_cleanup_without_emitting_an_operation()
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
-            blocks: vec![Block {
-                id: block_id(1),
-                parameters: Vec::new(),
-                operations: Vec::new(),
-                terminator: Terminator::Return {
-                    edge: edge_id(1),
-                    value: value_id(1),
-                    trivial_affine_discards: vec![place],
+            blocks: vec![
+                Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        edge: edge_id(1),
+                        target: block_id(2),
+                        arguments: vec![value_id(1)],
+                        trivial_affine_discards: vec![place],
+                    },
                 },
-            }],
+                Block {
+                    id: block_id(2),
+                    parameters: vec![ValueDeclaration {
+                        id: value_id(3),
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: edge_id(2),
+                        value: value_id(3),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
             contract: MachineContract {
                 id: contract_id(1),
                 crash_routes: Vec::new(),
@@ -79,15 +95,20 @@ fn omega_consumes_verified_scalar_affine_cleanup_without_emitting_an_operation()
             },
         }],
     };
-    let semantics = encode_module(&module).expect("exact scalar affine cleanup should encode");
+    let semantics = encode_module(&module).expect("exact jump affine cleanup should encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof should encode");
 
     let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("verified scalar affine cleanup should lower through Omega");
+        .expect("verified jump affine cleanup should lower through Omega");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
     };
     let [
+        TerminalAbstractOperation::Jump {
+            psi_edge: jump_edge,
+            target,
+            bindings,
+        },
         TerminalAbstractOperation::Return {
             psi_edge,
             result,
@@ -98,9 +119,14 @@ fn omega_consumes_verified_scalar_affine_cleanup_without_emitting_an_operation()
     else {
         panic!("no-code cleanup must not add an abstract operation")
     };
-    assert_eq!(*psi_edge, edge_id(1));
+    assert_eq!(*jump_edge, edge_id(1));
+    assert_eq!(*target, block_id(2));
+    assert_eq!(bindings.len(), 1);
+    assert_eq!(bindings[0].parameter, value_id(3));
+    assert_eq!(bindings[0].argument, value_id(1));
+    assert_eq!(*psi_edge, edge_id(2));
     assert_eq!(*result, value_id(2));
-    assert_eq!(*value, value_id(1));
+    assert_eq!(*value, value_id(3));
     assert_eq!(*scalar_type, ScalarType::Boolean);
 }
 

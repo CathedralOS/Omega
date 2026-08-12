@@ -4644,6 +4644,7 @@ fn emit_reserved_boolean_value_blocks(
                     edge,
                     target,
                     arguments: vec![value],
+                    trivial_affine_discards: Vec::new(),
                 },
             };
             (terminator, all_operations.len())
@@ -4838,6 +4839,7 @@ fn emit_reserved_boolean_tuple_stage_blocks(
                     edge,
                     target: next_stage,
                     arguments,
+                    trivial_affine_discards: Vec::new(),
                 },
                 all_operations.len(),
             )
@@ -5729,6 +5731,7 @@ fn build_scalar_graph_module(
                                 edge,
                                 target: next_stage,
                                 arguments,
+                                trivial_affine_discards: Vec::new(),
                             },
                         };
                         if binding_index == 0 {
@@ -5963,6 +5966,7 @@ fn build_scalar_graph_module(
                             edge,
                             target: target.block,
                             arguments: target.arguments,
+                            trivial_affine_discards: Vec::new(),
                         }
                     } else {
                         let arguments = arguments
@@ -5980,6 +5984,7 @@ fn build_scalar_graph_module(
                             edge,
                             target: scalar_source_block(identity_base, target),
                             arguments,
+                            trivial_affine_discards: Vec::new(),
                         }
                     }
                 }
@@ -6077,6 +6082,7 @@ fn build_scalar_graph_module(
                         edge,
                         target: target.block,
                         arguments: target.arguments,
+                        trivial_affine_discards: Vec::new(),
                     }
                 } else {
                     let arguments = arguments
@@ -6098,6 +6104,7 @@ fn build_scalar_graph_module(
                         edge,
                         target: scalar_source_block(identity_base, *target),
                         arguments,
+                        trivial_affine_discards: Vec::new(),
                     }
                 }
             }
@@ -6321,6 +6328,7 @@ fn build_scalar_graph_module(
                         edge,
                         target: pending.target,
                         arguments,
+                        trivial_affine_discards: Vec::new(),
                     },
                 });
             }
@@ -6389,6 +6397,7 @@ fn build_scalar_graph_module(
                                 edge,
                                 target: next_stage,
                                 arguments,
+                                trivial_affine_discards: Vec::new(),
                             },
                         }));
                         next_stage_identity = next_stage.get();
@@ -6413,6 +6422,7 @@ fn build_scalar_graph_module(
                             .iter()
                             .map(|parameter| parameter.id)
                             .collect(),
+                        trivial_affine_discards: Vec::new(),
                     },
                 }));
                 blocks.extend(
@@ -6828,6 +6838,7 @@ fn emit_staged_scalar_call_binding(
                     edge,
                     target: next_stage,
                     arguments,
+                    trivial_affine_discards: Vec::new(),
                 },
             });
             next_stage
@@ -6869,6 +6880,7 @@ fn emit_staged_scalar_call_binding(
             edge,
             target: continuation,
             arguments: continuation_arguments,
+            trivial_affine_discards: Vec::new(),
         },
     });
     Ok((continuation, blocks))
@@ -8077,6 +8089,60 @@ mod tests {
         };
         assert_eq!(edge, edge_id(identity_base + 1));
         assert_eq!(value, value_id(identity_base + 1));
+    }
+
+    #[test]
+    fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
+        let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
+        let parameter_expression = || LoweredDirectExpression::Boolean {
+            expression: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),
+        };
+        let lowered = build_scalar_graph_module(
+            &[
+                LoweredScalarBranchState {
+                    parameter_types: vec![ScalarType::Boolean],
+                    bindings: Vec::new(),
+                    terminator: LoweredScalarBranchTerminator::Jump {
+                        target: 1,
+                        arguments: vec![parameter_expression()],
+                    },
+                },
+                LoweredScalarBranchState {
+                    parameter_types: vec![ScalarType::Boolean],
+                    bindings: Vec::new(),
+                    terminator: LoweredScalarBranchTerminator::Return {
+                        expression: parameter_expression(),
+                    },
+                },
+            ],
+            ScalarType::Boolean,
+            None,
+            Vec::new(),
+            LoweredContentIdentityReshuffles {
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                reshuffles: Vec::new(),
+                source_claims: Vec::new(),
+            },
+            LoweredContentPartitionCompositions {
+                structural_places: Vec::new(),
+                compositions: Vec::new(),
+            },
+            machine_id(2),
+            identity_base,
+            &[],
+            &[],
+        )
+        .expect("primitive scalar jump should lower");
+
+        let Terminator::Jump {
+            trivial_affine_discards,
+            ..
+        } = &lowered.semantic_module.machines[0].blocks[0].terminator
+        else {
+            panic!("first scalar block should jump")
+        };
+        assert!(trivial_affine_discards.is_empty());
     }
 
     fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {

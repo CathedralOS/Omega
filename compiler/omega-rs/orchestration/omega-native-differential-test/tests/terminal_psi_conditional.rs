@@ -65,7 +65,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "499375cb7d1377ac43ca0bb199a16fe94252d9b92591e375d643294d3eceab1d"
+        "59fae98cb448c5c7878420fe8b88974a6fde131afcade2a446cb4bdd9b1a24f6"
     );
     let bytes = encode_module(&module).expect("canonical bytes");
     let decoded = decode_module(&bytes).expect("decode canonical module");
@@ -291,6 +291,7 @@ fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
             edge: EdgeId::new(8).unwrap(),
             target: BlockId::new(1).unwrap(),
             arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         },
     });
     let verified = verify_module(
@@ -988,6 +989,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         edge: EdgeId::new(3).unwrap(),
                         target: BlockId::new(4).unwrap(),
                         arguments: vec![ValueId::new(6).unwrap()],
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
@@ -1005,6 +1007,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         edge: EdgeId::new(4).unwrap(),
                         target: BlockId::new(4).unwrap(),
                         arguments: vec![ValueId::new(7).unwrap()],
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {

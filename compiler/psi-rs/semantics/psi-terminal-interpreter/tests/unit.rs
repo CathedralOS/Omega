@@ -161,6 +161,78 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
 }
 
 #[test]
+fn jump_performs_affine_discard_only_after_edge_charge() {
+    let mut module = effect_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks = vec![
+        Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: edge_id(2),
+                target: block_id(3),
+                arguments: vec![value_id(10)],
+                trivial_affine_discards: vec![place_id(2)],
+            },
+        },
+        Block {
+            id: block_id(3),
+            parameters: vec![ValueDeclaration {
+                id: value_id(12),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(3),
+                value: value_id(12),
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+    ];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    let semantic = encode_module(&module).expect("jump affine cleanup module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Boolean(true)],
+        &[structural_value(50)],
+    )
+    .expect("verified jump affine cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    meter.replenish(1).unwrap();
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
+}
+
+#[test]
 fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     let (semantic, proof) = effect_artifact_sections();
     let argument = structural_value(41);

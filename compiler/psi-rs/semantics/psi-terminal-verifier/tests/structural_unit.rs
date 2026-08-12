@@ -882,6 +882,88 @@ fn scalar_return_requires_exact_affine_discards() {
 }
 
 #[test]
+fn jump_applies_a_canonical_subset_of_affine_discards() {
+    let mut module = hard_root_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.blocks[0].operations.clear();
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    let mut second_parameter = structural_parameter(place_id(4));
+    second_parameter.position = 1;
+    second_parameter.multiplicity = StructuralMultiplicity::Affine;
+    machine.structural_parameters.push(second_parameter);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks = vec![
+        Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: edge_id(2),
+                target: block_id(3),
+                arguments: vec![value_id(10)],
+                trivial_affine_discards: vec![place_id(4)],
+            },
+        },
+        Block {
+            id: block_id(3),
+            parameters: vec![ValueDeclaration {
+                id: value_id(12),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: edge_id(3),
+                value: value_id(12),
+                trivial_affine_discards: vec![place_id(2)],
+            },
+        },
+    ];
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    validate_module(&module).expect("jump may discard a canonical eligible subset");
+
+    let mut reordered = module.clone();
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![place_id(2), place_id(4)];
+    assert_eq!(
+        validate_module(&reordered).unwrap_err(),
+        ModuleError::JumpAffineDiscardsInvalid { edge: edge_id(2) }
+    );
+
+    let mut claim_bearing = module;
+    claim_bearing.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(1),
+        input: place_id(4),
+        field_path: Vec::new(),
+    });
+    assert_eq!(
+        validate_module(&claim_bearing).unwrap_err(),
+        ModuleError::JumpAffineDiscardsInvalid { edge: edge_id(2) }
+    );
+}
+
+#[test]
 fn affine_structural_arguments_transfer_at_most_once() {
     let mut repeated = hard_root_module();
     for machine in &mut repeated.machines {

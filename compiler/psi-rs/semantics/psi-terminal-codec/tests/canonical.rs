@@ -37,7 +37,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "1d709b96d0fff2154dd1905269f7f30124659fd985c69363786c01a40a5e1c00"
+        "bc32e0baba7290957af65b60a73c4e4127c8d884fe02160fc112a0032bbeec97"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -91,7 +91,7 @@ fn unit_return_affine_discard_round_trips_canonically() {
 }
 
 #[test]
-fn scalar_return_affine_discard_round_trips_canonically() {
+fn scalar_jump_affine_discard_round_trips_canonically() {
     let mut module = structural_effect_fixture();
     let mut machine = module.machines.pop().expect("callee machine");
     machine.blocks[0].operations.clear();
@@ -106,15 +106,29 @@ fn scalar_return_affine_discard_round_trips_canonically() {
         scalar_type: ScalarType::Boolean,
     });
     let place = machine.structural_parameters[0].place;
-    machine.blocks[0].terminator = Terminator::Return {
+    machine.blocks[0].terminator = Terminator::Jump {
         edge: edge_id(101),
-        value: value_id(50),
+        target: block_id(102),
+        arguments: vec![value_id(50)],
         trivial_affine_discards: vec![place],
     };
+    machine.blocks.push(Block {
+        id: block_id(102),
+        parameters: vec![ValueDeclaration {
+            id: value_id(52),
+            scalar_type: ScalarType::Boolean,
+        }],
+        operations: Vec::new(),
+        terminator: Terminator::Return {
+            edge: edge_id(102),
+            value: value_id(52),
+            trivial_affine_discards: Vec::new(),
+        },
+    });
     module.entry = machine.id;
     module.machines = vec![machine];
 
-    let bytes = encode_module(&module).expect("scalar affine discard should encode");
+    let bytes = encode_module(&module).expect("jump affine discard should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1209,6 +1223,7 @@ fn fixture() -> TerminalModule {
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
