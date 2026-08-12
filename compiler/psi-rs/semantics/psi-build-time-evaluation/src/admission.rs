@@ -16,13 +16,13 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 
-pub(super) struct BuildTimeAdmissionPlan {
+pub struct BuildTimeAdmissionPlan {
     operational: psi_effects::OperationalPlan,
     service_reaches: psi_effects::ServiceReachInferencePlan,
 }
 
 impl BuildTimeAdmissionPlan {
-    pub(super) fn infer(program: &TypedTrees) -> Self {
+    pub fn infer(program: &TypedTrees) -> Self {
         let operational = psi_effects::infer_operational_may(program);
         let service_reaches = psi_effects::infer_service_reaches(program, &operational);
         Self {
@@ -31,7 +31,7 @@ impl BuildTimeAdmissionPlan {
         }
     }
 
-    pub(super) fn require_common_floor(
+    pub fn require_common_floor(
         &self,
         program: &TypedTrees,
         machine: &Machine,

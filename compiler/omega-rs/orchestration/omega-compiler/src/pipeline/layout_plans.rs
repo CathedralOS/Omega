@@ -13,7 +13,7 @@ pub use psi_layout_plans::{
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
 
-use super::build_time_admission::BuildTimeAdmissionPlan;
+use psi_build_time_evaluation::BuildTimeAdmissionPlan;
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 const PLAN_ENTRY_CAPACITY: usize = 64;

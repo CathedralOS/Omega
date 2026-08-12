@@ -18,7 +18,7 @@ use psi_typed_trees::expression::{
 };
 use psi_typed_trees::types::PrimitiveType;
 
-use super::build_time_admission::BuildTimeAdmissionPlan;
+use psi_build_time_evaluation::BuildTimeAdmissionPlan;
 
 struct PendingMembership {
     fact: Handle<ProofFact>,

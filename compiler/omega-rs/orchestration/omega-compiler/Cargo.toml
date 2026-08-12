@@ -44,6 +44,7 @@ omega-object-file = { path = "../../backend/object/omega-object-file" }
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 psi-checked-interpreter = { path = "../../../psi-rs/semantics/psi-checked-interpreter" }
+psi-build-time-evaluation = { path = "../../../psi-rs/semantics/psi-build-time-evaluation" }
 omega-effects = { path = "../../representations/omega-effects" }
 psi-effects = { path = "../../../psi-rs/representations/psi-effects" }
 psi-symbol-resolved-trees = { path = "../../../psi-rs/representations/psi-symbol-resolved-trees" }
