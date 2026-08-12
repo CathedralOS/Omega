@@ -14,9 +14,9 @@ use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
-    TerminalScalarCallStackEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarCallStackEvidence, TerminalScalarControlFlowEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -391,6 +391,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
             scalar_mutation(2, 1, TerminalScalarStackMutationKind::X86Pop),
             scalar_mutation(3, 1, TerminalScalarStackMutationKind::X86Pop),
         ],
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
     });
     let artifact = build_terminal_object_artifact(&x86).expect("x86 scalar stack artifact");
@@ -460,6 +461,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
     let mut call = internal_call_plan(NativeTarget::linux_x64());
     call.functions[1].scalar_stack = Some(TerminalScalarStackEvidence {
         mutations: Vec::new(),
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
     });
     assert_eq!(
@@ -504,6 +506,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
                 TerminalScalarStackMutationKind::Release { byte_size: 16 },
             ),
         ],
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
     });
     let artifact = build_terminal_object_artifact(&aarch64).expect("AArch64 scalar stack artifact");
@@ -535,6 +538,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
     ]);
     unsupported_aarch64.functions[0].scalar_stack = Some(TerminalScalarStackEvidence {
         mutations: Vec::new(),
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
     });
     assert_eq!(
@@ -558,6 +562,7 @@ fn scalar_stack_decoder_ignores_stack_opcode_bytes_inside_immediates() {
     ];
     plan.functions[0].scalar_stack = Some(TerminalScalarStackEvidence {
         mutations: Vec::new(),
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
     });
     build_terminal_object_artifact(&plan)
@@ -668,6 +673,166 @@ fn scalar_direct_calls_compose_pending_temporaries_and_fail_closed() {
         build_terminal_object_artifact(&link_mutation),
         Err(TerminalObjectError::InvalidScalarCallStackEvidence { .. })
     ));
+}
+
+#[test]
+fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
+    let x86 = scalar_two_return_conditional_plan(NativeTarget::linux_x64());
+    let artifact = build_terminal_object_artifact(&x86).expect("x86 conditional stack artifact");
+    assert_eq!(
+        artifact.functions()[0]
+            .scalar_stack
+            .expect("x86 scalar stack")
+            .local_peak_bytes,
+        0
+    );
+
+    let aarch64 = scalar_two_return_conditional_plan(NativeTarget::linux_arm64());
+    let artifact =
+        build_terminal_object_artifact(&aarch64).expect("AArch64 conditional stack artifact");
+    assert_eq!(
+        artifact.functions()[0]
+            .scalar_stack
+            .expect("AArch64 scalar stack")
+            .local_peak_bytes,
+        32,
+        "sequential arms take a maximum, not a sum"
+    );
+    assert_eq!(
+        derive_terminal_stack_demand(&artifact, machine_id(1))
+            .expect("conditional stack demand")
+            .ceiling_bytes(),
+        32
+    );
+
+    let mut forged_target = x86.clone();
+    forged_target.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .control_flow = TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+        branch_offset: 4,
+        branch_byte_count: 6,
+        false_arm_offset: 20,
+    };
+    assert_eq!(
+        build_terminal_object_artifact(&forged_target),
+        Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine: machine_id(1),
+            offset: 4,
+        })
+    );
+
+    let mut wrong_polarity = x86.clone();
+    wrong_polarity.functions[0].bytes[5] = 0x85; // jne instead of canonical je
+    assert_eq!(
+        build_terminal_object_artifact(&wrong_polarity),
+        Err(TerminalObjectError::InvalidScalarConditionalEvidence {
+            machine: machine_id(1),
+            offset: 4,
+        })
+    );
+
+    let mut missing_evidence = x86;
+    missing_evidence.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .control_flow = TerminalScalarControlFlowEvidence::Linear;
+    assert_eq!(
+        build_terminal_object_artifact(&missing_evidence),
+        Err(TerminalObjectError::NonLinearScalarControlFlow {
+            machine: machine_id(1),
+            offset: 4,
+        })
+    );
+
+    let mut call_claim = scalar_two_return_conditional_plan(NativeTarget::linux_x64());
+    call_claim.functions[0]
+        .internal_calls
+        .push(TerminalInternalCallRelocation {
+            psi_operation: operation_id(1),
+            target: machine_id(1),
+            unit_stack: None,
+            scalar_stack: None,
+            offset: 5,
+        });
+    assert_eq!(
+        build_terminal_object_artifact(&call_claim),
+        Err(TerminalObjectError::ScalarConditionalCallNotSupported(
+            machine_id(1)
+        ))
+    );
+
+    let mut extra_branch = aarch64.clone();
+    extra_branch.functions[0].bytes[4..8].copy_from_slice(&0x1400_0000_u32.to_le_bytes());
+    assert_eq!(
+        build_terminal_object_artifact(&extra_branch),
+        Err(TerminalObjectError::NonLinearScalarControlFlow {
+            machine: machine_id(1),
+            offset: 4,
+        })
+    );
+
+    let mut missing_return = aarch64.clone();
+    missing_return.functions[0].bytes[12..16].copy_from_slice(&0xd503_201f_u32.to_le_bytes());
+    assert_eq!(
+        build_terminal_object_artifact(&missing_return),
+        Err(TerminalObjectError::MissingBalancedScalarReturn(
+            machine_id(1)
+        ))
+    );
+
+    let mut unclaimed = aarch64.clone();
+    unclaimed.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .mutations
+        .remove(0);
+    assert_eq!(
+        build_terminal_object_artifact(&unclaimed),
+        Err(TerminalObjectError::UnclaimedScalarStackMutation {
+            machine: machine_id(1),
+            offset: 4,
+        })
+    );
+
+    let mut crossed = scalar_two_return_conditional_plan(NativeTarget::linux_arm64());
+    crossed.functions[0].bytes = aarch64_words(&[
+        0x3400_0060, // cbz w0, false arm at byte 12
+        0xd100_43ff, // true: sub sp, sp, #16
+        0xd65f_03c0, // true: ret while still allocated
+        0x9100_43ff, // false: add sp, sp, #16
+        0xd65f_03c0, // false: ret
+    ]);
+    crossed.functions[0].scalar_stack = Some(TerminalScalarStackEvidence {
+        mutations: vec![
+            scalar_mutation(
+                4,
+                4,
+                TerminalScalarStackMutationKind::Allocate { byte_size: 16 },
+            ),
+            scalar_mutation(
+                12,
+                4,
+                TerminalScalarStackMutationKind::Release { byte_size: 16 },
+            ),
+        ],
+        control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+            branch_offset: 0,
+            branch_byte_count: 4,
+            false_arm_offset: 12,
+        },
+        stack_alignment: 16,
+    });
+    assert_eq!(
+        build_terminal_object_artifact(&crossed),
+        Err(TerminalObjectError::MissingBalancedScalarReturn(
+            machine_id(1)
+        )),
+        "allocations may not balance against a different arm"
+    );
 }
 
 #[test]
@@ -1086,6 +1251,78 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
     }
 }
 
+fn scalar_two_return_conditional_plan(target: NativeTarget) -> TerminalMachineCodePlan {
+    let mut plan = two_function_plan();
+    plan.target = target;
+    plan.entry = machine_id(1);
+    plan.functions.truncate(1);
+    let function = &mut plan.functions[0];
+    match target.architecture {
+        omega_target::Architecture::X86_64 => {
+            function.bytes = vec![
+                0x89, 0xf8, // mov eax, edi
+                0x85, 0xc0, // test eax, eax
+                0x0f, 0x84, 9, 0, 0, 0, // jz false arm
+                0x48, 0x89, 0xf0, // true arm
+                0x25, 0xff, 0, 0, 0, 0xc3, // ret
+                0x48, 0x89, 0xd0, // false arm
+                0x25, 0xff, 0, 0, 0, 0xc3, // ret
+            ];
+            function.scalar_stack = Some(TerminalScalarStackEvidence {
+                mutations: Vec::new(),
+                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                    branch_offset: 4,
+                    branch_byte_count: 6,
+                    false_arm_offset: 19,
+                },
+                stack_alignment: 16,
+            });
+        }
+        omega_target::Architecture::Aarch64 => {
+            function.bytes = aarch64_words(&[
+                0x3400_0080, // cbz w0, false arm at byte 16
+                0xd100_43ff, // true: sub sp, sp, #16
+                0x9100_43ff, // true: add sp, sp, #16
+                0xd65f_03c0, // true: ret
+                0xd100_83ff, // false: sub sp, sp, #32
+                0x9100_83ff, // false: add sp, sp, #32
+                0xd65f_03c0, // false: ret
+            ]);
+            function.scalar_stack = Some(TerminalScalarStackEvidence {
+                mutations: vec![
+                    scalar_mutation(
+                        4,
+                        4,
+                        TerminalScalarStackMutationKind::Allocate { byte_size: 16 },
+                    ),
+                    scalar_mutation(
+                        8,
+                        4,
+                        TerminalScalarStackMutationKind::Release { byte_size: 16 },
+                    ),
+                    scalar_mutation(
+                        16,
+                        4,
+                        TerminalScalarStackMutationKind::Allocate { byte_size: 32 },
+                    ),
+                    scalar_mutation(
+                        20,
+                        4,
+                        TerminalScalarStackMutationKind::Release { byte_size: 32 },
+                    ),
+                ],
+                control_flow: TerminalScalarControlFlowEvidence::TopLevelTwoReturn {
+                    branch_offset: 0,
+                    branch_byte_count: 4,
+                    false_arm_offset: 16,
+                },
+                stack_alignment: 16,
+            });
+        }
+    }
+    plan
+}
+
 fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
     let mut plan = internal_call_plan(target);
     plan.functions[0].bytes = match target.architecture {
@@ -1094,6 +1331,7 @@ fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
     };
     plan.functions[0].scalar_stack = Some(TerminalScalarStackEvidence {
         mutations: Vec::new(),
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
     });
     let caller = &mut plan.functions[1];
@@ -1110,6 +1348,7 @@ fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     scalar_mutation(0, 1, TerminalScalarStackMutationKind::X86Push),
                     scalar_mutation(6, 1, TerminalScalarStackMutationKind::X86Pop),
                 ],
+                control_flow: TerminalScalarControlFlowEvidence::Linear,
                 stack_alignment: 16,
             });
             caller.internal_calls[0].offset = 2;
@@ -1152,6 +1391,7 @@ fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                         TerminalScalarStackMutationKind::Release { byte_size: 16 },
                     ),
                 ],
+                control_flow: TerminalScalarControlFlowEvidence::Linear,
                 stack_alignment: 16,
             });
             caller.internal_calls[0].offset = 12;

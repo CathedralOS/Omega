@@ -29,9 +29,9 @@ pub struct TerminalMachineCodeFunction {
     /// closure. Other terminal function forms remain deliberately unreported
     /// until their complete temporary-stack accounting is retained.
     pub unit_stack: Option<TerminalUnitStackEvidence>,
-    /// Exact ordered stack mutations for a branch-free scalar function.
-    /// Object construction replays the target instructions and derives the
-    /// numeric peak; unsupported scalar forms remain `None`.
+    /// Exact ordered stack mutations and admitted control-flow shape for a
+    /// scalar function. Object construction replays the target instructions
+    /// and derives the numeric peak; unsupported scalar forms remain `None`.
     pub scalar_stack: Option<TerminalScalarStackEvidence>,
     /// Typed internal-call relocation fields, ordered by `offset`. Each row
     /// points at the mutable immediate bits of one architecture-native call;
@@ -209,7 +209,22 @@ pub struct TerminalAarch64ReturnLinkEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarStackEvidence {
     pub mutations: Vec<TerminalScalarStackMutation>,
+    pub control_flow: TerminalScalarControlFlowEvidence,
     pub stack_alignment: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalScalarControlFlowEvidence {
+    Linear,
+    /// One top-level Boolean-parameter branch followed by two independently
+    /// returning, call-free linear integer arms. The true arm begins directly
+    /// after the branch and ends where the false arm begins; the false arm
+    /// ends at the function boundary.
+    TopLevelTwoReturn {
+        branch_offset: usize,
+        branch_byte_count: usize,
+        false_arm_offset: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
