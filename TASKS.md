@@ -67,10 +67,12 @@ Remaining:
   termination/ranking proof, const-evaluation rejection, parser rejection,
   predicate-domain declaration/contract-flow, domain alias/import, generic
   declaration/bound/rejection, borrow/lifetime, scalar-constraint, and
-  structural data-shape/pattern and wire-schema declaration, control-flow rejection, expression type/operator,
-  basic call/result/recursion, suspension/carry, numeric conversion, value construction, Exact arithmetic
-  proof/theorem/runtime-use, dependent-contract/frame, domain qualification/operator,
-  trait and effect-contract requirement,
+  structural data-shape/pattern and wire-schema declaration, control-flow
+  rejection, expression type/operator, basic call/result/recursion,
+  suspension/carry, cleanup contract, returned-failure/control-outcome,
+  numeric conversion, value construction, Exact arithmetic
+  proof/theorem/runtime-use, dependent-contract/frame, domain
+  qualification/operator, trait and effect-contract requirement,
   invariant-window, slice/collection bounds, overlap, and range-flow validation,
   operator-overload identity, and recast representation checking, plus pure
   ownership-checker fixtures now use explicit checked-only harnesses;

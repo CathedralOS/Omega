@@ -1,7 +1,7 @@
-// PASS canary (ch15 "Host Failure"): a host machine declares how it fails. The
-// `boundary host` machine reports failure through a `&mut IOError` output value
-// (failure-as-data crossing the boundary) rather than an invisible unwind. The
-// boundary-host machine shape type-checks cleanly.
+// A boundary requirement declares recoverable failure as an ordinary returned
+// sum. A selected host provider may lower that result indirectly, but the
+// semantic source surface exposes neither a result out-parameter nor an
+// invisible unwind.
 
 data Buffer {
     len: u64;
@@ -11,14 +11,17 @@ data IOError {
     code: i32;
 }
 
+data ReadOutcome {
+    case Read(bytes: u64);
+    case Closed;
+    case Failed(error: IOError);
+}
+
 data HostFile {
     handle: i32;
 }
 
-machine HostFile::read(handle: i32, out: &mut Buffer, result: &mut IOError)
-boundary host
-{
-}
+boundary machine HostFile::read(handle: i32, out: &mut Buffer) -> ReadOutcome;
 
 data Main {
 }

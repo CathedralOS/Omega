@@ -1,4 +1,4 @@
-// PASS canary (ch16 "Effects And Failure"): a regular (non-boundary) machine
+// A regular (non-boundary) machine
 // carries an explicit service-reach annotation. The chapter says cleanup/blocking
 // behavior must be declared independently; here an ordinary machine declares the
 // `Allocator` boundary-service reach. Machine-level declarations type-check

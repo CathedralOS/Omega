@@ -256,9 +256,10 @@ everything else does — by **returning a sum**. Result-by-out-parameter is
 rejected as a surface form (it is at most an invisible ABI lowering detail).
 
 ```omega
-machine HostFile::read(handle: HostHandle, out: &mut Buffer) -> ReadOutcome
-boundary host
-{ }
+boundary machine HostFile::read(
+    handle: HostHandle,
+    out: &mut Buffer
+) -> ReadOutcome;
 
 data ReadOutcome {
     case Read(bytes: u64);
@@ -270,6 +271,8 @@ data ReadOutcome {
 The boundary contract decides whether a given failure is data (a case in the
 returned sum), a blocking wait, or a declared non-returning outcome. Host
 boundaries must document whether resources remain valid after a failure case.
+The selected host provider and calling plan realize the ABI; `boundary host`
+is not a separate machine-body form.
 
 ## Cancellation
 
