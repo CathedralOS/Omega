@@ -3675,7 +3675,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 }
 
 #[test]
-fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
+fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
     let source = r#"
     data Main {
         value: u64;
@@ -3719,6 +3719,17 @@ fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
         &mut cells[identity_index(make_index())]
     }
 
+    machine return_nested_write_call_index<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut u64 {
+        &mut cells[identity_index(write_index(value))]
+    }
+
+    machine return_deep_call_index(cells: &mut [u64; 2]) -> &mut u64 {
+        &mut cells[identity_index(identity_index(make_index()))]
+    }
+
     machine return_recursive_call_index(cells: &mut [u64; 2]) -> &mut u64 {
         &mut cells[recursive_index()]
     }
@@ -3741,6 +3752,17 @@ fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
 
     machine Main::nested_call_index_result(&mut self) {
         let alias: &mut u64 = return_nested_call_index(&mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::nested_write_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_nested_write_call_index(&mut self.cells, &mut self.value);
+        alias = 1;
+    }
+
+    machine Main::deep_call_index_result(&mut self) {
+        let alias: &mut u64 = return_deep_call_index(&mut self.cells);
         alias = 1;
     }
 
@@ -3781,6 +3803,11 @@ fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
             "Main::write_call_index_result",
             vec!["self.cells", "self.value"],
         ),
+        ("Main::nested_call_index_result", vec!["self.cells"]),
+        (
+            "Main::nested_write_call_index_result",
+            vec!["self.cells", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -3807,7 +3834,7 @@ fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
     }
 
     for name in [
-        "Main::nested_call_index_result",
+        "Main::deep_call_index_result",
         "Main::recursive_call_index_result",
     ] {
         let machine = typed
@@ -3823,13 +3850,13 @@ fn transparent_returned_index_frame_accepts_one_exact_direct_call() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the one-direct-call index rung"
+            "{name} must remain opaque outside the bounded depth-two index rung"
         );
     }
 }
 
 #[test]
-fn stable_alias_index_frame_accepts_one_exact_direct_call() {
+fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     let source = r#"
     data Main {
         value: u64;
@@ -3875,6 +3902,18 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
         alias = 1;
     }
 
+    machine Main::nested_write_call_index_alias(&mut self) {
+        let alias: &mut u64 =
+            &mut self.cells[identity_index(write_index(&mut self.value))];
+        alias = 1;
+    }
+
+    machine Main::deep_call_index_alias(&mut self) {
+        let alias: &mut u64 =
+            &mut self.cells[identity_index(identity_index(make_index()))];
+        alias = 1;
+    }
+
     machine Main::recursive_call_index_alias(&mut self) {
         let alias: &mut u64 = &mut self.cells[recursive_index()];
         alias = 1;
@@ -3903,6 +3942,26 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
     machine Main::nested_call_index_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut self.other_cells[identity_index(make_index())];
+        alias = 1;
+    }
+
+    machine Main::nested_write_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias =
+            &mut self.other_cells[identity_index(write_index(&mut self.value))];
+        alias = 1;
+    }
+
+    machine Main::deep_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias =
+            &mut self.other_cells[identity_index(identity_index(make_index()))];
+        alias = 1;
+    }
+
+    machine Main::binding_reborrow_call_index_alias_rebind(&mut self) {
+        let alias: &mut u64 = &mut self.cells[0];
+        alias = &mut self.other_cells[identity_index(write_index(&mut alias))];
         alias = 1;
     }
 
@@ -3944,6 +4003,11 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
             "Main::write_call_index_alias",
             vec!["self.cells", "self.value"],
         ),
+        ("Main::nested_call_index_alias", vec!["self.cells"]),
+        (
+            "Main::nested_write_call_index_alias",
+            vec!["self.cells", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -3970,7 +4034,7 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
     }
 
     for name in [
-        "Main::nested_call_index_alias",
+        "Main::deep_call_index_alias",
         "Main::recursive_call_index_alias",
     ] {
         let machine = typed
@@ -3986,7 +4050,7 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the one-direct-call alias-index rung"
+            "{name} must remain opaque outside the bounded depth-two alias-index rung"
         );
     }
 
@@ -3999,6 +4063,14 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
         (
             "Main::prior_alias_survives_call_index_rebind",
             vec!["self.cells", "self.other_cells"],
+        ),
+        (
+            "Main::nested_call_index_alias_rebind",
+            vec!["self.other_cells"],
+        ),
+        (
+            "Main::nested_write_call_index_alias_rebind",
+            vec!["self.other_cells", "self.value"],
         ),
     ] {
         let machine = typed
@@ -4026,7 +4098,8 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
     }
 
     for name in [
-        "Main::nested_call_index_alias_rebind",
+        "Main::deep_call_index_alias_rebind",
+        "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
     ] {
         let machine = typed
@@ -4042,7 +4115,7 @@ fn stable_alias_index_frame_accepts_one_exact_direct_call() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the one-direct-call alias-rebind rung"
+            "{name} must remain opaque outside the bounded depth-two alias-rebind rung"
         );
     }
 }

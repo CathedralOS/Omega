@@ -352,19 +352,13 @@ independently admitted when their expressions are non-rebinding and every call
 frame is complete, including nested direct calls to a maximum call-tree depth of
 two. Explicitly discarded call results, explicit binding reborrows, deeper
 computed arguments, and any opaque node remain fences.
-A terminal returned-place index may be one direct non-rebinding value call when
-its inferred frame is complete. The returned origin remains collection-coarse,
-and the ordinary frame still publishes the index call's writes. Nested-computed,
-recursive, or opaque index calls remain fences.
-The same one-direct-call rule applies to a stable local mutable-alias index: its
-origin remains collection-coarse and the ordinary frame publishes the index
-call's writes. Nested-computed, binding-reborrow, recursive, or opaque alias
-indexes remain fences.
-A direct helper-local alias rebind may take the same one-direct-call indexed
-replacement. Only the rebound name moves to the collection-coarse replacement;
-prior reborrows retain their established origins, and the ordinary frame still
-publishes index-call writes. Nested-computed, recursive, or opaque indexed
-replacements remain fences.
+A terminal returned-place index may contain a non-rebinding direct-call tree of
+maximum depth two when every inferred frame is complete. The returned origin
+remains collection-coarse, and the ordinary frame publishes every call's
+writes. The same bound applies to stable local mutable-alias indexes and direct
+helper-local alias rebind replacements: only the rebound name moves to the
+coarse origin, while prior reborrows retain their established origins. Deeper
+computed, binding-reborrow, recursive, or opaque index forms remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
