@@ -6374,18 +6374,12 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
     // Compile-only here; runtime confirmation remains gated on Linux hosts.
     let canary = pass_canary("time/cross_linux_time_host");
     for target in ["linux_x64", "linux_arm64"] {
-        let build_dir =
+        let scratch =
             std::env::temp_dir().join(format!("omega-linux-time-{target}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
+        compile_single_file_hosted_main(&canary, &scratch, target).unwrap_or_else(|diagnostics| {
             panic!("Linux time-host cross-compile failed for {target}: {diagnostics:#?}")
         });
+        let build_dir = scratch.join("out");
         assert!(
             build_dir.join("omega-program").exists(),
             "{target} should emit an ELF image"
@@ -6405,7 +6399,7 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
             footprints.contains("\"origin\": \"compiler_body_outbound_syscall_timespec_argument\""),
             "{target} nanosleep adapters must retain their exact composite footprint"
         );
-        let _ = fs::remove_dir_all(&build_dir);
+        let _ = fs::remove_dir_all(&scratch);
     }
 }
 
@@ -6413,20 +6407,14 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
 fn cross_linux_value_syscalls_compile_on_both_architectures() {
     let canary = pass_canary("filesystem/cross_linux_value_syscalls");
     for target in ["linux_x64", "linux_arm64"] {
-        let build_dir = std::env::temp_dir().join(format!(
+        let scratch = std::env::temp_dir().join(format!(
             "omega-linux-value-syscalls-{target}-{}",
             std::process::id()
         ));
-        let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
+        compile_single_file_hosted_main(&canary, &scratch, target).unwrap_or_else(|diagnostics| {
             panic!("Linux value-syscall cross-compile failed for {target}: {diagnostics:#?}")
         });
+        let build_dir = scratch.join("out");
         assert!(
             build_dir.join("omega-program").exists(),
             "{target} should emit an ELF image"
@@ -6470,7 +6458,7 @@ fn cross_linux_value_syscalls_compile_on_both_architectures() {
                 "Linux x86-64 stat must retain its 64-bit nlink and blksize encodings"
             );
         }
-        let _ = fs::remove_dir_all(&build_dir);
+        let _ = fs::remove_dir_all(&scratch);
     }
 }
 
