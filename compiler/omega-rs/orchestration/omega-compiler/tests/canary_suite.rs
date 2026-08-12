@@ -6557,16 +6557,10 @@ fn runtime_sleep_for_exit_canary_runs() {
         "interpreter oracle should exit 70 for the sleep_for chain, got {}",
         outcome.exit_code
     );
-    let build_dir = std::env::temp_dir().join(format!("omega-sleep-for-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sleep_for canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-sleep-for-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("sleep_for canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("sleep_for canary should run");
     assert_eq!(
@@ -6576,7 +6570,7 @@ fn runtime_sleep_for_exit_canary_runs() {
          (1 = returned ms wrong; 2 = elapsed under 30ms)",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
