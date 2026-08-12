@@ -2,10 +2,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    _ = self.run();
+    _ = self.evaluate();
 }
 
-machine Main::run(&mut self) -> u64 {
+machine Main::evaluate(&mut self) -> u64 {
     transition {
         _ -> self.walk(4, 0)
     }

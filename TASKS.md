@@ -66,12 +66,11 @@ Remaining:
   selection now accepts a matrix of exact per-target root bindings, and the
   first four-target hosted canary plus the byte/line console replay matrices
   and initial cross-architecture guard/copy footprint artifact cohorts have
-  migrated.
-  Production and development
-  interpreter callers require Omega's exact entry choice; checked-only semantic
-  compilation no longer invents `Main::main`, while legacy test harnesses name
-  that temporary fixture entry explicitly. Implicit Psi entry discovery and
-  `Main::run` are retired. Final composition of firmware
+  migrated. Production and development interpreter callers require Omega's
+  exact entry choice; checked-only semantic compilation no longer invents
+  `Main::main`, while legacy test harnesses name that temporary fixture entry
+  explicitly. Implicit Psi entry discovery and the former `Main::run` entry
+  convention are retired. Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
