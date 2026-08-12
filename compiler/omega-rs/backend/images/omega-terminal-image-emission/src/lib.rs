@@ -28,7 +28,8 @@ use omega_object_file::{
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
-    TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalPortEffectRecord,
+    TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
+    TerminalNativeFuelSite, TerminalPortEffectRecord,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
@@ -44,6 +45,7 @@ pub struct TerminalObjectArtifact {
     relocations: RelocationPlan,
     text_bytes: Vec<u8>,
     functions: Vec<TerminalObjectFunction>,
+    fuel_attribution: Vec<TerminalObjectFuelAttribution>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
 }
@@ -90,6 +92,10 @@ impl TerminalObjectArtifact {
 
     pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
         &self.port_effects
+    }
+
+    pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
+        &self.fuel_attribution
     }
 }
 
@@ -145,6 +151,13 @@ pub struct TerminalObjectPortEffect {
     pub text_offset: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalObjectFuelAttribution {
+    pub machine: MachineId,
+    pub attribution: TerminalNativeFuelAttribution,
+    pub text_offset: usize,
+}
+
 /// Construct a self-contained object plan and exact text carrier.
 ///
 /// Function order is semantic-artifact order and must already be canonical by
@@ -194,6 +207,38 @@ pub fn build_terminal_object_artifact(
                     caller: function.machine,
                     operation: call.psi_operation,
                 });
+            }
+        }
+        if function.fuel_attribution.windows(2).any(|pair| {
+            (pair[0].operation_ordinal, pair[0].code_offset)
+                >= (pair[1].operation_ordinal, pair[1].code_offset)
+        }) {
+            return Err(TerminalObjectError::NonCanonicalFuelAttributionOrder(
+                function.machine,
+            ));
+        }
+        let mut fuel_sites = std::collections::BTreeSet::new();
+        for attribution in &function.fuel_attribution {
+            let end = attribution
+                .code_offset
+                .checked_add(attribution.byte_count)
+                .ok_or(TerminalObjectError::FuelAttributionOutsideFunction(
+                    function.machine,
+                ))?;
+            let known = match attribution.site {
+                TerminalNativeFuelSite::Operation(operation) => {
+                    function.provenance.operations.contains(&operation)
+                }
+                TerminalNativeFuelSite::Edge(edge) => function.provenance.edges.contains(&edge),
+            };
+            if attribution.units == 0
+                || end > function.bytes.len()
+                || !known
+                || !fuel_sites.insert(attribution.site)
+            {
+                return Err(TerminalObjectError::InvalidFuelAttribution(
+                    function.machine,
+                ));
             }
         }
         if function.port_effects.windows(2).any(|pair| {
@@ -320,6 +365,7 @@ pub fn build_terminal_object_artifact(
 
     let mut text_bytes = Vec::with_capacity(text_size);
     let mut functions = Vec::with_capacity(plan.functions.len());
+    let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut symbols_by_machine = std::collections::BTreeMap::new();
@@ -343,6 +389,15 @@ pub fn build_terminal_object_artifact(
             object.layout.entry_symbol = symbol;
         }
         symbols_by_machine.insert(function.machine, symbol);
+        for attribution in &function.fuel_attribution {
+            fuel_attribution.push(TerminalObjectFuelAttribution {
+                machine: function.machine,
+                attribution: *attribution,
+                text_offset: text_offset
+                    .checked_add(attribution.code_offset)
+                    .ok_or(TerminalObjectError::TextSizeOverflow)?,
+            });
+        }
         for effect in &function.port_effects {
             port_effects.push(TerminalObjectPortEffect {
                 machine: function.machine,
@@ -418,6 +473,7 @@ pub fn build_terminal_object_artifact(
         relocations,
         text_bytes,
         functions,
+        fuel_attribution,
         port_effects,
         boundary_settlements,
     })
@@ -537,6 +593,7 @@ pub fn emit_terminal_executable_image(
         target: artifact.target,
         subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
         functions: artifact.functions.clone(),
+        fuel_attribution: artifact.fuel_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
         output,
@@ -549,6 +606,7 @@ pub struct TerminalExecutableImage {
     target: NativeTarget,
     subsystem: Option<u16>,
     functions: Vec<TerminalObjectFunction>,
+    fuel_attribution: Vec<TerminalObjectFuelAttribution>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
     output: EmittedImageOutput,
@@ -583,6 +641,10 @@ impl TerminalExecutableImage {
 
     pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
         &self.port_effects
+    }
+
+    pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
+        &self.fuel_attribution
     }
 }
 
@@ -654,6 +716,9 @@ pub enum TerminalObjectError {
     },
     EmptyFunction(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
+    NonCanonicalFuelAttributionOrder(MachineId),
+    FuelAttributionOutsideFunction(MachineId),
+    InvalidFuelAttribution(MachineId),
     NonCanonicalPortEffectOrder(MachineId),
     NonCanonicalBoundarySettlementOrder(MachineId),
     UnknownInternalCallTarget {

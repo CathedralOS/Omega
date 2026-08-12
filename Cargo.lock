@@ -1176,6 +1176,7 @@ dependencies = [
  "omega-x86-encoding",
  "psi-core",
  "psi-terminal",
+ "psi-terminal-fuel",
 ]
 
 [[package]]

@@ -19,7 +19,8 @@ use omega_terminal_assigned_target_operations::{
 };
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
-    TerminalMachineCodePlan, TerminalPortEffectRecord,
+    TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
+    TerminalPortEffectRecord,
 };
 use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -52,12 +53,14 @@ fn emit_function(
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
+    let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let bytes = match &function.operation {
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target)?;
             internal_calls = emitted.internal_calls;
+            fuel_attribution = emitted.fuel_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
             emitted.bytes
@@ -292,6 +295,7 @@ fn emit_function(
         provenance: function.provenance.clone(),
         bytes,
         internal_calls,
+        fuel_attribution,
         port_effects,
         boundary_settlements,
     })
@@ -300,6 +304,7 @@ fn emit_function(
 struct UnitEmission {
     bytes: Vec<u8>,
     internal_calls: Vec<TerminalInternalCallRelocation>,
+    fuel_attribution: Vec<TerminalNativeFuelAttribution>,
     port_effects: Vec<TerminalPortEffectRecord>,
     boundary_settlements: Vec<TerminalBoundarySettlementRecord>,
 }
@@ -319,6 +324,7 @@ fn emit_unit_body(
 ) -> Result<UnitEmission, EmissionError> {
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
+    let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let (x86_homes, x86_frame_bytes) = if target.architecture == Architecture::X86_64 {
@@ -336,32 +342,39 @@ fn emit_unit_body(
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
         }
+        let code_offset = bytes.len();
+        let mut operation_site = None;
+        let mut edge_site = None;
         match operation {
             TerminalAssignedUnitOperation::Call {
                 psi_operation,
                 callee,
                 copies,
                 ..
-            } => match target.architecture {
-                Architecture::X86_64 => emit_x86_64_unit_call(
-                    &mut bytes,
-                    *psi_operation,
-                    *callee,
-                    copies,
-                    target,
-                    &x86_homes,
-                    &mut internal_calls,
-                )?,
-                Architecture::Aarch64 => {
-                    return Err(EmissionError::UnsupportedAarch64AggregateCall);
+            } => {
+                operation_site = Some(*psi_operation);
+                match target.architecture {
+                    Architecture::X86_64 => emit_x86_64_unit_call(
+                        &mut bytes,
+                        *psi_operation,
+                        *callee,
+                        copies,
+                        target,
+                        &x86_homes,
+                        &mut internal_calls,
+                    )?,
+                    Architecture::Aarch64 => {
+                        return Err(EmissionError::UnsupportedAarch64AggregateCall);
+                    }
                 }
-            },
+            }
             TerminalAssignedUnitOperation::PortWrite {
                 psi_operation,
                 service,
                 port,
                 value,
             } => {
+                operation_site = Some(*psi_operation);
                 if target.architecture != Architecture::X86_64 {
                     return Err(EmissionError::PortWriteUnsupportedOnArchitecture(
                         target.architecture,
@@ -388,17 +401,21 @@ fn emit_unit_body(
                 realization,
                 argument_places,
                 claim_settlements,
-            } => boundary_settlements.push(TerminalBoundarySettlementRecord {
-                psi_operation: *psi_operation,
-                boundary: *boundary,
-                provider_execution: (*provider_execution).into(),
-                realization: *realization,
-                argument_places: argument_places.clone(),
-                claim_settlements: claim_settlements.clone(),
-                operation_ordinal,
-                code_offset: bytes.len(),
-            }),
-            TerminalAssignedUnitOperation::Return { .. } => {
+            } => {
+                operation_site = Some(*psi_operation);
+                boundary_settlements.push(TerminalBoundarySettlementRecord {
+                    psi_operation: *psi_operation,
+                    boundary: *boundary,
+                    provider_execution: (*provider_execution).into(),
+                    realization: *realization,
+                    argument_places: argument_places.clone(),
+                    claim_settlements: claim_settlements.clone(),
+                    operation_ordinal,
+                    code_offset: bytes.len(),
+                });
+            }
+            TerminalAssignedUnitOperation::Return { psi_edge } => {
+                edge_site = Some(*psi_edge);
                 match target.architecture {
                     Architecture::X86_64 => {
                         if x86_frame_bytes != 0 {
@@ -413,6 +430,19 @@ fn emit_unit_body(
                 returned = true;
             }
         }
+        let site = match (operation_site, edge_site) {
+            (Some(operation), None) => TerminalNativeFuelSite::Operation(operation),
+            (None, Some(edge)) => TerminalNativeFuelSite::Edge(edge),
+            _ => unreachable!("one Unit operation owns exactly one fuel site"),
+        };
+        fuel_attribution.push(TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site,
+            units: 1,
+            operation_ordinal,
+            code_offset,
+            byte_count: bytes.len() - code_offset,
+        });
     }
     if !returned {
         return Err(EmissionError::UnitFunctionHasNoReturn);
@@ -420,6 +450,7 @@ fn emit_unit_body(
     Ok(UnitEmission {
         bytes,
         internal_calls,
+        fuel_attribution,
         port_effects,
         boundary_settlements,
     })
@@ -4163,6 +4194,26 @@ mod tests {
         assert_eq!(leaf.boundary_settlements[0].realization, realization);
         assert_eq!(leaf.port_effects.len(), 1);
         assert_eq!(leaf.port_effects[0].service, realization.service);
+        assert_eq!(leaf.fuel_attribution.len(), 3);
+        assert_eq!(
+            leaf.fuel_attribution
+                .iter()
+                .map(|row| (row.site, row.units, row.code_offset, row.byte_count))
+                .collect::<Vec<_>>(),
+            [
+                (TerminalNativeFuelSite::Operation(port_operation), 1, 0, 27,),
+                (
+                    TerminalNativeFuelSite::Operation(settlement_operation),
+                    1,
+                    27,
+                    0,
+                ),
+                (TerminalNativeFuelSite::Edge(leaf_return), 1, 27, 1),
+            ]
+        );
+        assert!(leaf.fuel_attribution.iter().all(|row| {
+            row.schedule == psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity()
+        }));
     }
 
     #[test]

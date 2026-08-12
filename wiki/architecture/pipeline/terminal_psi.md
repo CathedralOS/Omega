@@ -404,6 +404,13 @@ parameters into owned entry homes before effects or calls. AAPCS64 Unit calls
 remain rejected until their full aggregate, stack, link-register, and alignment
 path lands.
 
+Native Unit artifacts retain one canonical logical-fuel attribution row for
+every emitted operation and return edge: exact current schedule, semantic site,
+units, operation ordinal, function-relative byte offset, and byte count.
+Metadata-only settlement rows deliberately have a zero-byte interval. This is
+the provenance input to future sponsor-owned inserted metering, not evidence
+that runtime charging already occurs and not a native instruction-cost model.
+
 ## Logical fuel
 
 `psi-terminal-fuel` owns accounting identity independently from terminal
