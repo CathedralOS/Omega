@@ -60,10 +60,12 @@ pub(crate) fn lower_typed_trees(
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.
-    facts.flow.terminal_unit_effects =
-        crate::flow::build_checked_unit_effect_plans(&program, &facts);
     facts.flow.terminal_structural_control_cleanups =
         crate::flow::build_checked_structural_control_cleanup_plans(&program, &facts);
+    facts.flow.terminal_structural_unit_controls =
+        crate::flow::build_checked_structural_unit_control_plans(&program, &facts);
+    facts.flow.terminal_unit_effects =
+        crate::flow::build_checked_unit_effect_plans(&program, &facts);
 
     Ok(CheckedTrees::with_roots(program, facts))
 }

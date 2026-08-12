@@ -141,6 +141,9 @@ pub struct FlowFacts {
     /// transitions. These are populated only after multiplicity checking has
     /// recorded the authoritative state-exit permission events.
     pub terminal_structural_control_cleanups: super::CheckedStructuralControlCleanupPlans,
+    /// Complete checked input for the first claim-free affine structural Unit
+    /// jump graph accepted by terminal production.
+    pub terminal_structural_unit_controls: super::CheckedStructuralUnitControlPlans,
 }
 
 impl FlowFacts {
@@ -165,6 +168,7 @@ impl FlowFacts {
             terminal_unit_effects: super::CheckedUnitEffectPlans::default(),
             terminal_structural_control_cleanups:
                 super::CheckedStructuralControlCleanupPlans::default(),
+            terminal_structural_unit_controls: super::CheckedStructuralUnitControlPlans::default(),
         }
     }
 }

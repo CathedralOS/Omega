@@ -181,9 +181,16 @@ reverse declaration order. Checked facts retain the first per-edge cleanup
 subset for ordinary named transitions: each exact source-state/statement/target
 row names the whole, claim-free affine parameter positions discarded on that
 arm after subtracting checked transfers. Locals, projections, nominal cleanup,
-and any otherwise incomplete shape publish no partial row. The complete
-`EdgeCleanupPlan`, contextual cleanup contracts, repeated-cycle composition,
-and the retained whole-edge conservation witness remain CML4 work.
+and any otherwise incomplete shape publish no partial row. A first terminal
+consumer composes those rows with exact source-handle-free state signatures and
+whole-parameter transfer maps for attached, multi-state Unit machines. It
+accepts only unconditional, acyclic, single-predecessor custody lineages and
+requires transfers plus reverse-order cleanup to partition every source
+frontier; stale types, positions, cleanup, joins, cycles, and reordered custody
+reject. Conditional rows remain checked evidence only until an equally exact
+guard/value control plan exists. The complete `EdgeCleanupPlan`, contextual
+cleanup contracts, repeated-cycle composition, and the retained whole-edge
+conservation witness remain CML4 work.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

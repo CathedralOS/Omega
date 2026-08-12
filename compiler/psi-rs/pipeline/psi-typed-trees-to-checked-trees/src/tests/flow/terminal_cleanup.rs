@@ -157,3 +157,51 @@ fn partial_affine_parameter_moves_fail_closed() {
         "a projected move needs a partial-value cleanup plan, not a whole-parameter discard"
     );
 }
+
+#[test]
+fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(first: Token, second: Token)
+        {
+            transition { _ -> next(second) }
+            state next(second: Token) {}
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("the exact structural Unit graph should compose");
+    assert_eq!(plan.states.len(), 2);
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+        transfers,
+        trivial_affine_discard_parameter_positions,
+        ..
+    } = &plan.states[0].terminator
+    else {
+        panic!("entry state should jump")
+    };
+    assert_eq!(transfers.len(), 1);
+    assert_eq!(transfers[0].source_parameter_index, 1);
+    assert_eq!(transfers[0].target_parameter_index, 0);
+    assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+        trivial_affine_discard_parameter_positions,
+    } = &plan.states[1].terminator
+    else {
+        panic!("leaf state should return Unit")
+    };
+    assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
+}

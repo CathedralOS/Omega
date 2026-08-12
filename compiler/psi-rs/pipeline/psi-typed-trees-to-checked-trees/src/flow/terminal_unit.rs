@@ -1,13 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckFacts, CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan, ContractProofFactKind,
-    ContractProofFactOwner,
+    CheckFacts, CheckedStructuralControlTransferPlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
 };
 use psi_language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
@@ -19,7 +21,7 @@ use psi_typed_trees::{
     data::{DataMember, DataShapeKind},
     domain::ProofFact,
     signature::{SignatureContractKind, StateParameter},
-    statement::StatementNode,
+    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
@@ -99,6 +101,225 @@ pub(crate) fn build_checked_unit_effect_plans(
         boundary_machines,
         machines: candidates,
     }
+}
+
+/// Compose the exact cleanup rows with source-independent structural
+/// signatures and whole-parameter transfer maps for the first terminal
+/// structural-control producer.
+pub(crate) fn build_checked_structural_unit_control_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> CheckedStructuralUnitControlPlans {
+    let mut shapes = ShapeCollector::new(program);
+    let machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_structural_unit_control_machine(program, facts, &mut shapes, machine)
+        })
+        .collect::<Vec<_>>();
+    let retained = machines
+        .iter()
+        .flat_map(|machine| {
+            std::iter::once(machine.attachment_type_identity.as_str()).chain(
+                machine
+                    .states
+                    .iter()
+                    .flat_map(|state| &state.structural_parameters)
+                    .map(|parameter| parameter.type_identity.as_str()),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    shapes.retain_transitive(&retained);
+    CheckedStructuralUnitControlPlans {
+        structural_types: shapes.types.into_values().collect(),
+        machines,
+    }
+}
+
+fn build_structural_unit_control_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedStructuralUnitControlMachinePlan> {
+    let states = program.machine_states(machine);
+    if states.len() < 2 {
+        return None;
+    }
+    let binders = machine_binders(program, machine);
+    let mut signatures = Vec::with_capacity(states.len());
+    let mut attachment_type_identity = None;
+    for state in states {
+        if !is_unit(program, state.return_type)
+            || !program.state_contracts(state).is_empty()
+            || facts.flow.ownership.permissions.iter().any(|(_, event)| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.source == PermissionEventSource::StateEntry
+                    && event.kind == PermissionEventKind::Establish
+                    && event.access == PermissionAccess::Owned
+            })
+        {
+            return None;
+        }
+        let flow = state_flow(facts, machine.symbol, state.symbol)?;
+        if !facts
+            .service_reaches
+            .rows
+            .services(flow.service_reach.direct)
+            .is_empty()
+            || !facts
+                .service_reaches
+                .rows
+                .services(flow.service_reach.transitive)
+                .is_empty()
+        {
+            return None;
+        }
+        let (attachment, parameters) =
+            structural_signature(program, shapes, machine, state, &binders)?;
+        if parameters.is_empty()
+            || parameters.iter().any(|parameter| {
+                parameter.is_self
+                    || parameter.multiplicity != Multiplicity::Affine
+                    || !parameter.qualifications.is_empty()
+            })
+            || parameters.len() != program.state_parameters(state).len()
+        {
+            return None;
+        }
+        if attachment_type_identity
+            .as_ref()
+            .is_some_and(|identity| identity != &attachment)
+        {
+            return None;
+        }
+        attachment_type_identity = Some(attachment);
+        signatures.push(parameters);
+    }
+
+    let mut checked_states = Vec::with_capacity(states.len());
+    for (state_index, state) in states.iter().enumerate() {
+        let source_parameters = &signatures[state_index];
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let terminator = match statements {
+            [] => CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                trivial_affine_discard_parameter_positions:
+                    super::terminal_cleanup::checked_whole_affine_discard_parameters(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state,
+                    )?
+                    .into_iter()
+                    .map(|(_, position)| position)
+                    .collect(),
+            },
+            [StatementNode::Transition(transition)]
+                if transition.exit == TransitionExit::Ordinary
+                    && transition.guard == TransitionGuardNode::Always
+                    && !transition.continuation.is_valid() =>
+            {
+                let TransitionTargetNode::Named { path, arguments } =
+                    program.statement_table.transition_target(transition.target)
+                else {
+                    return None;
+                };
+                let target_index = states
+                    .iter()
+                    .position(|candidate| candidate.symbol == path.symbol)?;
+                let target_parameters = &signatures[target_index];
+                let arguments = program.statement_table.expression_handles(*arguments);
+                if arguments.len() != target_parameters.len() {
+                    return None;
+                }
+                let mut transferred_sources = BTreeSet::new();
+                let transfers = arguments
+                    .iter()
+                    .zip(target_parameters)
+                    .enumerate()
+                    .map(|(target_index, (argument, target))| {
+                        let place = super::canonical_place_from_expression_in_state(
+                            program,
+                            state.symbol,
+                            0,
+                            *argument,
+                        )?;
+                        let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+                            return None;
+                        };
+                        if !place.segments.is_empty() {
+                            return None;
+                        }
+                        let source_index = source_parameters.iter().position(|source| {
+                            let source = program
+                                .state_parameters(state)
+                                .get(source.position as usize);
+                            source.is_some_and(|source| source.symbol == root)
+                        })?;
+                        let source = &source_parameters[source_index];
+                        if source.type_identity != target.type_identity
+                            || source.multiplicity != target.multiplicity
+                            || !transferred_sources.insert(source_index)
+                        {
+                            return None;
+                        }
+                        Some(CheckedStructuralControlTransferPlan {
+                            source_parameter_index: u32::try_from(source_index).ok()?,
+                            target_parameter_index: u32::try_from(target_index).ok()?,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+                    machine.symbol,
+                    state.symbol,
+                    0,
+                )?;
+                if cleanup.target_state != path.symbol {
+                    return None;
+                }
+                let cleanup_sources = cleanup
+                    .trivial_affine_discard_parameter_positions
+                    .iter()
+                    .map(|position| {
+                        source_parameters
+                            .iter()
+                            .position(|parameter| parameter.position == *position)
+                    })
+                    .collect::<Option<BTreeSet<_>>>()?;
+                if !transferred_sources.is_disjoint(&cleanup_sources)
+                    || transferred_sources
+                        .union(&cleanup_sources)
+                        .copied()
+                        .collect::<BTreeSet<_>>()
+                        != (0..source_parameters.len()).collect::<BTreeSet<_>>()
+                {
+                    return None;
+                }
+                CheckedStructuralUnitControlTerminatorPlan::Jump {
+                    statement_ordinal: 0,
+                    target_state: path.symbol,
+                    transfers,
+                    trivial_affine_discard_parameter_positions: cleanup
+                        .trivial_affine_discard_parameter_positions
+                        .clone(),
+                }
+            }
+            _ => return None,
+        };
+        checked_states.push(CheckedStructuralUnitControlStatePlan {
+            state: state.symbol,
+            structural_parameters: source_parameters.clone(),
+            terminator,
+        });
+    }
+    Some(CheckedStructuralUnitControlMachinePlan {
+        machine: machine.symbol,
+        attachment_type_identity: attachment_type_identity?,
+        states: checked_states,
+    })
 }
 
 fn build_boundary_machine(

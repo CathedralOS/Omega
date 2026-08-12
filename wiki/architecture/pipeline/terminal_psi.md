@@ -175,10 +175,20 @@ exact source-state, transition-statement, and target-state row for each
 supported structural jump or conditional arm, together with the
 reverse-declaration positions of its claim-free affine parameter discards.
 States needing affine-local, projected, nominal, or claim-bearing cleanup fail
-closed without a partial row. Terminal structural control production can consume
-these rows once its exact structural state signature and transfer map are
-carried alongside them; the terminal verifier remains responsible for
-reconstructing the emitted cleanup frontier.
+closed without a partial row. The first structural-control producer consumes a
+composed checked plan for attached, multi-state, Unit-returning machines whose
+states contain only claim-free affine structural parameters and either return
+naturally or contain one unconditional ordinary local jump. Whole-parameter
+arguments provide an exact type-preserving transfer map; that map and the exact
+cleanup row must partition the source frontier. Production resolves checked
+parameter positions against the source-handle-free state signatures, emits the
+resulting jump/return blocks, and independently rejects stale signatures or
+cleanup. This slice admits only reachable, acyclic, single-predecessor custody
+lineages whose surviving place order remains canonical. Joins, cycles,
+reordering, conditional control, scalar work, and richer cleanup continue to
+fail closed; conditional cleanup facts alone are not a substitute for a checked
+source-independent guard and value plan. The terminal verifier remains
+responsible for reconstructing the emitted cleanup frontier.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
