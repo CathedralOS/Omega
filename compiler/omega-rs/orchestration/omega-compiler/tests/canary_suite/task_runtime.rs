@@ -34,8 +34,8 @@ fn lifecycle_operations_conserve_the_linear_claim() {
 fn parked_continuation_is_not_source_addressable_through_task_claims() {
     for operation in ["projection", "recast", "address", "mutation"] {
         let name = format!("core/task_parked_continuation_{operation}_rejected");
-        let diagnostics = compile_canary_without_output(&fail_canary(&name))
-            .expect_err("parked continuation access must reject");
+        let diagnostics =
+            check_canary(&fail_canary(&name)).expect_err("parked continuation access must reject");
         let rendered = render(&diagnostics);
         assert!(
             rendered.contains("has no field `continuation`"),
