@@ -352,7 +352,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "9e61da8b0d7076f1614df6a46f3d984aa51ddeb375f285640b61bd1039bec3ba"
+        "d9969cbee98987bcb832be1d1f1c63aece059630eca18a7cc91747e36d76928c"
     );
 
     let mut changed_plan = plan;
@@ -390,10 +390,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&3_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&4_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(3))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(4))
     );
 
     let mut reordered = bytes.clone();
@@ -536,6 +536,9 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         [provider_id(7)],
     )
     .expect("effect installation");
+    assert_eq!(record.fuel_attribution(), image.fuel_attribution());
+    assert_eq!(record.fuel_attribution().len(), 3);
+    assert_eq!(record.fuel_attribution()[1].attribution.byte_count, 0);
     assert_eq!(record.port_effects(), image.port_effects());
     assert_eq!(
         record.boundary_settlements()[0]
@@ -544,7 +547,22 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         provider_execution.into()
     );
     let encoded = encode_terminal_installation_record(&record).unwrap();
-    assert_eq!(decode_terminal_installation_record(&encoded), Ok(record));
+    assert_eq!(
+        decode_terminal_installation_record(&encoded),
+        Ok(record.clone())
+    );
+
+    let mut changed_attribution = plan.clone();
+    changed_attribution.functions[0].fuel_attribution[0].units = 2;
+    let changed_artifact =
+        build_terminal_object_artifact(&changed_attribution).expect("changed attribution artifact");
+    let changed_image =
+        emit_terminal_executable_image(&changed_artifact, 3).expect("changed attribution image");
+    assert_eq!(changed_image.output().bytes, image.output().bytes);
+    assert_eq!(
+        validate_terminal_installation_record(&record, &changed_image),
+        Err(TerminalInstallationError::ImageBindingMismatch)
+    );
 
     let mut wrong_bytes = plan.clone();
     wrong_bytes.functions[0].bytes[0] ^= 1;
@@ -552,6 +570,13 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         build_terminal_object_artifact(&wrong_bytes),
         Err(TerminalObjectError::PortEffectBytesMismatch { .. })
     ));
+    let mut wrong_schedule = plan.clone();
+    wrong_schedule.functions[0].fuel_attribution[0].schedule =
+        psi_core::FuelScheduleIdentity::new(2).unwrap();
+    assert_eq!(
+        build_terminal_object_artifact(&wrong_schedule),
+        Err(TerminalObjectError::InvalidFuelAttribution(machine_id(1)))
+    );
     let mut wrong_realization = plan;
     wrong_realization.functions[0].boundary_settlements[0]
         .realization

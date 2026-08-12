@@ -3,21 +3,24 @@ use std::num::NonZeroU64;
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
-    TerminalBoundarySettlementRecord, TerminalPortEffectRecord, TerminalProviderExecutionRecord,
+    TerminalBoundarySettlementRecord, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
+    TerminalPortEffectRecord, TerminalProviderExecutionRecord,
 };
 use omega_terminal_target_operations::TerminalMetadataOnlyPortRealization;
 use psi_core::{
-    BoundaryMachineId, ClaimId, MachineId, OperationId, PlaceId, ProfileDecisionId, ServiceId,
+    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
+    ProfileDecisionId, ServiceId,
 };
 use psi_terminal::{ClaimSettlement, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectPortEffect,
-    can_emit_terminal_executable_image,
+    TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
+    TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 2;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 3;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -98,6 +101,7 @@ pub struct TerminalInstallationRecord {
     profile_decision: ProfileDecisionId,
     selected_provider_plans: Vec<SelectedProviderPlanIdentity>,
     functions: Vec<TerminalInstalledFunction>,
+    fuel_attribution: Vec<TerminalObjectFuelAttribution>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
     image: TerminalImageFingerprint,
@@ -131,6 +135,10 @@ impl TerminalInstallationRecord {
 
     pub fn functions(&self) -> &[TerminalInstalledFunction] {
         &self.functions
+    }
+
+    pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
+        &self.fuel_attribution
     }
 
     pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
@@ -191,6 +199,7 @@ pub fn build_terminal_installation_record(
                 byte_count: function.byte_count,
             })
             .collect(),
+        fuel_attribution: image.fuel_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
         image: fingerprint_image(&image.output().bytes),
@@ -210,6 +219,8 @@ pub fn encode_terminal_installation_record(
         .map_err(|_| TerminalInstallationError::TooManyBoundarySettlements)?;
     let function_count = u32::try_from(record.functions.len())
         .map_err(|_| TerminalInstallationError::TooManyInstalledFunctions)?;
+    let fuel_attribution_count = u32::try_from(record.fuel_attribution.len())
+        .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
     let port_effect_count = u32::try_from(record.port_effects.len())
         .map_err(|_| TerminalInstallationError::TooManyPortEffects)?;
     let text_relocation_count =
@@ -295,6 +306,45 @@ pub fn encode_terminal_installation_record(
             &mut bytes,
             u64::try_from(function.byte_count)
                 .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
+        );
+    }
+    push_u32(&mut bytes, fuel_attribution_count);
+    for installed in &record.fuel_attribution {
+        let attribution = &installed.attribution;
+        push_u64(&mut bytes, installed.machine.get());
+        push_u32(&mut bytes, attribution.schedule.marker());
+        match attribution.site {
+            TerminalNativeFuelSite::Operation(operation) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                push_u64(&mut bytes, operation.get());
+            }
+            TerminalNativeFuelSite::Edge(edge) => {
+                bytes.push(2);
+                bytes.extend_from_slice(&[0; 3]);
+                push_u64(&mut bytes, edge.get());
+            }
+        }
+        push_u64(&mut bytes, attribution.units);
+        push_u64(
+            &mut bytes,
+            u64::try_from(attribution.operation_ordinal)
+                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(installed.text_offset)
+                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(attribution.code_offset)
+                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
+        );
+        push_u64(
+            &mut bytes,
+            u64::try_from(attribution.byte_count)
+                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
         );
     }
     push_u32(&mut bytes, port_effect_count);
@@ -465,6 +515,54 @@ pub fn decode_terminal_installation_record(
                 .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
         });
     }
+    let fuel_attribution_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
+    if fuel_attribution_count > reader.remaining() / 64 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut fuel_attribution = Vec::with_capacity(fuel_attribution_count);
+    for _ in 0..fuel_attribution_count {
+        let machine = MachineId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroFuelAttributionIdentity("MachineId"),
+        )?;
+        let schedule = FuelScheduleIdentity::new(reader.u32()?)
+            .ok_or(TerminalInstallationError::ZeroFuelScheduleIdentity)?;
+        let site_tag = reader.u8()?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let site_identity = reader.u64()?;
+        let site = match site_tag {
+            1 => TerminalNativeFuelSite::Operation(OperationId::new(site_identity).ok_or(
+                TerminalInstallationError::ZeroFuelAttributionIdentity("OperationId"),
+            )?),
+            2 => TerminalNativeFuelSite::Edge(EdgeId::new(site_identity).ok_or(
+                TerminalInstallationError::ZeroFuelAttributionIdentity("EdgeId"),
+            )?),
+            _ => return Err(TerminalInstallationError::InvalidFuelSiteTag(site_tag)),
+        };
+        let units = reader.u64()?;
+        let operation_ordinal = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
+        let text_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
+        let code_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
+        let byte_count = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
+        fuel_attribution.push(TerminalObjectFuelAttribution {
+            machine,
+            attribution: TerminalNativeFuelAttribution {
+                schedule,
+                site,
+                units,
+                operation_ordinal,
+                code_offset,
+                byte_count,
+            },
+            text_offset,
+        });
+    }
     let port_effect_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyPortEffects)?;
     if port_effect_count > reader.remaining() / 60 {
@@ -607,6 +705,7 @@ pub fn decode_terminal_installation_record(
         profile_decision,
         selected_provider_plans,
         functions,
+        fuel_attribution,
         port_effects,
         boundary_settlements,
         image,
@@ -638,6 +737,7 @@ pub fn validate_terminal_installation_record(
         || record.subsystem != image.subsystem()
         || record.image != fingerprint_image(&image.output().bytes)
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
+        || record.fuel_attribution != image.fuel_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
         || record.functions.len() != image.functions().len()
@@ -720,6 +820,47 @@ fn validate_record_shape(
         .iter()
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
+    let mut previous_fuel = None;
+    let mut fuel_sites = std::collections::BTreeSet::new();
+    for installed in &record.fuel_attribution {
+        let function = function_by_machine.get(&installed.machine).ok_or(
+            TerminalInstallationError::FuelAttributionMachineMissing(installed.machine),
+        )?;
+        let expected = function
+            .text_offset
+            .checked_add(installed.attribution.code_offset)
+            .ok_or(TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
+        let end = installed
+            .attribution
+            .code_offset
+            .checked_add(installed.attribution.byte_count)
+            .ok_or(TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
+        if installed.attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
+            || installed.attribution.units == 0
+            || installed.text_offset != expected
+            || end > function.byte_count
+        {
+            return Err(TerminalInstallationError::InvalidFuelAttribution {
+                machine: installed.machine,
+                site: installed.attribution.site,
+            });
+        }
+        let key = (
+            installed.machine,
+            installed.attribution.operation_ordinal,
+            installed.text_offset,
+        );
+        if previous_fuel.is_some_and(|previous| previous >= key) {
+            return Err(TerminalInstallationError::NonCanonicalFuelAttributionOrder);
+        }
+        if !fuel_sites.insert((installed.machine, installed.attribution.site)) {
+            return Err(TerminalInstallationError::DuplicateFuelAttributionSite {
+                machine: installed.machine,
+                site: installed.attribution.site,
+            });
+        }
+        previous_fuel = Some(key);
+    }
     let mut previous_port = None;
     let mut port_operations = std::collections::BTreeSet::new();
     for installed in &record.port_effects {
@@ -984,19 +1125,34 @@ pub enum TerminalInstallationError {
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
+    TooManyFuelAttributions,
     TooManyPortEffects,
     TooManyBoundarySettlements,
     TooManySettlementArguments,
     TooManyClaimSettlements,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
+    FuelAttributionOffsetNotRepresentable,
     PortEffectOffsetNotRepresentable,
     ZeroFunctionIdentity,
+    ZeroFuelScheduleIdentity,
+    ZeroFuelAttributionIdentity(&'static str),
+    InvalidFuelSiteTag(u8),
     ZeroPortEffectIdentity(&'static str),
     ZeroSettlementIdentity(&'static str),
     ZeroProviderExecutionEvidence,
     NoInstalledFunctions,
     NonCanonicalInstalledFunctions,
+    FuelAttributionMachineMissing(MachineId),
+    NonCanonicalFuelAttributionOrder,
+    DuplicateFuelAttributionSite {
+        machine: MachineId,
+        site: TerminalNativeFuelSite,
+    },
+    InvalidFuelAttribution {
+        machine: MachineId,
+        site: TerminalNativeFuelSite,
+    },
     EffectMachineMissing(MachineId),
     NonCanonicalPortEffectOrder,
     DuplicatePortEffectOperation {

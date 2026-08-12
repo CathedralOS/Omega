@@ -1150,6 +1150,7 @@ dependencies = [
  "psi-core",
  "psi-diagnostics",
  "psi-terminal",
+ "psi-terminal-fuel",
  "sha2",
 ]
 

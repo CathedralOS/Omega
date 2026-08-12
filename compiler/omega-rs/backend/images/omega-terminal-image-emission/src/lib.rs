@@ -35,6 +35,7 @@ use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
 use psi_diagnostics::Diagnostic;
 use psi_terminal::TerminalPsiIdentity;
+use psi_terminal_fuel::TerminalFuelSchedule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalObjectArtifact {
@@ -231,7 +232,8 @@ pub fn build_terminal_object_artifact(
                 }
                 TerminalNativeFuelSite::Edge(edge) => function.provenance.edges.contains(&edge),
             };
-            if attribution.units == 0
+            if attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
+                || attribution.units == 0
                 || end > function.bytes.len()
                 || !known
                 || !fuel_sites.insert(attribution.site)
