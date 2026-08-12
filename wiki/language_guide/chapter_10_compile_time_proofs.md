@@ -880,6 +880,9 @@ Working rules:
   Adding, removing, or changing any claim invalidates the acceptance and
   presents the exact diff. No hash is hand-written; `build.omg` stays the only
   file a human authors.
+  A provider-slot grant binds only the provider plan selected for that slot;
+  unselected and partial candidates remain dev-active and cannot acquire the
+  selected plan's receipt merely because they implement the same boundary.
 - **The engine can veto.** A boundary statement the engine can refute — one
   contradicting declared ranges, domains, or another accepted statement —
   is a compile error, grants notwithstanding.

@@ -320,7 +320,9 @@ customer-shaped compiler concept is introduced.
   domain, carry policy, predicate-discharge requirement, and grant provenance;
   the qualification artifact also retains the canonical requirement overload
   identity and predicate-body status beside its readable label. Continue with
-  consumers that still lack exact blast-radius rows.
+  consumers that still lack exact blast-radius rows. Provider-slot grants now
+  resolve through the selected closure, so lock/report/runtime admission bind
+  the same plan and leave unselected candidates dev-active.
 
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.

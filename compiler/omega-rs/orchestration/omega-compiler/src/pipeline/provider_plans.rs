@@ -2182,6 +2182,39 @@ pub(crate) fn select_provider_plan_names(
     }
 }
 
+/// Resolve one root grant against the already-selected provider closure.
+///
+/// A trait grant is slot-scoped, so it may bind only the one plan selected for
+/// that slot. Looking through every candidate would let an unselected policy
+/// acquire a receipt or make the lockfile pin whichever candidate happened to
+/// be encountered first.
+pub(crate) fn selected_provider_plan_for_grant<'plans>(
+    plans: &'plans [ProviderPlan],
+    selected_names: &[String],
+    grant: &str,
+) -> Result<Option<&'plans ProviderPlan>, psi_diagnostics::Diagnostic> {
+    let grant_names_provider = plans
+        .iter()
+        .any(|plan| grant == plan.name || grant == plan.schema.trait_name);
+    if !grant_names_provider {
+        return Ok(None);
+    }
+    let matching = plans
+        .iter()
+        .filter(|plan| selected_names.iter().any(|name| name == &plan.name))
+        .filter(|plan| grant == plan.name || grant == plan.schema.trait_name)
+        .collect::<Vec<_>>();
+    match matching.as_slice() {
+        [plan] => Ok(Some(*plan)),
+        [] => Err(psi_diagnostics::Diagnostic::error(format!(
+            "root grant `{grant}` names a provider plan or slot with no selected provider plan"
+        ))),
+        _ => Err(psi_diagnostics::Diagnostic::error(format!(
+            "root grant `{grant}` resolves to multiple selected provider plans"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

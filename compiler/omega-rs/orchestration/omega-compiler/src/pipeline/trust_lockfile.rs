@@ -96,6 +96,7 @@ pub(super) fn enforce_trust_lockfile(
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_provider_plans: &[String],
 ) -> Result<(), Vec<Diagnostic>> {
     if root_grants.is_empty() {
         return Ok(());
@@ -108,14 +109,22 @@ pub(super) fn enforce_trust_lockfile(
     // Current receipts.
     let mut rows: Vec<(String, u64)> = Vec::new();
     for grant in root_grants {
-        // A grant naming a DERIVED PROVIDER PLAN (by plan name or trait
-        // leaf) pins the plan's NORMALIZED IDENTITY -- the fingerprint IS
-        // the receipt hash, so any change to the plan's policy drifts.
-        if let Some(plan) = provider_plans
-            .iter()
-            .find(|plan| grant == &plan.name || grant == plan.schema.trait_name.as_str())
+        // A grant naming a DERIVED PROVIDER PLAN (by plan name or boundary
+        // slot) pins the SELECTED plan's NORMALIZED IDENTITY. Slot grants use
+        // a slot-stable commitment key so changing the selected provider is
+        // itself trust drift rather than a silent replacement lock row.
+        if let Some(plan) = crate::pipeline::provider_plans::selected_provider_plan_for_grant(
+            provider_plans,
+            selected_provider_plans,
+            grant,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?
         {
-            let commitment = format!("provider plan: {}", plan.name);
+            let commitment = if grant == &plan.name {
+                format!("provider plan: {}", plan.name)
+            } else {
+                format!("provider slot: {}", plan.schema.trait_name)
+            };
             if !rows.iter().any(|(existing, _)| *existing == commitment) {
                 rows.push((commitment, plan.identity_fingerprint()));
             }
