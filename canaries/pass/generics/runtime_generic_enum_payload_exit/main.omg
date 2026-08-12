@@ -1,17 +1,16 @@
 // A MONOMORPHIZED generic ENUM with a T-typed payload, matched and destructured natively -- the
 // `Optional<T>` shape: `Maybe<i32 in Wrapping>` constructed with `Some { value: 70 }`, matched, and
-// the payload forwarded to a sub-state. Generic enums used to fail layout entirely ("unknown
-// layout-bearing type T"): the case-bearing payload-field planning sized variant payloads WITHOUT
-// the instance bindings. The payload closure is now bindings-aware, so the recorded monomorphized
-// instance carries substituted payload layouts/descriptors. Exit 70 via the destructured payload.
+// the payload forwarded to a sub-state. The case also carries omitted nullary evidence whose
+// semantic binding survives checking but whose storage is erased. Exit 70 via the material payload.
 // Differential (native must match the interpreter).
 use omega::language::std::console;
-data Maybe<T> { case None; case Some(value: T); }
+data Evidence { case Only; }
+data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
 data Main { console: Console; m: Maybe<i32 in Wrapping>; }
 machine Main::main(&mut self) {
     self.m = Maybe::Some { value: 70 };
     transition self.m {
-        Maybe::Some { value } -> take(value)
+        Maybe::Some { value, proof as _ } -> take(value)
         Maybe::None -> bad()
     }
     state take(&mut self, v: i32 in Wrapping) { self.console.exit_process(v as i32); }

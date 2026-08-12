@@ -440,6 +440,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 if evidence.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
                     || !evidence.symbol.is_valid()
                     || !evidence.type_parameters.is_empty()
+                    // Orchestration names a synthesized closed generic
+                    // definition by its exact application. It is executable,
+                    // but the settled omission rule still requires a
+                    // non-generic evidence declaration rather than deriving
+                    // inhabitance from a closed generic application.
+                    || evidence.name.as_str().contains('<')
                     || program
                         .data_members(evidence.members)
                         .iter()

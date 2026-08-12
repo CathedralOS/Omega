@@ -358,6 +358,14 @@ fn simplify_expression_with_bindings(
                 struct_literal
                     .fields
                     .iter()
+                    // This simplifier reads the semantic checked tree rather
+                    // than the already-filtered state-graph expression. Keep
+                    // the checked/runtime boundary intact when it rebuilds a
+                    // literal: an erased initializer has no runtime field to
+                    // write and must not be reintroduced downstream.
+                    .filter(|field| {
+                        runtime_literal_field_is_retained(program, struct_literal, field)
+                    })
                     .map(|field| StructLiteralField {
                         name: field.name.clone(),
                         value: simplify_expression_with_bindings(
@@ -375,6 +383,43 @@ fn simplify_expression_with_bindings(
         }),
         Expression::ZeroValue(_) => expression.clone(),
     }
+}
+
+fn runtime_literal_field_is_retained(
+    program: &CheckedTrees,
+    literal: &StructLiteral,
+    authored: &StructLiteralField,
+) -> bool {
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name == literal.type_name)
+    else {
+        return true;
+    };
+    let common = program.data_members(definition).iter().find_map(|member| {
+        let psi_checked_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        (field.name == authored.name).then_some(field.relevance)
+    });
+    let payload = literal.case_name.as_ref().and_then(|case_name| {
+        program.data_members(definition).iter().find_map(|member| {
+            let psi_checked_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.name == *case_name).then(|| {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name == authored.name)
+                    .map(|field| field.relevance)
+            })?
+        })
+    });
+    common
+        .or(payload)
+        .is_none_or(|relevance| !relevance.is_erased())
 }
 
 /// Simplify an `Indexed` node's INDEX. A bare-Name local whose binding is a
@@ -1345,8 +1390,9 @@ impl Default for HelperTransition {
 
 #[cfg(test)]
 mod tests {
-    use super::simplify_expression;
+    use super::{runtime_literal_field_is_retained, simplify_expression};
     use psi_checked_trees::CheckedTrees;
+    use psi_checked_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
     use psi_checked_trees::expression::{
         BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
     };
@@ -1360,6 +1406,86 @@ mod tests {
     use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
+
+    #[test]
+    fn runtime_simplification_omits_erased_case_payload_fields() {
+        let mut program = CheckedTrees::default();
+        let integer = program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: "i32".into(),
+            });
+        let mut variant = DataVariant {
+            name: "Some".into(),
+            ..DataVariant::default()
+        };
+        program.typed.push_data_payload_field(
+            &mut variant,
+            DataField {
+                name: "value".into(),
+                type_reference: integer,
+                ..DataField::default()
+            },
+        );
+        program.typed.push_data_payload_field(
+            &mut variant,
+            DataField {
+                name: "proof".into(),
+                relevance: psi_language_core::BindingRelevance::Erased,
+                type_reference: integer,
+                ..DataField::default()
+            },
+        );
+        let mut definition = DataDefinition {
+            name: "Maybe<i32>".into(),
+            ..DataDefinition::default()
+        };
+        program
+            .typed
+            .push_data_member(&mut definition, DataMember::Variant(variant));
+        program.typed.push_data_definition(definition);
+        let literal = psi_checked_trees::expression::StructLiteral {
+            type_name: "Maybe<i32>".into(),
+            case_name: Some("Some".into()),
+            fields: Arc::from([
+                psi_checked_trees::expression::StructLiteralField {
+                    name: "value".into(),
+                    value: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
+                        7,
+                    )),
+                },
+                psi_checked_trees::expression::StructLiteralField {
+                    name: "proof".into(),
+                    value: Expression::Integer(psi_numerics::literals::IntegerLiteral::from_value(
+                        0,
+                    )),
+                },
+            ]),
+        };
+
+        assert!(runtime_literal_field_is_retained(
+            &program,
+            &literal,
+            &literal.fields[0]
+        ));
+        assert!(!runtime_literal_field_is_retained(
+            &program,
+            &literal,
+            &literal.fields[1]
+        ));
+        let simplified = simplify_expression(
+            &program,
+            &Machine::default(),
+            &Expression::StructLiteral(literal),
+        );
+        let Expression::StructLiteral(simplified) = simplified else {
+            panic!("literal should remain a literal");
+        };
+        assert_eq!(simplified.fields.len(), 1);
+        assert_eq!(simplified.fields[0].name.as_str(), "value");
+    }
 
     #[test]
     fn simplifies_guarded_helper_call_comparison_to_guard_expression() {

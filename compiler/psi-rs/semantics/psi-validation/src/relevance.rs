@@ -299,7 +299,7 @@ fn validate_unresolved_erased_generic_uses(
             for field in fields {
                 if let Some(base) = unresolved_erased_generic_base(program, field.type_reference) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "data `{}` field `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                        "data `{}` field `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
                         definition.name, field.name
                     )));
                 }
@@ -318,14 +318,14 @@ fn validate_unresolved_erased_generic_uses(
                     unresolved_erased_generic_base(program, parameter.type_reference)
                 {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}::{}` parameter `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                        "machine `{}::{}` parameter `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
                         machine.name, state.name, parameter.name
                     )));
                 }
             }
             if let Some(base) = unresolved_erased_generic_base(program, state.return_type) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}::{}` result uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                    "machine `{}::{}` result uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
                     machine.name, state.name
                 )));
             }
@@ -335,7 +335,7 @@ fn validate_unresolved_erased_generic_uses(
                 };
                 if let Some(base) = unresolved_erased_generic_base(program, local.type_reference) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}::{}` local `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized record instance",
+                        "machine `{}::{}` local `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
                         machine.name, state.name, local.name
                     )));
                 }

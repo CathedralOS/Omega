@@ -124,8 +124,10 @@ The access policy receives this validated `LayoutPlan`, so it can decide which
 laid fields admit primitive access without copying offsets or transfer widths
 into source. It addresses the reflected schema with compiler-issued field keys
 and starts from an all-inaccessible plan. The evaluated plan has exactly one
-decision per schema field; omission is denial, and declaration reorder cannot
-silently reassign permissions.
+decision per runtime-relevant reflected schema field; omission is denial, and
+declaration reorder cannot silently reassign permissions. An `[erased]` binding
+remains in semantic/type identity but has no physical field key or access
+decision.
 
 Placed projection is pure and yields borrow-carrying accessors rather than
 lvalues. Stable access derives ordinary mutation only when both the active
