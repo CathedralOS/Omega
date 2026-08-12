@@ -95,16 +95,18 @@ The same normalized geometry may feed different compiler-owned consumers:
 - a codec plan for bytes in buffers the program owns;
 - direct field projection for ordinary plan-laid values;
 - shared byte-region record views containing a plan-laid subrecord (implemented
-  for fixed scalar fields and fixed arrays of supported primitive elements in
+  for fixed scalar fields and recursively nested fixed arrays composed of
+  supported primitive elements in
   both native and interpreter execution, including ordinary semantic widening
   after an equal-width stored scalar has been projected on x86-64 and AArch64;
-  this is not width-varying foreign storage). A fixed primitive array reflects
-  as one `Repeated` field with one whole-extent `At` placement; scalar `Bits`,
+  this is not width-varying foreign storage). Such an array reflects as one
+  `Repeated` field with one whole-extent `At` placement; scalar `Bits`,
   `IntegerAt`, and active access decisions remain rejected for that aggregate;
 - mutable byte-region record views for recursively fact-free fixed records
-  (implemented with nested plan-laid field write-through, including indexed
-  mutation of fixed primitive-array fields through their whole `At` extent, in
-  both native and interpreter execution, plus x86-64/AArch64 compile rails);
+  (implemented with nested plan-laid field write-through, including stacked
+  fixed indexing and mutation below recursively nested primitive-array fields
+  through their whole `At` extent, in both native and interpreter execution,
+  plus x86-64/AArch64 compile rails);
 - placed-view projection over an authorized external extent; or
 - ordinary scalar materialization into fixed dictated structures; or
 - a materializer that resolves symbolic data/entry identities into an artifact

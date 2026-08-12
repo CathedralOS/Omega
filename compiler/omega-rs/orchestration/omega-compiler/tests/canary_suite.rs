@@ -48248,6 +48248,48 @@ fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
 }
 
 #[test]
+fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
+    let canary = pass_canary("layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("mutable plan-laid nested-array view should compile to checked trees");
+    assert_eq!(interpret(&checked, &[]).exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-plan-laid-nested-array-mutable-view-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mutable plan-laid nested-array view should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mutable plan-laid nested-array view should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["windows_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-plan-laid-nested-array-mutable-view-{target}-{}",
+            std::process::id()
+        ));
+        compile_single_file_hosted_main(&canary, &cross_dir, target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "mutable plan-laid nested-array view should cross-compile for {target}: {diagnostics:?}"
+                )
+            },
+        );
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
+}
+
+#[test]
 fn plan_laid_mutable_record_view_exit_canary_runs() {
     let canary = pass_canary("layouts/runtime_plan_laid_record_mutable_write_exit");
     let main_path = canary.join("main.omg");
@@ -48925,6 +48967,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_record_view_exit",
     "layouts/runtime_plan_laid_fixed_array_view_exit",
     "layouts/runtime_plan_laid_fixed_array_mutable_write_exit",
+    "layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit",
     "layouts/runtime_plan_laid_record_mutable_write_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",

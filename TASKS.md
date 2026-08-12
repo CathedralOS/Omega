@@ -131,8 +131,11 @@ Owners:
   Scalar `Bits`, `IntegerAt`, and active `AccessPlan` decisions remain fenced
   for that aggregate. Mutable byte-region views now write and reread individual
   fixed-array elements through the same validated aggregate offset and stride
-  in interpreter, native x64, Windows x64, and Linux AArch64 paths. Continue
-  with nested aggregates and owned non-scalar materialization.
+  in interpreter, native x64, Windows x64, and Linux AArch64 paths. Recursively
+  nested fixed arrays composed of supported primitives now retain the same one
+  `Repeated` field, while stacked constant indexing accumulates every nested
+  stride on those execution paths. Continue with nested records/sums and owned
+  non-scalar materialization.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 

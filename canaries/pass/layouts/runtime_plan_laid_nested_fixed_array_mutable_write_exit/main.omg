@@ -1,0 +1,61 @@
+// Nested fixed primitive arrays remain one aggregate layout field. A mutable
+// byte-region view must apply both array strides below the field's validated
+// whole-extent `At` placement.
+use omega::language::std::console;
+use omega::language::core::layout;
+
+data SpreadArray { entries: [FieldEntry; 64]; }
+
+machine SpreadArray::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 24 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 32,
+        size_is_dynamic: false,
+        align: 8,
+    }
+}
+
+data MatrixRecord {
+    values: [[u16; 2]; 2];
+    marker: u8;
+}
+
+data MatrixView { value: SpreadArray<MatrixRecord>; }
+
+data Main {
+    console: Console;
+    bytes: [u8; 32];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut MatrixView = &mut self.bytes[0] as &mut MatrixView;
+    view.value.values[0][0] = 0x0201;
+    view.value.values[0][1] = 0x0403;
+    view.value.values[1][0] = 0x0605;
+    view.value.values[1][1] = 0x0807;
+    view.value.marker = 9;
+    transition self.bytes[8] == 1 && self.bytes[9] == 2
+        && self.bytes[10] == 3 && self.bytes[11] == 4
+        && self.bytes[12] == 5 && self.bytes[13] == 6
+        && self.bytes[14] == 7 && self.bytes[15] == 8
+        && self.bytes[24] == 9
+        && view.value.values[0][0] == 0x0201
+        && view.value.values[0][1] == 0x0403
+        && view.value.values[1][0] == 0x0605
+        && view.value.values[1][1] == 0x0807 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
