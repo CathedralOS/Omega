@@ -2276,7 +2276,7 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
 }
 
 #[test]
-fn boundary_witness_dies_across_computed_local_collection_fence() {
+fn boundary_witness_survives_transparently_forwarded_local_collection() {
     let source = r#"
         boundary trait Firmware {
             machine get_size(size: &mut u32)
@@ -2307,14 +2307,8 @@ fn boundary_witness_dies_across_computed_local_collection_fence() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a call-produced local collection must remain a conservative frame fence");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
-        "expected the bounded-assignment refusal, got {diagnostics:#?}"
-    );
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a transparent helper preserves the caller-isolated origin of a local collection");
 }
 
 #[test]
