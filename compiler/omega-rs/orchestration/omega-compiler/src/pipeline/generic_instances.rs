@@ -705,11 +705,12 @@ fn relabel_unique_closed_sum_paths(
         return;
     }
 
-    let template_expressions = generic_template_expression_handles(syntax);
+    let concrete_expressions = concrete_machine_expression_handles(syntax);
+    let variants = generic_sum_variant_names(syntax, synthesized_sum_instances);
     let replacements = syntax
         .expressions
         .iter_expressions()
-        .filter(|(handle, _)| !template_expressions.contains(&handle.arena_index()))
+        .filter(|(handle, _)| concrete_expressions.contains(&handle.arena_index()))
         .filter_map(|(handle, expression)| {
             let (path, kind) = match expression {
                 ExpressionNode::Name(path) => (*path, SumPathExpressionKind::Name),
@@ -718,12 +719,19 @@ fn relabel_unique_closed_sum_paths(
                     SumPathExpressionKind::Membership(membership.value),
                 ),
                 ExpressionNode::StructLiteral(literal) if literal.case_name.is_some() => {
+                    let case = literal.case_name.as_ref().expect("case literal");
+                    if !variants
+                        .get(literal.type_name.as_str())
+                        .is_some_and(|names| names.contains(case.as_str()))
+                    {
+                        return None;
+                    }
                     let closed = synthesized_sum_instances.get(literal.type_name.as_str())?;
                     return Some((
                         handle,
                         SumPathExpressionKind::StructLiteral(literal.clone()),
                         closed.clone(),
-                        literal.case_name.clone().expect("case literal"),
+                        case.clone(),
                     ));
                 }
                 _ => return None,
@@ -732,6 +740,12 @@ fn relabel_unique_closed_sum_paths(
                 return None;
             };
             let closed = synthesized_sum_instances.get(base.as_str())?;
+            if !variants
+                .get(base.as_str())
+                .is_some_and(|names| names.contains(case.as_str()))
+            {
+                return None;
+            }
             Some((handle, kind, closed.clone(), case.clone()))
         })
         .collect::<Vec<_>>();
@@ -756,6 +770,30 @@ fn relabel_unique_closed_sum_paths(
     }
 }
 
+fn generic_sum_variant_names(
+    syntax: &SyntaxTrees,
+    instances: &HashMap<String, String>,
+) -> HashMap<String, HashSet<String>> {
+    syntax
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Data(definition) if instances.contains_key(definition.name.as_str()) => Some((
+                definition.name.as_str().to_owned(),
+                syntax
+                    .items
+                    .data_members(definition.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        DataMember::Variant(variant) => Some(variant.name.as_str().to_owned()),
+                        _ => None,
+                    })
+                    .collect(),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
 fn closed_sum_path(
     syntax: &mut SyntaxTrees,
     closed: &str,
@@ -778,16 +816,16 @@ enum SumPathExpressionKind {
     StructLiteral(psi_syntax_trees::expression::TableStructLiteral),
 }
 
-fn generic_template_expression_handles(syntax: &SyntaxTrees) -> HashSet<u32> {
+fn concrete_machine_expression_handles(syntax: &SyntaxTrees) -> HashSet<u32> {
     let mut handles = HashSet::new();
     for item in syntax.root_items() {
         let Item::Machine(machine) = item else {
             continue;
         };
-        if machine.type_parameters.is_empty()
-            && machine.attached_data.as_ref().is_none_or(|attached| {
-                syntax.root_items().all(|item| {
-                    !matches!(item, Item::Data(definition)
+        if !machine.type_parameters.is_empty()
+            || machine.attached_data.as_ref().is_some_and(|attached| {
+                syntax.root_items().any(|item| {
+                    matches!(item, Item::Data(definition)
                         if definition.name == *attached && !definition.type_parameters.is_empty())
                 })
             })
@@ -2503,6 +2541,11 @@ fn consider_generic_spelling(
         // declaration-aware validator emits its precise diagnostic.
         return Ok(());
     }
+    if generic_data_shape(syntax, base_info).is_none() {
+        return Err(Diagnostic::error(format!(
+            "generic data `{base}` mixes common fields with cases; closed mixed generic instances are not implemented"
+        )));
+    }
     if !base_is_fully_monomorphizable(syntax, generic_data, base_info) {
         return Ok(());
     }
@@ -3837,13 +3880,43 @@ mod tests {
     fn mixed_generic_sum_remains_fail_closed() {
         rejected(
             r#"
-            data Mixed<T> { common [erased]: i32; case None; case Some(value: T); }
+            data Mixed<T> { common: i32; case None; case Some(value: T); }
             machine run() -> i32 {
                 let mixed: Mixed<i32> = Mixed::Some { common: 1, value: 7 };
                 0
             }
             "#,
-            "requires a closed monomorphized instance",
+            "mixes common fields with cases",
+        );
+    }
+
+    #[test]
+    fn closed_generic_sum_does_not_rewrite_non_case_names() {
+        let source = r#"
+            data Maybe<T> { case None; case Some(value: T); }
+            machine run() -> i32 {
+                let maybe: Maybe<i32> = Maybe::Some { value: 7 };
+                Maybe::DEFAULT
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize pure sum");
+
+        assert!(
+            syntax
+                .expressions
+                .iter_expressions()
+                .any(|(_, expression)| {
+                    let ExpressionNode::Name(path) = expression else {
+                        return false;
+                    };
+                    matches!(
+                        syntax.expressions.identifier_path_members(*path),
+                        [base, member]
+                            if base.as_str() == "Maybe" && member.as_str() == "DEFAULT"
+                    )
+                })
         );
     }
 
