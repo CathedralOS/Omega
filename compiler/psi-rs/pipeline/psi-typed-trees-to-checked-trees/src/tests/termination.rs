@@ -2954,6 +2954,18 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         value
     }
 
+    machine return_after_isolated_write_statement_call(value: &mut u64) -> &mut u64 {
+        let mut scratch: u64 = 0;
+        impure_scratch(&mut scratch);
+        value
+    }
+
+    machine return_after_mixed_write_statement_call(value: &mut u64) -> &mut u64 {
+        let mut scratch: u64 = 0;
+        mixed_scratch(&mut scratch, value);
+        value
+    }
+
     machine return_with_nested_call_scratch(value: &mut u64) -> &mut u64 {
         let scratch: u64 = scratch_from(make_scratch());
         value
@@ -3186,6 +3198,17 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     machine Main::mixed_write_call_scratch_helper_result(&mut self) {
         let alias: &mut u64 = return_with_mixed_write_call_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::isolated_write_statement_call_helper_result(&mut self) {
+        let alias: &mut u64 =
+            return_after_isolated_write_statement_call(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::mixed_write_statement_call_helper_result(&mut self) {
+        let alias: &mut u64 = return_after_mixed_write_statement_call(&mut self.value);
         alias = 3;
     }
 
@@ -3484,6 +3507,10 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::isolated_write_call_scratch_helper_result",
             "self.value",
         ),
+        (
+            "Main::isolated_write_statement_call_helper_result",
+            "self.value",
+        ),
         ("Main::pure_expression_helper_result", "self.value"),
         ("Main::recast_write_helper_result", "self.value"),
         (
@@ -3611,6 +3638,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::reference_scratch_helper_result",
         "Main::impure_call_scratch_helper_result",
         "Main::mixed_write_call_scratch_helper_result",
+        "Main::mixed_write_statement_call_helper_result",
         "Main::nested_call_scratch_helper_result",
         "Main::discarded_call_helper_result",
         "Main::effectful_recast_write_helper_result",

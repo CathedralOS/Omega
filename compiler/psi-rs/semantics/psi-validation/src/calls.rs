@@ -2098,6 +2098,7 @@ fn transparent_callee_result_origin(
                         call,
                         symbols,
                         active_states,
+                        &isolated_local_roots,
                     ) => {}
                 _ => return None,
             }
@@ -2170,15 +2171,16 @@ fn isolated_local_initializer_preserves_transparent_result(
 }
 
 /// One direct Unit statement call is neutral to a returned-place relation when
-/// its inferred frame is complete and empty. Explicitly discarded value
-/// results, effectful arguments, and every nonempty or opaque frame remain
-/// fences; this rung does not yet reason about statement-call writes.
+/// its inferred frame is complete and writes only previously established
+/// caller-isolated scratch locals. Explicitly discarded value results,
+/// effectful arguments, and every caller-visible or opaque frame remain fences.
 fn statement_call_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     call: &TableCall,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
+    isolated_local_roots: &[String],
 ) -> bool {
     if call.discards_result {
         return false;
@@ -2224,7 +2226,12 @@ fn statement_call_preserves_transparent_result(
         )
     })
     .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))
-    .is_some_and(|written| written.is_empty())
+    .is_some_and(|written| {
+        written.iter().all(|path| {
+            let (root, _) = split_place_root(path);
+            isolated_local_roots.iter().any(|local| local == root)
+        })
+    })
 }
 
 fn parameter_relative_alias_position(
