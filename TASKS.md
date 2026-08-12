@@ -422,10 +422,11 @@ customer-shaped compiler concept is introduced.
   those origins, including exact transparent call-produced targets, without
   changing the relation, while their ordinary frames remain published;
   effect-free discarded expressions and direct Unit statement calls with
-  complete frames whose writes all resolve into earlier caller-isolated scratch
-  locals are neutral; an empty frame is the degenerate case. Explicitly
-  discarded call results and statement calls with any write outside those
-  isolated roots or opaque frames remain fences. A direct
+  complete frames are neutral when their arguments do not expose a mutable-
+  reference binding for rebinding; writes through references passed by value
+  change contents without redirecting their origin. Explicitly discarded call
+  results, explicit binding reborrows, effectful arguments, and opaque frames
+  remain fences. A direct
   helper-local alias rebind updates that name's origin without redirecting prior
   reborrows; a structurally transparent helper result may supply the replacement
   through the same origin algebra. Other computed rebinding, opaque or recursive
