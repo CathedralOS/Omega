@@ -2356,7 +2356,7 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
 }
 
 #[test]
-fn boundary_witness_dies_across_projected_call_result_fence() {
+fn boundary_witness_survives_disjoint_projected_call_result_frame() {
     let source = r#"
         boundary trait Firmware {
             machine get_size(size: &mut u32)
@@ -2386,8 +2386,44 @@ fn boundary_witness_dies_across_projected_call_result_fence() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a projected call result must remain a conservative frame fence");
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a direct projected call result should preserve a witness outside its argument origin",
+    );
+}
+
+#[test]
+fn boundary_witness_dies_under_projected_call_result_frame() {
+    let source = r#"
+        boundary trait Firmware {
+            machine get_size(size: &mut u32)
+            ensures size <= 8;
+        }
+
+        data Main {
+            fw: Firmware;
+            values: [u32; 2];
+            small: u32 [0..=8];
+        }
+
+        machine first_value(values: &mut [u32; 2]) -> &mut u32 {
+            &mut values[0]
+        }
+
+        machine Main::main(&mut self) {
+            self.fw.get_size(&mut self.values[1]);
+            self.touch_projected_call_result();
+            self.small = self.values[1];
+        }
+
+        machine Main::touch_projected_call_result(&mut self) {
+            let value: &mut u32 = first_value(&mut self.values);
+            value = 9;
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "a projected indexed call result must invalidate an overlapping collection witness",
+    );
     assert!(
         diagnostics
             .iter()

@@ -1551,8 +1551,9 @@ struct FramePlaceOrigin {
 /// origins, but remain local-only and therefore disappear from the published
 /// caller frame. A value call is relational only when a free helper's sole
 /// terminal result directly forwards one mutable-reference parameter; its
-/// caller argument then supplies the origin. Projected/computed results and
-/// call-produced local collections stay opaque.
+/// caller argument then supplies the origin. Direct parameter-relative member
+/// and indexed projections compose the same exact/coarse path algebra.
+/// Computed results and call-produced local collections stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     local: &psi_typed_trees::statement::TableLocalData,
@@ -1696,9 +1697,9 @@ fn stable_alias_place_origin(
 
 /// Recover one deliberately structural value-call relation. The helper must be
 /// free, acyclic at the result surface, return `&mut`, and have one terminal
-/// result expression that is exactly one of its mutable-reference parameters.
-/// This is body evidence, not lifetime elision: a projection, nested call,
-/// named-state route, or alternate result fails closed.
+/// result expression that is a direct place rooted in one mutable-reference
+/// parameter. This is body evidence, not lifetime elision: a computed result,
+/// nested call, named-state route, or alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1733,6 +1734,9 @@ fn transparent_call_result_origin(
         return None;
     };
 
+    let result_origin = frame_place_path(program, *result)?;
+    let result_root_symbol = frame_place_root_symbol(program, *result)?;
+    let (result_root, result_suffix) = split_place_root(&result_origin.path);
     let (argument_index, _) = program
         .state_parameters(callee_state)
         .iter()
@@ -1747,13 +1751,14 @@ fn transparent_call_result_origin(
                     is_mutable: true,
                     ..
                 }
-            ) && expression_forwards_exact_symbol(program, *result, parameter.symbol)
+            ) && parameter.name.as_str() == result_root
+                && parameter.symbol == result_root_symbol
         })?;
     let argument = *program
         .expression_table
         .expression_handles(call.arguments)
         .get(argument_index)?;
-    stable_alias_expression_origin(
+    let argument_origin = stable_alias_expression_origin(
         program,
         argument,
         caller_parameters,
@@ -1761,7 +1766,31 @@ fn transparent_call_result_origin(
         aliases,
         symbols,
         false,
-    )
+    )?;
+    Some(match argument_origin.precision {
+        FramePathPrecision::Exact => FramePlaceOrigin {
+            path: append_place_suffix(&argument_origin.path, result_suffix),
+            precision: result_origin.precision,
+        },
+        FramePathPrecision::CollectionCoarse => argument_origin,
+    })
+}
+
+fn frame_place_root_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => frame_place_root_symbol(program, *inner),
+        ExpressionNode::Indexed(indexed) => frame_place_root_symbol(program, indexed.collection),
+        ExpressionNode::Member(member) => frame_place_root_symbol(program, member.receiver),
+        ExpressionNode::Name(path) => path
+            .head_symbol
+            .is_valid()
+            .then_some(path.head_symbol)
+            .or_else(|| path.symbol.is_valid().then_some(path.symbol)),
+        _ => None,
+    }
 }
 
 fn type_is_caller_isolated_local(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
