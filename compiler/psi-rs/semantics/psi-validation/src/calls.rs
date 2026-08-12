@@ -1229,6 +1229,33 @@ fn known_call_written_paths_for_parts(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<String>> {
+    known_call_written_paths_for_parts_with_origins(
+        program,
+        target_symbol,
+        target,
+        receiver_members,
+        arguments,
+        current_machine,
+        machine_symbols,
+        symbols,
+        active_states,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn known_call_written_paths_for_parts_with_origins(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+    target: &str,
+    receiver_members: &[String],
+    arguments: &[ExpressionHandle],
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+) -> Option<Vec<String>> {
     // A static machine parameter's selected target is a specialization input,
     // not an ordinary receiver binding. Until MP summaries instantiate that
     // binding explicitly, retain the sound all-facts invalidation.
@@ -1282,6 +1309,7 @@ fn known_call_written_paths_for_parts(
         receiver_members,
         symbols,
         active_states,
+        argument_origins,
     );
     active_states.pop();
     result
@@ -1296,6 +1324,7 @@ fn summarize_resolved_call(
     receiver_members: &[String],
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
+    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
 ) -> Option<Vec<String>> {
     let receiver_base = (!receiver_members.is_empty())
         .then(|| receiver_members.join("."))
@@ -1326,7 +1355,7 @@ fn summarize_resolved_call(
         )
     })?;
     for relative in relative_paths {
-        if let Some(instantiated) = instantiate_written_path(
+        if let Some(instantiated) = instantiate_written_path_with_origins(
             program,
             &relative,
             receiver_base.as_deref(),
@@ -1335,6 +1364,7 @@ fn summarize_resolved_call(
             &[],
             symbols,
             active_states,
+            argument_origins,
         )? && !written.contains(&instantiated)
         {
             written.push(instantiated);
@@ -1480,7 +1510,24 @@ fn summarize_state_written_paths(
                 let arguments = program
                     .statement_table
                     .expression_handles(nested_call.arguments);
-                let nested_writes = known_call_written_paths_for_parts(
+                let argument_origins = arguments
+                    .iter()
+                    .map(|argument| {
+                        stable_alias_initializer_origin(
+                            program,
+                            machine,
+                            &machine_symbols,
+                            active_states,
+                            *argument,
+                            parameters,
+                            &isolated_local_roots,
+                            &local_alias_origins,
+                            symbols,
+                            true,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let nested_writes = known_call_written_paths_for_parts_with_origins(
                     program,
                     nested_call.target_symbol,
                     nested_call.target.as_str(),
@@ -1490,16 +1537,23 @@ fn summarize_state_written_paths(
                     &machine_symbols,
                     symbols,
                     active_states,
+                    Some(&argument_origins),
                 )
                 .or_else(|| {
-                    known_boundary_call_written_paths_for_parts(
-                        program,
-                        &machine_symbols,
-                        symbols,
-                        &nested_receiver_members,
-                        nested_call.target.as_str(),
-                        arguments,
-                    )
+                    (!arguments
+                        .iter()
+                        .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
+                    .then(|| {
+                        known_boundary_call_written_paths_for_parts(
+                            program,
+                            &machine_symbols,
+                            symbols,
+                            &nested_receiver_members,
+                            nested_call.target.as_str(),
+                            arguments,
+                        )
+                    })
+                    .flatten()
                 })
                 .or_else(|| {
                     syntactic_call_written_paths(program, &nested_receiver_members, arguments)
@@ -1785,7 +1839,10 @@ fn expression_reborrows_stable_alias_binding(
         |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => {
-            let reborrows_binding = frame_place_path(program, *inner).is_some_and(|place| {
+            let reborrows_binding = matches!(
+                program.expression_table.expression(*inner),
+                ExpressionNode::Name(_)
+            ) && frame_place_path(program, *inner).is_some_and(|place| {
                 let (root, suffix) = split_place_root(&place.path);
                 suffix.is_empty()
                     && (parameters.iter().any(|parameter| {
@@ -2487,7 +2544,22 @@ fn statement_call_preserves_transparent_result(
         .iter()
         .map(|member| member.as_str().to_owned())
         .collect::<Vec<_>>();
-    known_call_written_paths_for_parts(
+    let argument_origins = arguments
+        .iter()
+        .map(|argument| {
+            parameter_relative_place_origin(
+                program,
+                current_machine,
+                *argument,
+                parameters,
+                aliases,
+                symbols,
+                active_states,
+            )
+            .map(|origin| origin.place)
+        })
+        .collect::<Vec<_>>();
+    known_call_written_paths_for_parts_with_origins(
         program,
         call.target_symbol,
         call.target.as_str(),
@@ -2497,16 +2569,23 @@ fn statement_call_preserves_transparent_result(
         &machine_symbols,
         symbols,
         active_states,
+        Some(&argument_origins),
     )
     .or_else(|| {
-        known_boundary_call_written_paths_for_parts(
-            program,
-            &machine_symbols,
-            symbols,
-            &receiver_members,
-            call.target.as_str(),
-            arguments,
-        )
+        (!arguments
+            .iter()
+            .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
+        .then(|| {
+            known_boundary_call_written_paths_for_parts(
+                program,
+                &machine_symbols,
+                symbols,
+                &receiver_members,
+                call.target.as_str(),
+                arguments,
+            )
+        })
+        .flatten()
     })
     .is_some()
 }
@@ -2578,6 +2657,27 @@ fn statement_call_argument_preserves_transparent_result(
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
     }
+    let place_expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => expression,
+    };
+    if remaining_call_depth == 2
+        && matches!(
+            program.expression_table.expression(place_expression),
+            ExpressionNode::Indexed(_)
+        )
+    {
+        return parameter_relative_place_origin(
+            program,
+            current_machine,
+            expression,
+            parameters,
+            aliases,
+            symbols,
+            active_states,
+        )
+        .is_some();
+    }
     if remaining_call_depth == 0 {
         return false;
     }
@@ -2638,6 +2738,21 @@ fn statement_call_argument_preserves_transparent_result(
     .is_some()
 }
 
+fn expression_is_effectful_indexed_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    let expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => expression,
+    };
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Indexed(indexed)
+            if expression_is_effectful_for_transparent_result(program, indexed.index)
+    )
+}
+
 fn expression_reborrows_transparent_alias_binding(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -2651,7 +2766,10 @@ fn expression_reborrows_transparent_alias_binding(
         |child| expression_reborrows_transparent_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => {
-            let reborrows_binding = frame_place_path(program, *inner).is_some_and(|place| {
+            let reborrows_binding = matches!(
+                program.expression_table.expression(*inner),
+                ExpressionNode::Name(_)
+            ) && frame_place_path(program, *inner).is_some_and(|place| {
                 let (root, suffix) = split_place_root(&place.path);
                 if !suffix.is_empty() {
                     return false;
@@ -3655,7 +3773,24 @@ fn build_permuted_cycle_frame_equation<'program>(
                     .map(|member| member.as_str().to_owned())
                     .collect::<Vec<_>>();
                 let arguments = program.statement_table.expression_handles(call.arguments);
-                let nested_writes = known_call_written_paths_for_parts(
+                let argument_origins = arguments
+                    .iter()
+                    .map(|argument| {
+                        stable_alias_initializer_origin(
+                            program,
+                            machine,
+                            machine_symbols,
+                            &mut active_states,
+                            *argument,
+                            parameters,
+                            &isolated_local_roots,
+                            &local_alias_origins,
+                            symbols,
+                            true,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let nested_writes = known_call_written_paths_for_parts_with_origins(
                     program,
                     call.target_symbol,
                     call.target.as_str(),
@@ -3665,16 +3800,23 @@ fn build_permuted_cycle_frame_equation<'program>(
                     machine_symbols,
                     symbols,
                     &mut active_states,
+                    Some(&argument_origins),
                 )
                 .or_else(|| {
-                    known_boundary_call_written_paths_for_parts(
-                        program,
-                        machine_symbols,
-                        symbols,
-                        &receiver_members,
-                        call.target.as_str(),
-                        arguments,
-                    )
+                    (!arguments
+                        .iter()
+                        .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
+                    .then(|| {
+                        known_boundary_call_written_paths_for_parts(
+                            program,
+                            machine_symbols,
+                            symbols,
+                            &receiver_members,
+                            call.target.as_str(),
+                            arguments,
+                        )
+                    })
+                    .flatten()
                 })
                 .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))?;
                 for relative in nested_writes {
@@ -4077,6 +4219,31 @@ fn instantiate_written_path(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Option<String>> {
+    instantiate_written_path_with_origins(
+        program,
+        relative,
+        receiver_base,
+        parameters,
+        arguments,
+        locals,
+        symbols,
+        active_states,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn instantiate_written_path_with_origins(
+    program: &TypedTrees,
+    relative: &str,
+    receiver_base: Option<&str>,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    locals: &[String],
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+) -> Option<Option<String>> {
     let (root, suffix) = split_place_root(relative);
     if root == "self" {
         return Some(Some(append_place_suffix(receiver_base?, suffix)));
@@ -4087,7 +4254,12 @@ fn instantiate_written_path(
         .position(|parameter| parameter.name.as_str() == root)
     {
         let argument = *arguments.get(argument_index)?;
-        let base = transparent_place_expression_origin(program, argument, symbols, active_states)?;
+        let base = argument_origins
+            .and_then(|origins| origins.get(argument_index))
+            .and_then(Clone::clone)
+            .or_else(|| {
+                transparent_place_expression_origin(program, argument, symbols, active_states)
+            })?;
         return Some(Some(match base.precision {
             FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
             FramePathPrecision::CollectionCoarse => base.path,

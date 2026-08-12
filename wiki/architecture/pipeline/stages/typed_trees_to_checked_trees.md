@@ -196,7 +196,12 @@ Current ownership is:
   fences the relation. Other ordinary exact frames remain published, and
   effect-free discarded expressions and direct Unit statement calls with
   complete non-rebinding frames are neutral, including exact sibling direct
-  value-call arguments and their bounded two-level direct-call trees. A direct
+  value-call arguments and their bounded two-level direct-call trees. An
+  internal statement call may also take a mutable indexed argument whose index
+  is such a tree: caller-alias-aware instantiation coarsens callee writes to the
+  argument's collection and publishes index-call writes. Boundary calls and
+  deeper, binding-reborrow, recursive, or opaque indexed arguments remain
+  fences. A direct
   helper-local alias rebind updates that local's origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed

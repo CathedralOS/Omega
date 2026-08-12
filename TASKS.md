@@ -401,6 +401,11 @@ customer-shaped compiler concept is introduced.
   direct-call tree through depth two when every frame is complete and every
   write stays inside already established isolated scratch roots; those writes
   remain helper-local while a separate returned parameter origin stays exact.
+  Internal statement helpers now also accept a mutable indexed argument whose
+  index is that bounded complete tree: caller-aware instantiation publishes the
+  callee write at collection precision and retains independent index-call
+  writes. Boundary, deeper, rebinding, recursive, and opaque indexed arguments
+  remain fenced.
   Deeper or recursive calls, binding reborrows, reference-valued or opaque
   nodes, other effectful sources, escaped aliases, non-bijective transport, and
   writes outside isolated roots remain fences or use existing alias handling.

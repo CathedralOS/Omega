@@ -3619,8 +3619,8 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         resolver
             .inferred_state_write_frame(machine, entry)
             .complete_paths(),
-        Some(["self".to_owned(), "self.cells".to_owned()].as_slice()),
-        "a call hidden in the index must retain its conservative receiver and collection fences"
+        Some(["self.cells".to_owned()].as_slice()),
+        "a bounded complete index call must coarsen the written argument to its collection"
     );
 
     let machine = typed
@@ -4670,6 +4670,190 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
             "{name} must remain opaque when either assignment side exceeds its rail"
+        );
+    }
+}
+
+#[test]
+fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
+    let source = r#"
+    data Main {
+        result: u64;
+        index_write: u64;
+        cells: [u64; 2];
+    }
+
+    machine write_argument(value: &mut u64) {
+        value = 1;
+    }
+
+    machine make_index() -> u64 [0..=1] {
+        0
+    }
+
+    machine write_index(value: &mut u64) -> u64 [0..=1] {
+        value = 2;
+        0
+    }
+
+    machine identity_index(index: u64 [0..=1]) -> u64 [0..=1] {
+        index
+    }
+
+    machine recursive_index() -> u64 [0..=1] {
+        recursive_index()
+    }
+
+    machine return_after_indexed_statement<'cells, 'result>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(&mut cells[make_index()]);
+        result
+    }
+
+    machine return_after_nested_indexed_statement<'cells, 'result, 'write>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64,
+        index_write: &'write mut u64
+    ) -> &'result mut u64 {
+        write_argument(&mut cells[identity_index(write_index(index_write))]);
+        result
+    }
+
+    machine return_after_deep_indexed_statement<'cells, 'result>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut cells[identity_index(identity_index(make_index()))]
+        );
+        result
+    }
+
+    machine return_after_reborrow_indexed_statement<'cells, 'result, 'write>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64,
+        index_write: &'write mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut cells[identity_index(write_index(&mut index_write))]
+        );
+        result
+    }
+
+    machine return_after_recursive_indexed_statement<'cells, 'result>(
+        cells: &'cells mut [u64; 2],
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(&mut cells[recursive_index()]);
+        result
+    }
+
+    machine Main::indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_indexed_statement(
+            &mut self.cells,
+            &mut self.result
+        );
+        alias = 3;
+    }
+
+    machine Main::nested_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_nested_indexed_statement(
+            &mut self.cells,
+            &mut self.result,
+            &mut self.index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::deep_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_indexed_statement(
+            &mut self.cells,
+            &mut self.result
+        );
+        alias = 3;
+    }
+
+    machine Main::reborrow_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_reborrow_indexed_statement(
+            &mut self.cells,
+            &mut self.result,
+            &mut self.index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::recursive_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_indexed_statement(
+            &mut self.cells,
+            &mut self.result
+        );
+        alias = 3;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for (name, expected_paths) in [
+        (
+            "Main::indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::nested_indexed_statement_result",
+            vec!["self.cells", "self.index_write", "self.result"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must publish the coarse argument, index writes, and returned-place write"
+        );
+    }
+
+    for name in [
+        "Main::deep_indexed_statement_result",
+        "Main::reborrow_indexed_statement_result",
+        "Main::recursive_indexed_statement_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded indexed-argument rung"
         );
     }
 }
