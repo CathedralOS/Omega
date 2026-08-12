@@ -14,6 +14,7 @@ pub(super) fn write_trust_report(
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_provider_plans: &[String],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut report = TrustReport::default();
     // PRV3: derived provider plans -- one row each, dev-active with the
@@ -21,9 +22,13 @@ pub(super) fn write_trust_report(
     // its trait leaf), fingerprint shown so drift is visible at a glance.
     for plan in provider_plans {
         let leaf = plan.schema.trait_name.as_str();
-        let granted = root_grants
+        let selected = selected_provider_plans
             .iter()
-            .any(|grant| grant == &plan.name || grant == leaf);
+            .any(|selected| selected == &plan.name);
+        let granted = selected
+            && root_grants
+                .iter()
+                .any(|grant| grant == &plan.name || grant == leaf);
         let provenance = if granted {
             "root grant (build.omg)"
         } else {

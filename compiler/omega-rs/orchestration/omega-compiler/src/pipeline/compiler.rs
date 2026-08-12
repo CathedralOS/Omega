@@ -492,12 +492,14 @@ impl Compiler {
             &typed,
             &build_config.grants,
             &provider_plans,
+            &selected_provider_plans,
         )?;
         crate::pipeline::trust_report::write_trust_report(
             &self.options,
             &typed,
             &build_config.grants,
             &provider_plans,
+            &selected_provider_plans,
         )?;
         crate::pipeline::wire_report::write_wire_protocol_report(
             &self.options,

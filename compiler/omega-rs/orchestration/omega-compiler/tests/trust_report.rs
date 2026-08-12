@@ -497,7 +497,7 @@ machine Main::main(&mut self) {{
     compile(options()).expect("granted plan project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
     assert!(
-        lock.contains("provider plan: satisfies::Flags"),
+        lock.contains("provider slot: Flags"),
         "expected the plan receipt:\n{lock}"
     );
 
@@ -792,6 +792,91 @@ machine Main::main(&mut self) {
             "{provider} must remain a half-provider:\n{report}"
         );
     }
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn slot_grant_pins_only_the_selected_provider_plan() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-selected-provider-grant-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    let build_with = |provider: &str| {
+        format!(
+            r#"data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+machine build(b: &mut Build) {{
+    b.accept_boundary<Pair>();
+    b.select_provider<Pair, {provider}>();
+}}
+"#
+        )
+    };
+    std::fs::write(project.join("build.omg"), build_with("SecondProvider"))
+        .expect("write build.omg");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary trait Pair { machine choose() -> i32; }
+
+data FirstProvider {}
+FirstProviderPair: FirstProvider satisfies Pair;
+machine FirstProvider::choose() -> i32 satisfies Pair::choose { 1 }
+
+data SecondProvider {}
+SecondProviderPair: SecondProvider satisfies Pair;
+machine SecondProvider::choose() -> i32 satisfies Pair::choose { 2 }
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("explicitly selected granted provider should compile");
+
+    let report =
+        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
+    let first = report
+        .lines()
+        .find(|line| line.contains("provider plan: FirstProvider::satisfies::Pair ["))
+        .expect("first candidate row");
+    let second = report
+        .lines()
+        .find(|line| line.contains("provider plan: SecondProvider::satisfies::Pair ["))
+        .expect("second candidate row");
+    assert!(first.contains("own-package (dev-active)") && first.contains("STANDING WARNING"));
+    assert!(second.contains("root grant (build.omg)") && !second.contains("STANDING WARNING"));
+
+    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
+    assert!(lock.contains("provider slot: Pair"));
+
+    std::fs::write(project.join("build.omg"), build_with("FirstProvider"))
+        .expect("rewrite build.omg");
+    let message = format!(
+        "{:?}",
+        compile(CompileOptions {
+            root_path: project.join("main.omg"),
+            build_dir: Some(build_dir),
+            target_name: None,
+            write_output: false,
+        })
+        .expect_err("changing the selected provider must drift the slot receipt")
+    );
+    assert!(
+        message.contains("granted statement drifted"),
+        "expected selection drift refusal, got: {message}"
+    );
 
     let _ = std::fs::remove_dir_all(&project);
 }
