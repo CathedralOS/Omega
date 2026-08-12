@@ -131,6 +131,7 @@ impl HostOperationKey {
                     HostCapability::Stdout | HostCapability::Stderr,
                     HostOperation::Write
                 )
+                | (HostCapability::Clock, HostOperation::SleepPoll)
         )
     }
 
@@ -1758,21 +1759,35 @@ mod binding_plan_tests {
     #[test]
     fn darwin_time_bindings_retain_exact_adapter_call_plans() {
         let plan = build_host_abi_plan(NativeTarget::macos_arm64());
-        for (operation, symbol, parameter_count, has_result) in [
-            (HostOperation::SleepPoll, "_poll", 3, false),
+        for (operation, symbol, parameters, result) in [
+            (
+                HostOperation::SleepPoll,
+                "_poll",
+                vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(4, 4),
+                    ValueShape::integer(4, 4),
+                ],
+                Some(ValueShape::integer(4, 4)),
+            ),
             (
                 HostOperation::MonotonicTicks,
                 "_clock_gettime_nsec_np",
-                1,
-                true,
+                vec![ValueShape::integer(8, 8)],
+                Some(ValueShape::integer(8, 8)),
             ),
             (
                 HostOperation::WallClockRaw,
                 "_clock_gettime_nsec_np",
-                1,
-                true,
+                vec![ValueShape::integer(8, 8)],
+                Some(ValueShape::integer(8, 8)),
             ),
-            (HostOperation::TickCount, "_clock_gettime_nsec_np", 1, true),
+            (
+                HostOperation::TickCount,
+                "_clock_gettime_nsec_np",
+                vec![ValueShape::integer(8, 8)],
+                Some(ValueShape::integer(8, 8)),
+            ),
         ] {
             let (_, binding) = plan
                 .bindings
@@ -1791,13 +1806,14 @@ mod binding_plan_tests {
             ));
             let boundary = &binding.boundary_entry_plan;
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
-            assert_eq!(boundary.call.parameters.len(), parameter_count);
-            assert!(
+            assert_eq!(
                 boundary
                     .call
                     .parameters
                     .iter()
-                    .all(|placement| placement.shape == ValueShape::integer(8, 8))
+                    .map(|placement| placement.shape)
+                    .collect::<Vec<_>>(),
+                parameters
             );
             assert_eq!(
                 boundary
@@ -1805,7 +1821,7 @@ mod binding_plan_tests {
                     .result
                     .as_ref()
                     .map(|placement| placement.shape),
-                has_result.then_some(ValueShape::integer(8, 8))
+                result
             );
         }
     }

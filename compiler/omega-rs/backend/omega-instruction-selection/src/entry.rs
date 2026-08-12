@@ -1985,6 +1985,9 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                 HostCapability::CoreGraphics,
                 omega_calling_conventions::HostOperation::RectMaxX
                     | omega_calling_conventions::HostOperation::RectMaxY
+            ) | (
+                HostCapability::Clock,
+                omega_calling_conventions::HostOperation::SleepPoll
             )
         );
         if !matches!(binding.mechanism, HostBindingMechanism::Import { .. })
@@ -2197,7 +2200,8 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
                         })
                 }
                 DirectImportArgumentClass::Authored => {
-                    binding.call_plan().result.is_some()
+                    (binding.call_plan().result.is_some()
+                        && !operation.operation_key.discards_native_result())
                         || binding.call_plan().parameters.len() != selected_operands.len()
                         || !selected_operands.iter().all(|operand| {
                             matches!(

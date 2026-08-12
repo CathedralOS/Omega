@@ -1016,9 +1016,15 @@ fn compiler_instruction_validation_kind(
                         omega_calling_conventions::HostCapability::CoreGraphics,
                         omega_calling_conventions::HostOperation::RectMaxX
                             | omega_calling_conventions::HostOperation::RectMaxY
+                    ) | (
+                        omega_calling_conventions::HostCapability::Clock,
+                        omega_calling_conventions::HostOperation::SleepPoll
                     )
                 ) {
-                    let result_operand_count = usize::from(binding.call_plan().result.is_some());
+                    let result_operand_count = usize::from(
+                        binding.call_plan().result.is_some()
+                            && !operation_key.discards_native_result(),
+                    );
                     let Some(arguments) = operands.get(result_operand_count..) else {
                         return Ok(None);
                     };
@@ -1049,28 +1055,11 @@ fn compiler_instruction_validation_kind(
                             || operand.runtime_small_aggregate().is_some()
                             || operand.runtime_large_aggregate().is_some()
                     });
-                    let validation = match binding.call_plan().result.as_ref() {
-                        None if result_operand_count == 0 && has_aggregate_argument => {
-                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateImport {
-                                operation_key: *operation_key,
-                                operands: operands.to_vec(),
-                                data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
-                                plan: binding.call_plan().clone(),
-                            }
-                        }
-                        None if result_operand_count == 0 && has_float_argument => {
-                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImport {
-                                operation_key: *operation_key,
-                                operands: operands.to_vec(),
-                                data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
-                                plan: binding.call_plan().clone(),
-                            }
-                        }
-                        None if result_operand_count == 0 => {
+                    let validation = match (
+                        binding.call_plan().result.as_ref(),
+                        operation_key.discards_native_result(),
+                    ) {
+                        (Some(_), true) => {
                             CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredImport {
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
@@ -1080,7 +1069,37 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
-                        Some(_)
+                        (None, false) if result_operand_count == 0 && has_aggregate_argument => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredAggregateImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        (None, false) if result_operand_count == 0 && has_float_argument => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredFloatImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        (None, false) if result_operand_count == 0 => {
+                            CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredImport {
+                                operation_key: *operation_key,
+                                operands: operands.to_vec(),
+                                data_symbols,
+                                library: std::sync::Arc::clone(library),
+                                symbol: std::sync::Arc::clone(symbol),
+                                plan: binding.call_plan().clone(),
+                            }
+                        }
+                        (Some(_), false)
                             if operands.first().is_some_and(|operand| {
                                 operand.runtime_homogeneous_float_aggregate().is_some()
                                     || operand.runtime_system_v_aggregate().is_some()
@@ -1097,7 +1116,7 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
-                        Some(result)
+                        (Some(result), false)
                             if has_aggregate_argument
                                 && match result.shape.class {
                                     omega_calling_conventions::ValueClass::Integer => matches!(
@@ -1124,7 +1143,7 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
-                        Some(result)
+                        (Some(result), false)
                             if matches!(
                                 result.shape.class,
                                 omega_calling_conventions::ValueClass::Integer
@@ -1145,7 +1164,7 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
-                        Some(result)
+                        (Some(result), false)
                             if matches!(
                                 result.shape.class,
                                 omega_calling_conventions::ValueClass::Integer
@@ -1165,7 +1184,7 @@ fn compiler_instruction_validation_kind(
                                 plan: binding.call_plan().clone(),
                             }
                         }
-                        Some(result)
+                        (Some(result), false)
                             if matches!(
                                 result.shape.class,
                                 omega_calling_conventions::ValueClass::Float

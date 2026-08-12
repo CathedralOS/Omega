@@ -364,7 +364,20 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // its operand arm places `[NULL, 0, ms]` in x0/x1/x2 (the shared `Sleep`
         // arm marshals a single arg into x0 for Win32 `Sleep`). `_poll` is in the
         // libSystem umbrella, so no new dylib.
-        darwin_word_import("Clock", "sleep_poll", "_poll", 3, false, &policy),
+        darwin_typed_import(
+            "Clock",
+            "sleep_poll",
+            "_poll",
+            CallSignature {
+                parameters: vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(4, 4),
+                    ValueShape::integer(4, 4),
+                ],
+                result: Some(ValueShape::integer(4, 4)),
+            },
+            &policy,
+        ),
         // std::time seam (TASKS_TIME.md rung 10): ONE symbol serves both the
         // monotonic and wall reads; the clockid argument comes from each
         // lowering row's ConstantArgument. The calibration ops are
