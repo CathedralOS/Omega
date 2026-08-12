@@ -17,6 +17,7 @@ pub struct CheckedCompilation {
     selected_program_entry_machine: Option<String>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     task_activations: omega_task_plans::TaskActivationPlanSet,
+    build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
 }
 
 impl CheckedCompilation {
@@ -42,6 +43,12 @@ impl CheckedCompilation {
 
     pub const fn task_activations(&self) -> &omega_task_plans::TaskActivationPlanSet {
         &self.task_activations
+    }
+
+    pub const fn build_evaluation_usage(
+        &self,
+    ) -> Option<super::build_config::BuildEvaluationUsage> {
+        self.build_evaluation_usage
     }
 
     pub fn into_program(self) -> CheckedTrees {
@@ -120,8 +127,10 @@ pub fn compile_to_checked(
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
     let _boundary_calling_plan_realizations =
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
-    let build_config =
+    let computed_build_config =
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+    let build_evaluation_usage = computed_build_config.evaluation_usage;
+    let build_config = computed_build_config.config;
     let selected_program_entry_machine =
         crate::pipeline::build_config::selected_program_entry_machine(&build_config, target_name)?
             .map(|entry| entry.machine_name.to_owned());
@@ -189,5 +198,6 @@ pub fn compile_to_checked(
         selected_program_entry_machine,
         selected_provider_plans: selected_provider_plan_facts,
         task_activations,
+        build_evaluation_usage,
     })
 }

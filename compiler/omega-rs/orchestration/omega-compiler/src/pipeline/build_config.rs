@@ -61,6 +61,23 @@ pub struct BuildConfig {
     pub root_bindings: Vec<RootBinding>,
 }
 
+/// Accounting-only projection of the transitional typed-tree build evaluator.
+/// This is not terminal-Psi fuel and does not participate in `BuildConfig` or
+/// program identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildEvaluationUsage {
+    pub usage_schema_version: u32,
+    pub step_schedule_marker: u32,
+    pub fuel_units: u64,
+    pub result_cells: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ComputedBuildConfig {
+    pub config: BuildConfig,
+    pub evaluation_usage: Option<BuildEvaluationUsage>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootBinding {
     pub slot: String,
@@ -488,7 +505,7 @@ pub(crate) fn is_build_machine(
 pub(crate) fn compute_build_config(
     typed: &TypedTrees,
     build_file_machines: &[String],
-) -> Result<BuildConfig, Vec<Diagnostic>> {
+) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     // MP6: build.omg is interpreted before the ordinary checked-tree stage,
     // but compile-time machine parameters are consumed by that stage's
     // monomorphizer. Specialize a private clone first so a build helper such
@@ -504,7 +521,10 @@ pub(crate) fn compute_build_config(
         .iter()
         .filter(|machine| is_build_machine(machine, build_file_machines));
     let Some(machine) = build_machines.next() else {
-        return Ok(BuildConfig::default());
+        return Ok(ComputedBuildConfig {
+            config: BuildConfig::default(),
+            evaluation_usage: None,
+        });
     };
     if let Some(second) = build_machines.next() {
         return Err(vec![Diagnostic::error(format!(
@@ -605,14 +625,14 @@ pub(crate) fn compute_build_config(
     // Service-free builds keep the pure engine; an admitted staging-service
     // build runs the granted entry (real filesystem, unscoped under the
     // current owner policy).
-    let mut arguments = if transitive.is_empty() {
-        psi_checked_interpreter::evaluate_build_time_machine_arguments(
+    let measured = if transitive.is_empty() {
+        psi_checked_interpreter::evaluate_build_time_machine_arguments_measured(
             typed,
             machine_name,
             vec![zero_build],
         )
     } else {
-        psi_checked_interpreter::evaluate_build_machine_with_filesystem(
+        psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(
             typed,
             machine_name,
             vec![zero_build],
@@ -626,6 +646,8 @@ pub(crate) fn compute_build_config(
             "build-time evaluation of `{machine_name}` failed: {reason}"
         ))]
     })?;
+    let usage = measured.usage();
+    let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "`{machine_name}` returned no argument values (expected the augmented Build)"
@@ -641,7 +663,15 @@ pub(crate) fn compute_build_config(
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
-    Ok(config)
+    Ok(ComputedBuildConfig {
+        config,
+        evaluation_usage: Some(BuildEvaluationUsage {
+            usage_schema_version: usage.schema().schema_version(),
+            step_schedule_marker: usage.schedule().marker(),
+            fuel_units: usage.fuel_units(),
+            result_cells: usage.result_cells(),
+        }),
+    })
 }
 
 /// Collect `builder.roots.bind(Target::Slot, Machine::entry);` declarations
