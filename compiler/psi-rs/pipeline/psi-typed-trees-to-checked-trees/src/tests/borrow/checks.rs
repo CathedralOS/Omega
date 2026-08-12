@@ -3138,6 +3138,45 @@ fn accepts_static_persistent_copy_across_isolated_scratch_helper_frame() {
 }
 
 #[test]
+fn accepts_static_persistent_copy_across_rebound_helper_result_frame() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            spare: Message;
+            copy: Message;
+        }
+
+        machine choose_second<'first, 'second>(
+            first: &'first mut Message,
+            second: &'second mut Message
+        ) -> &'second mut Message {
+            let selected: &mut Message = &mut first;
+            selected = &mut second;
+            selected
+        }
+
+        machine Main::touch_spare(&mut self) {
+            let selected: &mut Message =
+                choose_second(&mut self.source, &mut self.spare);
+            selected.body = "spare static";
+        }
+
+        machine Main::store(&mut self) {
+            self.source.body = "program static";
+            self.touch_spare();
+            self.copy = self.source;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a direct helper-local rebind selects only the replacement argument's write frame");
+}
+
+#[test]
 fn accepts_static_persistent_copy_across_receiver_result_frame() {
     let source = r#"
         data Message {

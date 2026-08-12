@@ -1720,11 +1720,12 @@ fn stable_alias_place_origin(
 /// earlier such local, or another structurally transparent helper. Effect-free
 /// value-shaped assignments may write through those places or scratch locals
 /// without changing their origins; the ordinary frame summary still publishes
-/// caller-visible writes. Explicit arguments and an attached helper's actual
-/// receiver both supply exact caller origins. This is body evidence, not
-/// lifetime elision: a reference-bearing scratch local, reference-shaped
-/// assignment, nested/statement call, recursive helper relation, named-state
-/// route, or alternate result fails closed.
+/// caller-visible writes. A direct stable alias rebind updates only that local;
+/// prior reborrows retain their established origins. Explicit arguments and an
+/// attached helper's actual receiver both supply exact caller origins. This is
+/// body evidence, not lifetime elision: a reference-bearing scratch local,
+/// computed rebind, nested/statement call, recursive helper relation,
+/// named-state route, or alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -1862,19 +1863,34 @@ fn transparent_callee_result_origin(
                     )?;
                     local_aliases.push((local.name.as_str().to_owned(), local.symbol, origin));
                 }
-                StatementNode::Assignment(assignment)
-                    if !expression_is_effectful_for_transparent_result(
-                        program,
-                        assignment.target,
-                    ) && !expression_is_effectful_for_transparent_result(
-                        program,
-                        assignment.value,
-                    ) && !expression_may_rebind_mutable_alias(
+                StatementNode::Assignment(assignment) => {
+                    if expression_is_effectful_for_transparent_result(program, assignment.target)
+                        || expression_is_effectful_for_transparent_result(program, assignment.value)
+                    {
+                        return None;
+                    }
+                    if expression_may_rebind_mutable_alias(
                         program,
                         callee_machine,
                         callee_state,
                         assignment.value,
-                    ) => {}
+                    ) {
+                        let position = parameter_relative_alias_position(
+                            program,
+                            assignment.target,
+                            &local_aliases,
+                        )?;
+                        let replacement = parameter_relative_place_origin(
+                            program,
+                            assignment.value,
+                            parameters,
+                            &local_aliases,
+                            symbols,
+                            active_states,
+                        )?;
+                        local_aliases[position].2 = replacement;
+                    }
+                }
                 _ => return None,
             }
         }
@@ -1889,6 +1905,25 @@ fn transparent_callee_result_origin(
     })();
     active_states.pop();
     result
+}
+
+fn parameter_relative_alias_position(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+) -> Option<usize> {
+    let place = frame_place_path(program, expression)?;
+    let (root, suffix) = split_place_root(&place.path);
+    if !suffix.is_empty() {
+        return None;
+    }
+    let root_symbol = frame_place_root_symbol(program, expression);
+    aliases.iter().position(|(name, symbol, _)| {
+        let exact_symbol =
+            root_symbol.is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol);
+        let unresolved_name = root_symbol.is_none_or(|root| !root.is_valid()) && name == root;
+        exact_symbol || unresolved_name
+    })
 }
 
 #[derive(Debug, Clone)]

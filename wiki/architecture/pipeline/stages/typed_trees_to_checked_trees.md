@@ -157,7 +157,8 @@ Current ownership is:
   aliases, including results of other structurally transparent helpers.
   Effect-free value-shaped assignments may
   write through those origins without changing the relation; their ordinary
-  exact frames remain published. Reference-shaped assignments,
+  exact frames remain published. A direct helper-local alias rebind updates
+  that local's origin while prior reborrows retain theirs. Computed rebinding,
   nested/statement calls, computed initializers, and recursive helper relations
   remain opaque. For an attached helper, its actual receiver supplies the
   caller origin when the result is rooted in `self`. Other nontrivial results
