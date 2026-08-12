@@ -462,10 +462,12 @@ checked-result arithmetic decision listed below.
   encodings cannot form a zero-copy scalar view.
 - The retained selected provider plan, sealed provider execution, exact
   installed entry, and post-handoff writer context now join to the matching AOT
-  fragment. Consume a linear mapped, pinned, writable, unpublished destination
-  carrier to execute that prepared writer; implement trusted/PCC and
-  final-footprint validators; complete target W^X/coherence reporting and
-  uninstall/replacement joins.
+  fragment. That bound invocation now consumes one exact activated mapping plus
+  a provider receipt for nonempty write rights, pinning, and non-publication,
+  and returns a written-but-still-unpublished destination while failed linear
+  transitions return every input. Implement consumer semantic validation and
+  publication, physical AOT invocation, trusted/PCC and final-footprint
+  validators, target W^X/coherence reporting, and uninstall/replacement joins.
 - Keep arbitrary runtime bytes-to-code, JIT, and raw executable addresses
   unsupported.
 

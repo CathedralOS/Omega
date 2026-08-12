@@ -10,12 +10,13 @@ use omega_compiler::{
 };
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
-    FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
-    InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
-    MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
-    install_validated, materialize_admitted_artifact, materialize_and_freeze,
-    validate_final_placement,
+    ArtifactId, CodePlacementAuthority, CodePlacementId, DestinationPreparationReceipt,
+    DestinationPreparationReceiptId, EntrySetId, FinalValidationCertificate, FinalValidationId,
+    InstallAuthority, InstallationAudience, InstallationReceipt, InstallationScopeId,
+    InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    MaterializationReceipt, PlacementPlanId, PreparedPostHandoffWriterDestination, RelocationSetId,
+    WxEnforcement, admit_executable, install_validated, materialize_admitted_artifact,
+    materialize_and_freeze, validate_final_placement,
 };
 use omega_external_roots::*;
 use omega_instruction_selection::lower_post_handoff_writer_fragment;
@@ -42,7 +43,9 @@ use psi_core::{
 };
 use psi_extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
-    ExtentRootGrant, MappingEraId,
+    ExtentRootGrant, MappingEraId, MappingGrant, MappingGrantId, MappingId, MappingSourceMode,
+    TranslationActivationFactId, TranslationActivationReceipt, TranslationInstallObligations,
+    TranslationReleaseObligations, map_owned,
 };
 use psi_layout_plans::{
     ArtifactInstallationScopeId, ByteOrder, EntryStubId, MaterializationWrite,
@@ -243,6 +246,47 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         bound_writer.prepared().provider_execution(),
         execution.terminal_binding()
     );
+    let mapping = activated_writer_mapping(0x8000, 16);
+    let destination_receipt = DestinationPreparationReceipt::from_admitted_provider(
+        installation_id(
+            210,
+            DestinationPreparationReceiptId::from_normalized_identity,
+        ),
+        &mapping.receipt_context(),
+        ExtentRights::from_normalized_identities([extent_identity(
+            204,
+            ExtentRightId::from_normalized_identity,
+        )]),
+        true,
+        true,
+    );
+    let mut destination_bytes = [0u8; 16];
+    let destination = PreparedPostHandoffWriterDestination::claim(
+        mapping,
+        destination_receipt,
+        writer_site(0x8000),
+        &mut destination_bytes,
+    )
+    .expect("exact activated, pinned, writable, unpublished destination");
+    let colliding_code = install_entry_artifact(
+        EntryStubId::from_normalized_identity(13).expect("colliding artifact entry"),
+    );
+    let error = bound_writer
+        .execute(&colliding_code, destination)
+        .expect_err("exact installed entry evidence outranks colliding report identities");
+    assert!(error.diagnostic().0.contains("exact installed artifact"));
+    let (bound_writer, destination) = (*error).into_parts();
+    assert_eq!(destination.site(), writer_site(0x8000));
+    assert_eq!(destination.len(), 16);
+    let written = bound_writer
+        .execute(&installed_code, destination)
+        .expect("recovered bound writer and destination remain usable");
+    assert_eq!(written.installed_code(), installed_code.identity());
+    assert_eq!(
+        u64::from_le_bytes(written.bytes()[..8].try_into().unwrap()),
+        0x1010
+    );
+    let (_mapping, _receipt, _site, _bytes) = written.into_parts();
 
     let machine = MachineId::new(1).unwrap();
     let boundary = BoundaryMachineId::new(1).unwrap();
@@ -390,6 +434,90 @@ fn writer_site(base_address: u64) -> PlacementSite {
         machine_regime: None,
         installation_scope: None,
     }
+}
+
+fn installation_id<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+) -> T {
+    constructor(identity).expect("normalized installation identity")
+}
+
+fn extent_identity<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+) -> T {
+    constructor(identity).expect("normalized extent identity")
+}
+
+fn activated_writer_mapping(base: u64, length: u64) -> psi_extents::MappedExtent<'static> {
+    let source_space = extent_identity(200, AddressSpaceId::from_normalized_identity);
+    let destination_space = extent_identity(201, AddressSpaceId::from_normalized_identity);
+    let source_rights = ExtentRights::from_normalized_identities([extent_identity(
+        202,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let destination_rights = ExtentRights::from_normalized_identities([extent_identity(
+        203,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let writer_rights = ExtentRights::from_normalized_identities([extent_identity(
+        204,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let source = ExtentRootGrant::from_admitted_provider(
+        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+            211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
+        ])
+        .unwrap(),
+        extent_identity(205, ExtentLineageId::from_normalized_identity),
+        source_space,
+        source_rights.clone(),
+        extent_identity(206, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(207, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x20_000, length)
+    .unwrap();
+    let destination = ExtentRootGrant::from_admitted_provider(
+        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+            231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243,
+        ])
+        .unwrap(),
+        extent_identity(208, ExtentLineageId::from_normalized_identity),
+        destination_space,
+        destination_rights.clone(),
+        extent_identity(209, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(210, MappingEraId::from_normalized_identity),
+    )
+    .mint(base, length)
+    .unwrap();
+    let activation = extent_identity(244, TranslationActivationFactId::from_normalized_identity);
+    let grant = MappingGrant::from_admitted_provider(
+        extent_identity(245, MappingGrantId::from_normalized_identity),
+        MappingSourceMode::Owned,
+        source_space,
+        destination_space,
+        source_rights,
+        destination_rights,
+        writer_rights,
+        extent_identity(246, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(247, MappingEraId::from_normalized_identity),
+        TranslationInstallObligations::from_normalized_facts([activation]),
+        TranslationReleaseObligations::default(),
+    );
+    let pending = map_owned(
+        source,
+        destination,
+        extent_identity(248, MappingId::from_normalized_identity),
+        &grant,
+    )
+    .unwrap();
+    let receipt = TranslationActivationReceipt::from_admitted_provider(
+        &pending.receipt_context(),
+        true,
+        [activation],
+    );
+    pending.complete(receipt).unwrap()
 }
 
 fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {

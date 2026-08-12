@@ -1465,7 +1465,29 @@ pub struct PreparedExternalRootPostHandoffWriterInvocation {
     provider_execution: AdmittedTerminalProviderExecution,
     architecture: omega_target::Architecture,
     invocation: PostHandoffWriterInvocationPlan,
+    writer: PostHandoffWriterPlan,
     context: ResolvedPostHandoffEntryWriterContext,
+}
+
+#[derive(Debug)]
+pub struct PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
+    prepared: PreparedExternalRootPostHandoffWriterInvocation,
+    destination_error: omega_executable_installation::DestinationWriteError<'mapping, 'bytes>,
+}
+
+impl<'mapping, 'bytes> PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
+        self.destination_error.diagnostic()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        PreparedExternalRootPostHandoffWriterInvocation,
+        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        (self.prepared, self.destination_error.into_destination())
+    }
 }
 
 impl PreparedExternalRootPostHandoffWriterInvocation {
@@ -1483,6 +1505,34 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
 
     pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
         &self.context
+    }
+
+    /// Consume one exact provider-prepared destination through the installed
+    /// artifact resolver used during preparation. The successful result is
+    /// still unpublished; consumer-specific validation and publication remain
+    /// separate transitions.
+    pub fn execute<'mapping, 'bytes>(
+        self,
+        installed_code: &InstalledCode,
+        destination: omega_executable_installation::PreparedPostHandoffWriterDestination<
+            'mapping,
+            'bytes,
+        >,
+    ) -> Result<
+        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        Box<PreparedExternalRootWriterExecutionError<'mapping, 'bytes>>,
+    > {
+        match installed_code.write_prepared_post_handoff_destination(
+            &self.context,
+            &self.writer,
+            destination,
+        ) {
+            Ok(written) => Ok(written),
+            Err(destination_error) => Err(Box::new(PreparedExternalRootWriterExecutionError {
+                prepared: self,
+                destination_error: *destination_error,
+            })),
+        }
     }
 }
 
@@ -1651,6 +1701,7 @@ impl ProviderExecution {
             provider_execution: self.terminal_binding(),
             architecture: installed_code.architecture(),
             invocation,
+            writer: writer.clone(),
             context,
         })
     }

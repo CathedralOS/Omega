@@ -256,7 +256,10 @@ The generic materializer is not a public address-resolution escape hatch. It
 receives one exact mapped/pinned/writable unpublished placement and a sealed
 resolver restricted to the boot-admitted artifact's root set. It writes that
 destination directly; failure produces no established consumer value. Layout
-validation checks geometry. Cathedral's separate IDT validator checks
+validation checks geometry. Omega's live provider carrier now consumes the
+activated mapping plus exact pin/unpublished/write-rights receipt and returns
+the written mapping without publishing it; failed transitions return all
+authority. Cathedral's separate IDT validator checks
 selectors, gates, privilege levels, IST assignments, reserved bits, and exact
 admitted roots before Cathedral establishes its materialized-table fact.
 

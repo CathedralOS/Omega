@@ -7,7 +7,9 @@
 use std::sync::Arc;
 
 use omega_target::Architecture;
-use psi_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
+use psi_extents::{
+    AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights, MappedExtent, MappingReceiptContext,
+};
 use psi_layout_plans::{
     EntryStubId, MaterializationDiagnostic, POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
     PlacementConstraints, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
@@ -54,6 +56,10 @@ normalized_id!(MappingQuarantineId, "mapping-quarantine");
 normalized_id!(RelocationSetId, "relocation-set");
 normalized_id!(ProofPayloadId, "proof-payload");
 normalized_id!(InformationalSectionId, "informational-section");
+normalized_id!(
+    DestinationPreparationReceiptId,
+    "destination-preparation-receipt"
+);
 
 mod container;
 mod container_bytes;
@@ -834,6 +840,200 @@ pub struct ResolvedPostHandoffEntryWriterContext {
     fingerprint: u64,
 }
 
+/// Provider receipt establishing the runtime properties needed before a
+/// generated writer may reach one activated mapping. The exact mapping
+/// evidence is sealed in `mapping`; compact receipt identity is report-only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DestinationPreparationReceipt {
+    identity: DestinationPreparationReceiptId,
+    mapping: MappingReceiptContext,
+    required_write_rights: ExtentRights,
+    pinned: bool,
+    unpublished: bool,
+}
+
+impl DestinationPreparationReceipt {
+    pub fn from_admitted_provider(
+        identity: DestinationPreparationReceiptId,
+        mapping: &MappingReceiptContext,
+        required_write_rights: ExtentRights,
+        pinned: bool,
+        unpublished: bool,
+    ) -> Self {
+        Self {
+            identity,
+            mapping: mapping.clone(),
+            required_write_rights,
+            pinned,
+            unpublished,
+        }
+    }
+
+    pub const fn identity(&self) -> DestinationPreparationReceiptId {
+        self.identity
+    }
+}
+
+/// Linear provider-side destination ready for one post-handoff writer.
+///
+/// `MappedExtent` establishes an activated translation and exact custody;
+/// `receipt` establishes pinning and non-publication for that same mapping;
+/// `required_write_rights` names the target/provider-defined write authority.
+/// The byte slice is the provider's concrete mutable view and cannot outlive
+/// this carrier. No source-language write-only view is implied.
+#[derive(Debug)]
+pub struct PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+    mapping: MappedExtent<'mapping>,
+    receipt: DestinationPreparationReceipt,
+    site: PlacementSite,
+    bytes: &'bytes mut [u8],
+}
+
+impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub fn claim(
+        mapping: MappedExtent<'mapping>,
+        receipt: DestinationPreparationReceipt,
+        site: PlacementSite,
+        bytes: &'bytes mut [u8],
+    ) -> Result<Self, Box<DestinationClaimError<'mapping, 'bytes>>> {
+        let mismatch = if receipt.mapping != mapping.receipt_context() {
+            Some("destination preparation receipt does not bind the exact activated mapping")
+        } else if !receipt.pinned {
+            Some("destination preparation receipt does not establish pinning")
+        } else if !receipt.unpublished {
+            Some("destination preparation receipt does not establish an unpublished destination")
+        } else if receipt.required_write_rights.identities().next().is_none() {
+            Some("destination preparation receipt names no writer right")
+        } else if !mapping.rights().contains(&receipt.required_write_rights) {
+            Some("activated destination mapping lacks required writer rights")
+        } else if site.phase != psi_layout_plans::PlacementPhase::PostHandoff {
+            Some("prepared writer destination is not in the post-handoff placement phase")
+        } else if site.base_address != mapping.base() {
+            Some("prepared writer destination base does not match the activated mapping")
+        } else if usize::try_from(mapping.length()).ok() != Some(bytes.len()) {
+            Some("prepared writer byte view does not cover the exact activated mapping")
+        } else {
+            None
+        };
+        if let Some(message) = mismatch {
+            return Err(Box::new(DestinationClaimError {
+                mapping,
+                receipt,
+                site,
+                bytes,
+                diagnostic: InstallationDiagnostic(message.into()),
+            }));
+        }
+        Ok(Self {
+            mapping,
+            receipt,
+            site,
+            bytes,
+        })
+    }
+
+    pub const fn site(&self) -> PlacementSite {
+        self.site
+    }
+
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+}
+
+#[derive(Debug)]
+pub struct DestinationClaimError<'mapping, 'bytes> {
+    mapping: MappedExtent<'mapping>,
+    receipt: DestinationPreparationReceipt,
+    site: PlacementSite,
+    bytes: &'bytes mut [u8],
+    diagnostic: InstallationDiagnostic,
+}
+
+impl<'mapping, 'bytes> DestinationClaimError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        MappedExtent<'mapping>,
+        DestinationPreparationReceipt,
+        PlacementSite,
+        &'bytes mut [u8],
+    ) {
+        (self.mapping, self.receipt, self.site, self.bytes)
+    }
+}
+
+/// Exact destination after successful generated writing. It remains
+/// unpublished and retains the activated mapping for consumer-specific
+/// validation and eventual publication or recovery.
+#[derive(Debug)]
+pub struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    mapping: MappedExtent<'mapping>,
+    receipt: DestinationPreparationReceipt,
+    site: PlacementSite,
+    bytes: &'bytes mut [u8],
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    writer_context_fingerprint: u64,
+}
+
+impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn site(&self) -> PlacementSite {
+        self.site
+    }
+
+    pub const fn writer_context_fingerprint(&self) -> u64 {
+        self.writer_context_fingerprint
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        MappedExtent<'mapping>,
+        DestinationPreparationReceipt,
+        PlacementSite,
+        &'bytes mut [u8],
+    ) {
+        (self.mapping, self.receipt, self.site, self.bytes)
+    }
+}
+
+#[derive(Debug)]
+pub struct DestinationWriteError<'mapping, 'bytes> {
+    destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: MaterializationDiagnostic,
+}
+
+impl<'mapping, 'bytes> DestinationWriteError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &MaterializationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_destination(self) -> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.destination
+    }
+}
+
 impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -1098,6 +1298,47 @@ impl InstalledCode {
                         && slot.source == PostHandoffWriterSource::Resolve(target))
                     .then_some(*value)
                 })
+        })
+    }
+
+    /// Consume one exact activated, pinned, writable, unpublished destination
+    /// and execute the once-resolved writer into it. Failure returns the whole
+    /// linear destination state; success remains unpublished for the
+    /// consumer-specific semantic validator and publication transition.
+    pub fn write_prepared_post_handoff_destination<'mapping, 'bytes>(
+        &self,
+        context: &ResolvedPostHandoffEntryWriterContext,
+        plan: &PostHandoffWriterPlan,
+        destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) -> Result<
+        WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        Box<DestinationWriteError<'mapping, 'bytes>>,
+    > {
+        if let Err(diagnostic) = self.execute_populated_post_handoff_entry_writer(
+            context,
+            plan,
+            destination.bytes,
+            destination.site,
+        ) {
+            return Err(Box::new(DestinationWriteError {
+                destination,
+                diagnostic,
+            }));
+        }
+        let PreparedPostHandoffWriterDestination {
+            mapping,
+            receipt,
+            site,
+            bytes,
+        } = destination;
+        Ok(WrittenPostHandoffWriterDestination {
+            mapping,
+            receipt,
+            site,
+            bytes,
+            installed_code: self.identity,
+            artifact: self.artifact(),
+            writer_context_fingerprint: context.fingerprint(),
         })
     }
 
@@ -1380,6 +1621,9 @@ mod tests {
     use super::*;
     use psi_extents::{
         ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappingEraId,
+        MappingGrant, MappingGrantId, MappingId, MappingSourceMode, TranslationActivationFactId,
+        TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+        map_owned,
     };
     use psi_layout_plans::{
         ArtifactInstallationScopeId, ByteOrder, IntegerInterpretation, MaterializationWrite,
@@ -1517,6 +1761,77 @@ mod tests {
         )
         .mint(base, length)
         .expect("placement extent")
+    }
+
+    fn activated_writer_mapping(base: u64, length: u64) -> MappedExtent<'static> {
+        let source_space = extent_id(150, AddressSpaceId::from_normalized_identity);
+        let destination_space = extent_id(151, AddressSpaceId::from_normalized_identity);
+        let source_rights = rights(&[152]);
+        let destination_rights = rights(&[153]);
+        let writer_rights = rights(&[154]);
+        let source = ExtentRootGrant::from_admitted_provider(
+            extent_provider_issuance(150),
+            extent_id(150, ExtentLineageId::from_normalized_identity),
+            source_space,
+            source_rights.clone(),
+            extent_id(155, ExtentProvenanceId::from_normalized_identity),
+            extent_id(156, MappingEraId::from_normalized_identity),
+        )
+        .mint(0x20_000, length)
+        .expect("writer mapping source");
+        let destination = ExtentRootGrant::from_admitted_provider(
+            extent_provider_issuance(151),
+            extent_id(151, ExtentLineageId::from_normalized_identity),
+            destination_space,
+            destination_rights.clone(),
+            extent_id(157, ExtentProvenanceId::from_normalized_identity),
+            extent_id(158, MappingEraId::from_normalized_identity),
+        )
+        .mint(base, length)
+        .expect("writer mapping destination");
+        let activation = extent_id(159, TranslationActivationFactId::from_normalized_identity);
+        let grant = MappingGrant::from_admitted_provider(
+            extent_id(160, MappingGrantId::from_normalized_identity),
+            MappingSourceMode::Owned,
+            source_space,
+            destination_space,
+            source_rights,
+            destination_rights,
+            writer_rights,
+            extent_id(161, ExtentProvenanceId::from_normalized_identity),
+            extent_id(162, MappingEraId::from_normalized_identity),
+            TranslationInstallObligations::from_normalized_facts([activation]),
+            TranslationReleaseObligations::default(),
+        );
+        let pending = map_owned(
+            source,
+            destination,
+            extent_id(163, MappingId::from_normalized_identity),
+            &grant,
+        )
+        .expect("writer pending mapping");
+        let receipt = TranslationActivationReceipt::from_admitted_provider(
+            &pending.receipt_context(),
+            true,
+            [activation],
+        );
+        pending.complete(receipt).expect("activated writer mapping")
+    }
+
+    fn prepared_destination_receipt(
+        mapping: &MappedExtent<'_>,
+        identity: u64,
+    ) -> DestinationPreparationReceipt {
+        DestinationPreparationReceipt::from_admitted_provider(
+            id(
+                identity,
+                DestinationPreparationReceiptId::from_normalized_identity,
+            ),
+            &mapping.receipt_context(),
+            rights(&[154]),
+            true,
+            true,
+        )
     }
 
     fn placement_authority(placement: u64, base: u64, length: u64) -> CodePlacementAuthority {
@@ -2048,6 +2363,154 @@ mod tests {
             .expect_err("pre-resolved address from another realization must reject");
         assert!(error.0.contains("exact installed realization"));
         assert_eq!(unchanged, [0xa5; 8]);
+    }
+
+    #[test]
+    fn prepared_writer_consumes_an_activated_pinned_writable_unpublished_destination() {
+        let target = RelocationTarget::Entry(entry_id(1001));
+        let installed = installed_code(&admit(&artifact(1)), 106, 0x8000);
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source: PostHandoffWriterSource::Resolve(target),
+            }],
+        };
+        let site = PlacementSite {
+            base_address: 0x9000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+        let context = installed
+            .populate_post_handoff_entry_writer_context(&writer, 8, site)
+            .expect("exact installed writer context");
+        let mapping = activated_writer_mapping(site.base_address, 8);
+        let receipt = prepared_destination_receipt(&mapping, 170);
+        let mut bytes = [0u8; 8];
+        let destination =
+            PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, &mut bytes)
+                .expect("activated pinned writable unpublished destination");
+        let written = installed
+            .write_prepared_post_handoff_destination(&context, &writer, destination)
+            .expect("prepared writer consumes destination");
+        assert_eq!(written.installed_code(), installed.identity());
+        assert_eq!(written.artifact(), installed.artifact());
+        assert_eq!(written.site(), site);
+        assert_eq!(written.writer_context_fingerprint(), context.fingerprint());
+        assert_eq!(
+            u64::from_le_bytes(written.bytes().try_into().unwrap()),
+            0x8010
+        );
+        let (_mapping, receipt, returned_site, returned_bytes) = written.into_parts();
+        assert_eq!(receipt.identity().normalized_identity(), 170);
+        assert_eq!(returned_site, site);
+        assert_eq!(
+            u64::from_le_bytes(returned_bytes.try_into().unwrap()),
+            0x8010
+        );
+    }
+
+    #[test]
+    fn destination_claim_and_writer_failure_return_linear_authority() {
+        let site = PlacementSite {
+            base_address: 0x9000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+        let mapping = activated_writer_mapping(site.base_address, 8);
+        let stale_mapping = activated_writer_mapping(0xa000, 8);
+        let stale_receipt = prepared_destination_receipt(&stale_mapping, 171);
+        let mut bytes = [0xa5; 8];
+        let error =
+            PreparedPostHandoffWriterDestination::claim(mapping, stale_receipt, site, &mut bytes)
+                .expect_err("receipt from another activated mapping must reject");
+        assert!(error.diagnostic().0.contains("exact activated mapping"));
+        let (mapping, _receipt, returned_site, returned_bytes) = (*error).into_parts();
+        assert_eq!(mapping.base(), site.base_address);
+        assert_eq!(returned_site, site);
+        assert_eq!(returned_bytes, &[0xa5; 8]);
+
+        let receipt = prepared_destination_receipt(&mapping, 172);
+        let destination =
+            PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, returned_bytes)
+                .expect("returned mapping and bytes remain usable");
+        let installed = installed_code(&admit(&artifact(1)), 107, 0x8000);
+        let target = RelocationTarget::Entry(entry_id(1001));
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source: PostHandoffWriterSource::Resolve(target),
+            }],
+        };
+        let context = installed
+            .populate_post_handoff_entry_writer_context(&writer, 8, site)
+            .expect("writer context");
+        let mut drifted_writer = writer.clone();
+        drifted_writer.byte_order = ByteOrder::BigEndian;
+        let error = installed
+            .write_prepared_post_handoff_destination(&context, &drifted_writer, destination)
+            .expect_err("writer/context drift must reject before mutation");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("exact installed code, plan, destination")
+        );
+        let destination = (*error).into_destination();
+        assert_eq!(destination.site(), site);
+        assert_eq!(destination.len(), 8);
+    }
+
+    #[test]
+    fn destination_receipt_must_name_an_established_nonempty_writer_right() {
+        let site = PlacementSite {
+            base_address: 0x9000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+        let mapping = activated_writer_mapping(site.base_address, 8);
+        let receipt = DestinationPreparationReceipt::from_admitted_provider(
+            id(
+                173,
+                DestinationPreparationReceiptId::from_normalized_identity,
+            ),
+            &mapping.receipt_context(),
+            ExtentRights::none(),
+            true,
+            true,
+        );
+        let mut bytes = [0xa5; 8];
+        let error = PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, &mut bytes)
+            .expect_err("an empty right requirement must not authorize writing");
+        assert!(error.diagnostic().0.contains("no writer right"));
+        let (_mapping, _receipt, _site, returned_bytes) = (*error).into_parts();
+        assert_eq!(returned_bytes, &[0xa5; 8]);
     }
 
     #[test]
