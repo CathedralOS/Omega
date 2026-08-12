@@ -291,8 +291,8 @@ only when exactly one payloadless constructor with no common fields determines
 the term. Holders may also be closed synthesized generic records when the
 instance is selected by an explicitly typed local initializer or direct exact
 assignment; this contextual record elaboration does not infer type arguments
-from fields or extend to call or return literals. Pure generic sums admit
-multiple exact closed instances per generic base in the executable slice. A
+from fields or extend to call or return literals. Pure and mixed common-field/
+case generic sums admit multiple exact closed instances per generic base in the executable slice. A
 closed annotated local or direct assignment destination selects construction
 identity; an exact local, parameter, or attached-self-field subject selects
 destructure identity. Other bare constructor contexts retain the unique-
@@ -311,8 +311,8 @@ contained-machine topology use the erased-stripped fields, while semantic
 ownership and proof obligations retain every field. Erased payloads do not
 change tags or case numbering; they remain visible to semantic exhaustiveness
 and obligation checking. The compiler fails closed for unresolved generic uses,
-ambiguous generic record/sum construction contexts, mixed common-field/case
-generic data, placed views, wire/codec and ABI faces, and attached
+ambiguous generic record/sum construction contexts, placed views, wire/codec
+and ABI faces, and attached
 machines over generic or case-bearing data, non-checked supply modes, or
 unresolved machine parameters.
 

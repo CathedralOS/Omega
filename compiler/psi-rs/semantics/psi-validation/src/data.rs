@@ -276,10 +276,22 @@ fn validate_data_shape(
     match psi_typed_trees::data::DataDefinition::shape_kind_from_members(data_members) {
         DataShapeKind::Empty | DataShapeKind::Enum | DataShapeKind::Record => {}
         DataShapeKind::Mixed => {
+            // Generic declarations describe semantic shape, not a concrete
+            // representation. Closed synthesis revalidates each executable
+            // instance after substituting its exact field types.
+            if !data_definition.type_parameters.is_empty() {
+                return;
+            }
             for member in data_members {
                 let DataMember::Field(field) = member else {
                     continue;
                 };
+                // Erased common bindings have no runtime zero-initialization
+                // or storage requirement; relevance validation separately
+                // preserves their semantic obligations.
+                if field.relevance.is_erased() {
+                    continue;
+                }
                 let scalar = program
                     .primitive_type_reference(field.type_reference)
                     .is_some();

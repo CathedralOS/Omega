@@ -69,6 +69,7 @@ struct Instantiation {
 enum GenericDataShape {
     Record,
     PureSum,
+    MixedSum,
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a
@@ -291,7 +292,10 @@ pub(crate) fn desugar_generic_data_instances(
         }
         for instance in &instantiations {
             let base_info = &generic_data[&instance.base_name];
-            if generic_data_shape(syntax, base_info) != Some(GenericDataShape::PureSum) {
+            if !matches!(
+                generic_data_shape(syntax, base_info),
+                Some(GenericDataShape::PureSum | GenericDataShape::MixedSum)
+            ) {
                 continue;
             }
             synthesized_sum_instances
@@ -2801,11 +2805,6 @@ fn consider_generic_spelling(
         // declaration-aware validator emits its precise diagnostic.
         return Ok(());
     }
-    if generic_data_shape(syntax, base_info).is_none() {
-        return Err(Diagnostic::error(format!(
-            "generic data `{base}` mixes common fields with cases; closed mixed generic instances are not implemented"
-        )));
-    }
     if !base_is_fully_monomorphizable(syntax, generic_data, base_info) {
         return Ok(());
     }
@@ -3272,10 +3271,9 @@ fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
     }
 }
 
-/// Whether every field of a record or pure sum can be substituted soundly. A
+/// Whether every field of a record or sum can be substituted soundly. A
 /// field may be exactly the parameter, a concrete Named, a parameter-free
 /// composite, or a nested known generic whose arguments are substitutable.
-/// Mixed common-field/case shapes remain outside this closed cohort.
 fn base_is_fully_monomorphizable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<String, GenericData>,
@@ -3302,23 +3300,32 @@ fn base_is_fully_monomorphizable(
         .data_members(base_info.members)
         .iter()
         .all(|member| match member {
-            DataMember::Field(field) if shape == GenericDataShape::Record => {
+            DataMember::Field(field)
+                if matches!(shape, GenericDataShape::Record | GenericDataShape::MixedSum) =>
+            {
                 type_reference_is_substitutable(syntax, generic_data, base_info, field, &parameters)
             }
-            DataMember::Variant(variant) if shape == GenericDataShape::PureSum => syntax
-                .tables
-                .items
-                .data_payload_fields(variant.payload)
-                .iter()
-                .all(|field| {
-                    type_reference_is_substitutable(
-                        syntax,
-                        generic_data,
-                        base_info,
-                        field,
-                        &parameters,
-                    )
-                }),
+            DataMember::Variant(variant)
+                if matches!(
+                    shape,
+                    GenericDataShape::PureSum | GenericDataShape::MixedSum
+                ) =>
+            {
+                syntax
+                    .tables
+                    .items
+                    .data_payload_fields(variant.payload)
+                    .iter()
+                    .all(|field| {
+                        type_reference_is_substitutable(
+                            syntax,
+                            generic_data,
+                            base_info,
+                            field,
+                            &parameters,
+                        )
+                    })
+            }
             DataMember::Retired(_) => true,
             _ => false,
         })
@@ -3417,7 +3424,7 @@ fn generic_data_shape(syntax: &SyntaxTrees, base_info: &GenericData) -> Option<G
     match (has_fields, has_variants) {
         (true, false) | (false, false) => Some(GenericDataShape::Record),
         (false, true) => Some(GenericDataShape::PureSum),
-        (true, true) => None,
+        (true, true) => Some(GenericDataShape::MixedSum),
     }
 }
 
@@ -4240,17 +4247,54 @@ mod tests {
     }
 
     #[test]
-    fn mixed_generic_sum_remains_fail_closed() {
-        rejected(
+    fn mixed_generic_sum_preserves_common_and_payload_relevance() {
+        let checked = checked(
             r#"
-            data Mixed<T> { common: i32; case None; case Some(value: T); }
+            data Evidence { case Only; }
+            data Mixed<T> {
+                common: T;
+                proof [erased]: Evidence;
+                case None;
+                case Some(value: T, case_proof [erased]: Evidence);
+            }
             machine run() -> i32 {
                 let mixed: Mixed<i32> = Mixed::Some { common: 1, value: 7 };
-                0
+                transition mixed {
+                    Mixed::Some { value, case_proof as _ } -> value
+                    Mixed::None -> mixed.common
+                }
             }
             "#,
-            "mixes common fields with cases",
-        );
+        )
+        .expect("closed mixed generic data should check");
+
+        let definition = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Mixed<i32>")
+            .expect("closed mixed definition");
+        assert!(checked.data_members(definition).iter().any(|member| {
+            matches!(member, psi_checked_trees::data::DataMember::Field(field)
+                if field.name.as_str() == "proof" && field.relevance.is_erased())
+        }));
+        let layout = build_layout_plan(&checked, NativeTarget::host()).expect("mixed layout");
+        let mixed = layout
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == "Mixed<i32>")
+            .expect("closed mixed layout");
+        let DataShape::Enum {
+            common_fields,
+            variants,
+        } = mixed.shape
+        else {
+            panic!("closed mixed data should have sum layout");
+        };
+        assert_eq!(layout.fields.span_or_empty(common_fields).len(), 1);
+        let variants = layout.variants.span_or_empty(variants);
+        assert!(layout.fields.span_or_empty(variants[0].fields).is_empty());
+        assert_eq!(layout.fields.span_or_empty(variants[1].fields).len(), 1);
     }
 
     #[test]

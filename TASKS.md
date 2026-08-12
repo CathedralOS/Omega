@@ -234,10 +234,10 @@ Remaining:
   non-generic transparent records, sums, and mixed common-field/case shapes,
   plus closed synthesized generic-record instances selected by explicitly typed
   local initializers or direct exact assignments (including nested concrete
-  record fields), pure generic sums with multiple exact closed instances per
-  generic base (including nested concrete payload records and constructor/
-  pattern uses selected by exact local, assignment, parameter, or self-field
-  context), and
+  record fields), and pure or mixed common-field/case generic sums with multiple
+  exact closed instances per generic base (including nested concrete payload
+  records and constructor/pattern uses selected by exact local, assignment,
+  parameter, or self-field context), and
   non-generic plain `CheckedShape` records whose attached machines are closed
   ordinary checked bodies:
   construction elaborates an omitted exact common or selected-case erased
@@ -251,9 +251,9 @@ Remaining:
   renumbering variants; erased attached fields also create no runtime
   contained-machine topology. Ambiguous, absent, generic, and otherwise
   ineligible evidence remains explicit-term-required.
-  Expand this without compatibility scaffolding to mixed common-field/case
-  generic data, unresolved generic record/sum construction contexts beyond
-  annotated locals and direct exact assignments, plan-laid wire/codec and ABI
+  Expand this without compatibility scaffolding to unresolved generic record/
+  sum construction contexts beyond annotated locals and direct exact
+  assignments, plan-laid wire/codec and ABI
   classification, and attached machines over generic
   or case-bearing data, non-checked supply modes, or unresolved machine
   parameters. Plan-laid values now omit erased bindings from physical Schema
