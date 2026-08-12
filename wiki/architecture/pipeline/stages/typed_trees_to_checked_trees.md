@@ -159,10 +159,11 @@ Current ownership is:
   returned-place relation. One direct Unit statement call with a complete frame
   is likewise neutral when its arguments do not expose a mutable-reference
   binding for rebinding: writes through references passed by value change their
-  contents without redirecting their origins. One direct value-call argument is
-  also admitted when its own receiver and arguments are effect-free and its
-  frame is complete. Explicitly discarded call results, explicit binding
-  reborrows, deeper computed arguments, and opaque frames remain fences.
+  contents without redirecting their origins. Sibling direct value-call
+  arguments are independently admitted when each one's receiver and arguments
+  are effect-free and its frame is complete. Explicitly discarded call results,
+  explicit binding reborrows, deeper computed arguments, and any opaque sibling
+  remain fences.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call
@@ -182,8 +183,8 @@ Current ownership is:
   those origins, including exact transparent call-produced targets, without
   changing the relation; their ordinary exact frames remain published, and
   effect-free discarded expressions and direct Unit statement calls with
-  complete non-rebinding frames are neutral, including one exact direct
-  value-call argument. A direct helper-local alias rebind updates that local's
+  complete non-rebinding frames are neutral, including exact sibling direct
+  value-call arguments. A direct helper-local alias rebind updates that local's
   origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
