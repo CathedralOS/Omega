@@ -1,12 +1,11 @@
-// Chapter 3: ordinary call syntax enters a machine and produces a typed value.
-// The call result is bound to a local, then returned as the terminal value.
-data Main {}
+// An ordinary call produces a typed value. The result may be bound to a local
+// and used as the terminal value of another typed machine.
 
 machine add_i32(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 {
     left + right
 }
 
-machine Main::main(&mut self) -> i32 {
+machine return_local_call() -> i32 {
     let sum: i32 in Wrapping = add_i32(3, 4);
     sum as i32
 }
