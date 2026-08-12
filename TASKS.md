@@ -69,7 +69,7 @@ Remaining:
   declaration/bound/rejection, borrow/lifetime, scalar-constraint, and
   structural data-shape, control-flow rejection, expression type/operator,
   basic call/result, numeric conversion, value construction, Exact arithmetic
-  proof, invariant-window, and slice bounds/overlap validation,
+  proof, invariant-window, slice bounds/overlap, and range-flow validation,
   operator-overload identity, and recast representation checking, plus pure
   ownership-checker fixtures now use explicit checked-only harnesses;
   ownership fixtures with dedicated backend permission-realization
