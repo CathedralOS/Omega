@@ -1542,6 +1542,12 @@ pub fn task_activation_manifest_json(
             &mut json,
             machine_name(program.machines(), activation.target_machine),
         );
+        json.push_str(",\n      \"target_machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &machine_overload_identity(program, activation.target_machine)
+                .expect("task activation must name an exact target machine"),
+        );
         json.push_str(",\n      \"specialization_fingerprint\": \"0x");
         json.push_str(&format!("{:016x}", activation.specialization_fingerprint));
         json.push_str("\",\n      \"activation_plan_id\": \"0x");
@@ -2990,6 +2996,7 @@ mod tests {
     use super::{
         carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
         push_termination_interface_json, qualification_evidence_manifest_json,
+        task_activation_manifest_json,
     };
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -3456,6 +3463,85 @@ mod tests {
         assert!(json.contains("\"claim_policies\": ["));
         assert!(json.contains("\"claim_identity\": {\"kind\": \"unknown\"}"));
         assert!(json.contains("\"contributing_origins\": 2"));
+    }
+
+    #[test]
+    fn task_activation_manifest_retains_exact_target_overload_identity() {
+        let machine_symbol = SymbolHandle::from_arena_index(8);
+        let state_symbol = SymbolHandle::from_arena_index(9);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Worker::run"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("entry"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
+
+        let normalized_id = |identity| {
+            omega_task_plans::MachineContractId::from_normalized_identity(identity)
+                .expect("nonzero normalized identity")
+        };
+        let plan =
+            omega_task_plans::validate_activation_plan(omega_task_plans::ActivationPlanCandidate {
+                machine_contract: normalized_id(1),
+                entry: omega_task_plans::MachineEntryId::from_normalized_identity(2)
+                    .expect("nonzero entry identity"),
+                argument_layout: omega_task_plans::ValueLayoutId::from_normalized_identity(3)
+                    .expect("nonzero argument layout identity"),
+                terminal_outcome_layout: omega_task_plans::ValueLayoutId::from_normalized_identity(
+                    4,
+                )
+                .expect("nonzero result layout identity"),
+                calling_plan: omega_task_plans::CallingPlanId::from_normalized_identity(5)
+                    .expect("nonzero calling-plan identity"),
+                stack_plan: omega_task_plans::StackPlan {
+                    bytes: 4096,
+                    alignment: 16,
+                    representation:
+                        omega_task_plans::StackRepresentationId::from_normalized_identity(6)
+                            .expect("nonzero stack representation identity"),
+                },
+                may_suspend: false,
+                may_block: false,
+                canonical_suspension_crossings: Vec::new(),
+                carry_obligations: omega_task_plans::ActivationCarryObligations::none(),
+                cancellation_required: false,
+            })
+            .expect("valid non-suspending activation plan");
+        let activations = omega_task_plans::TaskActivationPlanSet {
+            activations: vec![omega_task_plans::TaskActivationPlanFact {
+                start_requirement: SymbolHandle::invalid(),
+                target_machine: machine_symbol,
+                target_entry: state_symbol,
+                specialization_fingerprint: 0x1234,
+                operation: omega_task_plans::TaskStartOperation::Start,
+                selected_runtime: omega_task_plans::SelectedTaskRuntimeProviderFact {
+                    runtime: omega_task_plans::TaskRuntimeId::from_normalized_identity(7)
+                        .expect("nonzero runtime identity"),
+                    provider_plan_name: "Runtime::selected".to_owned(),
+                    requirement_identity: "TaskRuntime::start#exact".to_owned(),
+                },
+                plan,
+            }],
+        };
+
+        let json = task_activation_manifest_json(&program, &activations);
+
+        assert!(json.contains("\"target_machine\": \"Worker::run\""));
+        assert!(
+            json.contains(
+                "\"target_machine_overload_identity\": \"named-callable(path(Worker::run)"
+            )
+        );
+        assert!(json.contains("\"activation_plan_id\": \"0x"));
     }
 
     #[test]
