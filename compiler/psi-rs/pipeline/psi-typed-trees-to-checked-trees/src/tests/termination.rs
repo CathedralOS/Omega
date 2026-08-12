@@ -2338,6 +2338,7 @@ fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
 fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
     let source = r#"
     data Cell { value: u64; }
+    data BorrowCell<'source> { value: &'source mut u64; }
     data Group { cells: [Cell; 2]; }
     data Main {
         value: u64;
@@ -2722,6 +2723,12 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         alias = 3;
     }
 
+    machine reference_bearing_named_local_origin<'source>(source: &'source mut u64) {
+        let local: BorrowCell<'source> = BorrowCell { value: source };
+        let alias: &mut u64 = &mut local.value;
+        alias = 3;
+    }
+
     machine Main::indexed_alias_rebind(&mut self) {
         let alias: &mut u64 = &mut self.cells[0];
         alias = &mut self.other;
@@ -2955,6 +2962,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::indexed_local_origin",
         "Main::constrained_local_origin",
         "Main::indexed_constrained_local_origin",
+        "Main::indexed_local_member_after_index",
     ] {
         let machine = typed
             .machines()
@@ -3021,7 +3029,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     }
 
     for name in [
-        "Main::indexed_local_member_after_index",
+        "reference_bearing_named_local_origin",
         "Main::call_rebound_alias",
         "Main::call_escaped_alias_chain",
         "Main::call_escaped_indexed_alias",

@@ -1852,22 +1852,67 @@ fn frame_place_root_symbol(
 }
 
 fn type_is_caller_isolated_local(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new())
+}
+
+fn type_is_caller_isolated_local_inner(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
     if program.primitive_type_reference(handle).is_some() {
         return true;
     }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_is_caller_isolated_local(program, *base_type)
+            type_is_caller_isolated_local_inner(program, *base_type, visiting)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_is_caller_isolated_local(program, *element_type)
+            type_is_caller_isolated_local_inner(program, *element_type, visiting)
+        }
+        TypeReferenceNode::Named { symbol, name } => {
+            let mut definitions = program.data_definitions().iter().filter(|definition| {
+                if symbol.is_valid() {
+                    definition.symbol == *symbol
+                } else {
+                    definition.name == *name
+                }
+            });
+            let Some(definition) = definitions.next() else {
+                return false;
+            };
+            if definitions.next().is_some()
+                || !definition.type_parameters.is_empty()
+                || visiting.contains(&definition.symbol)
+            {
+                return false;
+            }
+            visiting.push(definition.symbol);
+            let isolated = program
+                .data_members(definition)
+                .iter()
+                .all(|member| match member {
+                    DataMember::Field(field) => {
+                        type_is_caller_isolated_local_inner(program, field.type_reference, visiting)
+                    }
+                    DataMember::Variant(variant) => {
+                        program.data_payload_fields(variant).iter().all(|field| {
+                            type_is_caller_isolated_local_inner(
+                                program,
+                                field.type_reference,
+                                visiting,
+                            )
+                        })
+                    }
+                });
+            visiting.pop();
+            isolated
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Unit => false,
     }
 }
