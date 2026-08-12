@@ -112,23 +112,19 @@ runtime fields are one construct at two binding times — a compile-time-known
 operand collapses the every-observation obligation to a single
 instantiation-time proof, which is exactly the static lowering rule.
 
-> **Gating (settled 2026-07-17).** The zero value either satisfies the
-> default domain or it does not, and both are legal:
+> **Gating.** The zero value either satisfies the default domain or it does
+> not, and both are legal:
 >
 > - **Zero satisfies it** — the type is zero-constructible. A zeroed value
->   is born established; the facts are standing everywhere, with nothing to
->   track. Everything landed today is this tier.
+>   is born established and its facts stand everywhere.
 > - **Zero does not** — the type is **gated**. Data can have non-zero
 >   requirements; such a type is simply not zero-constructible. Its zeroed
 >   form exists only as storage — memory the compiler may still zero-fill —
 >   and is inaccessible as the type until construction or an `as` qualification
->   proves the default domain. Establishment is monotone as observed: a
->   later write may open an invariant window (chapter 11), but every
->   consumption point closes it, so no observer sees an established place
->   fall back.
+>   proves the default domain.
 >
-> `MemoryMap` above is gated (`stride >= 40` fails at zero). The landed rule
-> that a declared range must include zero is this model's first tier as an
+> `MemoryMap` above is gated (`stride >= 40` fails at zero). The current
+> implementation accepts only zero-constructible declared ranges; that is an
 > implementation restriction, not language law.
 
 Working rules:
