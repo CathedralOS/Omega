@@ -2,10 +2,6 @@
 // parked continuation is not source-visible storage and cannot be mutated.
 use omega::language::core::task;
 
-data Main {}
-
-machine Main::mutate(task: &mut Task<i32>) {
+machine mutate(task: &mut Task<i32>) {
     task.continuation = 0;
 }
-
-machine Main::main(&mut self) {}
