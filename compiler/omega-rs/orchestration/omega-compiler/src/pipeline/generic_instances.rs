@@ -3921,6 +3921,56 @@ mod tests {
     }
 
     #[test]
+    fn closed_generic_sum_rewrites_concrete_call_return_and_assignment_uses() {
+        checked(
+            r#"
+            data Maybe<T> { case None; case Some(value: T); }
+            data Holder { value: Maybe<i32>; }
+            machine make() -> Maybe<i32> { Maybe::Some { value: 7 } }
+            machine inspect(value: Maybe<i32>) -> i32 {
+                transition value {
+                    Maybe::Some { value } -> value
+                    Maybe::None -> 0
+                }
+            }
+            machine run() -> i32 {
+                let holder: Holder = Holder { value: Maybe::None };
+                holder.value = make();
+                inspect(holder.value)
+            }
+            "#,
+        )
+        .expect("the unique closed sum identity should cover concrete executable contexts");
+    }
+
+    #[test]
+    fn closed_generic_sum_does_not_capture_generic_machine_template_paths() {
+        let source = r#"
+            data Maybe<T> { case None; case Some(value: T); }
+            data Holder { value: Maybe<i32>; }
+            machine empty<T>() -> Maybe<T> { Maybe::None }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize pure sum");
+
+        assert!(
+            syntax
+                .expressions
+                .iter_expressions()
+                .any(|(_, expression)| {
+                    let ExpressionNode::Name(path) = expression else {
+                        return false;
+                    };
+                    matches!(
+                        syntax.expressions.identifier_path_members(*path),
+                        [base, case] if base.as_str() == "Maybe" && case.as_str() == "None"
+                    )
+                })
+        );
+    }
+
+    #[test]
     fn distinct_closed_instances_of_one_generic_sum_reject() {
         let source = r#"
             data Maybe<T> { case None; case Some(value: T); }
