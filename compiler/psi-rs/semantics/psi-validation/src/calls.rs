@@ -2140,6 +2140,9 @@ fn parameter_relative_place_origin(
             active_states,
         ),
         ExpressionNode::Indexed(indexed) => {
+            if expression_is_effectful_for_transparent_result(program, indexed.index) {
+                return None;
+            }
             let mut origin = parameter_relative_place_origin(
                 program,
                 indexed.collection,

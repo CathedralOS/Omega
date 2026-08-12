@@ -3576,6 +3576,79 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 }
 
 #[test]
+fn transparent_returned_index_frame_requires_an_effect_free_index() {
+    let source = r#"
+    data Main {
+        cells: [u64; 2];
+    }
+
+    machine make_index() -> u64 [0..=1] {
+        0
+    }
+
+    machine return_local_index(cells: &mut [u64; 2]) -> &mut u64 {
+        let index: u64 = 0;
+        &mut cells[index]
+    }
+
+    machine return_call_index(cells: &mut [u64; 2]) -> &mut u64 {
+        &mut cells[make_index()]
+    }
+
+    machine Main::local_index_result(&mut self) {
+        let alias: &mut u64 = return_local_index(&mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::call_index_result(&mut self) {
+        let alias: &mut u64 = return_call_index(&mut self.cells);
+        alias = 1;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    let local = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::local_index_result")
+        .expect("local-index helper caller");
+    let local_entry = typed
+        .machine_states(local)
+        .first()
+        .expect("local-index helper caller entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(local, local_entry)
+            .complete_paths(),
+        Some(["self.cells".to_owned()].as_slice()),
+        "an effect-free local index preserves the returned collection origin"
+    );
+
+    let call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::call_index_result")
+        .expect("call-index helper caller");
+    let call_entry = typed
+        .machine_states(call)
+        .first()
+        .expect("call-index helper caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(call, call_entry)
+            .is_complete(),
+        "a call-computed terminal index must keep the helper result opaque"
+    );
+}
+
+#[test]
 fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let source = r#"
     machine baseline() {}
