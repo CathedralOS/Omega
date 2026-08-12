@@ -339,7 +339,8 @@ customer-shaped compiler concept is introduced.
   granted rows also retain the exact authored root-grant selectors that
   activated the selected plan, while unselected candidates retain none;
   the qualification artifact also retains the canonical requirement overload
-  identity and predicate-body status beside its readable label. Continue with
+  identity and predicate-body status beside its readable label; vacuous-use
+  rows retain the exact owning machine overload identity. Continue with
   consumers that still lack exact blast-radius rows. Provider-slot grants now
   resolve through the selected closure, so lock/report/runtime admission bind
   the same plan and leave unselected candidates dev-active. Selected provider

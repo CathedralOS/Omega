@@ -326,6 +326,12 @@ pub fn qualification_evidence_manifest_json(
             &mut json,
             &qualification_symbol_label(program, use_fact.machine),
         );
+        json.push_str(",\n      \"machine_overload_identity\": ");
+        push_json_string(
+            &mut json,
+            &qualification_machine_overload_identity(program, use_fact.machine)
+                .expect("vacuous qualification use must name an exact owning machine"),
+        );
         json.push_str(",\n      \"state\": ");
         push_json_string(
             &mut json,
@@ -1163,6 +1169,18 @@ fn qualification_requirement_identity(
                     .identity()
             })
     })
+}
+
+fn qualification_machine_overload_identity(
+    program: &CheckedTrees,
+    machine_symbol: SymbolHandle,
+) -> Option<String> {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .and_then(|machine| program.normalized_machine_overload_identity(machine))
+        .map(|identity| identity.identity())
 }
 
 fn program_point_name(point: psi_facts::ProgramPoint) -> &'static str {
@@ -2910,7 +2928,7 @@ mod tests {
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
         ContentPartitionResultRewrite, DataCarryFact, FlowClaimOutcomeEntryFact,
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
-        MachineContractPlan, MachineTerminationFact,
+        MachineContractPlan, MachineTerminationFact, VacuousQualificationUse,
     };
     use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
@@ -3230,6 +3248,49 @@ mod tests {
         assert!(json.contains("\"requirement\": null"));
         assert!(json.contains("\"requirement_identity\": null"));
         assert!(json.contains("\"receipt_identity\": \"0x0000000000001234\""));
+    }
+
+    #[test]
+    fn qualification_manifest_retains_vacuous_use_owner_overload_identity() {
+        let machine_symbol = SymbolHandle::from_arena_index(7);
+        let state_symbol = SymbolHandle::from_arena_index(8);
+        let mut program = CheckedTrees::default();
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("Main::main"),
+            ..Default::default()
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                name: Identifier::generated("main"),
+                ..Default::default()
+            },
+        );
+        program.typed.push_machine(machine);
+        program
+            .facts
+            .qualifications
+            .vacuous_uses
+            .push(VacuousQualificationUse {
+                machine: machine_symbol,
+                state: state_symbol,
+                statement_index: 3,
+                expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+                domain: SymbolHandle::invalid(),
+                semantic_domain: SemanticDomainId(41),
+            });
+
+        let json = qualification_evidence_manifest_json(
+            &program,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        );
+
+        assert!(json.contains("\"machine\": \"#7\""));
+        assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Main::main)"));
+        assert!(json.contains("\"statement_index\": 3"));
+        assert!(json.contains("\"semantic_domain_id\": 41"));
     }
 
     #[test]
