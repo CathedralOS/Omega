@@ -197,8 +197,12 @@ Current ownership is:
   frame publishes the call's writes. Nested-computed, recursive, or opaque
   terminal index calls remain fences. The same one-direct-call rule applies to
   a stable local mutable-alias index, with the same collection coarsening and
-  ordinary write publication; nested-computed, rebinding, recursive, or opaque
-  alias indexes remain fences. For an
+  ordinary write publication; nested-computed, binding-reborrow, recursive, or
+  opaque alias indexes remain fences. A direct helper-local alias rebind may take that
+  same indexed replacement: only the rebound name moves to the coarse origin,
+  prior reborrows keep their established origins, and the index-call writes stay
+  published. Nested-computed, recursive, or opaque indexed replacements remain
+  fences. For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other
   nontrivial results remain opaque; signature lifetime elision alone is not
