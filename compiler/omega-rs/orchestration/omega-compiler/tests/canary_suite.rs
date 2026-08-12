@@ -43080,6 +43080,11 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/adapter_hidden_effect",
     "build/accept_boundary_outside_build",
     "build/program_entry_binding_outside_build",
+    "capabilities/native_slice_external_leaf_rejected",
+    "capabilities/native_bounded_text_external_leaf_rejected",
+    "capabilities/native_vector_external_leaf_rejected",
+    "targets/target_machine_missing_rejected",
+    "targets/target_machine_duplicate_rejected",
     "core/content_projection_foreign_owner",
     "core/content_projection_duplicate",
     "core/content_projection_legacy_interval",
@@ -49054,9 +49059,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
-    "capabilities/native_slice_external_leaf_rejected",
-    "capabilities/native_bounded_text_external_leaf_rejected",
-    "capabilities/native_vector_external_leaf_rejected",
     "tasks/task_runtime_machine_selection_effect_mismatch",
     "tasks/task_runtime_provider_contract_narrowing",
     "tasks/task_runtime_selected_provider_missing",
@@ -49099,8 +49101,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/build_effects_undeclared",
     "build/build_boundary_rowless",
     "calls/ambiguous_spliced_second_receiver_rejected",
-    "targets/target_machine_missing_rejected",
-    "targets/target_machine_duplicate_rejected",
     "wire/wire_policy_plan_disagrees",
     "wire/wire_compatibility_preservation_unmet",
     "wire/encode_unsupported_field_type",
