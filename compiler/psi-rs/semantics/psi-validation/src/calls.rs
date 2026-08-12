@@ -2652,8 +2652,9 @@ struct ParameterRelativeFrameOrigin {
     parameter_symbol: SymbolHandle,
 }
 
-/// Effects are permitted only along the place-producing call spine. A call
-/// hidden in an index or another computation remains a fence.
+/// Effects are permitted only along the place-producing call spine or inside a
+/// separately validated index expression. `parameter_relative_place_origin`
+/// owns the bounded-call and non-rebinding proof for the latter.
 fn transparent_assignment_target_effect_is_structural(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -2662,10 +2663,7 @@ fn transparent_assignment_target_effect_is_structural(
         ExpressionNode::Mutable(inner) => {
             transparent_assignment_target_effect_is_structural(program, *inner)
         }
-        ExpressionNode::Indexed(indexed) => {
-            !expression_is_effectful_for_transparent_result(program, indexed.index)
-                && transparent_assignment_target_effect_is_structural(program, indexed.collection)
-        }
+        ExpressionNode::Indexed(_) => true,
         ExpressionNode::Member(member) => {
             transparent_assignment_target_effect_is_structural(program, member.receiver)
         }

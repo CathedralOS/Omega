@@ -347,10 +347,13 @@ customer-shaped compiler concept is introduced.
   relations compose through bounded structurally transparent helpers,
   caller-isolated scratch locals, statement-call arguments, and direct alias
   rebinding while ordinary call writes remain published. Member suffixes remain
-  exact; indexing coarsens irreversibly to the nearest collection. One direct
+  exact; indexing coarsens irreversibly to the nearest collection. One
   non-rebinding direct-call tree through depth two, with complete frames, is
   accepted in terminal return indexes, stable-alias indexes, and direct
-  alias-rebind replacements; deeper or recursive calls, binding reborrows,
+  alias-rebind replacements. The same bounded index expression is accepted on a
+  value-shaped assignment target inside a transparent returned-place helper;
+  its collection write and every index-call write remain published without
+  redirecting the returned origin. Deeper or recursive calls, binding reborrows,
   opaque nodes, effectful sources, escaped aliases, non-bijective transport, and
   writes outside isolated roots remain fences. Primitive-only concrete
   record/sum locals remain caller-isolated

@@ -3524,6 +3524,10 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::transparent_call_target_write_helper_result",
             "self.value",
         ),
+        (
+            "Main::hidden_index_call_target_write_helper_result",
+            "self.cells",
+        ),
         ("Main::mutable_local_alias_helper_result", "self.value"),
         (
             "Main::rebound_mutable_local_alias_helper_result",
@@ -3649,7 +3653,6 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::discarded_call_helper_result",
         "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",
-        "Main::hidden_index_call_target_write_helper_result",
         "Main::call_rebound_mutable_local_alias_helper_result",
         "Main::escaping_call_rebound_helper_result",
         "Main::escaping_call_then_result_alias",
@@ -4116,6 +4119,157 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
             "{name} must remain opaque outside the bounded depth-two alias-rebind rung"
+        );
+    }
+}
+
+#[test]
+fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
+    let source = r#"
+    data Main {
+        value: u64;
+        cells: [u64; 2];
+    }
+
+    machine make_index() -> u64 [0..=1] {
+        0
+    }
+
+    machine write_index(value: &mut u64) -> u64 [0..=1] {
+        value = 1;
+        0
+    }
+
+    machine identity_index(index: u64 [0..=1]) -> u64 [0..=1] {
+        index
+    }
+
+    machine recursive_index() -> u64 [0..=1] {
+        recursive_index()
+    }
+
+    machine return_after_index_target(cells: &mut [u64; 2]) -> &mut [u64; 2] {
+        cells[make_index()] = 1;
+        cells
+    }
+
+    machine return_after_nested_index_target<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[identity_index(write_index(value))] = 1;
+        cells
+    }
+
+    machine return_after_deep_index_target(cells: &mut [u64; 2]) -> &mut [u64; 2] {
+        cells[identity_index(identity_index(make_index()))] = 1;
+        cells
+    }
+
+    machine return_after_binding_reborrow_index_target<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[identity_index(write_index(&mut value))] = 1;
+        cells
+    }
+
+    machine return_after_recursive_index_target(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        cells[recursive_index()] = 1;
+        cells
+    }
+
+    machine Main::index_target_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    machine Main::nested_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_nested_index_target(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
+    machine Main::deep_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_deep_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    machine Main::binding_reborrow_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_binding_reborrow_index_target(
+            &mut self.cells,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::recursive_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_recursive_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for (name, expected_paths) in [
+        ("Main::index_target_result", vec!["self.cells"]),
+        (
+            "Main::nested_index_target_result",
+            vec!["self.cells", "self.value"],
+        ),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                expected_paths
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+            ),
+            "{name} must preserve the returned collection and publish index-call writes"
+        );
+    }
+
+    for name in [
+        "Main::deep_index_target_result",
+        "Main::binding_reborrow_index_target_result",
+        "Main::recursive_index_target_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded indexed-target rung"
         );
     }
 }
