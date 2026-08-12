@@ -6713,17 +6713,11 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
         "interpreter oracle should exit 70 for the interop chain, got {}",
         outcome.exit_code
     );
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-fs-time-interop-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("fs-time interop canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
+        .expect("fs-time interop canary should compile natively");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("fs-time interop canary should run");
     assert_eq!(
@@ -6732,7 +6726,7 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
         "expected the native fs-time interop chain to exit 70, got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -6756,17 +6750,11 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
         "interpreter oracle should exit 70 for the windows interop chain, got {}",
         outcome.exit_code
     );
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-fs-time-interop-win-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows fs-time interop canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, "windows_x64")
+        .expect("windows fs-time interop canary should compile natively");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("windows fs-time interop canary should run");
     assert_eq!(
@@ -6775,7 +6763,7 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
         "expected the native windows fs-time interop chain to exit 70, got {:?}",
         output.status.code(),
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]

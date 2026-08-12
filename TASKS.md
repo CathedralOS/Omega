@@ -119,6 +119,8 @@ Remaining:
   The platform-gated Windows and Darwin native TimeHost calibration canaries
   now select their exact target-owned roots before preserving their real-clock
   and native exit assertions.
+  The platform-gated filesystem-mtime/SystemTime interop pair now does the same
+  for macOS and Windows while retaining both interpreter and native evidence.
   Production and development interpreter callers require Omega's
   exact entry choice; checked-only semantic compilation no longer invents
   `Main::main`, while legacy test harnesses name that temporary fixture entry
