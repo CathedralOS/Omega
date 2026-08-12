@@ -23,6 +23,7 @@ members = [
     "compiler/psi-rs/representations/psi-terminal",
     "compiler/psi-rs/pipeline/psi-source-files-to-tokens",
     "compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees",
+    "compiler/psi-rs/pipeline/psi-generic-instances",
     "compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees",
     "compiler/psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees",
     "compiler/psi-rs/pipeline/psi-typed-trees-to-checked-trees",

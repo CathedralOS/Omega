@@ -403,6 +403,7 @@ dependencies = [
  "psi-effects",
  "psi-extents",
  "psi-facts",
+ "psi-generic-instances",
  "psi-language-core",
  "psi-language-semantics",
  "psi-layout-plans",
@@ -1381,6 +1382,26 @@ dependencies = [
  "psi-numerics",
  "psi-symbols",
  "psi-typed-trees",
+]
+
+[[package]]
+name = "psi-generic-instances"
+version = "0.1.0"
+dependencies = [
+ "omega-checked-trees-to-state-graph",
+ "omega-layout",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-diagnostics",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

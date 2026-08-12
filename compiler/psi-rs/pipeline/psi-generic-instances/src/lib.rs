@@ -77,9 +77,7 @@ enum GenericDataShape {
 /// generic data definition, synthesize one concrete instance record per
 /// distinct spelling (the parameter substituted for the argument), and rewrite
 /// the field spellings to the instances' plain names.
-pub(crate) fn desugar_generic_data_instances(
-    syntax: &mut SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
+pub fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     // Index generic data definitions by name (only those with type parameters;
     // a non-generic `Base<..>` is either plan-laid or an existing error path).
     // Generic bases that carry attached MACHINES (a generic container like

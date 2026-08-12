@@ -225,13 +225,15 @@ Remaining:
   ineligible omitted evidence remains explicit-term-required. Direct and nested
   SysV AMD64/AAPCS64 canaries pin the fixed-record boundary classification.
 
-  Move target-neutral generic-instance discovery, syntax relabeling, and
-  contextual literal elaboration out of `omega-compiler` and into the Psi
-  frontend before expanding computed, chained, dynamic-receiver, unresolved
-  generic, non-checked-supply, or unresolved-machine-parameter contexts. This is
-  an engineering migration, not a language-design blocker: Omega must consume
-  terminal Psi rather than specialize language trees. Unsupported shapes keep
-  failing closed. `Placed<P, T>` erased-evidence establishment is design-blocked
+  Target-neutral generic-instance discovery, syntax relabeling, and contextual
+  literal elaboration now live in the Psi pre-resolution frontend. Finish moving
+  probe/conveyor sequencing behind a Psi frontend entry so Omega no longer
+  invokes a syntax mutator directly before expanding computed, chained,
+  dynamic-receiver, unresolved generic, non-checked-supply, or
+  unresolved-machine-parameter contexts. This is an engineering migration, not
+  a language-design blocker: Omega must consume terminal Psi rather than
+  specialize language trees. Unsupported shapes keep failing closed. `Placed<P,
+  T>` erased-evidence establishment is design-blocked
   on owner Q8. Explicit relevance supersedes “recursive means proof-only”;
   non-layoutable `Type` values remain erased-only, and relevance never implies a
   carrier-relation role. Case-bearing values and unresolved generic aggregates
