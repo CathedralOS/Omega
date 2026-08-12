@@ -266,6 +266,7 @@ pub enum DataMemberSnapshot {
     Field {
         identity: Option<u64>,
         name: String,
+        relevance: &'static str,
         type_reference: TypeReferenceSnapshot,
     },
     Variant {
@@ -730,6 +731,7 @@ fn data_member_snapshot(program: &SymbolResolvedTrees, member: &DataMember) -> D
         DataMember::Field(field) => DataMemberSnapshot::Field {
             identity: field.identity,
             name: field.name.to_string(),
+            relevance: snapshot_binding_relevance(field.relevance),
             type_reference: type_reference_snapshot(program, &field.type_reference),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
@@ -737,6 +739,13 @@ fn data_member_snapshot(program: &SymbolResolvedTrees, member: &DataMember) -> D
             name: variant.name.to_string(),
             retired_payload_identities: variant.retired_payload_identities.clone(),
         },
+    }
+}
+
+fn snapshot_binding_relevance(relevance: psi_language_core::BindingRelevance) -> &'static str {
+    match relevance {
+        psi_language_core::BindingRelevance::Relevant => "relevant",
+        psi_language_core::BindingRelevance::Erased => "erased",
     }
 }
 

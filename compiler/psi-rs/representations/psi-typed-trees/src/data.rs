@@ -154,6 +154,7 @@ pub struct DataField {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub relevance: psi_language_core::BindingRelevance,
     pub type_reference: TypeReferenceHandle,
 }
 
@@ -163,6 +164,7 @@ impl Default for DataField {
             identity: None,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            relevance: psi_language_core::BindingRelevance::default(),
             type_reference: TypeReferenceHandle::invalid(),
         }
     }

@@ -4,6 +4,89 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn preserves_field_relevance_through_resolved_and_typed_trees() {
+    let source = r#"
+        data Certified {
+            value: i32;
+            proof [erased]: i32;
+            case Wrapped(witness [erased]: i32);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+
+    let resolved_data = resolved
+        .data_definitions
+        .iter()
+        .next()
+        .expect("resolved data");
+    let resolved_members = resolved.data_members(resolved_data.members);
+    let psi_symbol_resolved_trees::data::DataMember::Field(resolved_value) = &resolved_members[0]
+    else {
+        panic!("resolved value field");
+    };
+    let psi_symbol_resolved_trees::data::DataMember::Field(resolved_proof) = &resolved_members[1]
+    else {
+        panic!("resolved proof field");
+    };
+    let psi_symbol_resolved_trees::data::DataMember::Variant(resolved_wrapped) =
+        &resolved_members[2]
+    else {
+        panic!("resolved wrapped case");
+    };
+    let [resolved_witness] = resolved.data_payload_fields(resolved_wrapped.payload) else {
+        panic!("one resolved payload field");
+    };
+    assert_eq!(
+        resolved_value.relevance,
+        psi_language_core::BindingRelevance::Relevant
+    );
+    assert_eq!(
+        resolved_proof.relevance,
+        psi_language_core::BindingRelevance::Erased
+    );
+    assert_eq!(
+        resolved_witness.relevance,
+        psi_language_core::BindingRelevance::Erased
+    );
+    let resolved_snapshot = resolved.snapshot_json().expect("resolved snapshot");
+    assert!(resolved_snapshot.contains("\"relevance\":\"relevant\""));
+    assert!(resolved_snapshot.contains("\"relevance\":\"erased\""));
+
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed_data = typed.data_definitions().first().expect("typed data");
+    let typed_members = typed.data_members(typed_data);
+    let psi_typed_trees::data::DataMember::Field(typed_value) = &typed_members[0] else {
+        panic!("typed value field");
+    };
+    let psi_typed_trees::data::DataMember::Field(typed_proof) = &typed_members[1] else {
+        panic!("typed proof field");
+    };
+    let psi_typed_trees::data::DataMember::Variant(typed_wrapped) = &typed_members[2] else {
+        panic!("typed wrapped case");
+    };
+    let [typed_witness] = typed.data_payload_fields(typed_wrapped) else {
+        panic!("one typed payload field");
+    };
+    assert_eq!(
+        typed_value.relevance,
+        psi_language_core::BindingRelevance::Relevant
+    );
+    assert_eq!(
+        typed_proof.relevance,
+        psi_language_core::BindingRelevance::Erased
+    );
+    assert_eq!(
+        typed_witness.relevance,
+        psi_language_core::BindingRelevance::Erased
+    );
+    let typed_snapshot = typed.snapshot_json().expect("typed snapshot");
+    assert!(typed_snapshot.contains("\"relevance\":\"relevant\""));
+    assert!(typed_snapshot.contains("\"relevance\":\"erased\""));
+}
+
+#[test]
 fn retains_subjectless_conformance_and_exact_typed_rows() {
     let source = r#"
         trait Evidence {

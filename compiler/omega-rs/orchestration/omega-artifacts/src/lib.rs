@@ -2453,6 +2453,7 @@ mod tests {
                 identity: None,
                 symbol: worker_field_symbol,
                 name: Identifier::generated("worker"),
+                relevance: Default::default(),
                 type_reference: worker_type,
             }),
         );

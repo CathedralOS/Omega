@@ -584,6 +584,7 @@ fn parse_data_member<'tokens, 'source>(
         None
     };
     let (field_name, next) = input.take_identifier()?;
+    let (relevance, next) = parse_field_relevance_brackets(next)?;
     input = next;
 
     if input.at_punctuation(PunctuationKind::Colon) {
@@ -618,6 +619,7 @@ fn parse_data_member<'tokens, 'source>(
             DataMember::Field(DataField {
                 identity,
                 name: field_name,
+                relevance,
                 type_reference,
             }),
             input,
@@ -707,6 +709,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
             None
         };
         let (field_name, next) = input.take_identifier()?;
+        let (relevance, next) = parse_field_relevance_brackets(next)?;
         input = next.take_punctuation(PunctuationKind::Colon, ":")?;
         // Case payloads may also carry borrows (decision 15 stage 2).
         let (type_reference, next) =
@@ -716,6 +719,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
         let handle = syntax_trees.items.append_data_payload_field(DataField {
             identity,
             name: field_name,
+            relevance,
             type_reference,
         });
         if payload_count == 0 {
@@ -751,6 +755,49 @@ fn parse_case_payload_fields<'tokens, 'source>(
         input,
     )?;
     Ok(((payload, retired_identities), input))
+}
+
+/// Parse the closed property set that attaches to one data-field binding.
+///
+/// Binding properties are intentionally distinct from data/type properties:
+/// `proof [erased]: Evidence` marks only `proof`, never `Evidence` itself.
+fn parse_field_relevance_brackets<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, psi_language_core::BindingRelevance> {
+    if !input.at_punctuation(PunctuationKind::LeftBracket) {
+        return Ok((psi_language_core::BindingRelevance::Relevant, input));
+    }
+
+    let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
+    let mut relevance = psi_language_core::BindingRelevance::Relevant;
+    let mut declared_erased = false;
+    while !input.at_punctuation(PunctuationKind::RightBracket) {
+        let (name, next) = input.take_identifier()?;
+        match name.as_str() {
+            "erased" => {
+                if declared_erased {
+                    return Err(next.error_here("duplicate binding property `erased`"));
+                }
+                declared_erased = true;
+                relevance = psi_language_core::BindingRelevance::Erased;
+                input = next;
+            }
+            other => {
+                return Err(next.error_here(format!(
+                    "unknown data-field binding property `{other}`; declared binding properties are `erased`"
+                )));
+            }
+        }
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        break;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
+    Ok((relevance, input))
 }
 
 #[derive(Default)]

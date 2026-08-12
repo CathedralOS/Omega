@@ -345,6 +345,7 @@ fn expression_places_resolve_attached_data_members() {
             identity: None,
             symbol: player_field_symbol,
             name: Identifier::generated("player"),
+            relevance: Default::default(),
             type_reference: TypeReferenceHandle::invalid(),
         }),
     );

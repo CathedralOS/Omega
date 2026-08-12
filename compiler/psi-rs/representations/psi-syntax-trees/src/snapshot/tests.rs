@@ -24,6 +24,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                 .append_data_member(DataMember::Field(DataField {
                     identity: None,
                     name: Identifier::generated("field"),
+                    relevance: psi_language_core::BindingRelevance::Relevant,
                     type_reference: i32_type,
                 })),
             1,
@@ -62,6 +63,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                         end: 0,
                         source_backed: false,
                     },
+                    relevance: "relevant",
                     type_reference: TypeReferenceSnapshot::Named {
                         name: super::IdentifierSnapshot {
                             text: "i32".to_owned(),

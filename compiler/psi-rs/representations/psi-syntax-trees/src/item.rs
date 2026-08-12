@@ -695,6 +695,8 @@ impl Default for DataMember {
 pub struct DataField {
     pub identity: Option<u64>,
     pub name: Identifier,
+    /// Relevance belongs to this field occurrence, not to its referenced type.
+    pub relevance: psi_language_core::BindingRelevance,
     pub type_reference: crate::types::TypeReferenceHandle,
 }
 

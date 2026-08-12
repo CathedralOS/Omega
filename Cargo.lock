@@ -1441,6 +1441,7 @@ version = "0.1.0"
 dependencies = [
  "psi-arena",
  "psi-diagnostics",
+ "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
  "psi-source-files-to-tokens",

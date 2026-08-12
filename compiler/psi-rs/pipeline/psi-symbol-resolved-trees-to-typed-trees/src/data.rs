@@ -125,6 +125,7 @@ fn lower_data_member(
                 identity: field.identity,
                 symbol: field.symbol,
                 name: crate::name::lower_name(&field.name),
+                relevance: field.relevance,
                 type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
             }))
         }
@@ -145,6 +146,7 @@ fn lower_data_member(
                     identity: field.identity,
                     symbol: field.symbol,
                     name: crate::name::lower_name(&field.name),
+                    relevance: field.relevance,
                     type_reference: lower_type_reference_into_table(
                         lowerer,
                         &field.type_reference,

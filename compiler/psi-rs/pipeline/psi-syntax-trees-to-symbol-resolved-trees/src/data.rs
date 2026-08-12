@@ -303,6 +303,7 @@ fn lower_data_member(
             identity: field.identity,
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&field.name),
+            relevance: field.relevance,
             type_reference: lower_type_reference_handle(
                 lowerer,
                 syntax_trees,
@@ -316,6 +317,7 @@ fn lower_data_member(
                     identity: field.identity,
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(&field.name),
+                    relevance: field.relevance,
                     type_reference: lower_type_reference_handle(
                         lowerer,
                         syntax_trees,

@@ -705,6 +705,7 @@ impl SyntaxTrees {
                 DataMember::Field(field) => DataMember::Field(DataField {
                     identity: field.identity,
                     name: field.name.clone(),
+                    relevance: field.relevance,
                     type_reference: this.copy_type_reference_handle(other, field.type_reference),
                 }),
                 DataMember::Variant(variant) => DataMember::Variant(DataVariant {
@@ -729,6 +730,7 @@ impl SyntaxTrees {
             |this, field| DataField {
                 identity: field.identity,
                 name: field.name.clone(),
+                relevance: field.relevance,
                 type_reference: this.copy_type_reference_handle(other, field.type_reference),
             },
             |this, field| this.items.append_data_payload_field(field),
