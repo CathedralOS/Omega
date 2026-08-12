@@ -445,8 +445,9 @@ customer-shaped compiler concept is introduced.
   reference binding for rebinding; writes through references passed by value
   change contents without redirecting their origin. Sibling direct value-call
   arguments are independently admitted when each one's receiver/arguments are
-  effect-free and its frame is complete. Explicitly discarded call results,
-  explicit binding reborrows, deeper computed arguments, and any opaque sibling
+  non-rebinding and every call frame is complete, including nested direct calls
+  to a maximum call-tree depth of two. Explicitly discarded call results,
+  explicit binding reborrows, deeper computed arguments, and any opaque node
   remain fences. A direct
   helper-local alias rebind updates that name's origin without redirecting prior
   reborrows; a structurally transparent helper result may supply the replacement

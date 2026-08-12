@@ -161,8 +161,9 @@ Current ownership is:
   binding for rebinding: writes through references passed by value change their
   contents without redirecting their origins. Sibling direct value-call
   arguments are independently admitted when each one's receiver and arguments
-  are effect-free and its frame is complete. Explicitly discarded call results,
-  explicit binding reborrows, deeper computed arguments, and any opaque sibling
+  are non-rebinding and every call frame is complete, including nested direct
+  calls to a maximum call-tree depth of two. Explicitly discarded call results,
+  explicit binding reborrows, deeper computed arguments, and any opaque node
   remain fences.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
@@ -184,8 +185,8 @@ Current ownership is:
   changing the relation; their ordinary exact frames remain published, and
   effect-free discarded expressions and direct Unit statement calls with
   complete non-rebinding frames are neutral, including exact sibling direct
-  value-call arguments. A direct helper-local alias rebind updates that local's
-  origin while
+  value-call arguments and their bounded two-level direct-call trees. A direct
+  helper-local alias rebind updates that local's origin while
   prior reborrows retain theirs; a structurally transparent helper result may
   supply the replacement through the same origin algebra. Other computed
   rebinding, explicitly discarded call results, statement calls with binding
