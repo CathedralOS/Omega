@@ -1,0 +1,26 @@
+use omega::language::std::console;
+
+data Evidence { case Only; }
+data Mixed<T> {
+    common: T;
+    proof [erased]: Evidence;
+    case None;
+    case Some(value: T, case_proof [erased]: Evidence);
+}
+
+data Main {
+    console: Console;
+    value: Mixed<i32 in Wrapping>;
+}
+
+machine Main::main(&mut self) {
+    self.value = Mixed::Some { common: 7, value: 63 };
+    transition self.value {
+        Mixed::Some { value, case_proof as _ } -> good(value)
+        Mixed::None -> bad()
+    }
+    state good(&mut self, value: i32 in Wrapping) {
+        self.console.exit_process((self.value.common + value) as i32);
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

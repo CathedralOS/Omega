@@ -47728,6 +47728,42 @@ fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
 }
 
 #[test]
+fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
+    let canary = pass_canary("generics/runtime_mixed_generic_erased_sum_exit");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("mixed closed erased sum should reach checked semantics");
+    let definition = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Mixed<i32 in Wrapping>")
+        .expect("exact synthesized mixed identity");
+    assert!(checked.typed.data_members(definition).iter().any(|member| {
+        matches!(member, psi_typed_trees::data::DataMember::Field(field)
+            if field.name.as_str() == "proof" && field.relevance.is_erased())
+    }));
+    assert_eq!(interpret(&checked, &[]).exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-mixed-closed-erased-sum-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mixed closed erased sum should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run mixed closed erased sum canary");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(output.status.code(), Some(70));
+}
+
+#[test]
 fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
     let main_path = canary.join("main.omg");
