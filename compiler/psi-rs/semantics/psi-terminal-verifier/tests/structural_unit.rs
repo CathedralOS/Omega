@@ -612,6 +612,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
         kind: OperationKind::BooleanConstant { value: true },
     }];
     machine.blocks[0].terminator = Terminator::Return {
+        trivial_affine_discards: Vec::new(),
         edge: edge_id(2),
         value,
     };
@@ -787,6 +788,93 @@ fn unit_return_requires_exact_reverse_order_affine_discards() {
     assert_eq!(
         validate_module(&unknown).unwrap_err(),
         ModuleError::UnitReturnAffineDiscardsMismatch {
+            machine: machine_id(2),
+            block: block_id(2),
+        }
+    );
+}
+
+#[test]
+fn scalar_return_requires_exact_affine_discards() {
+    let mut module = hard_root_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.blocks[0].operations.clear();
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    let mut second_parameter = structural_parameter(place_id(4));
+    second_parameter.position = 1;
+    second_parameter.multiplicity = StructuralMultiplicity::Affine;
+    machine.structural_parameters.push(second_parameter);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value: value_id(10),
+        trivial_affine_discards: vec![place_id(4), place_id(2)],
+    };
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    validate_module(&module).expect("scalar return should validate exact affine cleanup");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("no-code cleanup adds no proof-bundle obligation");
+
+    let mut omitted = module.clone();
+    omitted.machines[0].blocks[0].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value: value_id(10),
+        trivial_affine_discards: Vec::new(),
+    };
+    assert_eq!(
+        validate_module(&omitted).unwrap_err(),
+        ModuleError::ScalarReturnAffineDiscardsMismatch {
+            machine: machine_id(2),
+            block: block_id(2),
+        }
+    );
+
+    let mut reordered = module.clone();
+    let Terminator::Return {
+        trivial_affine_discards,
+        ..
+    } = &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.reverse();
+    assert_eq!(
+        validate_module(&reordered).unwrap_err(),
+        ModuleError::ScalarReturnAffineDiscardsMismatch {
+            machine: machine_id(2),
+            block: block_id(2),
+        }
+    );
+
+    let mut claim_bearing = module;
+    claim_bearing.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(1),
+        input: place_id(2),
+        field_path: Vec::new(),
+    });
+    assert_eq!(
+        validate_module(&claim_bearing).unwrap_err(),
+        ModuleError::ScalarReturnAffineDiscardsMismatch {
             machine: machine_id(2),
             block: block_id(2),
         }
@@ -1235,6 +1323,7 @@ id_fn!(machine_id, MachineId);
 id_fn!(obligation_id, ObligationId);
 id_fn!(operation_id, OperationId);
 id_fn!(place_id, PlaceId);
+id_fn!(value_id, ValueId);
 id_fn!(service_id, ServiceId);
 id_fn!(structural_type_id, StructuralTypeId);
 id_fn!(domain_id, StructuralDomainId);

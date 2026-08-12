@@ -1,6 +1,6 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
-    ServiceId, StructuralDomainId, StructuralTypeId,
+    ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
@@ -10,13 +10,13 @@ use psi_terminal::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    VocabularyMarker,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue, interpret_terminal_artifact_measured,
     interpret_terminal_artifact_with_effect_handler_measured,
 };
@@ -110,6 +110,53 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
     assert_eq!(
         execution.resume(&mut meter).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+}
+
+#[test]
+fn scalar_return_performs_affine_discard_only_after_edge_charge() {
+    let mut module = effect_module();
+    let mut machine = module.machines.pop().expect("callee machine");
+    machine.blocks[0].operations.clear();
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value: value_id(10),
+        trivial_affine_discards: vec![place_id(2)],
+    };
+    module.entry = machine.id;
+    module.machines = vec![machine];
+    let semantic = encode_module(&module).expect("scalar affine cleanup module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Boolean(true)],
+        &[structural_value(49)],
+    )
+    .expect("verified scalar affine cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
     );
 }
 
@@ -700,6 +747,10 @@ fn operation_id(raw: u64) -> OperationId {
 
 fn place_id(raw: u64) -> PlaceId {
     PlaceId::new(raw).unwrap()
+}
+
+fn value_id(raw: u64) -> ValueId {
+    ValueId::new(raw).unwrap()
 }
 
 fn claim_id(raw: u64) -> ClaimId {

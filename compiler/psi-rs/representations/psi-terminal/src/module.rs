@@ -708,8 +708,14 @@ pub enum Terminator {
         when_true: SuccessorEdge,
         when_false: SuccessorEdge,
     },
-    /// Bind the machine's stable result pseudo-value and finish execution.
-    Return { edge: EdgeId, value: ValueId },
+    /// Bind a scalar result, then perform exact no-code affine disposal before
+    /// returning to the caller.
+    Return {
+        edge: EdgeId,
+        value: ValueId,
+        /// Structural places in reverse declaration order.
+        trivial_affine_discards: Vec<PlaceId>,
+    },
     /// Finish normally without producing or binding a runtime value.
     ReturnUnit {
         edge: EdgeId,

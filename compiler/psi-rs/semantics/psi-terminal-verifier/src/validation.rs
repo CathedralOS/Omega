@@ -3010,24 +3010,7 @@ fn validate_structural_frontier(
                 trivial_affine_discards,
                 ..
             } => {
-                let expected_affine_discards = machine
-                    .structural_parameters
-                    .iter()
-                    .rev()
-                    .filter_map(|parameter| {
-                        (parameter.multiplicity == StructuralMultiplicity::Affine
-                            && frontier.owned_places.contains_key(&parameter.place)
-                            && !frontier
-                                .claims
-                                .values()
-                                .any(|claim| claim.input == Some(parameter.place))
-                            && !machine
-                                .content_entry_claims
-                                .iter()
-                                .any(|claim| claim.input.root == parameter.place))
-                        .then_some(parameter.place)
-                    })
-                    .collect::<Vec<_>>();
+                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
                 if *trivial_affine_discards != expected_affine_discards {
                     return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
                         machine: machine.id,
@@ -3046,7 +3029,17 @@ fn validate_structural_frontier(
                     });
                 }
             }
-            Terminator::Return { .. } => {
+            Terminator::Return {
+                trivial_affine_discards,
+                ..
+            } => {
+                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
+                if *trivial_affine_discards != expected_affine_discards {
+                    return Err(ModuleError::ScalarReturnAffineDiscardsMismatch {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
                 if let Some((claim, _)) = frontier
                     .claims
                     .iter()
@@ -3071,6 +3064,30 @@ fn validate_structural_frontier(
         }
     }
     Ok(())
+}
+
+fn expected_trivial_affine_discards(
+    machine: &TerminalMachine,
+    frontier: &StructuralOwnershipFrontier,
+) -> Vec<PlaceId> {
+    machine
+        .structural_parameters
+        .iter()
+        .rev()
+        .filter_map(|parameter| {
+            (parameter.multiplicity == StructuralMultiplicity::Affine
+                && frontier.owned_places.contains_key(&parameter.place)
+                && !frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(parameter.place))
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == parameter.place))
+            .then_some(parameter.place)
+        })
+        .collect()
 }
 
 fn validate_control_flow(
@@ -4204,6 +4221,10 @@ pub enum ModuleError {
         claim: ClaimId,
     },
     UnitReturnAffineDiscardsMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    ScalarReturnAffineDiscardsMismatch {
         machine: MachineId,
         block: BlockId,
     },

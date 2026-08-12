@@ -1228,6 +1228,7 @@ fn semantic_module() -> TerminalModule {
                     },
                 }],
                 terminator: Terminator::Return {
+                    trivial_affine_discards: Vec::new(),
                     edge: edge_id(1),
                     value: value_id(1),
                 },

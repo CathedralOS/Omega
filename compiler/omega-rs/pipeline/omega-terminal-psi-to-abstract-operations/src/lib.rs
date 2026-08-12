@@ -621,7 +621,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                     when_false: lower_successor(when_false)?,
                 });
             }
-            Terminator::Return { edge, value } => {
+            Terminator::Return { edge, value, .. } => {
                 let result =
                     result.ok_or(LoweringError::ScalarReturnFromUnitMachine(machine.id))?;
                 operations.push(TerminalAbstractOperation::Return {

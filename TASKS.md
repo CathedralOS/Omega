@@ -167,7 +167,10 @@ Remaining:
   unknown, noncanonical, overlapping, truncated, reordered, or call-mismatched
   claim sets. Straight-line Unit return also carries verifier-reconstructed
   reverse-declaration no-code cleanup for claim-free affine structural
-  parameters, performed only after return-edge fuel succeeds.
+  parameters, performed only after return-edge fuel succeeds. Scalar return
+  carries the same exact cleanup list through canonical encoding, verification,
+  interpretation, metering, fixed-fuel derivation, and Omega consumption; its
+  primitive-only source producer currently emits the empty list.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned

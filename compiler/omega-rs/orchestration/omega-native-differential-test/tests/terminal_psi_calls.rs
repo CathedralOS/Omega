@@ -277,6 +277,7 @@ fn call_module() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(1),
                         value: call_result,
                     },
@@ -301,6 +302,7 @@ fn call_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(2),
                         value: callee_parameter,
                     },

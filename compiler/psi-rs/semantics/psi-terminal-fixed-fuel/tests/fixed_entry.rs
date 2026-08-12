@@ -301,6 +301,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Return {
+                trivial_affine_discards: Vec::new(),
                 edge: edge_id(4),
                 value: value_id(4),
             },
@@ -602,6 +603,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     }],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(2),
                         value: value_id(2),
                     },
@@ -683,6 +685,7 @@ fn call_fixture() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(1),
                         value: value_id(2),
                     },
@@ -707,6 +710,7 @@ fn call_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: edge_id(2),
                         value: value_id(4),
                     },

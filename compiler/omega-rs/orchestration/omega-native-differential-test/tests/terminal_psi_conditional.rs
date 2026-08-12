@@ -836,6 +836,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     parameters: vec![declaration(5, integer)],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(3).unwrap(),
                         value: ValueId::new(5).unwrap(),
                     },
@@ -845,6 +846,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     parameters: vec![declaration(6, integer)],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(4).unwrap(),
                         value: ValueId::new(6).unwrap(),
                     },
@@ -904,6 +906,7 @@ fn conditional_call_arm_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Return {
+                trivial_affine_discards: Vec::new(),
                 edge: EdgeId::new(5).unwrap(),
                 value: ValueId::new(8).unwrap(),
             },
@@ -1016,6 +1019,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(5).unwrap(),
                         value: ValueId::new(9).unwrap(),
                     },
@@ -1113,6 +1117,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(6, integer)],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(5).unwrap(),
                         value: ValueId::new(6).unwrap(),
                     },
@@ -1129,6 +1134,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(6).unwrap(),
                         value: ValueId::new(8).unwrap(),
                     },
@@ -1145,6 +1151,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(7).unwrap(),
                         value: ValueId::new(12).unwrap(),
                     },
@@ -1233,6 +1240,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(9)],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(5).unwrap(),
                         value: ValueId::new(9).unwrap(),
                     },
@@ -1242,6 +1250,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(11)],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(6).unwrap(),
                         value: ValueId::new(11).unwrap(),
                     },
@@ -1251,6 +1260,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(12)],
                     operations: Vec::new(),
                     terminator: Terminator::Return {
+                        trivial_affine_discards: Vec::new(),
                         edge: EdgeId::new(7).unwrap(),
                         value: ValueId::new(12).unwrap(),
                     },
