@@ -41,7 +41,7 @@ pub struct TerminalMachineCodeFunction {
 pub struct TerminalBoundarySettlementRecord {
     pub psi_operation: OperationId,
     pub boundary: BoundaryMachineId,
-    pub provider_execution: TerminalProviderExecutionBinding,
+    pub provider_execution: TerminalProviderExecutionRecord,
     pub realization: TerminalMetadataOnlyPortRealization,
     pub argument_places: Vec<PlaceId>,
     pub claim_settlements: Vec<ClaimSettlement>,
@@ -50,6 +50,57 @@ pub struct TerminalBoundarySettlementRecord {
     pub operation_ordinal: usize,
     /// Byte offset immediately after all preceding executable operations.
     pub code_offset: usize,
+}
+
+/// Non-authoritative serialized projection of an admitted provider execution.
+/// This can be decoded for validation/reporting but cannot be used to invoke
+/// target lowering, which requires the ledger-owned admitted binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalProviderExecutionRecord {
+    pub provider_plan: u64,
+    pub provider_execution_identity: u64,
+    pub provider_execution_fingerprint: u64,
+    pub normalized_root_identity: u64,
+    pub boundary_contract_fingerprint: u64,
+}
+
+impl TerminalProviderExecutionRecord {
+    pub fn new(
+        provider_plan: u64,
+        provider_execution_identity: u64,
+        provider_execution_fingerprint: u64,
+        normalized_root_identity: u64,
+        boundary_contract_fingerprint: u64,
+    ) -> Option<Self> {
+        [
+            provider_plan,
+            provider_execution_identity,
+            provider_execution_fingerprint,
+            normalized_root_identity,
+            boundary_contract_fingerprint,
+        ]
+        .iter()
+        .all(|identity| *identity != 0)
+        .then_some(Self {
+            provider_plan,
+            provider_execution_identity,
+            provider_execution_fingerprint,
+            normalized_root_identity,
+            boundary_contract_fingerprint,
+        })
+    }
+}
+
+impl From<TerminalProviderExecutionBinding> for TerminalProviderExecutionRecord {
+    fn from(binding: TerminalProviderExecutionBinding) -> Self {
+        Self {
+            provider_plan: binding.provider_plan().get(),
+            provider_execution_identity: binding.provider_execution_identity(),
+            provider_execution_fingerprint: binding.provider_execution_fingerprint(),
+            normalized_root_identity: binding.normalized_root_identity(),
+            boundary_contract_fingerprint: binding.boundary_contract_fingerprint(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

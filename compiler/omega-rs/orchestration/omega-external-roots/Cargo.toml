@@ -11,11 +11,11 @@ path = "src/lib.rs"
 [dependencies]
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
-omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
-omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+omega-target = { path = "../../foundation/omega-target" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
+psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
 psi-terminal-fixed-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fixed-fuel" }
 
 [dev-dependencies]

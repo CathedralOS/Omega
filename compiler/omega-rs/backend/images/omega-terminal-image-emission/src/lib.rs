@@ -93,6 +93,27 @@ impl TerminalObjectArtifact {
     }
 }
 
+impl omega_external_roots::TerminalObjectEvidence for TerminalObjectArtifact {
+    fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    fn architecture(&self) -> Architecture {
+        self.target.architecture
+    }
+
+    fn text_bytes(&self) -> &[u8] {
+        &self.text_bytes
+    }
+
+    fn function_text_offset(&self, machine: MachineId) -> Option<usize> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+            .map(|function| function.text_offset)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalObjectFunction {
     pub machine: MachineId,

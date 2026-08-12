@@ -16,11 +16,6 @@ use omega_calling_conventions::{
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
-use omega_terminal_image_emission::TerminalObjectArtifact;
-use omega_terminal_target_operations::{
-    TerminalBoundarySettlementBinding, TerminalMetadataOnlyPortRealization,
-    TerminalProviderExecutionBinding, TerminalProviderPlanIdentity,
-};
 pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::EntryStubId;
 
@@ -632,6 +627,16 @@ pub struct InstalledTerminalSegmentFuelCertificate {
     entry: EntryStubId,
 }
 
+/// Narrow, read-only evidence required to bind terminal fixed-fuel theorems to
+/// installed bytes. Object/image crates implement this without becoming an
+/// authority dependency of the external-root ledger.
+pub trait TerminalObjectEvidence {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
+    fn architecture(&self) -> omega_target::Architecture;
+    fn text_bytes(&self) -> &[u8];
+    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize>;
+}
+
 impl InstalledTerminalSegmentFuelCertificate {
     pub const fn certificate(&self) -> &psi_terminal_fixed_fuel::FixedSegmentFuelCertificate {
         &self.certificate
@@ -656,9 +661,9 @@ impl InstalledTerminalSegmentFuelCertificate {
 /// generic installation ladder must contain byte-for-byte identical,
 /// relocation-free text, and the selected stub must name the exact function
 /// offset certified here.
-pub fn bind_installed_terminal_entry_fuel(
+pub fn bind_installed_terminal_entry_fuel<TerminalArtifact: TerminalObjectEvidence>(
     certificate: psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
-    terminal_artifact: &TerminalObjectArtifact,
+    terminal_artifact: &TerminalArtifact,
     installed_code: &InstalledCode,
     entry: EntryStubId,
 ) -> Result<InstalledTerminalEntryFuelCertificate, ExternalRootDiagnostic> {
@@ -668,21 +673,14 @@ pub fn bind_installed_terminal_entry_fuel(
                 .into(),
         ));
     }
-    let function = terminal_artifact
-        .functions()
-        .iter()
-        .find(|function| function.machine == certificate.entry())
+    let function_offset = terminal_artifact
+        .function_text_offset(certificate.entry())
         .ok_or_else(|| {
             ExternalRootDiagnostic(
                 "terminal fixed-fuel entry is not present in the emitted artifact".into(),
             )
         })?;
-    bind_terminal_function(
-        terminal_artifact,
-        installed_code,
-        entry,
-        function.text_offset,
-    )?;
+    bind_terminal_function(terminal_artifact, installed_code, entry, function_offset)?;
     Ok(InstalledTerminalEntryFuelCertificate {
         certificate,
         installed_code: installed_code.identity(),
@@ -710,9 +708,9 @@ pub fn validate_installed_terminal_entry_fuel(
 /// Bind a checked terminal-Psi path-segment theorem to one exact installed
 /// function. The stub identifies the function containing the segment; the
 /// certificate retains its semantic block/edge endpoints.
-pub fn bind_installed_terminal_segment_fuel(
+pub fn bind_installed_terminal_segment_fuel<TerminalArtifact: TerminalObjectEvidence>(
     certificate: psi_terminal_fixed_fuel::FixedSegmentFuelCertificate,
-    terminal_artifact: &TerminalObjectArtifact,
+    terminal_artifact: &TerminalArtifact,
     installed_code: &InstalledCode,
     entry: EntryStubId,
 ) -> Result<InstalledTerminalSegmentFuelCertificate, ExternalRootDiagnostic> {
@@ -722,21 +720,14 @@ pub fn bind_installed_terminal_segment_fuel(
                 .into(),
         ));
     }
-    let function = terminal_artifact
-        .functions()
-        .iter()
-        .find(|function| function.machine == certificate.machine())
+    let function_offset = terminal_artifact
+        .function_text_offset(certificate.machine())
         .ok_or_else(|| {
             ExternalRootDiagnostic(
                 "terminal fixed-fuel segment machine is not present in the emitted artifact".into(),
             )
         })?;
-    bind_terminal_function(
-        terminal_artifact,
-        installed_code,
-        entry,
-        function.text_offset,
-    )?;
+    bind_terminal_function(terminal_artifact, installed_code, entry, function_offset)?;
     Ok(InstalledTerminalSegmentFuelCertificate {
         certificate,
         installed_code: installed_code.identity(),
@@ -746,13 +737,13 @@ pub fn bind_installed_terminal_segment_fuel(
     })
 }
 
-fn bind_terminal_function(
-    terminal_artifact: &TerminalObjectArtifact,
+fn bind_terminal_function<TerminalArtifact: TerminalObjectEvidence>(
+    terminal_artifact: &TerminalArtifact,
     installed_code: &InstalledCode,
     entry: EntryStubId,
     text_offset: usize,
 ) -> Result<(), ExternalRootDiagnostic> {
-    if terminal_artifact.target().architecture != installed_code.architecture() {
+    if terminal_artifact.architecture() != installed_code.architecture() {
         return Err(ExternalRootDiagnostic(
             "terminal artifact architecture does not match the installed executable".into(),
         ));
@@ -1444,6 +1435,40 @@ pub struct ProviderExecution {
     normalized_identity: u64,
 }
 
+/// Non-constructible evidence that the external-root ledger admitted one exact
+/// provider execution. Terminal lowering may borrow or retain this value; wire
+/// formats record its fields but cannot recreate executable authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AdmittedTerminalProviderExecution {
+    provider_plan: u64,
+    provider_execution_identity: u64,
+    provider_execution_fingerprint: u64,
+    normalized_root_identity: u64,
+    boundary_contract_fingerprint: u64,
+}
+
+impl AdmittedTerminalProviderExecution {
+    pub const fn provider_plan(&self) -> u64 {
+        self.provider_plan
+    }
+
+    pub const fn provider_execution_identity(&self) -> u64 {
+        self.provider_execution_identity
+    }
+
+    pub const fn provider_execution_fingerprint(&self) -> u64 {
+        self.provider_execution_fingerprint
+    }
+
+    pub const fn normalized_root_identity(&self) -> u64 {
+        self.normalized_root_identity
+    }
+
+    pub const fn boundary_contract_fingerprint(&self) -> u64 {
+        self.boundary_contract_fingerprint
+    }
+}
+
 impl ProviderExecution {
     /// Provider/trust admission creates this binding only after selecting the
     /// exact provider plan that will execute the validated root.
@@ -1526,38 +1551,14 @@ impl ProviderExecution {
     /// Export the exact admitted execution evidence consumed by the clean
     /// terminal-Psi native lane. Lowering does not accept a second provider
     /// plan choice: this binding inherits the plan selected by root admission.
-    pub fn terminal_binding(
-        &self,
-    ) -> Result<TerminalProviderExecutionBinding, ExternalRootDiagnostic> {
-        let provider_plan =
-            TerminalProviderPlanIdentity::new(self.provider_plan.normalized_identity())
-                .ok_or_else(|| {
-                    ExternalRootDiagnostic("provider plan identity cannot be zero".into())
-                })?;
-        TerminalProviderExecutionBinding::from_admitted_execution(
-            provider_plan,
-            self.identity.normalized_identity(),
-            self.normalized_identity,
-            self.normalized_root_identity,
-            self.boundary_contract_fingerprint,
-        )
-        .ok_or_else(|| {
-            ExternalRootDiagnostic(
-                "provider execution evidence contains a reserved zero identity".into(),
-            )
-        })
-    }
-
-    pub fn terminal_metadata_only_port_settlement(
-        &self,
-        boundary: psi_core::BoundaryMachineId,
-        realization: TerminalMetadataOnlyPortRealization,
-    ) -> Result<TerminalBoundarySettlementBinding, ExternalRootDiagnostic> {
-        Ok(TerminalBoundarySettlementBinding {
-            boundary,
-            provider_execution: self.terminal_binding()?,
-            realization,
-        })
+    pub const fn terminal_binding(&self) -> AdmittedTerminalProviderExecution {
+        AdmittedTerminalProviderExecution {
+            provider_plan: self.provider_plan.normalized_identity(),
+            provider_execution_identity: self.identity.normalized_identity(),
+            provider_execution_fingerprint: self.normalized_identity,
+            normalized_root_identity: self.normalized_root_identity,
+            boundary_contract_fingerprint: self.boundary_contract_fingerprint,
+        }
     }
 
     pub const fn exit_assurance(&self) -> OpaqueProviderExitAssurance {
@@ -4712,37 +4713,25 @@ mod tests {
         let validated =
             validate_external_root(candidate(entry_id(1001)), &boundary()).expect("root");
         let execution = provider_execution(&validated);
-        let realization = TerminalMetadataOnlyPortRealization {
-            effect_operation: psi_core::OperationId::new(1).unwrap(),
-            service: psi_core::ServiceId::new(1).unwrap(),
-            port: 0x20,
-            value: 0x20,
-        };
-        let binding = execution
-            .terminal_metadata_only_port_settlement(
-                psi_core::BoundaryMachineId::new(1).unwrap(),
-                realization,
-            )
-            .expect("terminal binding");
-        assert_eq!(binding.realization, realization);
+        let binding = execution.terminal_binding();
         assert_eq!(
-            binding.provider_execution.provider_plan().get(),
+            binding.provider_plan(),
             execution.provider_plan().normalized_identity()
         );
         assert_eq!(
-            binding.provider_execution.provider_execution_identity(),
+            binding.provider_execution_identity(),
             execution.identity().normalized_identity()
         );
         assert_eq!(
-            binding.provider_execution.provider_execution_fingerprint(),
+            binding.provider_execution_fingerprint(),
             execution.normalized_identity()
         );
         assert_eq!(
-            binding.provider_execution.normalized_root_identity(),
+            binding.normalized_root_identity(),
             validated.normalized_identity()
         );
         assert_eq!(
-            binding.provider_execution.boundary_contract_fingerprint(),
+            binding.boundary_contract_fingerprint(),
             validated.boundary_contract_fingerprint()
         );
     }

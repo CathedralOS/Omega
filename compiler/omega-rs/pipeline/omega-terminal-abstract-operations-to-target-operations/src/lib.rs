@@ -29,6 +29,16 @@ use psi_core::{
 };
 use psi_terminal::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
+/// One metadata-only boundary realization sourced from a validated, admitted
+/// provider execution. Callers supply the semantic effect association but
+/// cannot substitute a secondary provider-plan identity.
+#[derive(Debug, Clone, Copy)]
+pub struct AdmittedTerminalBoundarySettlement<'execution> {
+    pub boundary: BoundaryMachineId,
+    pub provider_execution: &'execution omega_external_roots::ProviderExecution,
+    pub realization: omega_terminal_target_operations::TerminalMetadataOnlyPortRealization,
+}
+
 pub fn lower_to_target_operations(
     plan: &TerminalAbstractOperationPlan,
     target: NativeTarget,
@@ -36,7 +46,45 @@ pub fn lower_to_target_operations(
     lower_to_target_operations_with_settlements(plan, target, &[])
 }
 
-pub fn lower_to_target_operations_with_settlements(
+/// Lower an effectful terminal plan using the exact provider executions
+/// already admitted by the external-root ledger.
+pub fn lower_to_target_operations_with_provider_executions(
+    plan: &TerminalAbstractOperationPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+) -> Result<TerminalTargetOperationPlan, LoweringError> {
+    let bindings = settlements
+        .iter()
+        .map(|settlement| {
+            let admitted = settlement.provider_execution.terminal_binding();
+            let provider_plan = omega_terminal_target_operations::TerminalProviderPlanIdentity::new(
+                admitted.provider_plan(),
+            )
+            .ok_or_else(|| LoweringError::ProviderExecutionBinding("zero provider plan".into()))?;
+            let provider_execution =
+                omega_terminal_target_operations::TerminalProviderExecutionBinding::from_execution_record(
+                    provider_plan,
+                    admitted.provider_execution_identity(),
+                    admitted.provider_execution_fingerprint(),
+                    admitted.normalized_root_identity(),
+                    admitted.boundary_contract_fingerprint(),
+                )
+                .ok_or_else(|| {
+                    LoweringError::ProviderExecutionBinding(
+                        "admitted provider execution contains a zero identity".into(),
+                    )
+                })?;
+            Ok(TerminalBoundarySettlementBinding {
+                boundary: settlement.boundary,
+                provider_execution,
+                realization: settlement.realization,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    lower_to_target_operations_with_settlements(plan, target, &bindings)
+}
+
+fn lower_to_target_operations_with_settlements(
     plan: &TerminalAbstractOperationPlan,
     target: NativeTarget,
     settlement_bindings: &[TerminalBoundarySettlementBinding],
@@ -3861,6 +3909,7 @@ pub enum LoweringError {
     MissingBoundarySettlement(BoundaryMachineId),
     UnusedBoundarySettlement(BoundaryMachineId),
     BoundaryRealizationMismatch(BoundaryMachineId),
+    ProviderExecutionBinding(String),
     OperationAfterReturn(MachineId),
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
@@ -4144,7 +4193,7 @@ mod tests {
         let port_operation = OperationId::new(1).unwrap();
         let settlement_operation = OperationId::new(2).unwrap();
         let service = psi_core::ServiceId::new(1).unwrap();
-        let provider_execution = TerminalProviderExecutionBinding::from_admitted_execution(
+        let provider_execution = TerminalProviderExecutionBinding::from_execution_record(
             TerminalProviderPlanIdentity::new(7).unwrap(),
             8,
             9,

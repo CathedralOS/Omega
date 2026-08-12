@@ -521,12 +521,11 @@ dependencies = [
  "omega-calling-conventions",
  "omega-executable-installation",
  "omega-target",
- "omega-terminal-image-emission",
- "omega-terminal-target-operations",
  "psi-core",
  "psi-extents",
  "psi-language-semantics",
  "psi-layout-plans",
+ "psi-terminal",
  "psi-terminal-fixed-fuel",
 ]
 
@@ -1115,6 +1114,7 @@ name = "omega-terminal-abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-external-roots",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-target-operations",
@@ -1137,6 +1137,7 @@ dependencies = [
 name = "omega-terminal-image-emission"
 version = "0.1.0"
 dependencies = [
+ "omega-external-roots",
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",

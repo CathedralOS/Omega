@@ -449,7 +449,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     let boundary = BoundaryMachineId::new(1).unwrap();
     let provider_plan = TerminalProviderPlanIdentity::new(7).unwrap();
     let provider_execution =
-        TerminalProviderExecutionBinding::from_admitted_execution(provider_plan, 8, 9, 10, 11)
+        TerminalProviderExecutionBinding::from_execution_record(provider_plan, 8, 9, 10, 11)
             .unwrap();
     let realization = TerminalMetadataOnlyPortRealization {
         effect_operation: port_operation,
@@ -483,7 +483,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             boundary_settlements: vec![TerminalBoundarySettlementRecord {
                 psi_operation: settlement_operation,
                 boundary,
-                provider_execution,
+                provider_execution: provider_execution.into(),
                 realization,
                 argument_places: Vec::new(),
                 claim_settlements: Vec::new(),
@@ -510,7 +510,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         record.boundary_settlements()[0]
             .settlement
             .provider_execution,
-        provider_execution
+        provider_execution.into()
     );
     let encoded = encode_terminal_installation_record(&record).unwrap();
     assert_eq!(decode_terminal_installation_record(&encoded), Ok(record));

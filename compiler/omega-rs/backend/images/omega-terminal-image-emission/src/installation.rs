@@ -2,11 +2,10 @@ use std::num::NonZeroU64;
 
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use omega_terminal_machine_code::{TerminalBoundarySettlementRecord, TerminalPortEffectRecord};
-use omega_terminal_target_operations::{
-    TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
-    TerminalProviderPlanIdentity,
+use omega_terminal_machine_code::{
+    TerminalBoundarySettlementRecord, TerminalPortEffectRecord, TerminalProviderExecutionRecord,
 };
+use omega_terminal_target_operations::TerminalMetadataOnlyPortRealization;
 use psi_core::{
     BoundaryMachineId, ClaimId, MachineId, OperationId, PlaceId, ProfileDecisionId, ServiceId,
 };
@@ -335,11 +334,11 @@ pub fn encode_terminal_installation_record(
         push_u64(&mut bytes, settlement.psi_operation.get());
         push_u64(&mut bytes, settlement.boundary.get());
         let execution = settlement.provider_execution;
-        push_u64(&mut bytes, execution.provider_plan().get());
-        push_u64(&mut bytes, execution.provider_execution_identity());
-        push_u64(&mut bytes, execution.provider_execution_fingerprint());
-        push_u64(&mut bytes, execution.normalized_root_identity());
-        push_u64(&mut bytes, execution.boundary_contract_fingerprint());
+        push_u64(&mut bytes, execution.provider_plan);
+        push_u64(&mut bytes, execution.provider_execution_identity);
+        push_u64(&mut bytes, execution.provider_execution_fingerprint);
+        push_u64(&mut bytes, execution.normalized_root_identity);
+        push_u64(&mut bytes, execution.boundary_contract_fingerprint);
         push_u64(&mut bytes, settlement.realization.effect_operation.get());
         push_u64(&mut bytes, settlement.realization.service.get());
         push_u16(&mut bytes, settlement.realization.port);
@@ -522,11 +521,8 @@ pub fn decode_terminal_installation_record(
         let boundary = BoundaryMachineId::new(reader.u64()?).ok_or(
             TerminalInstallationError::ZeroSettlementIdentity("BoundaryMachineId"),
         )?;
-        let provider_plan_raw = reader.u64()?;
-        let provider_plan = TerminalProviderPlanIdentity::new(provider_plan_raw)
-            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
-        let provider_execution = TerminalProviderExecutionBinding::from_admitted_execution(
-            provider_plan,
+        let provider_execution = TerminalProviderExecutionRecord::new(
+            reader.u64()?,
             reader.u64()?,
             reader.u64()?,
             reader.u64()?,
@@ -697,13 +693,7 @@ fn validate_record_shape(
     let required = record
         .boundary_settlements
         .iter()
-        .map(|settlement| {
-            settlement
-                .settlement
-                .provider_execution
-                .provider_plan()
-                .get()
-        })
+        .map(|settlement| settlement.settlement.provider_execution.provider_plan)
         .collect::<std::collections::BTreeSet<_>>();
     if !required.is_subset(&selected) {
         return Err(TerminalInstallationError::ProviderSettlementClosureMismatch);

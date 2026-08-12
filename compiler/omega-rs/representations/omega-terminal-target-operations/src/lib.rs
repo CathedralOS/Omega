@@ -3,8 +3,6 @@
 //! Target-selected operations derived from source-independent terminal Omega
 //! requirements.
 
-use std::num::NonZeroU64;
-
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
@@ -42,18 +40,15 @@ pub struct TerminalPsiProvenance {
 /// Installation-selected provider-plan identity for one bodyless boundary.
 /// This is realization metadata, not executable authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalProviderPlanIdentity(NonZeroU64);
+pub struct TerminalProviderPlanIdentity(u64);
 
 impl TerminalProviderPlanIdentity {
     pub const fn new(raw: u64) -> Option<Self> {
-        match NonZeroU64::new(raw) {
-            Some(identity) => Some(Self(identity)),
-            None => None,
-        }
+        if raw == 0 { None } else { Some(Self(raw)) }
     }
 
     pub const fn get(self) -> u64 {
-        self.0.get()
+        self.0
     }
 }
 
@@ -63,26 +58,37 @@ impl TerminalProviderPlanIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalProviderExecutionBinding {
     provider_plan: TerminalProviderPlanIdentity,
-    provider_execution_identity: NonZeroU64,
-    provider_execution_fingerprint: NonZeroU64,
-    normalized_root_identity: NonZeroU64,
-    boundary_contract_fingerprint: NonZeroU64,
+    provider_execution_identity: u64,
+    provider_execution_fingerprint: u64,
+    normalized_root_identity: u64,
+    boundary_contract_fingerprint: u64,
 }
 
 impl TerminalProviderExecutionBinding {
-    pub fn from_admitted_execution(
+    /// Non-authoritative data projection. Production lowering obtains these
+    /// fields from `omega_external_roots::ProviderExecution`; constructing a
+    /// record does not grant root admission or executable authority.
+    pub fn from_execution_record(
         provider_plan: TerminalProviderPlanIdentity,
         provider_execution_identity: u64,
         provider_execution_fingerprint: u64,
         normalized_root_identity: u64,
         boundary_contract_fingerprint: u64,
     ) -> Option<Self> {
-        Some(Self {
+        [
+            provider_execution_identity,
+            provider_execution_fingerprint,
+            normalized_root_identity,
+            boundary_contract_fingerprint,
+        ]
+        .iter()
+        .all(|identity| *identity != 0)
+        .then_some(Self {
             provider_plan,
-            provider_execution_identity: NonZeroU64::new(provider_execution_identity)?,
-            provider_execution_fingerprint: NonZeroU64::new(provider_execution_fingerprint)?,
-            normalized_root_identity: NonZeroU64::new(normalized_root_identity)?,
-            boundary_contract_fingerprint: NonZeroU64::new(boundary_contract_fingerprint)?,
+            provider_execution_identity,
+            provider_execution_fingerprint,
+            normalized_root_identity,
+            boundary_contract_fingerprint,
         })
     }
 
@@ -91,19 +97,19 @@ impl TerminalProviderExecutionBinding {
     }
 
     pub const fn provider_execution_identity(self) -> u64 {
-        self.provider_execution_identity.get()
+        self.provider_execution_identity
     }
 
     pub const fn provider_execution_fingerprint(self) -> u64 {
-        self.provider_execution_fingerprint.get()
+        self.provider_execution_fingerprint
     }
 
     pub const fn normalized_root_identity(self) -> u64 {
-        self.normalized_root_identity.get()
+        self.normalized_root_identity
     }
 
     pub const fn boundary_contract_fingerprint(self) -> u64 {
-        self.boundary_contract_fingerprint.get()
+        self.boundary_contract_fingerprint
     }
 }
 
