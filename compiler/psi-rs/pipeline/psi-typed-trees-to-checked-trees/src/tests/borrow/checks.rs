@@ -3049,9 +3049,12 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
             second
         }
 
+        machine write(value: &mut i32) {
+            value = 7;
+        }
+
         machine Main::touch_code(&mut self) {
-            let alias: &mut i32 = forward_alias(&mut self.code);
-            alias = 7;
+            write(forward_alias(&mut self.code));
         }
 
         machine Main::store(&mut self) {
@@ -3061,9 +3064,8 @@ fn accepts_static_persistent_copy_across_local_alias_helper_result_frame() {
         }
     "#;
 
-    check_program(source).expect(
-        "a transitively transparent local-alias helper preserves its disjoint caller frame",
-    );
+    check_program(source)
+        .expect("a transparent helper result supplied directly to a statement call stays exact");
 }
 
 #[test]
