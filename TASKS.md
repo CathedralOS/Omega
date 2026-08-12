@@ -371,6 +371,10 @@ customer-shaped compiler concept is introduced.
   redirecting the returned origin. A value-shaped assignment RHS may likewise
   be a typed non-reference direct-call tree through depth two with complete
   frames; nested writes publish without redirecting a separate returned origin.
+  A caller-isolated primitive scratch initializer may likewise contain a
+  direct-call tree through depth two when every frame is complete and every
+  write stays inside already established isolated scratch roots; those writes
+  remain helper-local while a separate returned parameter origin stays exact.
   Deeper or recursive calls, binding reborrows, reference-valued or opaque
   nodes, other effectful sources, escaped aliases, non-bijective transport, and
   writes outside isolated roots remain fences or use existing alias handling.

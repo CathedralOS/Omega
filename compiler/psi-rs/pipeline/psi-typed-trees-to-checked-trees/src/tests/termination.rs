@@ -3510,6 +3510,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
             "Main::isolated_write_call_scratch_helper_result",
             "self.value",
         ),
+        ("Main::nested_call_scratch_helper_result", "self.value"),
         (
             "Main::isolated_write_statement_call_helper_result",
             "self.value",
@@ -3649,7 +3650,6 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::reference_scratch_helper_result",
         "Main::impure_call_scratch_helper_result",
         "Main::mixed_write_call_scratch_helper_result",
-        "Main::nested_call_scratch_helper_result",
         "Main::discarded_call_helper_result",
         "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",
@@ -4430,6 +4430,142 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
             "{name} must remain opaque outside the bounded value-call assignment rung"
+        );
+    }
+}
+
+#[test]
+fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
+    let source = r#"
+    data Main {
+        value: u64;
+    }
+
+    machine make_scratch() -> u64 {
+        0
+    }
+
+    machine scratch_from(value: u64) -> u64 {
+        value
+    }
+
+    machine write_scratch(value: &mut u64) -> u64 {
+        value = 1;
+        0
+    }
+
+    machine mixed_scratch(first: &mut u64, second: &mut u64) -> u64 {
+        first = 1;
+        second = 2;
+        0
+    }
+
+    machine recursive_scratch() -> u64 {
+        recursive_scratch()
+    }
+
+    machine return_with_nested_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = scratch_from(make_scratch());
+        value
+    }
+
+    machine return_with_nested_write_scratch(value: &mut u64) -> &mut u64 {
+        let mut prior: u64 = 0;
+        let scratch: u64 = scratch_from(write_scratch(&mut prior));
+        value
+    }
+
+    machine return_with_deep_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = scratch_from(scratch_from(make_scratch()));
+        value
+    }
+
+    machine return_with_external_write_scratch(value: &mut u64) -> &mut u64 {
+        let mut prior: u64 = 0;
+        let scratch: u64 = scratch_from(mixed_scratch(&mut prior, value));
+        value
+    }
+
+    machine return_with_recursive_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = recursive_scratch();
+        value
+    }
+
+    machine Main::nested_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_nested_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::nested_write_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_nested_write_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::deep_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_deep_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::external_write_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_external_write_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::recursive_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_recursive_scratch(&mut self.value);
+        alias = 3;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+
+    for name in [
+        "Main::nested_scratch_result",
+        "Main::nested_write_scratch_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(["self.value".to_owned()].as_slice()),
+            "{name} must hide writes confined to earlier caller-isolated scratch roots"
+        );
+    }
+
+    for name in [
+        "Main::deep_scratch_result",
+        "Main::external_write_scratch_result",
+        "Main::recursive_scratch_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name} must remain opaque outside the bounded isolated-scratch rung"
         );
     }
 }
