@@ -318,6 +318,15 @@ struct X86UnitParameterHome {
     indirect: bool,
 }
 
+#[derive(Debug, Clone)]
+struct Aarch64UnitParameterHome {
+    place: psi_core::PlaceId,
+    shape: ValueShape,
+    source: ValuePlacement,
+    byte_offset: u32,
+    indirect: bool,
+}
+
 fn emit_unit_body(
     body: &TerminalAssignedUnitBody,
     target: NativeTarget,
@@ -327,15 +336,30 @@ fn emit_unit_body(
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
-    let (x86_homes, x86_frame_bytes) = if target.architecture == Architecture::X86_64 {
-        let (homes, frame_bytes) = x86_unit_parameter_homes(body)?;
-        if frame_bytes != 0 {
-            emit_x86_64_adjust_sp(&mut bytes, frame_bytes, false);
-            emit_x86_64_stage_unit_parameters(&mut bytes, &homes, frame_bytes)?;
+    let mut x86_homes = Vec::new();
+    let mut x86_frame_bytes = 0;
+    let mut aarch64_homes = Vec::new();
+    let mut aarch64_frame_bytes = 0;
+    let mut aarch64_lr_offset = 0;
+    match target.architecture {
+        Architecture::X86_64 => {
+            (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body)?;
+            if x86_frame_bytes != 0 {
+                emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, false);
+                emit_x86_64_stage_unit_parameters(&mut bytes, &x86_homes, x86_frame_bytes)?;
+            }
         }
-        (homes, frame_bytes)
-    } else {
-        (Vec::new(), 0)
+        Architecture::Aarch64 => {
+            let (homes, frame_bytes, lr_offset) = aarch64_unit_parameter_homes(body)?;
+            aarch64_homes = homes;
+            aarch64_frame_bytes = frame_bytes;
+            aarch64_lr_offset = lr_offset;
+            let mut instructions = Vec::new();
+            emit_aarch64_adjust_sp(&mut instructions, frame_bytes, false)?;
+            instructions.push(aarch64_unit_stack_access(0xf900_0000, 30, lr_offset, 8)?);
+            emit_aarch64_stage_unit_parameters(&mut instructions, &aarch64_homes, frame_bytes)?;
+            append_aarch64_instructions(&mut bytes, instructions);
+        }
     };
     let mut returned = false;
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
@@ -363,9 +387,14 @@ fn emit_unit_body(
                         &x86_homes,
                         &mut internal_calls,
                     )?,
-                    Architecture::Aarch64 => {
-                        return Err(EmissionError::UnsupportedAarch64AggregateCall);
-                    }
+                    Architecture::Aarch64 => emit_aarch64_unit_call(
+                        &mut bytes,
+                        *psi_operation,
+                        *callee,
+                        copies,
+                        &aarch64_homes,
+                        &mut internal_calls,
+                    )?,
                 }
             }
             TerminalAssignedUnitOperation::PortWrite {
@@ -424,6 +453,15 @@ fn emit_unit_body(
                         bytes.push(0xc3)
                     }
                     Architecture::Aarch64 => {
+                        let mut instructions = Vec::new();
+                        instructions.push(aarch64_unit_stack_access(
+                            0xf940_0000,
+                            30,
+                            aarch64_lr_offset,
+                            8,
+                        )?);
+                        emit_aarch64_adjust_sp(&mut instructions, aarch64_frame_bytes, true)?;
+                        append_aarch64_instructions(&mut bytes, instructions);
                         bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes())
                     }
                 }
@@ -508,6 +546,51 @@ fn emit_x86_64_unit_call(
     Ok(())
 }
 
+fn emit_aarch64_unit_call(
+    bytes: &mut Vec<u8>,
+    psi_operation: psi_core::OperationId,
+    callee: MachineId,
+    copies: &[TerminalAssignedAggregateCopy],
+    homes: &[Aarch64UnitParameterHome],
+    internal_calls: &mut Vec<TerminalInternalCallRelocation>,
+) -> Result<(), EmissionError> {
+    let outgoing_bytes = copies
+        .iter()
+        .map(|copy| aarch64_outgoing_placement_extent(&copy.destination))
+        .try_fold(0_u32, |extent, candidate| {
+            candidate.map(|value| extent.max(value))
+        })?;
+    let call_stack_bytes = align_u32(outgoing_bytes, 16)?;
+    let mut instructions = Vec::new();
+    if call_stack_bytes != 0 {
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, false)?;
+    }
+    for copy in copies {
+        let home = homes
+            .iter()
+            .find(|home| home.place == copy.place)
+            .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+        if home.shape != copy.shape || home.source != copy.source {
+            return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
+        }
+        emit_aarch64_aggregate_copy_from_home(&mut instructions, copy, home, call_stack_bytes)?;
+    }
+    append_aarch64_instructions(bytes, instructions);
+    let offset = bytes.len();
+    bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes()); // bl #0
+    internal_calls.push(TerminalInternalCallRelocation {
+        psi_operation,
+        target: callee,
+        offset,
+    });
+    if call_stack_bytes != 0 {
+        let mut instructions = Vec::new();
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, true)?;
+        append_aarch64_instructions(bytes, instructions);
+    }
+    Ok(())
+}
+
 fn x86_unit_parameter_homes(
     body: &TerminalAssignedUnitBody,
 ) -> Result<(Vec<X86UnitParameterHome>, u32), EmissionError> {
@@ -545,6 +628,127 @@ fn x86_unit_parameter_homes(
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
     Ok((homes, align_u32(cursor, 16)?))
+}
+
+fn aarch64_unit_parameter_homes(
+    body: &TerminalAssignedUnitBody,
+) -> Result<(Vec<Aarch64UnitParameterHome>, u32, u32), EmissionError> {
+    let mut homes = Vec::with_capacity(body.parameters.len());
+    let mut cursor = 0_u32;
+    for parameter in &body.parameters {
+        cursor = align_u32(cursor, u32::from(parameter.shape.alignment.clamp(8, 16)))?;
+        let indirect = matches!(
+            parameter.placement.locations.as_slice(),
+            [ValueLocation::Indirect { .. }]
+        );
+        if parameter
+            .placement
+            .locations
+            .iter()
+            .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+            && !indirect
+        {
+            return Err(EmissionError::UnsupportedAggregatePlacement);
+        }
+        let byte_size = if indirect {
+            8
+        } else {
+            u32::from(parameter.shape.byte_size)
+        };
+        homes.push(Aarch64UnitParameterHome {
+            place: parameter.place,
+            shape: parameter.shape,
+            source: parameter.placement.clone(),
+            byte_offset: cursor,
+            indirect,
+        });
+        cursor = cursor
+            .checked_add(byte_size)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    }
+    let lr_offset = align_u32(cursor, 8)?;
+    let frame_bytes = lr_offset
+        .checked_add(8)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)
+        .and_then(|size| align_u32(size, 16))?;
+    Ok((homes, frame_bytes, lr_offset))
+}
+
+fn emit_aarch64_stage_unit_parameters(
+    instructions: &mut Vec<u32>,
+    homes: &[Aarch64UnitParameterHome],
+    frame_bytes: u32,
+) -> Result<(), EmissionError> {
+    for home in homes {
+        if home.indirect {
+            let [ValueLocation::Indirect { pointer, .. }] = home.source.locations.as_slice() else {
+                return Err(EmissionError::UnsupportedAggregatePlacement);
+            };
+            match *pointer {
+                IndirectPointerLocation::Register(register) => {
+                    instructions.push(aarch64_unit_stack_access(
+                        0xf900_0000,
+                        aarch64_unit_register(register)?,
+                        home.byte_offset,
+                        8,
+                    )?)
+                }
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                } => {
+                    let incoming = frame_bytes
+                        .checked_add(stack_byte_offset)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    instructions.push(aarch64_unit_stack_access(0xf940_0000, 9, incoming, 8)?);
+                    instructions.push(aarch64_unit_stack_access(
+                        0xf900_0000,
+                        9,
+                        home.byte_offset,
+                        8,
+                    )?);
+                }
+            }
+            continue;
+        }
+        for source in &home.source.locations {
+            let (value_offset, byte_size) = placement_fragment(source)?;
+            let destination = home
+                .byte_offset
+                .checked_add(u32::from(value_offset))
+                .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+            match *source {
+                ValueLocation::Register { register, .. } => {
+                    instructions.push(aarch64_unit_stack_access(
+                        aarch64_store_base(byte_size)?,
+                        aarch64_unit_register(register)?,
+                        destination,
+                        byte_size,
+                    )?)
+                }
+                ValueLocation::Stack {
+                    stack_byte_offset, ..
+                } => {
+                    let incoming = frame_bytes
+                        .checked_add(stack_byte_offset)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    instructions.push(aarch64_unit_stack_access(
+                        aarch64_load_base(byte_size)?,
+                        9,
+                        incoming,
+                        byte_size,
+                    )?);
+                    instructions.push(aarch64_unit_stack_access(
+                        aarch64_store_base(byte_size)?,
+                        9,
+                        destination,
+                        byte_size,
+                    )?);
+                }
+                ValueLocation::Indirect { .. } => unreachable!(),
+            }
+        }
+    }
+    Ok(())
 }
 
 fn align_u32(value: u32, alignment: u32) -> Result<u32, EmissionError> {
@@ -647,6 +851,45 @@ fn outgoing_placement_extent(placement: &ValuePlacement) -> Result<u32, Emission
         })
 }
 
+fn aarch64_outgoing_placement_extent(placement: &ValuePlacement) -> Result<u32, EmissionError> {
+    placement
+        .locations
+        .iter()
+        .try_fold(0_u32, |extent, location| {
+            let end = match *location {
+                ValueLocation::Register { .. } => 0,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    byte_size,
+                    ..
+                } => stack_byte_offset
+                    .checked_add(u32::from(byte_size.max(8)))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    let pointer_end = match pointer {
+                        IndirectPointerLocation::Register(_) => 0,
+                        IndirectPointerLocation::Stack {
+                            stack_byte_offset, ..
+                        } => stack_byte_offset
+                            .checked_add(8)
+                            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
+                    };
+                    let copy_end = copy_stack_byte_offset
+                        .ok_or(EmissionError::UnsupportedAggregatePlacement)?
+                        .checked_add(u32::from(byte_size).next_multiple_of(8))
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    pointer_end.max(copy_end)
+                }
+            };
+            Ok(extent.max(end))
+        })
+}
+
 fn emit_x86_64_aggregate_copy_from_home(
     bytes: &mut Vec<u8>,
     copy: &TerminalAssignedAggregateCopy,
@@ -709,6 +952,124 @@ fn emit_x86_64_aggregate_copy_from_home(
     Ok(())
 }
 
+fn emit_aarch64_aggregate_copy_from_home(
+    instructions: &mut Vec<u32>,
+    copy: &TerminalAssignedAggregateCopy,
+    home: &Aarch64UnitParameterHome,
+    call_stack_bytes: u32,
+) -> Result<(), EmissionError> {
+    if home.indirect {
+        let [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: Some(copy_stack_byte_offset),
+                byte_size,
+                ..
+            },
+        ] = copy.destination.locations.as_slice()
+        else {
+            return Err(EmissionError::UnsupportedAggregatePlacement);
+        };
+        let source_offset = call_stack_bytes
+            .checked_add(home.byte_offset)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        instructions.push(aarch64_unit_stack_access(0xf940_0000, 9, source_offset, 8)?);
+        let mut copied = 0_u32;
+        while copied < u32::from(*byte_size) {
+            let remaining = u32::from(*byte_size) - copied;
+            let width = if remaining >= 8 {
+                8_u16
+            } else if remaining >= 4 {
+                4
+            } else if remaining >= 2 {
+                2
+            } else {
+                1
+            };
+            instructions.push(aarch64_unit_memory_access(
+                aarch64_load_base(width)?,
+                10,
+                9,
+                copied,
+                width,
+            )?);
+            instructions.push(aarch64_unit_stack_access(
+                aarch64_store_base(width)?,
+                10,
+                copy_stack_byte_offset
+                    .checked_add(copied)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
+                width,
+            )?);
+            copied += u32::from(width);
+        }
+        match *pointer {
+            IndirectPointerLocation::Register(register) => {
+                emit_aarch64_sp_address(
+                    instructions,
+                    aarch64_unit_register(register)?,
+                    *copy_stack_byte_offset,
+                )?;
+            }
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                emit_aarch64_sp_address(instructions, 10, *copy_stack_byte_offset)?;
+                instructions.push(aarch64_unit_stack_access(
+                    0xf900_0000,
+                    10,
+                    stack_byte_offset,
+                    8,
+                )?);
+            }
+        }
+        return Ok(());
+    }
+    if copy
+        .destination
+        .locations
+        .iter()
+        .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+    {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    }
+    for destination in &copy.destination.locations {
+        let (destination_offset, destination_size) = placement_fragment(destination)?;
+        let source_offset = call_stack_bytes
+            .checked_add(home.byte_offset)
+            .and_then(|offset| offset.checked_add(u32::from(destination_offset)))
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        match *destination {
+            ValueLocation::Register { register, .. } => {
+                instructions.push(aarch64_unit_stack_access(
+                    aarch64_load_base(destination_size)?,
+                    aarch64_unit_register(register)?,
+                    source_offset,
+                    destination_size,
+                )?)
+            }
+            ValueLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                instructions.push(aarch64_unit_stack_access(
+                    aarch64_load_base(destination_size)?,
+                    9,
+                    source_offset,
+                    destination_size,
+                )?);
+                instructions.push(aarch64_unit_stack_access(
+                    aarch64_store_base(destination_size)?,
+                    9,
+                    stack_byte_offset,
+                    destination_size,
+                )?);
+            }
+            ValueLocation::Indirect { .. } => unreachable!(),
+        }
+    }
+    Ok(())
+}
+
 fn placement_fragment(location: &ValueLocation) -> Result<(u16, u16), EmissionError> {
     match *location {
         ValueLocation::Register {
@@ -745,6 +1106,79 @@ fn x86_unit_register(register: MachineRegister) -> Result<u8, EmissionError> {
         MachineRegister::X86R15 => Ok(15),
         _ => Err(EmissionError::UnsupportedUnitRegister(register)),
     }
+}
+
+fn aarch64_unit_register(register: MachineRegister) -> Result<u8, EmissionError> {
+    match register {
+        MachineRegister::Aarch64X(register) if register < 31 => Ok(register),
+        _ => Err(EmissionError::UnsupportedUnitRegister(register)),
+    }
+}
+
+fn aarch64_load_base(byte_size: u16) -> Result<u32, EmissionError> {
+    match byte_size {
+        1 => Ok(0x3940_0000),
+        2 => Ok(0x7940_0000),
+        4 => Ok(0xb940_0000),
+        8 => Ok(0xf940_0000),
+        width => Err(EmissionError::UnsupportedAggregateFragmentWidth(width)),
+    }
+}
+
+fn aarch64_store_base(byte_size: u16) -> Result<u32, EmissionError> {
+    match byte_size {
+        1 => Ok(0x3900_0000),
+        2 => Ok(0x7900_0000),
+        4 => Ok(0xb900_0000),
+        8 => Ok(0xf900_0000),
+        width => Err(EmissionError::UnsupportedAggregateFragmentWidth(width)),
+    }
+}
+
+fn aarch64_unit_stack_access(
+    base: u32,
+    register: u8,
+    byte_offset: u32,
+    byte_size: u16,
+) -> Result<u32, EmissionError> {
+    let scale = u32::from(byte_size);
+    if scale == 0 || !byte_offset.is_multiple_of(scale) || byte_offset / scale > 0xfff {
+        return Err(EmissionError::UnitCallStackAreaNotEncodable);
+    }
+    Ok(base | ((byte_offset / scale) << 10) | (31 << 5) | u32::from(register))
+}
+
+fn aarch64_unit_memory_access(
+    base: u32,
+    register: u8,
+    address_register: u8,
+    byte_offset: u32,
+    byte_size: u16,
+) -> Result<u32, EmissionError> {
+    let scale = u32::from(byte_size);
+    if scale == 0 || !byte_offset.is_multiple_of(scale) || byte_offset / scale > 0xfff {
+        return Err(EmissionError::UnitCallStackAreaNotEncodable);
+    }
+    Ok(base
+        | ((byte_offset / scale) << 10)
+        | (u32::from(address_register) << 5)
+        | u32::from(register))
+}
+
+fn emit_aarch64_sp_address(
+    instructions: &mut Vec<u32>,
+    register: u8,
+    byte_offset: u32,
+) -> Result<(), EmissionError> {
+    if byte_offset > 0xfff {
+        return Err(EmissionError::UnitCallStackAreaNotEncodable);
+    }
+    instructions.push(0x9100_03e0 | (byte_offset << 10) | u32::from(register)); // add xd, sp, #imm
+    Ok(())
+}
+
+fn append_aarch64_instructions(bytes: &mut Vec<u8>, instructions: Vec<u32>) {
+    bytes.extend(instructions.into_iter().flat_map(u32::to_le_bytes));
 }
 
 fn emit_native_crash(architecture: Architecture) -> Vec<u8> {
@@ -3999,7 +4433,6 @@ pub enum EmissionError {
     MissingUnitParameterHome(psi_core::PlaceId),
     UnitParameterHomeMismatch(psi_core::PlaceId),
     UnsupportedUnitRegister(MachineRegister),
-    UnsupportedAarch64AggregateCall,
     PortWriteUnsupportedOnArchitecture(Architecture),
     IntegerWidthNotNativelySupported {
         value: ValueId,
@@ -4257,10 +4690,11 @@ mod tests {
     }
 
     #[test]
-    fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_for_win64() {
+    fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewhere() {
         for (target, expected_length, expected_relocation) in [
             (NativeTarget::linux_x64(), 122, 109),
             (NativeTarget::windows_x64(), 32, 19),
+            (NativeTarget::linux_arm64(), 84, 64),
         ] {
             let shape = omega_calling_conventions::ValueShape::integer(40, 8);
             let call_plan = evaluate_call_plan(
@@ -4420,8 +4854,192 @@ mod tests {
     }
 
     #[test]
-    fn x86_unit_argument_fragments_cover_native_scalar_widths() {
-        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+    fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
+        let target = NativeTarget::linux_arm64();
+        let shape = omega_calling_conventions::ValueShape::integer(8, 8);
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![shape, shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        let first = PlaceId::new(1).unwrap();
+        let second = PlaceId::new(2).unwrap();
+        let ty = StructuralTypeId::new(1).unwrap();
+        let parameter = |place: PlaceId, index: usize| TerminalTargetStructuralParameter {
+            place,
+            structural_type: ty,
+            shape,
+            placement: call_plan.parameters[index].clone(),
+        };
+        let argument =
+            |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
+                place,
+                structural_type: ty,
+                shape,
+                source: call_plan.parameters[source].clone(),
+                destination: call_plan.parameters[destination].clone(),
+            };
+        let plan = TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).unwrap(),
+            functions: vec![
+                TerminalTargetFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        call_plan: call_plan.clone(),
+                        parameters: vec![parameter(first, 0), parameter(second, 1)],
+                        operations: vec![
+                            TerminalTargetUnitOperation::Call {
+                                psi_operation: OperationId::new(1).unwrap(),
+                                callee: MachineId::new(2).unwrap(),
+                                arguments: vec![argument(second, 1, 0), argument(first, 0, 1)],
+                                claim_transfers: Vec::new(),
+                            },
+                            TerminalTargetUnitOperation::Return {
+                                psi_edge: EdgeId::new(1).unwrap(),
+                            },
+                        ],
+                    }),
+                },
+                TerminalTargetFunction {
+                    machine: MachineId::new(2).unwrap(),
+                    provenance: TerminalPsiProvenance::default(),
+                    operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                        call_plan: call_plan.clone(),
+                        parameters: vec![parameter(first, 0), parameter(second, 1)],
+                        operations: vec![TerminalTargetUnitOperation::Return {
+                            psi_edge: EdgeId::new(2).unwrap(),
+                        }],
+                    }),
+                },
+            ],
+        };
+        let emitted = emit_machine_code(&plan).unwrap();
+        let caller = &emitted.functions[0];
+        let instructions = aarch64_instructions(&caller.bytes);
+        assert_eq!(caller.internal_calls[0].offset, 24);
+        assert_eq!(caller.internal_calls[0].target, MachineId::new(2).unwrap());
+        assert_eq!(instructions[0], 0xd100_83ff); // sub sp, sp, #32
+        assert_eq!(instructions[1], 0xf900_0bfe); // str x30, [sp, #16]
+        assert_eq!(instructions[2], 0xf900_03e0); // str x0, [sp]
+        assert_eq!(instructions[3], 0xf900_07e1); // str x1, [sp, #8]
+        assert_eq!(instructions[4], 0xf940_07e0); // ldr x0, [sp, #8]
+        assert_eq!(instructions[5], 0xf940_03e1); // ldr x1, [sp]
+        assert_eq!(instructions[6], 0x9400_0000); // bl #0
+        assert_eq!(instructions[7], 0xf940_0bfe); // ldr x30, [sp, #16]
+        assert_eq!(instructions[8], 0x9100_83ff); // add sp, sp, #32
+        assert_eq!(instructions[9], 0xd65f_03c0); // ret x30
+        assert_eq!(caller.fuel_attribution[0].code_offset, 16);
+        assert_eq!(caller.fuel_attribution[0].byte_count, 12);
+        assert_eq!(caller.fuel_attribution[1].code_offset, 28);
+        assert_eq!(caller.fuel_attribution[1].byte_count, 12);
+    }
+
+    #[test]
+    fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
+        for final_shape in [
+            omega_calling_conventions::ValueShape::integer(16, 8),
+            omega_calling_conventions::ValueShape::integer(24, 16),
+        ] {
+            let target = NativeTarget::linux_arm64();
+            let word = omega_calling_conventions::ValueShape::integer(8, 8);
+            let mut shapes = vec![word; 8];
+            shapes.push(final_shape);
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: shapes.clone(),
+                    result: None,
+                },
+            )
+            .unwrap();
+            let ty = StructuralTypeId::new(1).unwrap();
+            let parameters = shapes
+                .iter()
+                .enumerate()
+                .map(|(index, shape)| TerminalTargetStructuralParameter {
+                    place: PlaceId::new(index as u64 + 1).unwrap(),
+                    structural_type: ty,
+                    shape: *shape,
+                    placement: call_plan.parameters[index].clone(),
+                })
+                .collect::<Vec<_>>();
+            let arguments = parameters
+                .iter()
+                .map(|parameter| TerminalTargetStructuralArgument {
+                    place: parameter.place,
+                    structural_type: ty,
+                    shape: parameter.shape,
+                    source: parameter.placement.clone(),
+                    destination: parameter.placement.clone(),
+                })
+                .collect::<Vec<_>>();
+            let plan = TerminalTargetOperationPlan {
+                terminal_psi: identity(),
+                target,
+                entry: MachineId::new(1).unwrap(),
+                functions: vec![
+                    TerminalTargetFunction {
+                        machine: MachineId::new(1).unwrap(),
+                        provenance: TerminalPsiProvenance::default(),
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan: call_plan.clone(),
+                            parameters: parameters.clone(),
+                            operations: vec![
+                                TerminalTargetUnitOperation::Call {
+                                    psi_operation: OperationId::new(1).unwrap(),
+                                    callee: MachineId::new(2).unwrap(),
+                                    arguments,
+                                    claim_transfers: Vec::new(),
+                                },
+                                TerminalTargetUnitOperation::Return {
+                                    psi_edge: EdgeId::new(1).unwrap(),
+                                },
+                            ],
+                        }),
+                    },
+                    TerminalTargetFunction {
+                        machine: MachineId::new(2).unwrap(),
+                        provenance: TerminalPsiProvenance::default(),
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan,
+                            parameters,
+                            operations: vec![TerminalTargetUnitOperation::Return {
+                                psi_edge: EdgeId::new(2).unwrap(),
+                            }],
+                        }),
+                    },
+                ],
+            };
+            let emitted = emit_machine_code(&plan).unwrap_or_else(|error| {
+                panic!(
+                    "AAPCS64 {}-byte exhausted Unit argument failed: {error:?}",
+                    final_shape.byte_size
+                )
+            });
+            let caller = &emitted.functions[0];
+            assert_eq!(caller.internal_calls.len(), 1);
+            assert_eq!(caller.internal_calls[0].target, MachineId::new(2).unwrap());
+            assert!(aarch64_instructions(&caller.bytes).contains(&0x9400_0000));
+            assert_eq!(
+                *aarch64_instructions(&caller.bytes).last().unwrap(),
+                0xd65f_03c0
+            );
+        }
+    }
+
+    #[test]
+    fn unit_argument_fragments_cover_native_scalar_widths() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_arm64(),
+        ] {
             for byte_size in [1_u16, 2, 4, 8, 12, 16] {
                 let alignment = byte_size.min(8);
                 let shape = omega_calling_conventions::ValueShape::integer(byte_size, alignment);
