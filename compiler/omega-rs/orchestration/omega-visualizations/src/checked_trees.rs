@@ -175,6 +175,16 @@ pub fn qualification_evidence_manifest_json(
         } else {
             json.push_str("null");
         }
+        json.push_str(",\n      \"requirement_identity\": ");
+        if fact.evidence.requirement_symbol.is_valid() {
+            push_json_string(
+                &mut json,
+                &qualification_requirement_identity(program, fact.evidence.requirement_symbol)
+                    .expect("admitted qualification evidence must name an exact trait requirement"),
+            );
+        } else {
+            json.push_str("null");
+        }
         json.push_str(",\n      \"receipt_identity\": ");
         if fact.evidence.receipt_identity == 0 {
             json.push_str("null");
@@ -1136,6 +1146,23 @@ fn qualification_symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> S
     } else {
         path
     }
+}
+
+fn qualification_requirement_identity(
+    program: &CheckedTrees,
+    requirement_symbol: SymbolHandle,
+) -> Option<String> {
+    program.traits().iter().find_map(|definition| {
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|requirement| requirement.symbol == requirement_symbol)
+            .map(|requirement| {
+                program
+                    .normalized_trait_requirement_overload_identity(definition, requirement)
+                    .identity()
+            })
+    })
 }
 
 fn program_point_name(point: psi_facts::ProgramPoint) -> &'static str {
@@ -3201,6 +3228,7 @@ mod tests {
         assert!(json.contains("\"program_point\": \"call_ensures\""));
         assert!(json.contains("\"source\": \"#6\""));
         assert!(json.contains("\"requirement\": null"));
+        assert!(json.contains("\"requirement_identity\": null"));
         assert!(json.contains("\"receipt_identity\": \"0x0000000000001234\""));
     }
 

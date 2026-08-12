@@ -8048,6 +8048,7 @@ fn boundary_qualification_evidence_names_exact_requirement() {
     assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
     assert!(evidence.contains("\"source\": \"Filesystem\""));
     assert!(evidence.contains("\"requirement\": \"Filesystem::open\""));
+    assert!(evidence.contains("\"requirement_identity\": \"named-callable(path(Filesystem::open)"));
     let _ = fs::remove_dir_all(&build_dir);
 }
 
