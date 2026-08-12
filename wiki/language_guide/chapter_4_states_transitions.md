@@ -147,12 +147,11 @@ The subject is evaluated once before dispatch, and extraction reads that saved
 value. Field-value patterns are ordinary projection plus equality, not a
 second pattern-only fact or comparison system.
 
-## No Silent Fall-Through (settled 2026-07-02)
+## No Silent Fall-Through
 
 A transition dispatch must PROVABLY cover every case: a dispatch that could
-reach runtime with no matching arm is a **compile error**, never a behavior
-(before the rule, a no-match dispatch fell off the machine with an undefined
-exit). Coverage the compiler counts: a `_` arm; full case coverage over a sum
+reach runtime with no matching arm is a **compile error**, never a behavior.
+Coverage the compiler counts: a `_` arm; full case coverage over a sum
 subject; full case coverage over an ordinary historical-lineage sum; a `true ->` plus
 `false ->` pair over one boolean subject; and a complementary `x == k ->` plus
 `x != k ->` pair over one subject and value. Anything else — value matches,

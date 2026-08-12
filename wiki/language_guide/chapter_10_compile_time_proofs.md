@@ -687,7 +687,7 @@ Bag(items) stays equal to the explicit before value
 
 ## Quantified Facts
 
-> **Settled 2026-07-18: quantifiers are not keywords.** Universal claims over
+> **Quantifiers are not keywords.** Universal claims over
 > all values are machine parameters (a theorem over `(n: u64)` is checked
 > symbolically once). Element-wise facts are element types and window facts
 > (chapter 7). Relational facts over sequences are **predicate machines** plus
@@ -826,7 +826,7 @@ mask_is_mod(self.head, self.cap);            // erased; its ensures now in scope
 self.slots[self.head & (self.cap - 1)] = x;  // proves against those facts
 ```
 
-This explicit form is the default (settled 2026-07-18): the proof structure
+This explicit form is the default: the proof structure
 stays visible in the text. When an obligation fails for want of a known
 lemma, the diagnostic names it by shape match. A rewrite extension —
 proven equations joining the engine's term reading — is parked in the

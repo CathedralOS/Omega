@@ -5,7 +5,7 @@ state, and authority, it produces a contract-observable trace and may produce
 a terminal outcome. A productive machine may run forever, so an ordinary
 function-like call is one important use of a machine, not its definition.
 
-> **Machine taxonomy settled 2026-07-18.** Runtime calls, compile-time
+> **Machine taxonomy.** Runtime calls, compile-time
 > evaluation, proof citation, concurrent activation, trait satisfaction, and
 > boundary provision consume the same semantic construct. Checked bodies, requirements,
 > external providers, and accepted trust declarations are supply modes, not

@@ -144,7 +144,7 @@ contracts and slice operations can consume.
 
 ## Window Facts
 
-A range may also quantify (settled 2026-07-18): a fact stated over a window
+A range may also quantify: a fact stated over a window
 of a sequence holds for every element of the window, with no binder and no
 new syntax — the subslice spelling is the quantifier:
 
