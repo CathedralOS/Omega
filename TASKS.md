@@ -62,12 +62,12 @@ Remaining:
   multi-target corpus still needs target-scoped build engineering. Curated
   Rat/metric, ring, proposition/quotient, higher-order-machine-schema,
   static-machine-indexed-data, nonrecursive L0–L6 proof-ladder, module/package
-  declaration/import, pure parameter/range-declaration, trait
-  declaration/conformance, ordinary version/migration declarations, and pure
-  ownership-checker clusters now use explicit checked-only harnesses; ownership
-  fixtures with dedicated backend permission-realization assertions remain
-  deployable. The rest of the semantic corpus still needs classification away
-  from deployable compilation.
+  declaration/import, pure parameter/range and data/property declarations,
+  trait declaration/conformance, ordinary version/migration declarations, and
+  pure ownership-checker clusters now use explicit checked-only harnesses;
+  ownership fixtures with dedicated backend permission-realization assertions
+  remain deployable. The rest of the semantic corpus still needs classification
+  away from deployable compilation.
   Production/dev checked-tree interpreter callers now receive
   Omega's exact entry choice, and Psi's implicit `Main::main` interpreter
   wrappers are retired. `Main::run` discovery is retired. No ambient `static`
