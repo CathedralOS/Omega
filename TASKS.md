@@ -69,7 +69,9 @@ Remaining:
   language/checker fixtures stop at checked artifacts, while deployable or
   provider/artifact/ABI/layout/native tests select an exact root. Fix ordinary
   lowering/runtime defects exposed by documented sample execution separately
-  from entry selection. Final composition of firmware
+  from entry selection. The Linux x64 shift/saturation/UTF-8 encoder cohort now
+  compiles each compatible receiver-bound fixture through the exact hosted
+  entry helper while retaining its emitted-byte assertions. Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
