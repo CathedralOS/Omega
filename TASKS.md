@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-12.
+Last pruned: 2026-08-13.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -57,75 +57,19 @@ Remaining:
   receiver reservation, zeroes it, and carries its one exclusive activation
   loan without releasing receiver-bound roots through an unchecked path. Bind
   that handoff and the installer to the selected physical provider and generated
-  native bridge. Classify the remaining semantic canaries out of deployable
-  compilation unless they assert provider, artifact, ABI, layout, or native
-  behavior; pure language/checker fixtures use the checked-only harness. Migrate
-  the remaining `Main::main` corpus to exact target-owned `ProgramEntry`
-  bindings. Three single-target hosted canaries
-  cover Windows x86-64, Linux x86-64, and Linux AArch64; target-scoped build
-  selection now accepts a matrix of exact per-target root bindings, and the
-  first four-target hosted canary plus the byte/line console replay matrices
-  and initial cross-architecture guard/copy, double-indexed, and indexed-pair
-  binary-write, text/bounded-buffer, wire, and storage/guard footprint artifact
-  cohorts plus the primitive-float differential matrix have migrated. Hosted
-  import, runtime-exit, fixed-array, plan-laid, and wire-policy cohorts now
-  select exact roots too. Five intentional result-bearing entry-ABI probes and
-  one checked-only filesystem-conversion fixture now use an explicitly named
-  legacy test entry; the trust-report/lock cohort is entry-agnostic checked-only
-  compilation, while the hosted build-evaluation/native staging cohort selects
-  an exact host-owned entry root. The native runtime-END/domained-subslice and
-  positive recast/layout cohorts select exact roots across the four hosted
-  targets too; negative recast diagnostics and the entry-agnostic checked/
-  artifact canary cohort plus the broad sample source-compatibility sweep use
-  production checked-only compilation. Backend `Main::main` discovery is
-  deleted. The macOS native filesystem, generated-filesystem, float, ObjC/GUI,
-  and directly executed sample cohort now stages each complete source project
-  into an isolated tree, merges an exact `macos_arm64::ProgramEntry` binding
-  into its build root, and uses production compilation while preserving project
-  assets and GUI subsystem configuration. The native interpreter differential
-  harness likewise stages each complete project, merges the exact host-owned
-  `ProgramEntry`, selects that target explicitly, and uses production
-  compilation. That migration also closed the AArch64 console-adapter gap:
-  retained `_read`/`_write` plans validate their real native result while the
-  adapter deliberately carries no Omega result place. Documented-exit sample
-  execution now uses the same exact production-root staging; its current red
-  members are ordinary lowering/runtime defects, not implicit-entry fallback.
-  The remaining report-only wire compatibility, compatibility-demand, and
-  numbered-identity fixtures now use production checked-only compilation and
-  assert that no program-storage entry was selected.
-  The report-only capability authority-verb and exact-flow-site cohort likewise
-  stops at checked artifacts under production compilation and asserts that no
-  runtime entry or native image was selected.
-  The boundary-trait capability visualization now separates its checked-only
-  capability/carry/task evidence from its state-graph/control-flow leg; only the
-  latter stages an exact `macos_arm64::ProgramEntry` binding.
-  The contract-flow visualization and final-image evidence canary now stages
-  the same exact macOS AArch64 root and uses production compilation through the
-  complete emission pipeline.
-  The value-call, arithmetic, cast, builtin, and indexed host-argument runtime
-  cohort now stages exact macOS AArch64 roots, while its retained Linux AArch64
-  cross-compile leg selects that target's exact root too.
-  The signed-min literal, scoped-constant, and unsigned-max literal native
-  canaries now select the running host's exact target-owned root before keeping
-  their byte-exact exit assertions.
-  The elapsed-since, checked-arithmetic, system-time, and instant-elapsed
-  differential canaries likewise retain their interpreter oracles and native
-  exit assertions under the running host's exact entry root.
-  The Duration totals and core-arithmetic differential pair now uses that exact
-  native-host root as well, with its interpreter and exit-code coverage intact.
-  The sleep-for differential canary now uses the same exact native-host root;
-  its Darwin `poll` adapter retains the real C ABI, discarded status, call
-  footprint, and final-image replay while preserving its timing assertion.
-  The platform-gated Windows and Darwin native TimeHost calibration canaries
-  now select their exact target-owned roots before preserving their real-clock
-  and native exit assertions.
-  The platform-gated filesystem-mtime/SystemTime interop pair now does the same
-  for macOS and Windows while retaining both interpreter and native evidence.
-  Production and development interpreter callers require Omega's
-  exact entry choice; checked-only semantic compilation no longer invents
-  `Main::main`, while legacy test harnesses name that temporary fixture entry
-  explicitly. Implicit Psi entry discovery and the former `Main::run` entry
-  convention are retired. Final composition of firmware
+  native bridge. Exact target-owned `ProgramEntry` selection is established for
+  the four hosted targets and representative provider, artifact, ABI, layout,
+  runtime, sample, and interpreter/native differential cohorts. Production and
+  development interpreter callers require that exact choice; checked-only
+  semantic compilation selects no program-storage root. Backend/Psi implicit
+  `Main::main` and `Main::run` discovery is retired, and temporary legacy ABI
+  probes name their fixture entry explicitly.
+
+  Finish classifying and migrating the remaining `Main::main` corpus: pure
+  language/checker fixtures stop at checked artifacts, while deployable or
+  provider/artifact/ABI/layout/native tests select an exact root. Fix ordinary
+  lowering/runtime defects exposed by documented sample execution separately
+  from entry selection. Final composition of firmware
   `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining bridge and corpus work is not.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
@@ -216,34 +160,25 @@ Remaining:
 
 - **PSIIR.** Extend terminal Psi beyond general blocks, positional scalar direct
   calls, guarded in-module call-crash continuations, and the accepted Unit
-  structural/content call slice. Record-field linear custody inside an affine
-  aggregate now retains a stable entry-claim path through source checking,
-  canonical encoding, verification, interpretation, direct Unit transfer, and
-  boundary settlement; invalid, erased, overlapping, noncanonical, or
-  call-mismatched paths reject, and numbered fields use the same canonical
-  `#<id>` identity in structural shapes and claim paths. Multiple disjoint
-  sibling fields inside one affine record now cross checking, terminal
-  production, canonical identity, verification, interpretation, direct Unit
-  transfer, and verifier-derived boundary settlement as one complete claim set.
-  Nested relevant record fields now retain and independently validate the full
-  canonical path through the same closure; unknown inner segments,
-  caller/callee truncation, and ancestor/descendant overlap reject. Straight-line
-  Unit returns now retain exact reverse-declaration no-code cleanup for
-  claim-free affine structural parameters; verification reconstructs the list,
-  and interpretation performs it only after return-edge fuel succeeds. Add
-  indexed aggregate and result-bearing custody, affine locals, nominal and
+  structural/content call slice. The current Unit slice carries canonical
+  relevant record-field claim paths (including numbered, disjoint sibling, and
+  nested fields) through checking, encoding, independent verification,
+  interpretation, direct transfer, and boundary settlement. It rejects erased,
+  unknown, noncanonical, overlapping, truncated, reordered, or call-mismatched
+  claim sets. Straight-line Unit return also carries verifier-reconstructed
+  reverse-declaration no-code cleanup for claim-free affine structural
+  parameters, performed only after return-edge fuel succeeds.
+
+  Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned
   transfer, loops, suspension, and scoped ordering as complete vertical slices.
-  Ranked
-  tail-recursive call graphs stay rejected until their tail-position and
-  ranking evidence is terminal and verifier-owned. Retire checked/source-tree
-  consumers as each slice moves. Nothing below terminal Psi may depend on
+  Ranked tail-recursive call graphs remain rejected until tail position and
+  ranking evidence are terminal and verifier-owned. Retire checked/source-tree
+  consumers with each slice; nothing below terminal Psi may depend on
   typed/source trees, `ExpressionHandle`, source rendering, or an Omega-to-Psi
-  bridge. Canonical partition-composition rows remain replay evidence, not
-  semantic axioms. Their source fingerprint is independently reconstructed;
-  bind each row to an exact operation and verifier-selected callee guarantee
-  before making the theorem available on success. Fingerprints are identity,
-  never authority.
+  bridge. Bind canonical partition-composition replay rows to an exact operation
+  and verifier-selected callee guarantee before exposing the theorem; their
+  independently reconstructed fingerprints are identity, never authority.
 - **CRASH-CONTRACT.** Extend guarded implication beyond the accepted acyclic
   scalar slice. Source-produced direct calls now consume checked
   invocation-specific rows, preserve parameter and computed direct-local
@@ -282,63 +217,26 @@ Remaining:
   transfer, and resumable continuation ABI in owner Q6. Keep WCET and wall-clock
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Implement binding-level `[erased]`, checked
-  noninterference, erased-stripped layout, and obligation preservation. The
-  field-binding surface preserves explicit relevance through syntax, resolved,
-  and typed trees plus their snapshots. The executable slice supports
-  non-generic transparent records, sums, and mixed common-field/case shapes,
-  plus closed synthesized generic-record instances selected by explicitly typed
-  local initializers, direct exact assignments, exact returns, or agreeing
-  same-name free/direct-self call parameters (including nested concrete record
-  fields), and pure or mixed common-field/case generic sums with multiple
-  exact closed instances per generic base (including nested concrete payload
-  records and constructor/pattern uses selected by exact local, assignment,
-  parameter, or self-field context), and
-  plain `CheckedShape` data whose attached machines are closed ordinary checked
-  bodies, including closed synthesized generic-record instances whose bodyful
-  methods are cloned and fully substituted and closed non-generic case-bearing
-  values using the erased-stripped common-field/tag/payload-overlay layout:
-  construction elaborates an omitted exact common or selected-case erased
-  binding only when a currently resolved/nameable non-generic evidence type has
-  exactly one payloadless constructor and no common fields, while checked
-  validation forbids runtime reads/writes/effects through it; proof,
-  multiplicity, exhaustiveness, case identity, and semantic identity retain it;
-  the legacy proof-only classifier ignores erased containment; and the
-  checked/runtime expression boundary plus record/case layout and eligible
-  attached-machine layout omit the field and its initializer subtree without
-  renumbering variants; erased attached fields also create no runtime
-  contained-machine topology. Proof-machine results may feed proof computation
-  or erased initialization but now reject in runtime value context. Ambiguous,
-  absent, generic, and otherwise
-  ineligible evidence remains explicit-term-required.
-  Result-domain free-call overloads and attached value or statement calls on
-  direct `self`, explicitly typed local, or direct `self.field` receivers now
-  provide exact generic record/sum construction context when every same-name
-  candidate on the exact owner agrees on its non-receiver parameter signature.
-  Parameter-distinct overloads and computed, chained, or dynamic receiver
-  selection remain resolver-owned and fail closed. Expand this without
-  compatibility scaffolding to those remaining contexts and attached machines
-  over unresolved generic uses, non-checked supply modes, or unresolved machine
-  parameters. Plan-laid values now omit erased bindings
-  from physical Schema
-  reflection, validated plan entries, native/interpreter layouts, recasts, and
-  latent ABI classification while the synthetic semantic value and normalized
-  schema identity retain their terms, obligations, and relevance. `Placed<P,
-  T>` erased-evidence establishment is design-blocked on owner Q8. All
-  unsupported shapes continue to fail closed at use sites.
-  Numbered wire data preserves erased bindings and identities through syntax,
-  resolved/typed trees, snapshots, and semantic data while normalized plans,
-  validation, interpreter/native encode, and decode omit their tags and bytes.
-  Explicit relevance supersedes
-  “recursive means proof-only”; non-layoutable `Type` values remain erased-only.
-  Do not infer carrier relation roles from relevance.
-  Fixed non-generic record boundary values now retain erased fields in semantic
-  identity, source-policy input, and terminal-Psi structural rows while omitting
-  them recursively from native argument/result layout and transfer. Direct and
-  nested SysV AMD64 and AAPCS64 entry/import canaries pin the erased-stripped
-  classifications. Case-bearing values and unresolved generic aggregates still
-  fail through their existing public ABI-shape limits rather than a relevance
-  fence; this slice does not manufacture an ABI for shapes the calling-policy
-  vocabulary cannot express.
+  noninterference, erased-stripped layout, and obligation preservation. Explicit
+  relevance is retained in semantic/proof identity while supported record, sum,
+  wire, plan-laid, interpreter/native layout, recast, and fixed-record boundary
+  slices recursively omit erased storage, initialization work, topology, tags,
+  bytes, and ABI transfer. Runtime use of erased values rejects; ambiguous or
+  ineligible omitted evidence remains explicit-term-required. Direct and nested
+  SysV AMD64/AAPCS64 canaries pin the fixed-record boundary classification.
+
+  Move target-neutral generic-instance discovery, syntax relabeling, and
+  contextual literal elaboration out of `omega-compiler` and into the Psi
+  frontend before expanding computed, chained, dynamic-receiver, unresolved
+  generic, non-checked-supply, or unresolved-machine-parameter contexts. This is
+  an engineering migration, not a language-design blocker: Omega must consume
+  terminal Psi rather than specialize language trees. Unsupported shapes keep
+  failing closed. `Placed<P, T>` erased-evidence establishment is design-blocked
+  on owner Q8. Explicit relevance supersedes “recursive means proof-only”;
+  non-layoutable `Type` values remain erased-only, and relevance never implies a
+  carrier-relation role. Case-bearing values and unresolved generic aggregates
+  retain their existing public ABI-shape limits; this work does not manufacture
+  an ABI outside the calling-policy vocabulary.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the
@@ -440,60 +338,19 @@ customer-shaped compiler concept is introduced.
   transparent returned places. Stable local mutable aliases substitute exact
   `self`/parameter origins through acyclic graphs and SCC equations, including
   direct stable rebinding: the rebound name takes the replacement origin while
-  earlier reborrows keep their established origin. Member suffixes remain exact;
-  indexing coarsens to the nearest collection and that coarsening is absorbing.
-  A validated mutable recast local retains its source storage origin when that
-  source expression is effect-free; effectful recast sources remain opaque.
-  A free or attached helper may relate a returned `&mut` place to one
-  mutable-reference parameter, including an attached helper's actual receiver;
-  its terminal result may follow a prefix of effect-free caller-isolated scratch
-  locals and direct local `&mut` aliases, including mutable bindings and results
-  of other structurally transparent helpers. A caller-isolated scratch local
-  may also be initialized by one direct value call when its inferred frame is
-  complete and every write resolves into a previously established
-  caller-isolated scratch local; an empty frame is the degenerate case. The same
-  exact returned-place relation composes when such a result is supplied directly
-  as a statement-call argument.
-  Value-shaped assignments with effect-free right-hand sides may write through
-  those origins, including exact transparent call-produced targets, without
-  changing the relation, while their ordinary frames remain published;
-  effect-free discarded expressions and direct Unit statement calls with
-  complete frames are neutral when their arguments do not expose a mutable-
-  reference binding for rebinding; writes through references passed by value
-  change contents without redirecting their origin. Sibling direct value-call
-  arguments are independently admitted when each one's receiver/arguments are
-  non-rebinding and every call frame is complete, including nested direct calls
-  to a maximum call-tree depth of two. Explicitly discarded call results,
-  explicit binding reborrows, deeper computed arguments, and any opaque node
-  remain fences. A direct
-  helper-local alias rebind updates that name's origin without redirecting prior
-  reborrows; a structurally transparent helper result may supply the replacement
-  through the same origin algebra. Other computed rebinding, opaque or recursive
-  result producers, effectful index computations, other
-  computed helper initializers, and nontrivial results remain opaque. Opaque,
-  recursive, or scratch initializer calls with any write outside those isolated
-  roots remain fences.
-  A terminal returned-place index may be one direct non-rebinding value call
-  when its inferred frame is complete; the result remains collection-coarse and
-  the call's writes remain published. Nested-computed, recursive, or opaque
-  index calls remain fences.
-  The same one-direct-call rule applies to a stable local mutable-alias index:
-  its origin remains collection-coarse and its index-call writes remain
-  published. Nested-computed, binding-reborrow, recursive, or opaque alias
-  indexes remain fences.
-  A direct helper-local alias rebind may take the same one-direct-call indexed
-  replacement: the rebound name moves to the collection-coarse replacement,
-  prior reborrows keep their established origins, and index-call writes remain
-  published. Nested-computed, recursive, or opaque indexed replacements remain
-  fences.
-  Primitive-only concrete record/sum locals are caller-isolated through nested fixed arrays;
-  that isolation survives structurally transparent helper forwarding.
-  Recursive, generic, reference-bearing, or other computed local roots remain
-  fences.
-  Escaped aliases, unrepresentable rebinding, and non-bijective cyclic transport
-  also remain opaque. Signature lifetime elision alone establishes no relation.
-  Continue with other representable candidates; do not restore authored
-  `stores` clauses.
+  earlier reborrows keep their established origin. Exact returned-place
+  relations compose through bounded structurally transparent helpers,
+  caller-isolated scratch locals, statement-call arguments, and direct alias
+  rebinding while ordinary call writes remain published. Member suffixes remain
+  exact; indexing coarsens irreversibly to the nearest collection. One direct
+  non-rebinding value call with a complete frame is accepted in terminal return
+  indexes, stable-alias indexes, and direct alias-rebind replacements; nested or
+  recursive calls, binding reborrows, opaque nodes, effectful sources, escaped
+  aliases, non-bijective transport, and writes outside isolated roots remain
+  fences. Primitive-only concrete record/sum locals remain caller-isolated
+  through nested fixed arrays; generic, reference-bearing, and other computed
+  roots do not. Continue with representable relational candidates without
+  restoring authored `stores` clauses or treating lifetime elision as evidence.
 - **STR/EFX:** finish independent normalization/publication of machine supply,
   service reach, suspension, blocking, termination, mutation, and trust; remove
   remaining umbrella carriers after their consumers migrate.
