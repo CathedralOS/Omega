@@ -40429,7 +40429,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         "binary64 NaN/infinity/finite predicate separation",
         "selected-root unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x57aa_3468_2983_05e9;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xce3d_9038_6c9b_1b17;
 
     let canary = pass_canary("float/named_provider_negate_is_nan_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -40570,7 +40570,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
             .expect("copy named-float canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write cross-target build manifest");
         compile(CompileOptions {
@@ -40614,7 +40614,7 @@ fn named_float_classification_predicates_select_and_execute() {
         "binary32/binary64 subnormal versus zero",
         "exactly-once unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xb89e_c4b2_1c43_f9a8;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x45dc_d595_8533_3a66;
 
     let canary = pass_canary("float/named_provider_classification_predicates_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -40746,7 +40746,7 @@ fn named_float_classification_predicates_select_and_execute() {
             .expect("copy classification canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write cross-target build manifest");
         compile(CompileOptions {
@@ -40787,7 +40787,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         "binary64 all class tags and signed payloads",
         "exactly-once unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xf63a_865e_9bbb_85f2;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3966_57c8_fc8f_38ec;
 
     let canary = pass_canary("float/named_provider_classify_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -40929,7 +40929,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
             .expect("copy classify canary");
         fs::write(
             source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write cross-target build manifest");
         compile(CompileOptions {
