@@ -182,7 +182,11 @@ Current ownership is:
   directly as a statement-call argument.
   Value-shaped assignments with effect-free right-hand sides may write through
   those origins, including exact transparent call-produced targets, without
-  changing the relation; their ordinary exact frames remain published, and
+  changing the relation. An indexed target may use the same complete,
+  non-rebinding direct-call tree through depth two; its collection-coarse write
+  and every index-call write remain published. Deeper, binding-reborrow,
+  recursive, or opaque indexed targets remain fences. Other ordinary exact
+  frames remain published, and
   effect-free discarded expressions and direct Unit statement calls with
   complete non-rebinding frames are neutral, including exact sibling direct
   value-call arguments and their bounded two-level direct-call trees. A direct

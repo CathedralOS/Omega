@@ -352,6 +352,11 @@ independently admitted when their expressions are non-rebinding and every call
 frame is complete, including nested direct calls to a maximum call-tree depth of
 two. Explicitly discarded call results, explicit binding reborrows, deeper
 computed arguments, and any opaque node remain fences.
+A value-shaped assignment through an indexed target likewise preserves a
+separately returned parameter origin when its index is a complete,
+non-rebinding direct-call tree of maximum depth two. The ordinary frame
+publishes the collection-coarse target and every index-call write. Deeper,
+binding-reborrow, recursive, or opaque indexed targets remain fences.
 A terminal returned-place index may contain a non-rebinding direct-call tree of
 maximum depth two when every inferred frame is complete. The returned origin
 remains collection-coarse, and the ordinary frame publishes every call's
