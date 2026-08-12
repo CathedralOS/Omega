@@ -1378,6 +1378,9 @@ fn summarize_state_written_paths(
             {
                 stable_local_mutable_alias_origin(
                     program,
+                    machine,
+                    &machine_symbols,
+                    active_states,
                     local,
                     parameters,
                     &isolated_local_roots,
@@ -1587,6 +1590,9 @@ struct FramePlaceOrigin {
 /// the same exact/coarse path algebra. Other computed results stay opaque.
 fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
     local: &psi_typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -1601,8 +1607,11 @@ fn stable_local_mutable_alias_origin(
     else {
         return None;
     };
-    stable_alias_expression_origin(
+    stable_alias_initializer_origin(
         program,
+        current_machine,
+        machine_symbols,
+        active_states,
         local.initial_value,
         parameters,
         isolated_local_roots,
@@ -1610,6 +1619,175 @@ fn stable_local_mutable_alias_origin(
         symbols,
         true,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stable_alias_initializer_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    allow_isolated_local: bool,
+) -> Option<FramePlaceOrigin> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => stable_alias_initializer_origin(
+            program,
+            current_machine,
+            machine_symbols,
+            active_states,
+            *inner,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            allow_isolated_local,
+        ),
+        ExpressionNode::Indexed(indexed)
+            if expression_is_effectful_for_transparent_result(program, indexed.index) =>
+        {
+            if expression_reborrows_stable_alias_binding(
+                program,
+                indexed.index,
+                parameters,
+                aliases,
+            ) {
+                return None;
+            }
+            let ExpressionNode::Call(call) = program.expression_table.expression(indexed.index)
+            else {
+                return None;
+            };
+            if (call.receiver.is_valid()
+                && expression_is_effectful_for_transparent_result(program, call.receiver))
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| {
+                        expression_is_effectful_for_transparent_result(program, *argument)
+                    })
+            {
+                return None;
+            }
+            let receiver_members = if call.receiver.is_valid() {
+                receiver_member_chain(program, call.receiver)?
+            } else {
+                Vec::new()
+            };
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            known_call_written_paths_for_parts(
+                program,
+                call.target_symbol,
+                call.target.as_str(),
+                &receiver_members,
+                arguments,
+                current_machine,
+                machine_symbols,
+                symbols,
+                active_states,
+            )
+            .or_else(|| {
+                known_boundary_call_written_paths_for_parts(
+                    program,
+                    machine_symbols,
+                    symbols,
+                    &receiver_members,
+                    call.target.as_str(),
+                    arguments,
+                )
+            })?;
+            let mut collection = stable_alias_expression_origin(
+                program,
+                indexed.collection,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+            )?;
+            collection.precision = FramePathPrecision::CollectionCoarse;
+            Some(collection)
+        }
+        _ => stable_alias_expression_origin(
+            program,
+            expression,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            allow_isolated_local,
+        ),
+    }
+}
+
+fn expression_reborrows_stable_alias_binding(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let visit =
+        |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            let reborrows_binding = frame_place_path(program, *inner).is_some_and(|place| {
+                let (root, suffix) = split_place_root(&place.path);
+                suffix.is_empty()
+                    && (parameters.iter().any(|parameter| {
+                        matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            TypeReferenceNode::Reference {
+                                is_mutable: true,
+                                ..
+                            }
+                        ) && (parameter.is_self && root == "self"
+                            || root == parameter.name.as_str())
+                    }) || aliases.iter().any(|(name, _)| root == name))
+            });
+            reborrows_binding || visit(*inner)
+        }
+        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && visit(call.receiver))
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| visit(*argument))
+        }
+        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
+        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| visit(*element)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| visit(field.value)),
+        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3246,6 +3424,9 @@ fn build_permuted_cycle_frame_equation<'program>(
             {
                 stable_local_mutable_alias_origin(
                     program,
+                    machine,
+                    machine_symbols,
+                    &mut active_states,
                     local,
                     parameters,
                     &isolated_local_roots,

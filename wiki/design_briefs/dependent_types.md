@@ -356,6 +356,10 @@ A terminal returned-place index may be one direct non-rebinding value call when
 its inferred frame is complete. The returned origin remains collection-coarse,
 and the ordinary frame still publishes the index call's writes. Nested-computed,
 recursive, or opaque index calls remain fences.
+The same one-direct-call rule applies to a stable local mutable-alias index: its
+origin remains collection-coarse and the ordinary frame publishes the index
+call's writes. Nested-computed, rebinding, recursive, or opaque alias indexes
+remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.

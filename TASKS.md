@@ -475,6 +475,10 @@ customer-shaped compiler concept is introduced.
   when its inferred frame is complete; the result remains collection-coarse and
   the call's writes remain published. Nested-computed, recursive, or opaque
   index calls remain fences.
+  The same one-direct-call rule applies to a stable local mutable-alias index:
+  its origin remains collection-coarse and its index-call writes remain
+  published. Nested-computed, rebinding, recursive, or opaque alias indexes
+  remain fences.
   Primitive-only concrete record/sum locals are caller-isolated through nested fixed arrays;
   that isolation survives structurally transparent helper forwarding.
   Recursive, generic, reference-bearing, or other computed local roots remain
