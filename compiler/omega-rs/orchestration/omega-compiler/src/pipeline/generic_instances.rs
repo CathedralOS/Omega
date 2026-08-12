@@ -6,7 +6,7 @@
 //! The executable cohort includes fully substitutable records and pure sums.
 //! Records and pure sums may have multiple distinct closed instances. Sum
 //! constructors selected by an exact destination type, agreeing free-call
-//! parameters, or agreeing direct-self attached-call parameters and destructure
+//! parameters, or agreeing exact-owner attached-call parameters and destructure
 //! paths selected by an exact local subject are relabeled to that closed
 //! identity; a sole closed instance remains an unambiguous fallback for other
 //! concrete executable contexts.
@@ -704,8 +704,10 @@ fn relabel_closed_data_uses_in_exact_assignments(
 /// from literal fields. Free-machine overloads and concrete attached-machine
 /// overloads each contribute a context only when every same-name candidate on
 /// the exact owner agrees on one parameter signature. A direct `self.method`
-/// statement call has that exact owner from the enclosing attached machine;
-/// other receiver selection remains resolver-owned and fail closed here.
+/// statement call has that exact owner from the enclosing attached machine. An
+/// explicitly typed local receiver or direct `self.field` receiver also names
+/// one exact nominal owner. Computed, chained, and dynamic receiver selection
+/// remains resolver-owned and fail closed here.
 fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
     synthesized_origins: &HashMap<String, String>,
@@ -791,6 +793,45 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
         let state = syntax.tables.items.state(state_handle).clone();
         let statements = syntax.tables.items.statements(state.statements).to_vec();
         let final_statement = statements.last().copied();
+        let mut local_owner_types = HashMap::<String, String>::new();
+        for parameter in syntax.tables.items.state_parameters(state.parameters) {
+            let parameter = syntax.tables.items.state_parameter(*parameter);
+            if !parameter.is_self
+                && let Some(type_name) = named_type_name(syntax, parameter.type_reference)
+            {
+                local_owner_types.insert(parameter.name.as_str().to_owned(), type_name);
+            }
+        }
+        for statement in &statements {
+            if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
+                && let Some(type_name) = named_type_name(syntax, local.type_reference)
+            {
+                local_owner_types.insert(local.name.as_str().to_owned(), type_name);
+            }
+        }
+        let self_field_owner_types = attached_data
+            .as_ref()
+            .and_then(|attached| {
+                syntax.root_items().find_map(|item| match item {
+                    Item::Data(definition) if definition.name == *attached => Some(
+                        syntax
+                            .tables
+                            .items
+                            .data_members(definition.members)
+                            .iter()
+                            .filter_map(|member| match member {
+                                DataMember::Field(field) => {
+                                    named_type_name(syntax, field.type_reference)
+                                        .map(|owner| (field.name.as_str().to_owned(), owner))
+                                }
+                                DataMember::Variant(_) | DataMember::Retired(_) => None,
+                            })
+                            .collect::<HashMap<_, _>>(),
+                    ),
+                    _ => None,
+                })
+            })
+            .unwrap_or_default();
         for statement in &statements {
             match syntax.tables.statements.statement(*statement) {
                 StatementNode::Expression(value)
@@ -803,26 +844,22 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
                         synthesized_origins,
                     );
                 }
-                StatementNode::Call(call)
-                    if call.receiver.is_empty()
-                        || (call.receiver_starts_at_self
-                            && syntax
-                                .tables
-                                .statements
-                                .identifier_path_members(call.receiver)
-                                .len()
-                                == 1) =>
-                {
+                StatementNode::Call(call) => {
+                    let owner = exact_statement_receiver_owner(
+                        syntax,
+                        call.receiver,
+                        call.receiver_starts_at_self,
+                        attached_data.as_deref(),
+                        &local_owner_types,
+                        &self_field_owner_types,
+                    );
                     let parameters = if call.receiver.is_empty() {
                         signatures.get(call.target.as_str())
                     } else {
-                        let Some(attached) = attached_data.as_ref() else {
+                        let Some(owner) = owner else {
                             continue;
                         };
-                        attached_signatures.get(&(
-                            attached.as_str().to_owned(),
-                            call.target.as_str().to_owned(),
-                        ))
+                        attached_signatures.get(&(owner, call.target.as_str().to_owned()))
                     };
                     let Some(Some(parameters)) = parameters else {
                         continue;
@@ -872,25 +909,22 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
             .filter(|(handle, _)| reachable.contains(&handle.arena_index()))
             .filter_map(|(_, expression)| match expression {
                 ExpressionNode::Call(call) if !call.receiver.is_valid() => {
-                    Some((call.target.clone(), call.arguments, false))
+                    Some((call.target.clone(), call.arguments, None))
                 }
-                ExpressionNode::Call(call)
-                    if matches!(
-                        syntax.expressions.expression(call.receiver),
-                        ExpressionNode::SelfValue
-                    ) =>
-                {
-                    Some((call.target.clone(), call.arguments, true))
-                }
+                ExpressionNode::Call(call) => exact_expression_receiver_owner(
+                    syntax,
+                    call.receiver,
+                    attached_data.as_deref(),
+                    &local_owner_types,
+                    &self_field_owner_types,
+                )
+                .map(|owner| (call.target.clone(), call.arguments, Some(owner))),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        for (target, arguments, direct_self) in calls {
-            let parameters = if direct_self {
-                let Some(attached) = attached_data.as_ref() else {
-                    continue;
-                };
-                attached_signatures.get(&(attached.as_str().to_owned(), target.as_str().to_owned()))
+        for (target, arguments, owner) in calls {
+            let parameters = if let Some(owner) = owner {
+                attached_signatures.get(&(owner, target.as_str().to_owned()))
             } else {
                 signatures.get(target.as_str())
             };
@@ -907,6 +941,50 @@ fn relabel_closed_data_uses_in_exact_calls_and_returns(
                 );
             }
         }
+    }
+}
+
+fn exact_statement_receiver_owner(
+    syntax: &SyntaxTrees,
+    receiver: HandleSpan<Identifier>,
+    starts_at_self: bool,
+    attached_data: Option<&str>,
+    local_owner_types: &HashMap<String, String>,
+    self_field_owner_types: &HashMap<String, String>,
+) -> Option<String> {
+    let members = syntax.tables.statements.identifier_path_members(receiver);
+    match members {
+        [_] if starts_at_self => attached_data.map(str::to_owned),
+        [local] if !starts_at_self => local_owner_types.get(local.as_str()).cloned(),
+        [_, field] if starts_at_self => self_field_owner_types.get(field.as_str()).cloned(),
+        _ => None,
+    }
+}
+
+fn exact_expression_receiver_owner(
+    syntax: &SyntaxTrees,
+    receiver: ExpressionHandle,
+    attached_data: Option<&str>,
+    local_owner_types: &HashMap<String, String>,
+    self_field_owner_types: &HashMap<String, String>,
+) -> Option<String> {
+    match syntax.expressions.expression(receiver) {
+        ExpressionNode::SelfValue => attached_data.map(str::to_owned),
+        ExpressionNode::Name(path) => {
+            let [local] = syntax.expressions.identifier_path_members(*path) else {
+                return None;
+            };
+            local_owner_types.get(local.as_str()).cloned()
+        }
+        ExpressionNode::Member(member)
+            if matches!(
+                syntax.expressions.expression(member.receiver),
+                ExpressionNode::SelfValue
+            ) =>
+        {
+            self_field_owner_types.get(member.member.as_str()).cloned()
+        }
+        _ => None,
     }
 }
 
@@ -4906,6 +4984,94 @@ mod tests {
             "#,
         )
         .expect("the enclosing attached data should select a direct self statement-call context");
+    }
+
+    #[test]
+    fn bare_erased_generic_literals_use_exact_local_receiver_call_context() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Consumer { marker: i32; }
+            machine Consumer::take(&self, boxed: Box<i32>) -> i32 { boxed.value }
+            machine run(consumer: Consumer) -> i32 {
+                consumer.take(Box { value: 7 })
+            }
+            "#,
+        )
+        .expect("an explicitly typed local receiver should select its exact attached owner");
+    }
+
+    #[test]
+    fn bare_erased_generic_literals_use_exact_self_field_receiver_call_context() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Consumer { marker: i32; }
+            machine Consumer::take(&self, boxed: Box<i32>) -> i32 { boxed.value }
+            data Main { consumer: Consumer; boolean_box: Box<bool>; }
+            machine Main::run(&self) -> i32 {
+                self.consumer.take(Box { value: 7 })
+            }
+            "#,
+        )
+        .expect("a direct self-field receiver should select its exact attached owner");
+    }
+
+    #[test]
+    fn bare_erased_generic_literals_use_exact_local_receiver_statement_call_context() {
+        checked(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Consumer { stored: i32; }
+            machine Consumer::store(&mut self, boxed: Box<i32>) {
+                self.stored = boxed.value;
+            }
+            machine run(mut consumer: Consumer) -> i32 {
+                consumer.store(Box { value: 7 });
+                consumer.stored
+            }
+            "#,
+        )
+        .expect("an explicitly typed local receiver should contextualize a statement call");
+    }
+
+    #[test]
+    fn exact_local_receiver_overload_disagreement_remains_fail_closed() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
+            data Consumer { marker: i32; }
+            machine Consumer::take(&self, value: Maybe<i32>) -> i32 { 1 }
+            machine Consumer::take(&self, value: Maybe<bool>) -> i32 { 2 }
+            machine run(consumer: Consumer) -> i32 {
+                consumer.take(Maybe::Some { value: 7 })
+            }
+            "#,
+            "construction of erased generic data `Maybe` is unsupported in this context",
+        );
+    }
+
+    #[test]
+    fn computed_attached_receiver_context_remains_fail_closed() {
+        rejected(
+            r#"
+            data Evidence { case Only; }
+            data Box<T> { value: T; proof [erased]: Evidence; }
+            data Consumer { marker: i32; }
+            machine Consumer::take(&self, boxed: Box<i32>) -> i32 { boxed.value }
+            machine choose(left: Consumer, right: Consumer, first: bool) -> Consumer {
+                transition first { true -> (left) false -> (right) }
+            }
+            machine run(left: Consumer, right: Consumer) -> i32 {
+                choose(left, right, true).take(Box { value: 7 })
+            }
+            "#,
+            "construction of erased generic data `Box` is unsupported in this context",
+        );
     }
 
     #[test]
