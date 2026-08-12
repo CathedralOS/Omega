@@ -90,7 +90,8 @@ fn compile_to_checked_inner(
     // provider; only the native-image pipeline substitutes target providers.
     let (_source_file_count, mut syntax) =
         source_files_to_syntax_trees_for_engine(root_path, target_name, false, &mut timings)?;
-    crate::pipeline::const_generic_calls::evaluate_const_generic_calls(&mut syntax.syntax_trees)?;
+    syntax.syntax_trees =
+        psi_build_time_evaluation::evaluate_const_generic_calls(syntax.syntax_trees)?;
     psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax.syntax_trees)?;
     let placed_view_records =
         crate::pipeline::placed_views::desugar_placed_views(&mut syntax.syntax_trees)?;

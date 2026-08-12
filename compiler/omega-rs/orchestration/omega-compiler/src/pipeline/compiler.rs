@@ -345,9 +345,8 @@ impl Compiler {
             self.options.target_name.as_deref(),
             &mut timings,
         )?;
-        crate::pipeline::const_generic_calls::evaluate_const_generic_calls(
-            &mut syntax.syntax_trees,
-        )?;
+        syntax.syntax_trees =
+            psi_build_time_evaluation::evaluate_const_generic_calls(syntax.syntax_trees)?;
         psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(
             &mut syntax.syntax_trees,
         )?;

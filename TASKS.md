@@ -230,9 +230,11 @@ Remaining:
 
   Target-neutral generic-instance discovery, syntax relabeling, contextual
   literal elaboration, build-time admission, fixed-array evaluation, and the
-  checked zero-argument evaluator now live in Psi; the pre-resolution entry
-  takes ownership and the in-place syntax elaborator is private. Finish moving
-  the remaining target-neutral probe/conveyor sequencing out of
+  checked zero-argument evaluator now live in Psi. Const-generic call
+  discovery, probing, evaluation, and substitution also form an
+  ownership-taking Psi pre-resolution entry; the in-place generic syntax
+  elaborator is private. Finish moving the remaining target-neutral
+  probe/conveyor sequencing out of
   `omega-compiler` before
   expanding computed, chained, dynamic-receiver, unresolved generic,
   non-checked-supply, or unresolved-machine-parameter contexts. This is an
