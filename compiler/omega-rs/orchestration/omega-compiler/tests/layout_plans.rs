@@ -312,6 +312,7 @@ machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
     Plan { entries: self.entries, entry_count: 1,
            size_fixed: 16, size_is_dynamic: false, align: 2 }
 }
+
 data Samples { values: [[u16; 2]; 2]; }
 data Main { }
 machine Main::main(&mut self) { }
@@ -323,6 +324,36 @@ machine Main::main(&mut self) { }
     assert_eq!(report.offsets, Some(vec![8]));
     assert_eq!(report.size, Some(16));
     assert_eq!(report.align, 2);
+}
+
+#[test]
+fn fixed_records_are_reflected_as_one_nested_at_field() {
+    let main_path = write_program(
+        "fixed-record-at",
+        r#"
+use omega::language::core::layout;
+
+data RecordLayout { entries: [FieldEntry; 64]; }
+machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 24, size_is_dynamic: false, align: 4 }
+}
+data Pair { low: u8; high: u32; }
+data Samples { pair: Pair; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("fixed record should reflect");
+    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+        .expect("one At placement should admit the complete fixed-record extent");
+    assert_eq!(report.offsets, Some(vec![8]));
+    assert_eq!(report.size, Some(24));
+    assert_eq!(report.align, 4);
 }
 
 #[test]

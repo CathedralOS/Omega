@@ -134,8 +134,11 @@ Owners:
   in interpreter, native x64, Windows x64, and Linux AArch64 paths. Recursively
   nested fixed arrays composed of supported primitives now retain the same one
   `Repeated` field, while stacked constant indexing accumulates every nested
-  stride on those execution paths. Continue with nested records/sums and owned
-  non-scalar materialization.
+  stride on those execution paths. Fixed records composed from supported
+  primitive/array/record shapes now likewise reflect as one `Nested` field with
+  one whole `At` extent; mutable fact-free byte views preserve compiler-derived
+  offsets inside that extent across interpreter, native x64, Windows x64, and
+  Linux AArch64 paths. Continue with sums and owned non-scalar materialization.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
