@@ -112,11 +112,12 @@ port of an existing checker tests the compilation path but is not implementation
 diversity. The Beta and Gamma implementations remain the low-rung reference
 route unless a separately justified trust transition replaces them.
 
-## Settled certificate growth
+## Recursive and normalization certificates
 
-The live kernel does not yet check source-level recursive proofs or algebraic
-normalization. When those enter the shared calculus, they follow one settled
-shape rather than importing the legacy entailment engine as trusted code.
+The Rust kernel checks recursive components and algebraic normalization using
+the settled shapes below. Source automation does not yet emit those records,
+and terminal Psi does not yet reconstruct or retain them; that bridge remains
+open without making the source entailment engine trusted.
 
 A recursive certificate is organized by the strongly connected component of
 the proof-call graph. The component cites its ranking relation and one proof of
@@ -146,20 +147,17 @@ renders its recursive components, closure rules, cited laws, and trust closure.
 Source attribution may decorate certificate nodes, but cannot substitute for a
 certified derivation.
 
-The live tree-certificate kernel records the exact rule families and cited
-assumption/semantic-axiom propositions during the accepting traversal. The
-terminal artifact layer fingerprints the exact accepted proof bundle and
-renders its review synopsis only from a `VerifiedTerminalModule`; changing a
-valid proof route therefore changes both the fingerprint and rendered trust
-record. The kernel also has a total recursive-component checker: reconstruction
-owns a canonical strongly connected member/edge set and selected relation; one
-certificate supplies the single well-foundedness route and exact per-edge
-decrease evidence, with admissions retained in the returned provenance. The
-normalization checker similarly pins the selected conformance and canonical law
-set, verifies each law route, and requires the conclusion certificate to cite
-every law premise; an admitted law therefore remains explicit in the accepted
-normalization record. The terminal vocabulary, source producer, and synopsis
-still need to carry both records rather than adding a second explanation path.
+The tree-certificate checker records exact rule families and cited
+assumption/semantic-axiom propositions. The terminal artifact layer
+fingerprints the accepted proof bundle and renders its current review synopsis
+only from a `VerifiedTerminalModule`, so changing an accepted proof route
+changes both its fingerprint and trust record. The recursive-component checker
+requires a canonical member/edge set, one selected relation and
+well-foundedness route, and exact per-edge decrease evidence. The normalization
+checker pins the selected conformance and law set, verifies every law route,
+and requires the conclusion to cite every law premise. Both retain admissions
+in provenance. Terminal vocabulary, source production, verification, and the
+synopsis still need to carry these two record families end to end.
 
 ## Scope discipline
 
