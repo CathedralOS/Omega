@@ -5,14 +5,15 @@ use omega_target::NativeTarget;
 use omega_terminal_image_emission::{
     TerminalInstallationError, TerminalObjectError, build_terminal_installation_record,
     build_terminal_object_artifact, can_emit_terminal_executable_image,
-    decode_terminal_installation_record, emit_terminal_executable_image,
-    emit_terminal_object_container, encode_terminal_installation_record,
-    terminal_installation_fingerprint, validate_terminal_installation_record,
+    decode_terminal_installation_record, derive_terminal_unit_stack_demand,
+    emit_terminal_executable_image, emit_terminal_object_container,
+    encode_terminal_installation_record, terminal_installation_fingerprint,
+    validate_terminal_installation_record,
 };
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalInternalCallRelocation, TerminalMachineCodeFunction,
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord,
+    TerminalPortEffectRecord, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -111,10 +112,27 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
 #[test]
 fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     let mut plan = internal_call_plan(NativeTarget::linux_x64());
+    plan.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 16,
+        stack_alignment: 16,
+    });
+    plan.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
+        active_frame_bytes: 0,
+        transient_bytes: 16,
+    });
     let full_width_operation = operation_id(u64::from(u32::MAX) + 1);
     plan.functions[1].provenance.operations[0] = full_width_operation;
     plan.functions[1].internal_calls[0].psi_operation = full_width_operation;
     let artifact = build_terminal_object_artifact(&plan).expect("terminal object artifact");
+    assert_eq!(
+        artifact.functions()[1].unit_stack,
+        plan.functions[1].unit_stack
+    );
+    assert_eq!(artifact.functions()[1].unit_call_stacks.len(), 1);
+    assert_eq!(
+        artifact.functions()[1].unit_call_stacks[0].stack,
+        plan.functions[1].internal_calls[0].unit_stack.unwrap()
+    );
 
     assert_eq!(artifact.relocations().record_count(), 1);
     let (_, relocation) = artifact.relocations().records().next().expect("relocation");
@@ -231,6 +249,7 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
         .push(TerminalInternalCallRelocation {
             psi_operation: operation_id(2),
             target: machine_id(1),
+            unit_stack: None,
             offset: 6,
         });
     assert_eq!(
@@ -239,6 +258,108 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
             caller: machine_id(2),
             operation: operation_id(2),
         })
+    );
+}
+
+#[test]
+fn object_boundary_rejects_drifted_unit_stack_evidence() {
+    let mut missing_call = internal_call_plan(NativeTarget::linux_x64());
+    missing_call.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 16,
+        stack_alignment: 16,
+    });
+    assert_eq!(
+        build_terminal_object_artifact(&missing_call),
+        Err(TerminalObjectError::MissingUnitCallStackEvidence {
+            caller: machine_id(2),
+            operation: operation_id(2),
+        })
+    );
+
+    let mut understated = internal_call_plan(NativeTarget::linux_x64());
+    understated.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 8,
+        stack_alignment: 16,
+    });
+    understated.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
+        active_frame_bytes: 0,
+        transient_bytes: 16,
+    });
+    assert_eq!(
+        build_terminal_object_artifact(&understated),
+        Err(TerminalObjectError::UnitCallStackExceedsLocalPeak {
+            caller: machine_id(2),
+            operation: operation_id(2),
+            caller_live_bytes: 16,
+            local_peak_bytes: 8,
+        })
+    );
+
+    let mut missing_link = internal_call_plan(NativeTarget::linux_x64());
+    missing_link.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 0,
+        stack_alignment: 16,
+    });
+    missing_link.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
+        active_frame_bytes: 0,
+        transient_bytes: 0,
+    });
+    assert_eq!(
+        build_terminal_object_artifact(&missing_link),
+        Err(TerminalObjectError::MissingX86UnitCallLink {
+            caller: machine_id(2),
+            operation: operation_id(2),
+        })
+    );
+}
+
+#[test]
+fn terminal_unit_stack_demand_composes_the_exact_call_closure() {
+    let mut plan = internal_call_plan(NativeTarget::linux_x64());
+    plan.functions[0].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 0,
+        stack_alignment: 16,
+    });
+    plan.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 16,
+        stack_alignment: 16,
+    });
+    plan.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
+        active_frame_bytes: 0,
+        transient_bytes: 16,
+    });
+    let artifact = build_terminal_object_artifact(&plan).expect("accounted Unit artifact");
+    let demand = derive_terminal_unit_stack_demand(&artifact, machine_id(2))
+        .expect("acyclic Unit closure stack demand");
+    assert_eq!(demand.terminal_psi(), plan.terminal_psi);
+    assert_eq!(demand.target(), plan.target);
+    assert_eq!(demand.entry(), machine_id(2));
+    assert_eq!(demand.ceiling_bytes(), 16);
+    assert_eq!(demand.stack_alignment(), 16);
+    assert_eq!(
+        demand
+            .contributing_machines()
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [machine_id(1), machine_id(2)]
+    );
+
+    let mut unaccounted = internal_call_plan(NativeTarget::linux_x64());
+    unaccounted.functions[1].unit_stack = Some(TerminalUnitStackEvidence {
+        local_peak_bytes: 16,
+        stack_alignment: 16,
+    });
+    unaccounted.functions[1].internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence {
+        active_frame_bytes: 0,
+        transient_bytes: 16,
+    });
+    let artifact = build_terminal_object_artifact(&unaccounted).expect("partly accounted artifact");
+    assert_eq!(
+        derive_terminal_unit_stack_demand(&artifact, machine_id(2)),
+        Err(TerminalObjectError::UnaccountedTerminalUnitStack(
+            machine_id(1)
+        ))
     );
 }
 
@@ -270,6 +391,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                     edges: vec![edge_id(1)],
                 },
                 bytes: bytes.clone(),
+                unit_stack: None,
                 internal_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -430,6 +552,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 edges: vec![edge_id(1)],
             },
             bytes,
+            unit_stack: None,
             internal_calls: Vec::new(),
             fuel_attribution: vec![
                 TerminalNativeFuelAttribution {
@@ -542,6 +665,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                     edges: vec![edge_id(1)],
                 },
                 bytes: integer_return(3),
+                unit_stack: None,
                 internal_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -554,6 +678,7 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                     edges: vec![edge_id(2)],
                 },
                 bytes: integer_return(7),
+                unit_stack: None,
                 internal_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -584,6 +709,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     edges: vec![edge_id(1)],
                 },
                 bytes: callee,
+                unit_stack: None,
                 internal_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -596,9 +722,11 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     edges: vec![edge_id(2)],
                 },
                 bytes: caller,
+                unit_stack: None,
                 internal_calls: vec![TerminalInternalCallRelocation {
                     psi_operation: operation_id(2),
                     target: machine_id(1),
+                    unit_stack: None,
                     offset: call_offset,
                 }],
                 fuel_attribution: Vec::new(),
