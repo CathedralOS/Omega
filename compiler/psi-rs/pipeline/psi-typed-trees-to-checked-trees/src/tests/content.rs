@@ -411,6 +411,77 @@ fn retained_content_custody_rejects_ambiguous_owned_sources() {
 }
 
 #[test]
+fn retained_content_custody_accepts_exact_authored_source_correspondence() {
+    checked(
+        r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+
+        data Buffer [linear] {}
+        domain Buffer::Owned;
+        machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        data PendingWrite [linear] {}
+        domain PendingWrite::Retained { Writer::submit; }
+        machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        boundary trait Writer {
+            machine submit(
+                selected: Buffer in Buffer::Owned,
+                other: Buffer in Buffer::Owned
+            ) -> PendingWrite
+            ensures
+                result in PendingWrite::Retained
+                Owned::content(entry(&selected)) == Retained::content(&result);
+        }
+        "#,
+    );
+}
+
+#[test]
+fn retained_content_custody_rejects_authored_borrow_correspondence() {
+    let diagnostics = rejected(
+        r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+
+        data Buffer [linear] {}
+        domain Buffer::Owned;
+        machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        data PendingWrite [linear] {}
+        domain PendingWrite::Retained { Writer::submit; }
+        machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        boundary trait Writer {
+            machine submit(buffer: &Buffer in Buffer::Owned) -> PendingWrite
+            ensures
+                result in PendingWrite::Retained
+                Owned::content(entry(&buffer)) == Retained::content(&result);
+        }
+        "#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("borrowed parameter `buffer`")
+                && diagnostic.message.contains("consumed owned input")
+        }),
+        "an authored equality cannot convert a borrow into retained custody: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn checked_facts_infer_exact_content_reshuffles_through_transparent_paths() {
     let source = r#"
         data ByteUnit {}
