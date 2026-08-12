@@ -154,7 +154,9 @@ Current ownership is:
   generic, reference-bearing, or other computed local roots remain opaque.
   The compiler-owned `as_mut_slice()` view preserves its backing array origin,
   including through a structurally transparent helper result or as a direct
-  statement-call argument.
+  statement-call argument. An effect-free discarded value expression derived
+  from that view is neutral to a helper's returned-place relation; a
+  statement-position call remains opaque.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call

@@ -2343,7 +2343,11 @@ fn expression_is_effectful_for_transparent_result(
         return false;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(_) | ExpressionNode::Call(_) => true,
+        ExpressionNode::Atomic(_) => true,
+        ExpressionNode::Call(call) => {
+            !call_is_transparent_mutable_slice_view(program, call)
+                || expression_is_effectful_for_transparent_result(program, call.receiver)
+        }
         ExpressionNode::Binary(binary) => {
             expression_is_effectful_for_transparent_result(program, binary.left)
                 || expression_is_effectful_for_transparent_result(program, binary.right)

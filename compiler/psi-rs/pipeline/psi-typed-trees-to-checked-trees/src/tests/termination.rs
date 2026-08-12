@@ -3579,6 +3579,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 fn transparent_returned_index_frame_requires_an_effect_free_index() {
     let source = r#"
     data Main {
+        value: u64;
         cells: [u64; 2];
     }
 
@@ -3740,6 +3741,21 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         }
     }
 
+    machine noop() {}
+
+    machine return_after_discarded_slice_view<'value, 'cells>(
+        value: &'value mut u64,
+        cells: &'cells mut [u64; 2]
+    ) -> &'value mut u64 {
+        cells.as_mut_slice().len;
+        value
+    }
+
+    machine return_after_discarded_user_call(value: &mut u64) -> &mut u64 {
+        noop();
+        value
+    }
+
     machine Main::direct_view(&mut self) {
         let view: &mut [u64] = self.cells.as_mut_slice();
         view[0] = 1;
@@ -3762,6 +3778,17 @@ fn mutable_slice_views_preserve_array_storage_origins() {
     machine Main::recursive_statement_view(&mut self) {
         write_slice(return_recursive_slice(&mut self.cells));
     }
+
+    machine Main::discarded_slice_view(&mut self) {
+        let alias: &mut u64 =
+            return_after_discarded_slice_view(&mut self.value, &mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::discarded_user_call(&mut self) {
+        let alias: &mut u64 = return_after_discarded_user_call(&mut self.value);
+        alias = 1;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -3776,6 +3803,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         "Main::direct_view",
         "Main::helper_view",
         "Main::statement_view",
+        "Main::discarded_slice_view",
     ] {
         let machine = typed
             .machines()
@@ -3790,7 +3818,15 @@ fn mutable_slice_views_preserve_array_storage_origins() {
             resolver
                 .inferred_state_write_frame(machine, entry)
                 .complete_paths(),
-            Some(["self.cells".to_owned()].as_slice()),
+            Some(
+                [if name == "Main::discarded_slice_view" {
+                    "self.value"
+                } else {
+                    "self.cells"
+                }
+                .to_owned()]
+                .as_slice()
+            ),
             "{name} must retain the mutable view's array storage origin"
         );
     }
@@ -3827,6 +3863,22 @@ fn mutable_slice_views_preserve_array_storage_origins() {
             .complete_paths()
             .is_none_or(|paths| paths.iter().any(|path| path == "self")),
         "an opaque recursive statement argument must retain a whole-receiver fence"
+    );
+
+    let discarded_user_call = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::discarded_user_call")
+        .expect("discarded user-call caller");
+    let discarded_user_call_entry = typed
+        .machine_states(discarded_user_call)
+        .first()
+        .expect("discarded user-call caller entry state");
+    assert!(
+        !resolver
+            .inferred_state_write_frame(discarded_user_call, discarded_user_call_entry)
+            .is_complete(),
+        "an arbitrary discarded user call must keep the helper relation opaque"
     );
 }
 
