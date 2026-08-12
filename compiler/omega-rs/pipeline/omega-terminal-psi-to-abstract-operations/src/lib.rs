@@ -556,6 +556,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                 edge,
                 target,
                 arguments,
+                ..
             } => {
                 let target_block =
                     blocks

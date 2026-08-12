@@ -2991,7 +2991,18 @@ fn validate_structural_frontier(
             }
         }
         match &block.terminator {
-            Terminator::Jump { target, .. } => {
+            Terminator::Jump {
+                edge,
+                target,
+                trivial_affine_discards,
+                ..
+            } => {
+                apply_jump_trivial_affine_discards(
+                    machine,
+                    &mut frontier,
+                    *edge,
+                    trivial_affine_discards,
+                )?;
                 incoming.entry(*target).or_default().push(frontier);
             }
             Terminator::Conditional {
@@ -3090,6 +3101,28 @@ fn expected_trivial_affine_discards(
             .then_some(parameter.place)
         })
         .collect()
+}
+
+fn apply_jump_trivial_affine_discards(
+    machine: &TerminalMachine,
+    frontier: &mut StructuralOwnershipFrontier,
+    edge: EdgeId,
+    discards: &[PlaceId],
+) -> Result<(), ModuleError> {
+    let eligible = expected_trivial_affine_discards(machine, frontier);
+    let mut next = 0;
+    for eligible_place in eligible {
+        if discards.get(next) == Some(&eligible_place) {
+            next += 1;
+        }
+    }
+    if next != discards.len() {
+        return Err(ModuleError::JumpAffineDiscardsInvalid { edge });
+    }
+    for place in discards {
+        frontier.owned_places.remove(place);
+    }
+    Ok(())
 }
 
 fn validate_control_flow(
@@ -3251,6 +3284,7 @@ fn validate_control_flow(
                 edge,
                 target,
                 arguments,
+                ..
             } => validate_successor_bindings(
                 *edge,
                 *target,
@@ -4229,6 +4263,9 @@ pub enum ModuleError {
     ScalarReturnAffineDiscardsMismatch {
         machine: MachineId,
         block: BlockId,
+    },
+    JumpAffineDiscardsInvalid {
+        edge: EdgeId,
     },
     LiveLinearClaimAtScalarReturn {
         machine: MachineId,

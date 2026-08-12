@@ -66,6 +66,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                     edge: EdgeId::new(1).expect("jump"),
                     target: BlockId::new(2).expect("exit"),
                     arguments: vec![constant],
+                    trivial_affine_discards: Vec::new(),
                 },
             },
             Block {

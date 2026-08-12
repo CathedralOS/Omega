@@ -1096,7 +1096,10 @@ impl TerminalExecution {
                 .clone();
             match &terminator {
                 Terminator::Jump {
-                    target, arguments, ..
+                    target,
+                    arguments,
+                    trivial_affine_discards,
+                    ..
                 } => {
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
@@ -1114,6 +1117,13 @@ impl TerminalExecution {
                                 .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    for place in trivial_affine_discards {
+                        if self.structural_values.remove(place).is_none() {
+                            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                *place,
+                            ));
+                        }
+                    }
                     for (parameter, value) in target_block.parameters.iter().zip(transferred) {
                         self.values.insert(parameter.id, value);
                     }
