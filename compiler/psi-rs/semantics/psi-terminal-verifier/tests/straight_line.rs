@@ -129,6 +129,26 @@ fn verifier_reconstructs_every_contract_obligation() {
 }
 
 #[test]
+fn contract_guarantees_are_canonical_by_obligation_identity() {
+    let mut module = unit_module();
+    module.machines[0].contract.ensures = vec![
+        ContractClause {
+            obligation: ObligationId::new(902).expect("later obligation"),
+            proposition: Proposition::Truth,
+        },
+        ContractClause {
+            obligation: ObligationId::new(901).expect("earlier obligation"),
+            proposition: Proposition::Truth,
+        },
+    ];
+
+    assert_eq!(
+        validate_module(&module).expect_err("guarantee evidence order is canonical"),
+        ModuleError::NonCanonicalContractEnsures(ContractId::new(900).expect("contract"))
+    );
+}
+
+#[test]
 fn boolean_constant_axiom_proves_the_return_contract() {
     let constant = ValueId::new(10).expect("constant");
     let result = ValueId::new(11).expect("result");
