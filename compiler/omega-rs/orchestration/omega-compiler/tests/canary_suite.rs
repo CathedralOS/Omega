@@ -42720,6 +42720,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "arithmetic/float_unit_ratio_compile",
     "arithmetic/bounded_return_literal",
     "arithmetic/exact_integer_cast_proven",
+    "core/array_core_surface",
+    "core/collections_core_surface",
+    "core/slice_core_surface",
+    "core/vec_core_surface",
+    "operators/accepted_core_provider_binding",
+    "operators/slice_index_via_spelling_compile",
     "parser/deep_nesting_within_limit",
     "slices/guarded_slice_parameter_empty_false_index_compile",
     "slices/guarded_slice_parameter_empty_false_tail_compile",
@@ -46215,6 +46221,41 @@ fn commutative_semiring_core_canaries() {
 }
 
 #[test]
+fn algebraic_normalization_requires_an_exact_licensed_conformance() {
+    let licensed = pass_canary("proofs/ring_rearrange_core_nat");
+    check_canary(&licensed).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed to reach checked semantics with its selected conformance:\n{}",
+            licensed.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    for name in [
+        "proofs/ring_rearrange_unlicensed_rejected",
+        "proofs/ring_rearrange_false_shuffle_rejected",
+    ] {
+        let canary = fail_canary(name);
+        let diagnostics = check_canary(&canary)
+            .expect_err("unlicensed or unequal normalization must reject in checked semantics");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains("no entailment tier judges yet"),
+            "{} rejected with the wrong diagnostic:\n{combined}",
+            canary.display()
+        );
+    }
+}
+
+#[test]
 fn ring_identity_slot_bridge_canary_compiles() {
     let canary = pass_canary("proofs/ring_identity_slot_bridge_compile");
     compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
@@ -48719,7 +48760,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_indexed_guard_subject_exit",
     "collections/runtime_array_min_max_builtin_exit",
     "collections/runtime_dual_indexed_comparison_guard_exit",
-    "core/array_core_surface",
     "core/zii_default_composite_exit",
     "core/content_projection_owner",
     "core/content_conservation_contract",
@@ -48728,7 +48768,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/carry_permission_provider_adapter",
     "core/task_lifecycle_operations",
     "tasks/task_runtime_machine_selection_compile",
-    "core/collections_core_surface",
     "data/record_pattern_let_exit",
     "data/record_pattern_double_underscore_field",
     "data/record_pattern_bind_all_exit",
@@ -48737,13 +48776,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/record_pattern_arm_rename_guard_exit",
     "control_flow/runtime_nonplace_record_pattern_single_evaluation_exit",
     "control_flow/arm_pattern_rest_optout_exit",
-    "core/slice_core_surface",
-    "core/vec_core_surface",
     "operators/core_boundary_operator_surface",
     "operators/core_operator_spelling_surface",
     "operators/float_operator_identities",
-    "operators/slice_index_via_spelling_compile",
-    "operators/accepted_core_provider_binding",
     "traits/equatable_record_equality_exit",
     "traits/equatable_mixed_shape_equality_exit",
     "traits/equatable_string_field_equality_exit",
