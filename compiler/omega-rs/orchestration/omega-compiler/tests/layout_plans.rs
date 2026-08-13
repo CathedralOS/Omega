@@ -1056,6 +1056,95 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_array_of_erased_records_is_semantic_and_storage_free() {
+    let main_path = write_program(
+        "source-owned-array-of-erased-records",
+        r#"
+use omega::language::core::layout;
+
+data Whole { entries: [FieldEntry; 64]; }
+machine Whole::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 12, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data ProofBox { proof [erased]: Evidence; }
+data Envelope { tag: u32; evidence: [ProofBox; 2]; }
+machine make_envelope() -> Envelope {
+    let evidence: [ProofBox; 2];
+    evidence[0] = ProofBox { proof: Evidence::Only };
+    evidence[1] = ProofBox { proof: Evidence::Only };
+    Envelope {
+        tag: 16909060,
+        evidence: evidence,
+    }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("an array of erased-only records should remain semantically checked");
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
+        .expect("only the physically relevant scalar should require placement");
+    assert_eq!(report.entries.len(), 1);
+    let mut bytes = [0xa5; 12];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_envelope",
+        "Envelope",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("repeated erased-only content should contribute no bytes");
+    assert_eq!(&bytes[4..8], &[4, 3, 2, 1]);
+    assert!(bytes[..4].iter().chain(&bytes[8..]).all(|byte| *byte == 0));
+
+    let malformed_repeated_evidence = BuildTimeValue::Struct {
+        type_name: "Envelope".to_owned(),
+        fields: vec![
+            ("tag".to_owned(), BuildTimeValue::Int(16909060)),
+            (
+                "evidence".to_owned(),
+                BuildTimeValue::Array(vec![
+                    BuildTimeValue::Struct {
+                        type_name: "ProofBox".to_owned(),
+                        fields: vec![(
+                            "proof".to_owned(),
+                            BuildTimeValue::Case {
+                                variant: "Only".to_owned(),
+                                payload: Vec::new(),
+                            },
+                        )],
+                    },
+                    BuildTimeValue::Struct {
+                        type_name: "ProofBox".to_owned(),
+                        fields: Vec::new(),
+                    },
+                ]),
+            ),
+        ],
+    };
+    let mut unchanged = [0x5a; 12];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Envelope",
+        &report,
+        &malformed_repeated_evidence,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("every storage-free repeated element must remain semantically complete");
+    assert!(error.0.contains("0 fields, expected 1"));
+    assert_eq!(unchanged, [0x5a; 12]);
+}
+
+#[test]
 fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
     let main_path = write_program(
         "typed-owned-negative-u64",
