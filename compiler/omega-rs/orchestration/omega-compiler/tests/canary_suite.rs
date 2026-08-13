@@ -15181,17 +15181,11 @@ fn runtime_inferred_multipath_return_exit_canary_runs() {
 #[test]
 fn runtime_inferred_return_range_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_inferred_return_range_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-inferred-return-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("inferred return range should let the caller's arithmetic prove Exact");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("inferred return range should let the caller's arithmetic prove Exact");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("inferred return range canary should run");
     assert_eq!(
@@ -15201,7 +15195,7 @@ fn runtime_inferred_return_range_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// #62: constructing a range-refined field from a PROVABLE non-literal value (a
