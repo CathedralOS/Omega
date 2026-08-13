@@ -108,8 +108,205 @@ pub(crate) fn check_linear_obligations(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    validate_nominal_drop_moves(program, facts)?;
     record_permission_events(program, facts);
     validate_linear_permission_events(program, facts)
+}
+
+/// A nominal cleanup machine is entitled to one whole valid value. Reject a
+/// move below any prefix carrying that entitlement; structural records without
+/// nominal cleanup remain decomposable, and moving the entitled value itself
+/// remains legal.
+fn validate_nominal_drop_moves(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut segments = psi_arena::Arena::default();
+            let moves = crate::flow::discover_state_move_events(
+                program,
+                &facts.borrow,
+                machine,
+                state,
+                &mut segments,
+            );
+            for event in moves {
+                let path = segments.span_or_empty(event.segments);
+                if path.is_empty() || move_event_is_production_target(program, state, &event, path)
+                {
+                    continue;
+                }
+                for prefix_len in 0..path.len() {
+                    if prefix_len == 0 && event_is_owned_self_projection(program, state, &event) {
+                        continue;
+                    }
+                    let prefix = crate::flow::CanonicalPlace {
+                        root: event.root,
+                        segments: path[..prefix_len].to_vec(),
+                    };
+                    let Some(type_name) = nominal_drop_place_name(
+                        program,
+                        state.symbol,
+                        event_statement_index(event.source).unwrap_or(0),
+                        &prefix,
+                    ) else {
+                        continue;
+                    };
+                    diagnostics.push(Diagnostic::error(format!(
+                        "cannot partially move a value of `{type_name}` because `{type_name}::drop` requires the whole value"
+                    )));
+                    break;
+                }
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn event_is_owned_self_projection(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    event: &crate::flow::DiscoveredMoveEvent,
+) -> bool {
+    let psi_facts::PlaceRoot::Symbol(event_root) = event.root else {
+        return false;
+    };
+    if !program.machines().iter().any(|machine| {
+        machine.symbol == event_root
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+    }) {
+        return false;
+    }
+    program.state_parameters(state).iter().any(|parameter| {
+        parameter.is_self && !type_reference_is_reference(program, parameter.type_reference)
+    })
+}
+
+fn type_reference_is_reference(
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_reference(program, *base_type)
+        }
+        _ => false,
+    }
+}
+
+fn nominal_drop_place_name<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<&'program str> {
+    if place.segments.is_empty()
+        && let psi_facts::PlaceRoot::Symbol(root) = place.root
+        && let Some(attached) = program.machines().iter().find_map(|machine| {
+            (machine.symbol == root
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == state_symbol))
+            .then(|| machine.attached_data.as_deref())
+            .flatten()
+        })
+    {
+        return data_name_with_nominal_drop(program, attached);
+    }
+    let type_reference =
+        crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+    nominal_drop_type_name(program, type_reference)
+}
+
+fn data_name_with_nominal_drop<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    name: &str,
+) -> Option<&'program str> {
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == name)?;
+    program
+        .machines()
+        .iter()
+        .any(|machine| {
+            machine.name.as_str().ends_with("::drop")
+                && machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|attached| attached == &definition.name)
+        })
+        .then_some(definition.name.as_str())
+}
+
+fn move_event_is_production_target(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[psi_facts::PlaceSegment],
+) -> bool {
+    let Some(statement_index) = event_statement_index(event.source) else {
+        return false;
+    };
+    let Some(statement) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+    else {
+        return false;
+    };
+    let target = match statement {
+        StatementNode::LocalData(local) => crate::flow::CanonicalPlace {
+            root: psi_facts::PlaceRoot::Symbol(local.symbol),
+            segments: Vec::new(),
+        },
+        StatementNode::Assignment(assignment) => {
+            let Some(target) = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                assignment.target,
+            ) else {
+                return false;
+            };
+            target
+        }
+        _ => return false,
+    };
+    crate::flow::normalized_event_place_root(program, target.root) == event.root
+        && target.segments.as_slice() == path
+}
+
+fn nominal_drop_type_name(
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&str> {
+    let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } => return nominal_drop_type_name(program, *base_type),
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => (*base_symbol, base_name.as_str()),
+        _ => return None,
+    };
+    let definition = find_data_definition(program, symbol, name)?;
+    data_name_with_nominal_drop(program, definition.name.as_str())
 }
 
 pub(crate) fn record_permission_events(

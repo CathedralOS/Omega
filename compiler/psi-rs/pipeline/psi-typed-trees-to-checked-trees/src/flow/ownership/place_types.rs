@@ -41,7 +41,7 @@ pub(crate) fn expression_type_reference_in_state(
     }
 }
 
-fn canonical_place_type_reference(
+pub(crate) fn canonical_place_type_reference(
     program: &psi_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -50,6 +50,23 @@ fn canonical_place_type_reference(
     let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
+
+    // `self` move events are normalized to the durable machine symbol before
+    // checked facts are published. Recover projections through that machine's
+    // attached data shape so ownership validation can still inspect every
+    // nominal prefix.
+    if let Some(machine) = program.machines().iter().find(|machine| {
+        machine.symbol == root_symbol
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == state_symbol)
+    }) && let Some((psi_facts::PlaceSegment::Field { symbol }, remaining)) =
+        place.segments.split_first()
+    {
+        let current = attached_data_field_type_reference(program, machine, *symbol)?;
+        return project_type_reference_from_segments(program, current, remaining);
+    }
 
     let current =
         symbol_type_reference_in_state(program, state_symbol, statement_index, root_symbol)?;
@@ -61,19 +78,21 @@ pub(crate) fn project_type_reference_from_segments(
     mut current: psi_typed_trees::types::TypeReferenceHandle,
     segments: &[psi_facts::PlaceSegment],
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    let mut substitutions = Vec::new();
     for segment in segments {
+        current = substituted_type_reference(program, current, &substitutions);
         match segment {
             psi_facts::PlaceSegment::Case { .. } => {}
             psi_facts::PlaceSegment::Field { symbol } => {
-                current = field_type_reference(program, current, *symbol)?;
+                current = field_type_reference(program, current, *symbol, &mut substitutions)?;
             }
             psi_facts::PlaceSegment::FixedIndex { .. } | psi_facts::PlaceSegment::Index { .. } => {
-                current = indexed_element_type_reference(program, current)?;
+                current = indexed_element_type_reference(program, current, &substitutions)?;
             }
         }
     }
 
-    Some(current)
+    Some(substituted_type_reference(program, current, &substitutions))
 }
 
 fn symbol_type_reference_in_state(
@@ -144,18 +163,46 @@ fn field_type_reference(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     field_symbol: SymbolHandle,
+    substitutions: &mut Vec<(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)>,
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    let type_reference = substituted_type_reference(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
         psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | psi_typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
-        } => field_type_reference(program, *referee, field_symbol),
+        } => field_type_reference(program, *referee, field_symbol, substitutions),
         psi_typed_trees::types::TypeReferenceNode::Generic {
             base_symbol,
             base_name,
+            arguments,
             ..
+        } => {
+            let data = data_definition_by_symbol_or_name(program, *base_symbol, base_name)?;
+            let bindings: Vec<_> = program
+                .data_type_parameters(data)
+                .iter()
+                .zip(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                )
+                .filter_map(|(parameter, argument)| {
+                    matches!(
+                        parameter.kind,
+                        psi_typed_trees::data::TypeParameterKind::Type
+                    )
+                    .then(|| {
+                        (
+                            parameter.symbol,
+                            substituted_type_reference(program, *argument, substitutions),
+                        )
+                    })
+                })
+                .collect();
+            substitutions.extend(bindings);
+            data_field_type_reference(program, data, field_symbol)
         }
-        | psi_typed_trees::types::TypeReferenceNode::Named {
+        psi_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             name: base_name,
         } => data_definition_by_symbol_or_name(program, *base_symbol, base_name)
@@ -171,12 +218,14 @@ fn field_type_reference(
 fn indexed_element_type_reference(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    let type_reference = substituted_type_reference(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
         psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | psi_typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
-        } => indexed_element_type_reference(program, *referee),
+        } => indexed_element_type_reference(program, *referee, substitutions),
         psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
         | psi_typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
         psi_typed_trees::types::TypeReferenceNode::ConstExpression(_)
@@ -185,6 +234,34 @@ fn indexed_element_type_reference(
         | psi_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | psi_typed_trees::types::TypeReferenceNode::Unit => None,
     }
+}
+
+fn substituted_type_reference(
+    program: &psi_typed_trees::TypedTrees,
+    mut type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+) -> psi_typed_trees::types::TypeReferenceHandle {
+    let mut remaining = substitutions.len().saturating_add(1);
+    while remaining > 0 {
+        remaining -= 1;
+        let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+        else {
+            break;
+        };
+        let Some(replacement) = substitutions
+            .iter()
+            .rev()
+            .find_map(|(parameter, replacement)| (*parameter == *symbol).then_some(*replacement))
+        else {
+            break;
+        };
+        if replacement == type_reference {
+            break;
+        }
+        type_reference = replacement;
+    }
+    type_reference
 }
 
 fn data_definition_by_symbol_or_name<'program>(

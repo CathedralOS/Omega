@@ -68,7 +68,7 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
 /// its parameter lists (the state graph drops it when scheduling parameters),
 /// so the permission producer could not publish a durable root for it. The
 /// machine symbol is the durable identity of the `self` instance.
-fn normalized_event_place_root(
+pub(crate) fn normalized_event_place_root(
     program: &psi_typed_trees::TypedTrees,
     root: psi_facts::PlaceRoot,
 ) -> psi_facts::PlaceRoot {

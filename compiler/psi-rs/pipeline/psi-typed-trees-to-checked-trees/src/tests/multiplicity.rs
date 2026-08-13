@@ -1648,6 +1648,206 @@ fn transparent_record_partial_move_leaves_sibling_obligation_live() {
 }
 
 #[test]
+fn nominal_drop_rejects_direct_partial_move() {
+    let source = r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        data Main {}
+        machine Main::run() {
+            let wrapper: Wrapper = Wrapper { leaf: Leaf { value: 1 } };
+            let extracted: Leaf = wrapper.leaf;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a nominal drop machine requires its whole valid receiver");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot partially move a value of `Wrapper`")
+    }));
+}
+
+#[test]
+fn nominal_drop_rejects_move_below_nested_prefix() {
+    let source = r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        data Outer { wrapper: Wrapper; }
+        data Main {}
+        machine Main::run() {
+            let outer: Outer = Outer {
+                wrapper: Wrapper { leaf: Leaf { value: 1 } },
+            };
+            let extracted: Leaf = outer.wrapper.leaf;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("every proper nominal-drop prefix retains whole-value entitlement");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot partially move a value of `Wrapper`")
+    }));
+}
+
+#[test]
+fn nominal_drop_rejects_move_below_generic_prefix() {
+    let source = r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        data Box<T> { value: T; }
+        data Main {}
+        machine Main::run() {
+            let boxed: Box<Wrapper> = Box {
+                value: Wrapper { leaf: Leaf { value: 1 } },
+            };
+            let extracted: Leaf = boxed.value.leaf;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("generic substitution preserves a nested nominal drop entitlement");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot partially move a value of `Wrapper`")
+    }));
+}
+
+#[test]
+fn nominal_drop_rejects_partial_move_from_self() {
+    let source = r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        machine Wrapper::take(&mut self) {
+            let extracted: Leaf = self.leaf;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("normalized self roots retain their attached nominal drop");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot partially move a value of `Wrapper`")
+    }));
+}
+
+#[test]
+fn nominal_drop_allows_explicit_consuming_decomposition() {
+    checked(
+        r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        machine Wrapper::into_leaf(self) -> Leaf { self.leaf }
+        "#,
+    );
+}
+
+#[test]
+fn nominal_drop_allows_whole_value_move() {
+    checked(
+        r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        data Main {}
+        machine Main::run() {
+            let wrapper: Wrapper = Wrapper { leaf: Leaf { value: 1 } };
+            let moved: Wrapper = wrapper;
+        }
+        "#,
+    );
+}
+
+#[test]
+fn nominal_drop_allows_moving_nested_value_whole() {
+    checked(
+        r#"
+        data Leaf { value: i32; }
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        data Outer { wrapper: Wrapper; }
+        data Main {}
+        machine Main::run() {
+            let outer: Outer = Outer {
+                wrapper: Wrapper { leaf: Leaf { value: 1 } },
+            };
+            let moved: Wrapper = outer.wrapper;
+        }
+        "#,
+    );
+}
+
+#[test]
+fn nominal_drop_allows_copying_primitive_field() {
+    checked(
+        r#"
+        data Wrapper { value: i32; }
+        machine Wrapper::drop(&mut self) {}
+        data Main {}
+        machine Main::run() {
+            let wrapper: Wrapper = Wrapper { value: 1 };
+            let copied: i32 = wrapper.value;
+        }
+        "#,
+    );
+}
+
+#[test]
+fn nominal_drop_allows_owned_production_into_self_field() {
+    checked(
+        r#"
+        data Leaf { value: i32; }
+        data LeafFactory {}
+        boundary operator LeafFactory::create() -> Leaf;
+        data Wrapper { leaf: Leaf; }
+        machine Wrapper::drop(&mut self) {}
+        machine Wrapper::replace(&mut self) {
+            self.leaf = LeafFactory::create();
+        }
+        "#,
+    );
+}
+
+#[test]
+fn transparent_affine_record_allows_partial_move() {
+    checked(
+        r#"
+        data Leaf { value: i32; }
+        data Pair { left: Leaf; right: Leaf; }
+        data Main {}
+        machine Main::run() {
+            let pair: Pair = Pair {
+                left: Leaf { value: 1 },
+                right: Leaf { value: 2 },
+            };
+            let extracted: Leaf = pair.left;
+        }
+        "#,
+    );
+}
+
+#[test]
 fn transparent_record_rejects_duplicate_field_move() {
     let source = r#"
         data Receipt [linear] { code: i32; }

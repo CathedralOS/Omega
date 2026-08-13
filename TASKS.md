@@ -404,10 +404,9 @@ reach or trust, and private proof improvements do not change public identity.
   exact reverse-declaration affine cleanup through Unit/scalar returns and
   bounded acyclic structural control, including short-circuit Boolean stages and
   one equal-frontier diamond. Add contextual cleanup-contract checking,
-  structural partial-value cleanup, nominal-drop partial-move rejection,
-  repeated-cycle resource composition, and conservation/backend-ledger
-  reporting. The accepted slices are not yet a general conditional CFG,
-  complete cleanup plan, or conservation witness.
+  structural partial-value cleanup, repeated-cycle resource composition, and
+  conservation/backend-ledger reporting. The accepted slices are not yet a
+  general conditional CFG, complete cleanup plan, or conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
