@@ -9824,22 +9824,15 @@ fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
 #[test]
 fn constant_nested_index_guard_exit_canary_runs() {
     let canary = pass_canary("collections/constant_nested_index_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-constant-nested-index-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("constant nested-index guard canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("constant nested-index guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("constant nested-index guard canary should run");
 
@@ -9851,7 +9844,7 @@ fn constant_nested_index_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // DUAL-indexed copies with MIXED index regions (frame/machine on opposite
@@ -9859,19 +9852,12 @@ fn constant_nested_index_guard_exit_canary_runs() {
 #[test]
 fn runtime_dual_mixed_index_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_mixed_index_copy_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-dual-mi-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-dual-mi-copy-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dual mixed-index copy canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("dual mixed-index copy canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("dual mixed-index copy canary should run");
 
@@ -9885,7 +9871,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // std::time receiverless type-scoped constructors deliver a 16-byte Duration
