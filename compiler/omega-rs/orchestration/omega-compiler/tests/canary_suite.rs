@@ -11733,20 +11733,13 @@ fn runtime_version_migration_exit_canary_runs() {
     // Historical and current shapes are ordinary data. The explicit migration
     // machine lands both current-shape writes and exits 70.
     let canary = pass_canary("versioning/runtime_version_migration_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-version-migration-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("version migration canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("version migration canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("version migration canary should run");
 
@@ -11758,7 +11751,7 @@ fn runtime_version_migration_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11766,20 +11759,13 @@ fn runtime_versioned_match_zii_exit_canary_runs() {
     // An explicitly constructed ordinary lineage sum selects its V1 case even
     // though Current is written first; the historical payload drives exit 70.
     let canary = pass_canary("versioning/runtime_versioned_match_zii_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-versioned-match-zii-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("versioned match canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("versioned match canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("versioned match canary should run");
 
@@ -11791,7 +11777,7 @@ fn runtime_versioned_match_zii_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11799,20 +11785,13 @@ fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
     // An ordinary sum over three explicit era shapes selects V1 even though
     // both newer cases are written first; the V1 payload drives exit 70.
     let canary = pass_canary("versioning/runtime_versioned_three_era_match_zii_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-versioned-three-era-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("three-era versioned match canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("three-era versioned match canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("three-era versioned match canary should run");
 
@@ -11824,7 +11803,7 @@ fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
