@@ -5,19 +5,23 @@ use omega_terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, LoweringError, lower_artifact_sections,
 };
 use psi_core::{
-    BlockId, ClaimId, ContractId, EdgeId, MachineId, PlaceId, ScalarType, StructuralDomainId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_kernel::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+};
 use psi_terminal::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
-    StructuralDomainDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, StructuralDomainDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
-use psi_terminal_verifier::ProofBundle;
+use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
 fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
@@ -135,6 +139,77 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     assert_eq!(*result, value_id(2));
     assert_eq!(*value, value_id(3));
     assert_eq!(*scalar_type, ScalarType::Boolean);
+}
+
+#[test]
+fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
+    let (module, proof) = contextual_mixed_scalar_cleanup_module();
+    let caller = &module.machines[0];
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &caller.blocks[0].terminator
+    else {
+        panic!("contextual scalar fixture returns a value")
+    };
+    let [
+        TerminalAffineCleanupAction::DiscardRoot(no_code_place),
+        TerminalAffineCleanupAction::InvokeNominal(verified_cleanup),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("fixture retains one mixed ordered cleanup stream")
+    };
+    assert_eq!(*no_code_place, place_id(2));
+    assert_eq!(verified_cleanup.cleanup_receiver, Some(place_id(99)));
+    assert_eq!(verified_cleanup.requirement_obligations, [obligation_id(1)]);
+
+    let semantics = encode_module(&module).expect("contextual scalar cleanup encodes");
+    let proof_bytes = encode_proof_bundle(&proof).expect("contextual scalar proof encodes");
+    assert!(matches!(
+        lower_artifact_sections(
+            &semantics,
+            &encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
+            &AdmissionProfile::default(),
+        ),
+        Err(ArtifactLoweringError::Verification(
+            psi_terminal_verifier::VerificationError::MissingEvidence(obligation)
+        )) if obligation == obligation_id(1)
+    ));
+
+    let plan = lower_artifact_sections(&semantics, &proof_bytes, &AdmissionProfile::default())
+        .expect("verified contextual scalar cleanup enters Omega");
+    let lowered_caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller.id)
+        .expect("scalar caller remains in the verified closure");
+    let [
+        TerminalAbstractOperation::BooleanConstant { .. },
+        TerminalAbstractOperation::Return {
+            cleanup_actions, ..
+        },
+    ] = lowered_caller.operations.as_slice()
+    else {
+        panic!("scalar caller retains its constant and return")
+    };
+    let [
+        TerminalAffineCleanupAction::DiscardRoot(projected_no_code),
+        TerminalAffineCleanupAction::InvokeNominal(projected_cleanup),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("Omega retains the exact mixed action order")
+    };
+    assert_eq!(*projected_no_code, *no_code_place);
+    assert_eq!(projected_cleanup.place, verified_cleanup.place);
+    assert_eq!(
+        projected_cleanup.structural_type,
+        verified_cleanup.structural_type
+    );
+    assert_eq!(
+        projected_cleanup.cleanup_machine,
+        verified_cleanup.cleanup_machine
+    );
+    assert!(projected_cleanup.cleanup_receiver.is_none());
+    assert!(projected_cleanup.requirement_obligations.is_empty());
 }
 
 #[test]
@@ -373,6 +448,177 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     ));
 }
 
+fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
+    let token_type = structural_type_id(1);
+    let no_code_type = structural_type_id(2);
+    let field = psi_core::StructuralFieldId::new(1).expect("field");
+    let caller_place = place_id(1);
+    let no_code_place = place_id(2);
+    let cleanup_receiver = place_id(99);
+    let obligation = obligation_id(1);
+    let caller_requirement = Proposition::Equal(
+        ScalarTerm::boolean(true),
+        ScalarTerm::boolean_field(caller_place, field),
+    );
+    let module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: token_type,
+                identity: "test::Token".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: field,
+                        identity: "ready".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: no_code_type,
+                identity: "test::NoCode".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: vec![
+                    StructuralParameterDeclaration {
+                        place: caller_place,
+                        position: 0,
+                        is_self: false,
+                        structural_type: token_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                    },
+                    StructuralParameterDeclaration {
+                        place: no_code_place,
+                        position: 1,
+                        is_self: false,
+                        structural_type: no_code_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                    },
+                ],
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    id: value_id(1),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                structural_places: vec![
+                    StructuralPlaceDeclaration {
+                        id: caller_place,
+                        kind: StructuralPlaceKind::Parameter {
+                            position: 0,
+                            is_self: false,
+                        },
+                    },
+                    StructuralPlaceDeclaration {
+                        id: no_code_place,
+                        kind: StructuralPlaceKind::Parameter {
+                            position: 1,
+                            is_self: false,
+                        },
+                    },
+                ],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: psi_core::OperationId::new(1).expect("operation"),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: value_id(2),
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::BooleanConstant { value: true },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: edge_id(1),
+                        value: value_id(2),
+                        cleanup_actions: vec![
+                            TerminalAffineCleanupAction::DiscardRoot(no_code_place),
+                            TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                                place: caller_place,
+                                structural_type: token_type,
+                                cleanup_machine: machine_id(2),
+                                cleanup_receiver: Some(cleanup_receiver),
+                                requirement_obligations: vec![obligation],
+                            }),
+                        ],
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    crash_routes: Vec::new(),
+                    requires: vec![caller_requirement.clone()],
+                    ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                attachment: Some(token_type),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge_id(2),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(2),
+                    crash_routes: Vec::new(),
+                    requires: vec![Proposition::Equal(
+                        ScalarTerm::boolean(true),
+                        ScalarTerm::boolean_field(cleanup_receiver, field),
+                    )],
+                    ensures: Vec::new(),
+                },
+            },
+        ],
+    };
+    let proof = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(1).expect("certificate"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: caller_requirement,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+    };
+    (module, proof)
+}
+
 fn machine_id(raw: u64) -> MachineId {
     MachineId::new(raw).unwrap()
 }
@@ -407,4 +653,8 @@ fn structural_domain_id(raw: u64) -> StructuralDomainId {
 
 fn claim_id(raw: u64) -> ClaimId {
     ClaimId::new(raw).unwrap()
+}
+
+fn obligation_id(raw: u64) -> ObligationId {
+    ObligationId::new(raw).unwrap()
 }

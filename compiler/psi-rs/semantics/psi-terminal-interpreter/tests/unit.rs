@@ -1,8 +1,11 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
+    StructuralDomainId, StructuralTypeId, ValueId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_kernel::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+};
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
     EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
@@ -21,7 +24,7 @@ use psi_terminal_interpreter::{
     TerminalStructuralValue, interpret_terminal_artifact_measured,
     interpret_terminal_artifact_with_effect_handler_measured,
 };
-use psi_terminal_verifier::ProofBundle;
+use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
 fn unit_artifact_interprets_as_a_value_less_normal_result() {
@@ -1866,6 +1869,158 @@ fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
 }
 
 #[test]
+fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups() {
+    let mut module = ordered_empty_nominal_affine_module(true);
+    let first = psi_core::StructuralFieldId::new(1).expect("first field");
+    let second = psi_core::StructuralFieldId::new(2).expect("second field");
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: [first, second]
+            .into_iter()
+            .map(|id| StructuralFieldDeclaration {
+                id,
+                identity: format!("flag_{}", id.get()),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            })
+            .collect(),
+    };
+    let receiver = place_id(99);
+    module.machines[1].contract.requires = [first, second]
+        .into_iter()
+        .map(|field| {
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(receiver, field),
+            )
+        })
+        .collect();
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(30),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(31),
+        scalar_type: ScalarType::Boolean,
+    });
+    caller.contract.requires = [place_id(1), place_id(2)]
+        .into_iter()
+        .flat_map(|root| {
+            [first, second].map(move |field| {
+                Proposition::Equal(
+                    ScalarTerm::boolean(true),
+                    ScalarTerm::boolean_field(root, field),
+                )
+            })
+        })
+        .collect();
+    caller.contract.requires.sort();
+    let Terminator::ReturnUnitNominalAffine { edge, mut cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(99),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(receiver);
+    cleanups[0].requirement_obligations = vec![obligation_id(3), obligation_id(4)];
+    cleanups[1].cleanup_receiver = Some(receiver);
+    cleanups[1].requirement_obligations = vec![obligation_id(1), obligation_id(2)];
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(30),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    let goals = [
+        (obligation_id(3), place_id(2), first),
+        (obligation_id(4), place_id(2), second),
+        (obligation_id(1), place_id(1), first),
+        (obligation_id(2), place_id(1), second),
+    ];
+    let mut evidence = goals
+        .into_iter()
+        .enumerate()
+        .map(|(index, (obligation, root, field))| {
+            let conclusion = Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(root, field),
+            );
+            ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(index as u64 + 1).expect("certificate"),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        rule: ProofRule::Assumption {
+                            index: module.machines[0]
+                                .contract
+                                .requires
+                                .iter()
+                                .position(|requirement| requirement == &conclusion)
+                                .expect("cleanup goal is a caller premise"),
+                        },
+                        conclusion,
+                    },
+                }),
+            }
+        })
+        .collect::<Vec<_>>();
+    evidence.sort_by_key(|evidence| evidence.obligation);
+    let proof_bundle = ProofBundle { evidence };
+    let semantic = encode_module(&module).expect("contextual scalar cleanup encodes");
+    let proof = encode_proof_bundle(&proof_bundle).expect("contextual cleanup proof encodes");
+    let structural_arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 130,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 131,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Boolean(false)],
+        &structural_arguments,
+    )
+    .expect("proof-carrying contextual scalar cleanup starts");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    for expected_site in [
+        FuelChargeSite::Edge(edge_id(1)),
+        FuelChargeSite::Edge(edge_id(2)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ] {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion { site, .. })
+                if site == expected_site
+        ));
+        meter.replenish(1).unwrap();
+    }
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(false)
+        ))
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+    assert!(execution.live_affine_frontier().next().is_none());
+}
+
+#[test]
 fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
     let mut module = three_ordered_empty_nominal_affine_module(false);
     let caller = &mut module.machines[0];
@@ -2541,6 +2696,10 @@ fn boundary_id(raw: u64) -> BoundaryMachineId {
 
 fn operation_id(raw: u64) -> OperationId {
     OperationId::new(raw).unwrap()
+}
+
+fn obligation_id(raw: u64) -> ObligationId {
+    ObligationId::new(raw).unwrap()
 }
 
 fn place_id(raw: u64) -> PlaceId {

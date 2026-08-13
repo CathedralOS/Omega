@@ -691,7 +691,21 @@ fn lower_machine(
                     result: result.id,
                     value: *value,
                     scalar_type: result.scalar_type,
-                    cleanup_actions: cleanup_actions.clone(),
+                    cleanup_actions: cleanup_actions
+                        .iter()
+                        .cloned()
+                        .map(|action| match action {
+                            TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
+                                // Psi has already verified these proof-site identities. They
+                                // carry no native realization meaning and must not become a
+                                // second semantic authority in Omega artifacts.
+                                cleanup.cleanup_receiver = None;
+                                cleanup.requirement_obligations.clear();
+                                TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                            }
+                            action => action,
+                        })
+                        .collect(),
                 });
             }
             Terminator::ReturnUnit {

@@ -67,11 +67,13 @@ pub(crate) fn lower_typed_trees(
     facts.flow.terminal_structural_returns =
         crate::flow::build_checked_structural_return_plans(&program, &facts);
     let terminal_unit_effects = crate::flow::build_checked_unit_effect_plans(&program, &facts);
+    let mut cleanup_diagnostics = Vec::new();
     facts.flow.terminal_structural_scalar_returns =
         crate::flow::build_checked_structural_scalar_return_plans(
             &program,
             &facts,
             &terminal_unit_effects,
+            &mut cleanup_diagnostics,
         );
     facts.flow.terminal_partial_affine_unit_cleanups =
         crate::flow::build_checked_partial_affine_unit_cleanup_plans(
@@ -79,7 +81,6 @@ pub(crate) fn lower_typed_trees(
             &facts,
             &terminal_unit_effects,
         );
-    let mut cleanup_diagnostics = Vec::new();
     facts.flow.terminal_nominal_affine_unit_cleanups =
         crate::flow::build_checked_nominal_affine_unit_cleanup_plans(
             &program,

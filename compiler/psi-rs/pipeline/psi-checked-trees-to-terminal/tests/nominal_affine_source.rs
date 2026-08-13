@@ -262,6 +262,30 @@ const SHARED_SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
     machine Root::measure(first: Token, second: Token) -> u64 { 7u64 }
 "#;
 
+const CONTEXTUAL_SCALAR_RETURN_SOURCE: &str = r#"
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Root {}
+    machine Root::measure(first: Token, second: Token) -> u64
+    requires first.ready, second.ready
+    { 7u64 }
+"#;
+
+const CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE: &str = r#"
+    data Token { ready: bool; armed: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready, self.armed
+    {}
+
+    data Root {}
+    machine Root::measure(first: Token, second: Token) -> u64
+    requires first.ready, first.armed, second.ready, second.armed
+    { 3u64 + 4u64 }
+"#;
+
 const MIXED_SCALAR_RETURN_NOMINAL_LAST_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -556,6 +580,136 @@ fn mixed_scalar_return_discards_trivial_then_invokes_nominal_root() {
     .expect("mixed scalar cleanup verifies");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
+
+#[test]
+fn contextual_scalar_return_preserves_proof_context_after_result_materialization() {
+    let tokens = Lexer::new(CONTEXTUAL_SCALAR_RETURN_SOURCE)
+        .tokenize()
+        .expect("tokenize contextual scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse contextual scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual scalar cleanup");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type contextual scalar cleanup source");
+    let checked = lower_typed_trees(typed).expect("check contextual scalar cleanup source");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("contextual scalar cleanup lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("contextual scalar entry");
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("contextual scalar caller retains two roots")
+    };
+    assert_eq!(entry.contract.requires.len(), 2);
+    let [result_operation] = entry.blocks[0].operations.as_slice() else {
+        panic!("scalar result is materialized by one operation")
+    };
+    assert!(matches!(
+        result_operation.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    let Terminator::Return {
+        value,
+        cleanup_actions,
+        ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("contextual scalar cleanup uses the scalar return carrier")
+    };
+    assert_eq!(
+        *value,
+        result_operation.result.scalar().expect("scalar result").id
+    );
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+        TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("both contextual scalar roots retain nominal cleanup")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(first_cleanup.place, first.place);
+    assert_eq!(
+        second_cleanup.cleanup_machine,
+        first_cleanup.cleanup_machine
+    );
+    assert_eq!(
+        second_cleanup.cleanup_receiver,
+        first_cleanup.cleanup_receiver
+    );
+    assert!(second_cleanup.cleanup_receiver.is_some());
+    assert_eq!(second_cleanup.requirement_obligations.len(), 1);
+    assert_eq!(first_cleanup.requirement_obligations.len(), 1);
+    assert_ne!(
+        second_cleanup.requirement_obligations,
+        first_cleanup.requirement_obligations
+    );
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier discharges both scalar cleanup obligations");
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("contextual scalar module encodes");
+    assert_eq!(
+        decode_module(&semantic_bytes).unwrap(),
+        lowered.semantic_module
+    );
+    let proof_bytes =
+        encode_proof_bundle(&lowered.proof_bundle).expect("contextual scalar proof encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof_bytes).unwrap(),
+        lowered.proof_bundle
+    );
+
+    let mut missing = lowered.proof_bundle.clone();
+    missing.evidence.pop();
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing,
+            &AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn contextual_scalar_cleanup_and_exact_result_use_disjoint_obligation_identities() {
+    let tokens = Lexer::new(CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE)
+        .tokenize()
+        .expect("tokenize contextual exact scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse contextual exact scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual exact scalar cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type contextual exact scalar cleanup source");
+    let checked = lower_typed_trees(typed).expect("check contextual exact scalar cleanup source");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("contextual cleanup and exact scalar result lower together");
+
+    let obligations =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("all contextual and exact-result obligations reconstruct");
+    assert_eq!(obligations.len(), 5, "four cleanup goals plus exact add");
+    let identities = obligations
+        .iter()
+        .map(|site| site.obligation.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(identities.len(), obligations.len());
+    assert_eq!(lowered.proof_bundle.evidence.len(), obligations.len());
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("disjoint cleanup and exact-result proofs verify");
 }
 
 #[test]

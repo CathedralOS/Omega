@@ -2651,6 +2651,13 @@ fn lower_nominal_structural_scalar_return_machine(
         || !plan.scalar_parameters.is_empty()
         || !plan.bindings.is_empty()
         || plan.return_statement_ordinal != 0
+        || (!plan.caller_requirements.is_empty()
+            && plan.cleanup_actions.iter().any(|action| {
+                matches!(
+                    action,
+                    CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_)
+                )
+            }))
     {
         return unsupported("nominal scalar return exceeds its first bounded slice");
     }
@@ -2669,8 +2676,7 @@ fn lower_nominal_structural_scalar_return_machine(
                 if *cleanup_position == parameter.position => {}
             CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
                 if cleanup.source_parameter_index == parameter.position
-                    && cleanup.type_identity == parameter.type_identity
-                    && cleanup.requirements.is_empty() => {}
+                    && cleanup.type_identity == parameter.type_identity => {}
             _ => return unsupported("nominal scalar return cleanup frontier drifted"),
         }
     }
@@ -2759,7 +2765,7 @@ fn lower_nominal_structural_scalar_return_machine(
     };
     let nominal = CheckedNominalAffineUnitCleanupMachinePlan {
         machine: synthetic,
-        caller_requirements: Vec::new(),
+        caller_requirements: plan.caller_requirements.clone(),
         cleanups: nominal_cleanups,
     };
     let mut staged = checked.clone();
@@ -2825,7 +2831,16 @@ fn lower_nominal_structural_scalar_return_machine(
         .flat_map(|block| &block.operations)
         .map(|operation| operation.id.get())
         .max()
-        .unwrap_or(0);
+        .unwrap_or(0)
+        .max(
+            lowered
+                .proof_bundle
+                .evidence
+                .iter()
+                .map(|evidence| evidence.obligation.get())
+                .max()
+                .unwrap_or(0),
+        );
     let type_ids = lowered
         .semantic_module
         .structural_types
@@ -2862,11 +2877,6 @@ fn lower_nominal_structural_scalar_return_machine(
             .count()
     {
         return unsupported("nominal scalar return synthetic cleanup count drifted");
-    }
-    if cleanups.iter().any(|cleanup| {
-        cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty()
-    }) {
-        return unsupported("nominal scalar return unexpectedly acquired proof context");
     }
     let mut terminal_nominals = cleanups.iter().cloned();
     let cleanup_actions = plan
@@ -10918,6 +10928,18 @@ fn finalize_operation_proofs(lowered: &mut LoweredTerminalPsi) -> Result<(), Low
     for site in reconstruct_operation_obligations(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?
     {
+        // Some closure builders have already supplied source-derived evidence
+        // for contextual call/cleanup obligations. Reconstruct every site,
+        // but synthesize only obligations that remain undispatched; the final
+        // verifier still checks the retained evidence against the exact goal.
+        if lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == site.obligation.id)
+        {
+            continue;
+        }
         let proof = proof_from_semantic_axioms(&site.obligation.proposition, &site.semantic_axioms);
         let proof = proof.ok_or(LoweringError::ExactIntegerCastProofUnavailable(
             site.obligation.id,
@@ -13138,6 +13160,7 @@ mod tests {
                     bindings: Vec::new(),
                     result_type: PrimitiveType::I32,
                     return_statement_ordinal: 0,
+                    caller_requirements: Vec::new(),
                     cleanup_actions: vec![
                         CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
                         CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),

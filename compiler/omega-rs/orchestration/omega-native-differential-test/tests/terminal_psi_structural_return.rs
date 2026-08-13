@@ -281,6 +281,133 @@ fn source_scalar_result_precedes_nominal_cleanup_through_all_native_artifacts() 
 }
 
 #[test]
+fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        { Helper::touch(); }
+
+        data Root {}
+        machine Root::measure(first: Token, second: Token) -> u64
+        requires first.ready, second.ready
+        { 7u64 }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize contextual scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse contextual scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual scalar cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type contextual scalar cleanup");
+    let checked = lower_typed_trees(typed).expect("check contextual scalar cleanup");
+    let lowered = lower_machine(&checked, "Root::measure")
+        .expect("contextual scalar cleanup reaches terminal Psi");
+    let semantic_bytes = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry_machine = lowered.semantic_module.entry;
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry_machine)
+        .expect("contextual scalar entry");
+    assert_eq!(entry.contract.requires.len(), 2);
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("contextual scalar entry returns a scalar")
+    };
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+    assert!(cleanup_actions.iter().all(|action| matches!(
+        action,
+        TerminalAffineCleanupAction::InvokeNominal(cleanup)
+            if cleanup.cleanup_receiver.is_some()
+                && cleanup.requirement_obligations.len() == 1
+    )));
+    drop(checked);
+    drop(lowered);
+
+    let abstract_plan =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("verified contextual scalar cleanup crosses the Omega boundary");
+    let abstract_entry = abstract_plan
+        .functions
+        .iter()
+        .find(|function| function.machine == entry_machine)
+        .expect("abstract contextual scalar entry");
+    let [
+        TerminalAbstractOperation::IntegerConstant { .. },
+        TerminalAbstractOperation::Return {
+            cleanup_actions, ..
+        },
+    ] = abstract_entry.operations.as_slice()
+    else {
+        panic!("contextual scalar result precedes its cleanup")
+    };
+    assert_eq!(cleanup_actions.len(), 2);
+    assert!(cleanup_actions.iter().all(|action| matches!(
+        action,
+        TerminalAffineCleanupAction::InvokeNominal(cleanup)
+            if cleanup.cleanup_receiver.is_none()
+                && cleanup.requirement_obligations.is_empty()
+    )));
+
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission failed: {error:?}", case.target));
+        let emitted_entry = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted contextual scalar entry");
+        let cleanup = emitted_entry
+            .scalar_affine_cleanup
+            .as_ref()
+            .expect("emitted contextual scalar cleanup");
+        assert_eq!(cleanup.actions, *cleanup_actions);
+        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 2);
+        assert_eq!(emitted_entry.internal_unit_calls.len(), 2);
+        assert!(cleanup.code_offset > 0, "result bytes precede cleanups");
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation failed: {error:?}", case.target));
+        let installed_entry = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("installed contextual scalar entry");
+        assert_eq!(
+            installed_entry.scalar_affine_cleanup.as_ref(),
+            Some(cleanup)
+        );
+        let installation_bytes = encode_terminal_installation_record(&installation)
+            .expect("canonical contextual scalar installation");
+        assert_eq!(
+            decode_terminal_installation_record(&installation_bytes),
+            Ok(installation.clone())
+        );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed contextual scalar cleanup binds its exact image");
+    }
+}
+
+#[test]
 fn source_scalar_result_runs_distinct_nominal_roots_in_reverse_order_on_all_targets() {
     let source = r#"
         data FirstHelper {}
