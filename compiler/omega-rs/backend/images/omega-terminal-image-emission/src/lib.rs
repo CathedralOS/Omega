@@ -934,7 +934,6 @@ fn validate_unit_affine_cleanup(
                     .is_some_and(|return_cleanup| {
                         return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
                     })
-                && calls.len() <= 3
                 && call_owners.len() == calls.len()
                 && call_targets.len() == calls.len()
                 && calls.iter().enumerate().all(|(ordinal, call)| {
@@ -1013,7 +1012,7 @@ fn validate_unit_affine_cleanup(
             })
             .collect::<Vec<_>>();
         if nominal.len() != cleanup.actions.len()
-            || !(1..=3).contains(&nominal.len())
+            || nominal.is_empty()
             || !cleanup.locals.is_empty()
             || parameter_homes.len() != nominal.len()
             || parameter_homes
