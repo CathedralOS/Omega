@@ -194,8 +194,22 @@ empty-record affine locals. Each has an explicit fuel-charged establishment;
 the return discards locals in reverse order before eligible parameters. Their
 typed custody crosses Omega's five native artifact pipelines without runtime
 bytes. Nonempty, mutable, qualified, content-bearing, nominal-cleanup, and
-post-effect locals remain fenced. An
-unconditional jump and each ordered conditional successor may carry an
+post-effect locals remain fenced.
+
+The first nominal-cleanup slice accepts one root-only, one-state Unit machine
+with exactly one claim-free, unqualified affine parameter of an empty record
+type and its exact empty attached `T::drop(&mut self)` machine. The return names
+the whole place, type, and cleanup-machine identity. Verification reconstructs
+that attachment and empty closure; interpretation charges the caller edge,
+enters the cleanup machine, and charges its return edge without replaying the
+caller. Fixed fuel composes both edges. Omega erases the empty value from ABI
+locations while preserving its semantic parameter, attachment, and cleanup
+ledger through all five native object, image, and installation paths. The
+cleanup adds no native bytes. Nonempty receivers, executable drop bodies,
+multiple ordered cleanup actions, claims, qualifications, locals, and non-root
+edges remain fenced.
+
+An unconditional jump and each ordered conditional successor may carry an
 independent canonical reverse-declaration subset of the same eligible
 parameters. Verification removes exactly those places from the corresponding
 successor frontier; interpretation charges the selected edge and materializes
@@ -364,12 +378,11 @@ parameters but cannot name an absent result. Scalar and unit calls remain
 distinct complete operation slices rather than ignored-result conventions.
 
 Canonical encoding, independent verification, interpretation, and fixed-fuel
-derivation implement this distinction. A unit return charges exactly its one
-terminal edge and resumes atomically after sponsor exhaustion. The checked-tree
-producer and Omega native lowering remain explicitly scalar-only, so this is
-artifact-core scaffolding rather than a source-visible unit-entry or Cathedral
-hard-root claim. Attached roots, linear custody, provider/port effects, and
-native unit realization remain gated on their complete vertical slices.
+derivation implement this distinction. A plain unit return charges exactly its
+one terminal edge and resumes atomically after sponsor exhaustion. Checked-tree
+production and Omega native lowering now cover the bounded Unit, structural
+custody, effect, and cleanup slices described above; unsupported Unit shapes
+remain fail-closed rather than falling back to checked or source trees.
 
 The first structural-result artifact slice is root-only whole-parameter
 passthrough. `ReturnStructural` names the live source place and exact ordered
