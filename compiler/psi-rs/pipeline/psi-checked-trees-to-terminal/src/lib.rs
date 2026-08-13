@@ -9639,16 +9639,15 @@ mod tests {
                         && declaration.identity.contains("Token")
                 })
         );
-        assert!(matches!(
-            psi_terminal_verifier::validate_module(&lowered.semantic_module),
-            Err(psi_terminal_verifier::ModuleError::PartialAffineCleanupNotYetVerified)
-        ));
-        assert!(matches!(
-            psi_terminal_codec::encode_module(&lowered.semantic_module),
-            Err(psi_terminal_codec::CodecError::InvalidModule(
-                psi_terminal_verifier::ModuleError::PartialAffineCleanupNotYetVerified
-            ))
-        ));
+        psi_terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("independent verifier proves moved field plus residual cleanup exhausts root");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("verified partial affine cleanup should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("canonical partial affine cleanup should decode"),
+            lowered.semantic_module
+        );
         let entry_name = checked
             .facts
             .flow
@@ -9659,12 +9658,8 @@ mod tests {
             .expect("partial cleanup terminal selection")
             .name
             .clone();
-        assert!(matches!(
-            lower_machine(&checked, &entry_name),
-            Err(LoweringError::InvalidTerminalModule(
-                psi_terminal_verifier::ModuleError::PartialAffineCleanupNotYetVerified
-            ))
-        ));
+        lower_machine(&checked, &entry_name)
+            .expect("verified partial affine cleanup should cross the ordinary lowering entry");
     }
 
     #[test]

@@ -75,14 +75,6 @@ fn validate_module_with_policy(
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
-    if module.machines.iter().any(|machine| {
-        machine
-            .blocks
-            .iter()
-            .any(|block| matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. }))
-    }) {
-        return Err(ModuleError::PartialAffineCleanupNotYetVerified);
-    }
     validate_proposition_vocabulary(module)?;
     validate_structural_foundation(module)?;
 
@@ -1634,6 +1626,7 @@ fn validate_machine(
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
     validate_crash_frontiers(module, machine, &context, &requires_values)?;
+    validate_partial_affine_cleanup_shape(module, machine, machines)?;
     let mut ensures_values = requires_values.clone();
     if let Some(result) = machine.result.scalar() {
         ensures_values.insert(result.id);
@@ -1721,7 +1714,7 @@ fn validate_unit_operation_static(
                 !argument.path.is_empty()
                     && !matches!(
                         argument.path.as_slice(),
-                        [StructuralPathSegment::FixedIndex(_)]
+                        [StructuralPathSegment::FixedIndex(_)] | [StructuralPathSegment::Field(_)]
                     )
             }) {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
@@ -1733,6 +1726,7 @@ fn validate_unit_operation_static(
                                 && !matches!(
                                     argument.path.as_slice(),
                                     [StructuralPathSegment::FixedIndex(_)]
+                                        | [StructuralPathSegment::Field(_)]
                                 )
                         })
                         .unwrap_or_default() as u32,
@@ -1919,6 +1913,187 @@ fn validate_unit_operation_static(
     Ok(())
 }
 
+/// Validate the complete bounded representation for one direct-field affine
+/// transfer followed by disposal of its sole residual sibling. This pairing is
+/// checked independently of producer facts before the ownership walk relies on
+/// the path-sensitive terminator.
+fn validate_partial_affine_cleanup_shape(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let direct_field_calls = machine
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            block.operations.iter().filter_map(move |operation| {
+                let OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } = &operation.kind
+                else {
+                    return None;
+                };
+                structural_arguments
+                    .iter()
+                    .any(|argument| {
+                        matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_)])
+                    })
+                    .then_some((
+                        block,
+                        operation,
+                        *callee,
+                        structural_arguments,
+                        claim_transfers,
+                    ))
+            })
+        })
+        .collect::<Vec<_>>();
+    let partial_returns = machine
+        .blocks
+        .iter()
+        .filter(|block| matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. }))
+        .collect::<Vec<_>>();
+    if direct_field_calls.is_empty() && partial_returns.is_empty() {
+        return Ok(());
+    }
+    let invalid = |block: BlockId| ModuleError::InvalidPartialAffineCleanup {
+        machine: machine.id,
+        block,
+    };
+    let [(block, _operation, callee_id, arguments, claim_transfers)] =
+        direct_field_calls.as_slice()
+    else {
+        return Err(invalid(
+            partial_returns
+                .first()
+                .map_or(machine.entry, |block| block.id),
+        ));
+    };
+    let [partial_block] = partial_returns.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    if partial_block.id != block.id
+        || !matches!(machine.result, TerminalMachineResult::Unit)
+        || block.operations.len() != 1
+        || machine.structural_parameters.len() != 1
+        || machine.structural_places.len() != 1
+        || !machine.entry_claims.is_empty()
+        || !machine.content_entry_claims.is_empty()
+        || !machine.content_identity_reshuffles.is_empty()
+        || !machine.content_partition_compositions.is_empty()
+        || !claim_transfers.is_empty()
+    {
+        return Err(invalid(block.id));
+    }
+    let [root] = machine.structural_parameters.as_slice() else {
+        unreachable!()
+    };
+    if root.multiplicity != StructuralMultiplicity::Affine
+        || !root.qualifications.is_empty()
+        || !machine.structural_places.iter().any(|place| {
+            place.id == root.place
+                && place.kind
+                    == StructuralPlaceKind::Parameter {
+                        position: root.position,
+                        is_self: root.is_self,
+                    }
+        })
+    {
+        return Err(invalid(block.id));
+    }
+    let Some(root_type) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_type)
+    else {
+        return Err(invalid(block.id));
+    };
+    let StructuralTypeShape::Record { fields } = &root_type.shape else {
+        return Err(invalid(block.id));
+    };
+    if fields.len() != 2
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+        })
+    {
+        return Err(invalid(block.id));
+    }
+    let [argument] = arguments.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    let [StructuralPathSegment::Field(moved_identity)] = argument.path.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    if argument.place != root.place {
+        return Err(invalid(block.id));
+    }
+    let Some(moved_field) = fields
+        .iter()
+        .find(|field| field.identity == *moved_identity)
+    else {
+        return Err(invalid(block.id));
+    };
+    let StructuralFieldType::Structural(moved_type) = moved_field.field_type else {
+        return Err(invalid(block.id));
+    };
+    let Some(callee) = machines.get(callee_id).copied() else {
+        return Err(invalid(block.id));
+    };
+    let [callee_parameter] = callee.structural_parameters.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    if callee.result != TerminalMachineResult::Unit
+        || !callee.parameters.is_empty()
+        || callee_parameter.structural_type != moved_type
+        || callee_parameter.multiplicity != StructuralMultiplicity::Affine
+        || !callee_parameter.qualifications.is_empty()
+    {
+        return Err(invalid(block.id));
+    }
+    let Terminator::ReturnUnitPartialAffine {
+        trivial_affine_discards,
+        residual_affine_discards,
+        ..
+    } = &block.terminator
+    else {
+        unreachable!()
+    };
+    let [residual] = residual_affine_discards.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    let [StructuralPathSegment::Field(residual_identity)] = residual.path.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    let Some(residual_field) = fields
+        .iter()
+        .find(|field| field.identity == *residual_identity)
+    else {
+        return Err(invalid(block.id));
+    };
+    let StructuralFieldType::Structural(residual_type) = residual_field.field_type else {
+        return Err(invalid(block.id));
+    };
+    if !trivial_affine_discards.is_empty()
+        || residual.place != root.place
+        || residual.structural_type != residual_type
+        || moved_identity == residual_identity
+        || fields
+            .iter()
+            .map(|field| field.identity.as_str())
+            .collect::<BTreeSet<_>>()
+            != [moved_identity.as_str(), residual_identity.as_str()]
+                .into_iter()
+                .collect()
+    {
+        return Err(invalid(block.id));
+    }
+    Ok(())
+}
+
 fn validate_unit_call_contract_places(
     callee: &TerminalMachine,
     operation: OperationId,
@@ -2019,6 +2194,11 @@ fn validate_structural_arguments(
         }
         let actual_multiplicity = if argument.path.is_empty() {
             actual.multiplicity
+        } else if expected.multiplicity == StructuralMultiplicity::Affine
+            && matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_)])
+            && actual.multiplicity == StructuralMultiplicity::Affine
+        {
+            StructuralMultiplicity::Affine
         } else {
             StructuralMultiplicity::Linear
         };
@@ -2075,7 +2255,17 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
-            if !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty()) {
+            let claim_free_direct_affine =
+                matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_)])
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
+                    && callee_claims.is_empty()
+                    && caller
+                        .entry_claims
+                        .iter()
+                        .all(|claim| claim.input != argument.place);
+            if !claim_free_direct_affine
+                && !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty())
+            {
                 return Err(ModuleError::UnitCallClaimPresenceMismatch {
                     operation,
                     argument_index: argument_index as u32,
@@ -3327,6 +3517,10 @@ struct StructuralOwnershipFrontier {
     // enforce by-value affine/linear use even when no linear claim row exists.
     claims: BTreeMap<ClaimId, LiveClaim>,
     owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
+    /// Exact direct fields already transferred from an otherwise-live affine
+    /// root. The root remains present until its complementary residual action
+    /// proves complete exhaustion at `ReturnUnitPartialAffine`.
+    moved_direct_fields: BTreeMap<PlaceId, BTreeSet<String>>,
 }
 
 fn validate_structural_frontier(
@@ -3376,6 +3570,7 @@ fn validate_structural_frontier(
                     .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),
+        moved_direct_fields: BTreeMap::new(),
     };
 
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
@@ -3441,6 +3636,9 @@ fn validate_structural_frontier(
         if frontiers
             .iter()
             .any(|candidate| candidate.owned_places != frontier.owned_places)
+            || frontiers
+                .iter()
+                .any(|candidate| candidate.moved_direct_fields != frontier.moved_direct_fields)
         {
             return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block_id));
         }
@@ -3544,6 +3742,23 @@ fn validate_structural_frontier(
                 .iter()
                 .filter(|argument| !argument.path.is_empty())
             {
+                if let [StructuralPathSegment::Field(identity)] = argument.path.as_slice()
+                    && matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. })
+                {
+                    if !frontier.owned_places.contains_key(&argument.place)
+                        || !frontier
+                            .moved_direct_fields
+                            .entry(argument.place)
+                            .or_default()
+                            .insert(identity.clone())
+                    {
+                        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                            operation: operation.id,
+                            place: argument.place,
+                        });
+                    }
+                    continue;
+                }
                 if !frontier
                     .claims
                     .values()
@@ -3622,8 +3837,64 @@ fn validate_structural_frontier(
                     });
                 }
             }
-            Terminator::ReturnUnitPartialAffine { .. } => {
-                return Err(ModuleError::PartialAffineCleanupNotYetVerified);
+            Terminator::ReturnUnitPartialAffine {
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            } => {
+                let [residual] = residual_affine_discards.as_slice() else {
+                    return Err(ModuleError::InvalidPartialAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                };
+                let [StructuralPathSegment::Field(residual_identity)] = residual.path.as_slice()
+                else {
+                    return Err(ModuleError::InvalidPartialAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                };
+                let Some(moved) = frontier.moved_direct_fields.remove(&residual.place) else {
+                    return Err(ModuleError::InvalidPartialAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                };
+                if moved.len() != 1
+                    || moved.contains(residual_identity)
+                    || frontier.owned_places.remove(&residual.place)
+                        != Some(StructuralMultiplicity::Affine)
+                {
+                    return Err(ModuleError::InvalidPartialAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
+                if *trivial_affine_discards != expected_affine_discards {
+                    return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                if !frontier.moved_direct_fields.is_empty() {
+                    return Err(ModuleError::InvalidPartialAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                if let Some((claim, _)) = frontier
+                    .claims
+                    .iter()
+                    .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
+                {
+                    return Err(ModuleError::LiveLinearClaimAtUnitReturn {
+                        machine: machine.id,
+                        block: block.id,
+                        claim: *claim,
+                    });
+                }
             }
             Terminator::Return {
                 trivial_affine_discards,
@@ -4018,7 +4289,12 @@ fn validate_control_flow(
                 }
             }
             Terminator::ReturnUnitPartialAffine { .. } => {
-                return Err(ModuleError::PartialAffineCleanupNotYetVerified);
+                if !matches!(machine.result, TerminalMachineResult::Unit) {
+                    return Err(ModuleError::UnitReturnFromScalarMachine {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
             }
             Terminator::ReturnStructural { source, .. } => {
                 if machine.result.structural().is_none() {
@@ -4722,7 +4998,10 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
-    PartialAffineCleanupNotYetVerified,
+    InvalidPartialAffineCleanup {
+        machine: MachineId,
+        block: BlockId,
+    },
     EmptyModule,
     DuplicatePropositionDeclaration(PropositionId),
     DuplicatePropositionApplication(PropositionId),
