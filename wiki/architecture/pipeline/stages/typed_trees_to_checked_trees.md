@@ -221,10 +221,13 @@ Current ownership is:
   arguments and their bounded two-level direct-call trees. An
   internal statement call may also take a mutable indexed argument whose index
   is such a tree: caller-alias-aware instantiation coarsens callee writes to the
-  argument's collection and publishes index-call writes. The indexed argument
-  may project through a stable helper-local mutable alias; that alias's
-  established origin supplies the collection. It may also index a structurally
-  transparent helper result directly; the helper's returned-place relation
+  argument's collection and publishes index-call writes. The compiler-owned
+  `as_mut_slice()` view is neutral on that argument spine: the callee write
+  rebases to its backing array before the index coarsens it. Deeper or recursive
+  index trees remain opaque. The indexed argument may project through a stable
+  helper-local mutable alias; that alias's established origin supplies the
+  collection. It may also index a structurally transparent helper result
+  directly; the helper's returned-place relation
   supplies the collection without an intermediate binding. This includes an
   attached helper rooted in its actual `self` receiver. An exact member
   projection may follow the helper result before one or more indexes. The
