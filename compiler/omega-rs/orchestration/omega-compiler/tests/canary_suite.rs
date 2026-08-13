@@ -13138,16 +13138,11 @@ fn runtime_float_nan_comparison_exit_canary_runs() {
     // are false. Guards on `ucomis*` must test the parity flag (a `jp` branch) or 4 of 6 take
     // the wrong arm. The canary checks all six against a NaN operand and exits 70 iff correct.
     let canary = pass_canary("arithmetic/runtime_float_nan_comparison_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-float-nan-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float NaN comparison canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-float-nan-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float NaN comparison canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float NaN comparison canary should run");
     assert_eq!(
@@ -13157,7 +13152,7 @@ fn runtime_float_nan_comparison_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
