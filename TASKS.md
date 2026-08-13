@@ -73,6 +73,9 @@ Remaining:
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
   `temperature_convert`, now lowers directly from its authored host entry. The
+  thirteen deployable plan-laid runtime canaries likewise author all four
+  hosted roots, and the active pass umbrella exercises them through production
+  entry selection rather than its explicit legacy fixture seam. The
   active pass-canary umbrella uses its explicit legacy fixture entry and asserts
   that state-graph lowering occurred, so it cannot silently collapse into
   checked-only coverage. Production and development interpreter execution
