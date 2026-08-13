@@ -365,7 +365,9 @@ transparent free helper result, or an attached helper result rooted in its
 actual `self` receiver: the callee write rebases through the alias or helper and
 view to its backing array before the index coarsens it. Deeper index trees and
 recursive or opaque free/attached view
-producers remain fences. An attached helper may likewise root that relation in
+producers remain fences. An exact member projection may follow a helper result
+before the view; the suffix composes before view preservation and index
+coarsening. An attached helper may likewise root that relation in
 its actual `self` receiver. An exact member projection may follow the helper
 result before one or more indexes: the suffix composes first, the first index
 coarsens to that nearest collection, and
