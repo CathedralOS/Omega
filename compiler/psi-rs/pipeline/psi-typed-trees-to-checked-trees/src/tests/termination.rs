@@ -4689,12 +4689,18 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         cells: [Cell; 2];
     }
 
+    data GridBucket {
+        rows: [[u64; 2]; 2];
+    }
+
     data Main {
         result: u64;
         index_write: u64;
+        second_index_write: u64;
         cells: [u64; 2];
         bucket: Bucket;
         cell_bucket: CellBucket;
+        grid_bucket: GridBucket;
     }
 
     machine write_argument(value: &mut u64) {
@@ -4742,6 +4748,10 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         bucket: &mut CellBucket
     ) -> &mut CellBucket {
         recursive_cell_bucket(bucket)
+    }
+
+    machine return_grid_bucket(bucket: &mut GridBucket) -> &mut GridBucket {
+        bucket
     }
 
     machine Main::return_attached_cells(&mut self) -> &mut [u64; 2] {
@@ -4840,6 +4850,33 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
     ) -> &'result mut u64 {
         write_argument(
             &mut recursive_cell_bucket(bucket).cells[make_index()].value
+        );
+        result
+    }
+
+    machine return_after_repeated_index_statement<'bucket, 'result, 'first, 'second>(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut return_grid_bucket(bucket).rows[
+                identity_index(write_index(first))
+            ][identity_index(write_index(second))]
+        );
+        result
+    }
+
+    machine return_after_deep_repeated_index_statement<'bucket, 'result, 'first>(
+        bucket: &'bucket mut GridBucket,
+        result: &'result mut u64,
+        first: &'first mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut return_grid_bucket(bucket).rows[
+                identity_index(identity_index(write_index(first)))
+            ][make_index()]
         );
         result
     }
@@ -4979,6 +5016,25 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         alias = 3;
     }
 
+    machine Main::repeated_index_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_repeated_index_statement(
+            &mut self.grid_bucket,
+            &mut self.result,
+            &mut self.index_write,
+            &mut self.second_index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::deep_repeated_index_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_repeated_index_statement(
+            &mut self.grid_bucket,
+            &mut self.result,
+            &mut self.index_write
+        );
+        alias = 3;
+    }
+
     machine Main::attached_result_indexed_statement_result(&mut self) {
         let alias: &mut u64 = self.return_after_attached_result_indexed_statement();
         alias = 3;
@@ -5061,6 +5117,15 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             "Main::member_after_index_statement_result",
             vec!["self.cell_bucket.cells", "self.index_write", "self.result"],
         ),
+        (
+            "Main::repeated_index_statement_result",
+            vec![
+                "self.grid_bucket.rows",
+                "self.index_write",
+                "self.result",
+                "self.second_index_write",
+            ],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -5095,6 +5160,7 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         "Main::recursive_attached_indexed_statement_result",
         "Main::recursive_projected_helper_statement_result",
         "Main::recursive_member_after_index_statement_result",
+        "Main::deep_repeated_index_statement_result",
     ] {
         let machine = typed
             .machines()

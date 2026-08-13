@@ -205,9 +205,10 @@ Current ownership is:
   transparent helper result directly; the helper's returned-place relation
   supplies the collection without an intermediate binding. This includes an
   attached helper rooted in its actual `self` receiver. An exact member
-  projection may follow the helper result before indexing; the member suffix
-  composes first, then indexing coarsens to that nearest collection. Any member
-  after that index is absorbed and cannot narrow the published collection.
+  projection may follow the helper result before one or more indexes. The
+  member suffix composes first, the first index coarsens to that nearest
+  collection, and later indexes or members are absorbed; each index expression
+  independently satisfies the same bounded-call rule.
   Recursive or opaque free/attached collection producers, boundary calls, and
   deeper or binding-reborrow index trees remain fences. A direct
   helper-local alias rebind updates that local's origin while
