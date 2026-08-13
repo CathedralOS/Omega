@@ -20,7 +20,8 @@ use psi_checked_trees::{
     CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
     CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
     CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     types::PrimitiveType,
@@ -4312,9 +4313,9 @@ fn lower_partial_affine_unit_cleanup_machine(
     let [parameter] = plan.structural_parameters.as_slice() else {
         return unsupported("partial affine Unit cleanup requires one structural parameter");
     };
-    let [residual] = partial.residual_affine_discards.as_slice() else {
-        return unsupported("partial affine Unit cleanup requires one residual action");
-    };
+    if partial.residual_affine_discards.is_empty() {
+        return unsupported("partial affine Unit cleanup requires residual actions");
+    }
     let [
         CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
@@ -4338,9 +4339,14 @@ fn lower_partial_affine_unit_cleanup_machine(
     let [CheckedUnitStructuralPathSegment::Field(moved_field)] = argument.path.as_slice() else {
         return unsupported("partial affine Unit transfer is not one direct field");
     };
-    let [CheckedUnitStructuralPathSegment::Field(residual_field)] = residual.path.as_slice() else {
+    if partial.residual_affine_discards.iter().any(|residual| {
+        !matches!(
+            residual.path.as_slice(),
+            [CheckedUnitStructuralPathSegment::Field(_)]
+        )
+    }) {
         return unsupported("partial affine Unit cleanup is not one direct field");
-    };
+    }
     if parameter.position != 0
         || parameter.is_self
         || parameter.multiplicity != Multiplicity::Affine
@@ -4353,8 +4359,10 @@ fn lower_partial_affine_unit_cleanup_machine(
         || *statement_index != 1
         || !claim_transfers.is_empty()
         || argument.source_parameter_index != 0
-        || residual.source_parameter_index != 0
-        || moved_field == residual_field
+        || partial
+            .residual_affine_discards
+            .iter()
+            .any(|residual| residual.source_parameter_index != 0)
         || !trivial_affine_local_discard_ordinals.is_empty()
         || !trivial_affine_discards.is_empty()
     {
@@ -4386,9 +4394,9 @@ fn lower_partial_affine_unit_cleanup_machine(
     let CheckedUnitStructuralTypeShape::Record { fields } = &source_shape.shape else {
         return unsupported("partial affine Unit parameter is not a record");
     };
-    let [first, second] = fields.as_slice() else {
-        return unsupported("partial affine Unit record no longer has exactly two fields");
-    };
+    if fields.len() < 2 {
+        return unsupported("partial affine Unit record has fewer than two fields");
+    }
     let checked_field_type = |identity: &str| {
         fields
             .iter()
@@ -4402,11 +4410,35 @@ fn lower_partial_affine_unit_cleanup_machine(
                 | CheckedUnitStructuralFieldType::Erased { .. } => None,
             })
     };
-    if first.identity == second.identity
-        || checked_field_type(moved_field) != Some(argument.type_identity.as_str())
-        || checked_field_type(residual_field) != Some(residual.type_identity.as_str())
+    if fields.iter().enumerate().any(|(index, field)| {
+        field.relevance.is_erased()
+            || !matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::Structural { .. }
+            )
+            || fields[..index]
+                .iter()
+                .any(|earlier| earlier.identity == field.identity)
+    }) || checked_field_type(moved_field) != Some(argument.type_identity.as_str())
     {
         return unsupported("partial affine Unit field path or type identity drifted");
+    }
+    let expected_residuals = fields
+        .iter()
+        .rev()
+        .filter(|field| field.identity != *moved_field)
+        .map(|field| CheckedUnitPartialAffineDiscardPlan {
+            source_parameter_index: 0,
+            path: vec![CheckedUnitStructuralPathSegment::Field(
+                field.identity.clone(),
+            )],
+            type_identity: checked_field_type(&field.identity)
+                .expect("field shape was validated above")
+                .to_owned(),
+        })
+        .collect::<Vec<_>>();
+    if partial.residual_affine_discards != expected_residuals {
+        return unsupported("partial affine Unit residual field partition drifted");
     }
     let target = unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
     let [target_parameter] = target.structural_parameters.as_slice() else {
@@ -4466,23 +4498,27 @@ fn lower_partial_affine_unit_cleanup_machine(
     if !lowered_trivial_discards.is_empty() {
         return unsupported("partial affine Unit return acquired root-only cleanup");
     }
-    let residual_type = lookup_type_id(
-        &lowered
-            .semantic_module
-            .structural_types
-            .iter()
-            .map(|declaration| (declaration.identity.clone(), declaration.id))
-            .collect::<Vec<_>>(),
-        &residual.type_identity,
-    )?;
+    let terminal_type_ids = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .collect::<Vec<_>>();
+    let residual_affine_discards = partial
+        .residual_affine_discards
+        .iter()
+        .map(|residual| {
+            Ok(StructuralAffineDiscard {
+                place: terminal_parameter.place,
+                path: lower_structural_path(&residual.path),
+                structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     block.terminator = Terminator::ReturnUnitPartialAffine {
         edge: *edge,
         trivial_affine_discards: Vec::new(),
-        residual_affine_discards: vec![StructuralAffineDiscard {
-            place: terminal_parameter.place,
-            path: lower_structural_path(&residual.path),
-            structural_type: residual_type,
-        }],
+        residual_affine_discards,
     };
     Ok(lowered)
 }
@@ -10977,12 +11013,12 @@ mod tests {
     fn partial_affine_unit_checked_fixture() -> CheckedTrees {
         let source = r#"
             data Token { value: u64; }
-            data Pair { left: Token; right: Token; }
+            data Quartet { first: Token; second: Token; third: Token; fourth: Token; }
             data Sink {}
             machine Sink::take(token: Token) {}
             data Root {}
-            machine Root::enter(pair: Pair) {
-                Sink::take(pair.right);
+            machine Root::enter(value: Quartet) {
+                Sink::take(value.third);
             }
         "#;
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -11025,7 +11061,7 @@ mod tests {
         };
         assert_eq!(
             structural_arguments[0].path,
-            [StructuralPathSegment::Field("right".to_owned())]
+            [StructuralPathSegment::Field("third".to_owned())]
         );
         assert!(claim_transfers.is_empty());
         let Terminator::ReturnUnitPartialAffine {
@@ -11037,25 +11073,29 @@ mod tests {
             panic!("partial cleanup requires its distinct terminal return")
         };
         assert!(trivial_affine_discards.is_empty());
-        assert_eq!(residual_affine_discards.len(), 1);
+        assert_eq!(residual_affine_discards.len(), 3);
         assert_eq!(
-            residual_affine_discards[0].path,
-            [StructuralPathSegment::Field("left".to_owned())]
-        );
-        assert_eq!(
-            residual_affine_discards[0].place,
-            entry.structural_parameters[0].place
-        );
-        assert!(
-            lowered
-                .semantic_module
-                .structural_types
+            residual_affine_discards
                 .iter()
-                .any(|declaration| {
-                    declaration.id == residual_affine_discards[0].structural_type
-                        && declaration.identity.contains("Token")
-                })
+                .map(|discard| discard.path.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                vec![StructuralPathSegment::Field("fourth".to_owned())],
+                vec![StructuralPathSegment::Field("second".to_owned())],
+                vec![StructuralPathSegment::Field("first".to_owned())],
+            ]
         );
+        for residual in residual_affine_discards {
+            assert_eq!(residual.place, entry.structural_parameters[0].place);
+            assert!(
+                lowered
+                    .semantic_module
+                    .structural_types
+                    .iter()
+                    .any(|declaration| declaration.id == residual.structural_type
+                        && declaration.identity.contains("Token"))
+            );
+        }
         psi_terminal_verifier::validate_module(&lowered.semantic_module)
             .expect("independent verifier proves moved field plus residual cleanup exhausts root");
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -11105,7 +11145,16 @@ mod tests {
         assert!(matches!(
             lower_partial_affine_unit_cleanup_machine(&checked, &stale),
             Err(LoweringError::Unsupported(
-                "partial affine Unit field path or type identity drifted"
+                "partial affine Unit residual field partition drifted"
+            ))
+        ));
+
+        let mut stale = original.clone();
+        stale.residual_affine_discards.swap(0, 1);
+        assert!(matches!(
+            lower_partial_affine_unit_cleanup_machine(&checked, &stale),
+            Err(LoweringError::Unsupported(
+                "partial affine Unit residual field partition drifted"
             ))
         ));
 
@@ -11136,7 +11185,7 @@ mod tests {
         assert!(matches!(
             lower_partial_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
             Err(LoweringError::Unsupported(
-                "partial affine Unit record no longer has exactly two fields"
+                "partial affine Unit residual field partition drifted"
             ))
         ));
 

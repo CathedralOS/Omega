@@ -1071,6 +1071,23 @@ fn projected_unit_calls_reject_contracts_over_the_projected_parameter() {
 #[test]
 fn direct_field_partial_affine_return_validates_and_verifies() {
     let module = partial_affine_field_module();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| match discard.path.as_slice() {
+                [StructuralPathSegment::Field(identity)] => identity.as_str(),
+                _ => panic!("expected one direct field residual"),
+            })
+            .collect::<Vec<_>>(),
+        vec!["middle", "left"]
+    );
     validate_module(&module).expect("direct moved field plus residual cleanup exhausts the root");
     verify_module(
         &module,
@@ -1149,6 +1166,20 @@ fn direct_field_partial_affine_return_rejects_forged_conservation_shapes() {
     assert_eq!(
         validate_module(&same_field).unwrap_err(),
         expected(&same_field)
+    );
+
+    let mut wrong_order = partial_affine_field_module();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut wrong_order.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.swap(0, 1);
+    assert_eq!(
+        validate_module(&wrong_order).unwrap_err(),
+        expected(&wrong_order)
     );
 
     let mut reordered_root_cleanup = partial_affine_field_module();
@@ -2265,6 +2296,12 @@ fn partial_affine_field_module() -> TerminalModule {
                 },
                 StructuralFieldDeclaration {
                     id: psi_core::StructuralFieldId::new(2).expect("field identity"),
+                    identity: "middle".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(token.id),
+                },
+                StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(3).expect("field identity"),
                     identity: "right".into(),
                     relevance: psi_terminal::BindingRelevance::Relevant,
                     field_type: StructuralFieldType::Structural(token.id),
@@ -2326,11 +2363,18 @@ fn partial_affine_field_module() -> TerminalModule {
             terminator: Terminator::ReturnUnitPartialAffine {
                 edge: edge_id(1),
                 trivial_affine_discards: Vec::new(),
-                residual_affine_discards: vec![StructuralAffineDiscard {
-                    place: place_id(1),
-                    path: vec![StructuralPathSegment::Field("left".into())],
-                    structural_type: token.id,
-                }],
+                residual_affine_discards: vec![
+                    StructuralAffineDiscard {
+                        place: place_id(1),
+                        path: vec![StructuralPathSegment::Field("middle".into())],
+                        structural_type: token.id,
+                    },
+                    StructuralAffineDiscard {
+                        place: place_id(1),
+                        path: vec![StructuralPathSegment::Field("left".into())],
+                        structural_type: token.id,
+                    },
+                ],
             },
         }],
         contract: empty_contract(contract_id(1)),

@@ -1915,9 +1915,9 @@ fn validate_unit_operation_static(
 }
 
 /// Validate the complete bounded representation for one direct-field affine
-/// transfer followed by disposal of its sole residual sibling. This pairing is
-/// checked independently of producer facts before the ownership walk relies on
-/// the path-sensitive terminator.
+/// transfer followed by disposal of every residual sibling in reverse
+/// declaration order. This partition is checked independently of producer
+/// facts before the ownership walk relies on the path-sensitive terminator.
 fn validate_partial_affine_cleanup_shape(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -2015,7 +2015,7 @@ fn validate_partial_affine_cleanup_shape(
     let StructuralTypeShape::Record { fields } = &root_type.shape else {
         return Err(invalid(block.id));
     };
-    if fields.len() != 2
+    if fields.len() < 2
         || fields.iter().any(|field| {
             field.relevance.is_erased()
                 || !matches!(field.field_type, StructuralFieldType::Structural(_))
@@ -2063,32 +2063,25 @@ fn validate_partial_affine_cleanup_shape(
     else {
         unreachable!()
     };
-    let [residual] = residual_affine_discards.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    let [StructuralPathSegment::Field(residual_identity)] = residual.path.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    let Some(residual_field) = fields
+    let residual_fields = fields
         .iter()
-        .find(|field| field.identity == *residual_identity)
-    else {
-        return Err(invalid(block.id));
-    };
-    let StructuralFieldType::Structural(residual_type) = residual_field.field_type else {
-        return Err(invalid(block.id));
-    };
+        .rev()
+        .filter(|field| field.identity != *moved_identity)
+        .collect::<Vec<_>>();
     if !trivial_affine_discards.is_empty()
-        || residual.place != root.place
-        || residual.structural_type != residual_type
-        || moved_identity == residual_identity
-        || fields
+        || residual_affine_discards.len() != residual_fields.len()
+        || residual_affine_discards
             .iter()
-            .map(|field| field.identity.as_str())
-            .collect::<BTreeSet<_>>()
-            != [moved_identity.as_str(), residual_identity.as_str()]
-                .into_iter()
-                .collect()
+            .zip(residual_fields)
+            .any(|(residual, field)| {
+                let StructuralFieldType::Structural(field_type) = field.field_type else {
+                    unreachable!("all record fields were checked as structural")
+                };
+                residual.place != root.place
+                    || residual.path.as_slice()
+                        != [StructuralPathSegment::Field(field.identity.clone())]
+                    || residual.structural_type != field_type
+            })
     {
         return Err(invalid(block.id));
     }
@@ -4038,28 +4031,58 @@ fn validate_structural_frontier(
                 residual_affine_discards,
                 ..
             } => {
-                let [residual] = residual_affine_discards.as_slice() else {
+                let Some(first_residual) = residual_affine_discards.first() else {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
                     });
                 };
-                let [StructuralPathSegment::Field(residual_identity)] = residual.path.as_slice()
-                else {
+                let root_place = first_residual.place;
+                let mut residual_identities = BTreeSet::new();
+                if residual_affine_discards.iter().any(|residual| {
+                    let [StructuralPathSegment::Field(identity)] = residual.path.as_slice() else {
+                        return true;
+                    };
+                    residual.place != root_place || !residual_identities.insert(identity.clone())
+                }) {
+                    return Err(ModuleError::InvalidPartialAffineCleanup {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                let Some(moved) = frontier.moved_direct_fields.remove(&root_place) else {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
                     });
                 };
-                let Some(moved) = frontier.moved_direct_fields.remove(&residual.place) else {
-                    return Err(ModuleError::InvalidPartialAffineCleanup {
-                        machine: machine.id,
-                        block: block.id,
+                let expected_fields = machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == root_place)
+                    .and_then(|parameter| {
+                        module.structural_types.iter().find_map(|declaration| {
+                            (declaration.id == parameter.structural_type)
+                                .then_some(&declaration.shape)
+                        })
+                    })
+                    .and_then(|shape| match shape {
+                        StructuralTypeShape::Record { fields } => Some(
+                            fields
+                                .iter()
+                                .map(|field| field.identity.clone())
+                                .collect::<BTreeSet<_>>(),
+                        ),
+                        _ => None,
                     });
-                };
+                let covered_fields = moved
+                    .union(&residual_identities)
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
                 if moved.len() != 1
-                    || moved.contains(residual_identity)
-                    || frontier.owned_places.remove(&residual.place)
+                    || !moved.is_disjoint(&residual_identities)
+                    || expected_fields.as_ref() != Some(&covered_fields)
+                    || frontier.owned_places.remove(&root_place)
                         != Some(StructuralMultiplicity::Affine)
                 {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
