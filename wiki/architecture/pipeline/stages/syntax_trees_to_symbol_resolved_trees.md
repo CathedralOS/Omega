@@ -44,6 +44,9 @@ Must own:
 - Stamping references with symbol handles when lookup is source/scope based.
 - Keeping source names available for diagnostics without letting strings become
   semantic identity.
+- Preserving an explicit named `requires`/`ensures` evidence binding while its
+  proposition references acquire ordinary resolved identity. Selection of a
+  producer conformance remains a checked proof concern.
 
 Must not own:
 

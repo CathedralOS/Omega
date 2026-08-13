@@ -186,6 +186,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
 
     Ok(CapabilityContract {
         kind,
+        binding: None,
         facts,
         token_count,
     })

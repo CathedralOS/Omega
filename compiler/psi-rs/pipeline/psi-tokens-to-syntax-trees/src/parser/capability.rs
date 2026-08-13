@@ -141,6 +141,7 @@ fn parse_capability_contract<'tokens, 'source>(
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                binding: None,
                 facts,
                 token_count,
             },
@@ -156,6 +157,7 @@ fn parse_capability_contract<'tokens, 'source>(
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Ensures,
+                binding: None,
                 facts,
                 token_count,
             },
@@ -170,6 +172,7 @@ fn parse_capability_contract<'tokens, 'source>(
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Boundary(boundary_level),
+                binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 1,
             },

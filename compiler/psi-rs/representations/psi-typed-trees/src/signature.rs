@@ -71,6 +71,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
+    pub binding: Option<Identifier>,
     pub facts: psi_arena::HandleSpan<crate::domain::ProofFact>,
     pub token_count: usize,
 }

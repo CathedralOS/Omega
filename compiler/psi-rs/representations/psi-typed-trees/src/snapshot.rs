@@ -588,6 +588,8 @@ pub struct StateSignatureSnapshot {
 pub struct SignatureContractSnapshot {
     pub kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub crash_cause: Option<&'static str>,
     pub facts: Vec<ProofFactSnapshot>,
     pub token_count: usize,
@@ -1305,6 +1307,7 @@ fn signature_contract_snapshot(
         crate::signature::SignatureContractKind::Crashes { cause } => {
             return SignatureContractSnapshot {
                 kind: "crashes",
+                binding: contract.binding.as_ref().map(ToString::to_string),
                 crash_cause: Some(match cause {
                     crate::signature::CrashCause::Trap => "Trap",
                     crate::signature::CrashCause::Abort => "Abort",
@@ -1316,6 +1319,7 @@ fn signature_contract_snapshot(
     };
     SignatureContractSnapshot {
         kind,
+        binding: contract.binding.as_ref().map(ToString::to_string),
         crash_cause,
         facts: contract_fact_snapshots(program, contract.facts),
         token_count: contract.token_count,

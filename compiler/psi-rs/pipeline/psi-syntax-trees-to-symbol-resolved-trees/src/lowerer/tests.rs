@@ -1662,6 +1662,36 @@ fn lowers_machine_contract_clauses() {
 }
 
 #[test]
+fn lowers_named_contract_evidence_bindings() {
+    let source = r#"
+    proposition carries(value: i32) evidence i32;
+    machine forward(value: i32)
+    requires input_proof: carries(value)
+    ensures output_proof: carries(value)
+    {
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("forward machine");
+    let contracts = program.machine_contracts(machine);
+    assert_eq!(contracts.len(), 2);
+    assert_eq!(
+        contracts[0].binding.as_ref().map(|name| name.as_str()),
+        Some("input_proof")
+    );
+    assert_eq!(
+        contracts[1].binding.as_ref().map(|name| name.as_str()),
+        Some("output_proof")
+    );
+}
+
+#[test]
 fn resolves_generic_calls_inside_machine_contracts() {
     let source = r#"
     data Index {

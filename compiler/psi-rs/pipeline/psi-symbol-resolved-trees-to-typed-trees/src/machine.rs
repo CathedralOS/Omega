@@ -153,6 +153,7 @@ pub(crate) fn lower_machine(
             &mut typed_machine,
             typed::signature::SignatureContract {
                 kind: lower_contract_kind(&contract.kind),
+                binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },

@@ -44,6 +44,9 @@ Must own:
 - Typed call, transition, operator, domain, effect, and boundary surfaces.
 - Enough value/type information for checked trees to build durable facts without
   reverse-engineering source syntax.
+- Typed machine contracts retain the optional named evidence binding separately
+  from the proposition fact it names; this stage does not infer or select the
+  evidence producer.
 
 Must not own:
 

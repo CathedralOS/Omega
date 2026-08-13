@@ -409,6 +409,9 @@ pub struct CapabilityState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
+    /// An explicit erased evidence-term binding (`requires proof: P` or
+    /// `ensures proof: P`). Empty clauses remain ordinary ambient facts.
+    pub binding: Option<Identifier>,
     pub facts: HandleSpan<ProofFact>,
     pub token_count: usize,
 }
@@ -417,6 +420,7 @@ impl Default for CapabilityContract {
     fn default() -> Self {
         Self {
             kind: CapabilityContractKind::default(),
+            binding: None,
             facts: HandleSpan::empty(),
             token_count: 0,
         }

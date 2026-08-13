@@ -1519,6 +1519,60 @@ fn parses_machine_contract_clauses() {
 }
 
 #[test]
+fn parses_named_machine_contract_evidence_bindings() {
+    let source = r#"
+        proposition carries(value: i32) evidence i32;
+        machine forward(value: i32)
+        requires input_proof: carries(value)
+        ensures output_proof: carries(value)
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("named contracts parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let contracts = parsed.items.capability_contracts(machine.contracts);
+    assert_eq!(contracts.len(), 2);
+    assert_eq!(
+        contracts[0].binding.as_ref().map(|name| name.as_str()),
+        Some("input_proof")
+    );
+    assert_eq!(
+        contracts[1].binding.as_ref().map(|name| name.as_str()),
+        Some("output_proof")
+    );
+    assert!(
+        contracts
+            .iter()
+            .all(|contract| parsed.items.proof_facts(contract.facts).len() == 1)
+    );
+}
+
+#[test]
+fn rejects_named_contract_with_multiple_propositions() {
+    let source = r#"
+        proposition carries(value: i32);
+        machine invalid(value: i32)
+        requires proof: carries(value); carries(value)
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let error = parse_syntax_trees(&tokens).expect_err("one evidence term cannot bind two facts");
+    assert!(
+        error.message.contains("exactly one proposition"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
 fn parses_explicit_state_arrival_requires() {
     let source = r#"
         machine walk(value: i32) {
