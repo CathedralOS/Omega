@@ -863,6 +863,58 @@ fn retains_shared_contextual_target_for_each_reverse_ordered_root() {
 }
 
 #[test]
+fn retains_contextual_requirements_with_an_executable_cleanup_body() {
+    let checked = checked(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data Token { ready: bool; padding: u8; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        { Helper::touch(); }
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires second.ready, first.ready
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("contextual executable cleanup plan");
+    assert_eq!(
+        plan.cleanups
+            .iter()
+            .map(|cleanup| cleanup.source_parameter_index)
+            .collect::<Vec<_>>(),
+        vec![1, 0]
+    );
+    assert!(plan.cleanups.iter().all(|cleanup| {
+        matches!(
+            cleanup.requirements.as_slice(),
+            [requirement] if requirement.field_identity == "ready" && requirement.expected
+        )
+    }));
+    let target = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(plan.cleanups[0].cleanup_machine)
+        .expect("contextual executable cleanup target");
+    assert!(matches!(
+        target.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit { .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        ]
+    ));
+}
+
+#[test]
 fn rejects_shared_contextual_target_when_one_root_lacks_its_premise() {
     let diagnostics = contextual_cleanup_diagnostics(
         r#"
@@ -883,6 +935,30 @@ fn rejects_shared_contextual_target_when_one_root_lacks_its_premise() {
             .contains("cannot prove automatic cleanup requires at Unit return edge")
             && diagnostic.message.contains("missing second.ready == true")
             && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
+fn executable_cleanup_still_rejects_a_missing_root_premise() {
+    let diagnostics = contextual_cleanup_diagnostics(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        { Helper::touch(); }
+
+        data Root {}
+        machine Root::enter(first: Token, second: Token)
+        requires first.ready
+        {}
+        "#,
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("missing second.ready == true required by Token::drop")
     }));
 }
 

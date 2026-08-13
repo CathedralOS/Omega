@@ -215,18 +215,20 @@ cleanup kinds in one ordered action stream through abstract, target, assigned,
 machine, object, image, and installation artifacts. Empty drops emit no native
 call; an executable body emits a call owned by the exact edge/action ordinal
 before teardown, with source-ordered operation-owned helper calls.
-For one empty cleanup body, a finite canonical set of direct
+For an empty cleanup body or the bounded receiver-independent helper-call body,
+a finite canonical set of direct
 `requires self.boolean_field` clauses is accepted when the caller's supported
-Boolean fact set contains every corresponding requirement on the owned root.
+Boolean fact set contains every corresponding requirement on each owned root.
 Caller-only facts remain in the entry contract. Terminal Psi retains a
-target-local proof-only receiver and one positional edge obligation per cleanup
-clause, substitutes that receiver with the owned cleanup place during
+target-local proof-only receiver, shared by actions using the same target, and
+one positional edge obligation per action and cleanup clause. It substitutes
+that receiver with the owned cleanup place during
 independent verification, and binds each proof to its matching caller
 assumption rather than assuming identical set positions. The cleanup target
 remains operationally zero-argument. The verified Psi-to-Omega boundary
 removes those proof-site identities; every downstream Omega validator rejects
 their reintroduction. Missing caller evidence rejects during checked
-production. Wider predicates, body-changing facts, multiple contextual roots,
+production. Wider predicates, bodies that can inspect or change receiver facts,
 nested/erased receivers, claims, qualifications, locals, and non-root edges
 remain fenced.
 

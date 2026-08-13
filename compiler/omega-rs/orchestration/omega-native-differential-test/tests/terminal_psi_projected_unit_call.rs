@@ -162,15 +162,18 @@ const CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
 "#;
 
 const ORDERED_CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
     data Shared { ready: bool; audited: bool; padding: u16; }
     machine Shared::drop(&mut self)
     requires self.ready
-    {}
+    { Helper::touch(); }
 
     data Distinct { ready: bool; padding: u8; }
     machine Distinct::drop(&mut self)
     requires self.ready
-    {}
+    { Helper::touch(); }
 
     data Root {}
     machine Root::enter(first: Shared, second: Distinct, third: Shared)
@@ -501,6 +504,19 @@ fn ordered_contextual_nominal_affine_plan()
             .all(|cleanup| cleanup.requirement_obligations.len() == 1)
     );
     assert_eq!(terminal.proof_bundle.evidence.len(), 3);
+    let distinct_targets = [
+        third_cleanup.cleanup_machine,
+        second_cleanup.cleanup_machine,
+    ];
+    for target_id in distinct_targets {
+        let target = terminal
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == target_id)
+            .expect("ordered contextual cleanup target remains in the closure");
+        assert_eq!(target.blocks[0].operations.len(), 1);
+    }
 
     let semantics = encode_module(&terminal.semantic_module)
         .expect("encode ordered contextual nominal affine Psi");
@@ -1778,7 +1794,27 @@ fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_target
             emitted.unit_affine_cleanup.as_ref().unwrap().actions,
             cleanup_actions
         );
-        assert!(emitted.internal_unit_calls.is_empty());
+        assert_eq!(emitted.internal_unit_calls.len(), 3);
+        for (ordinal, call) in emitted.internal_unit_calls.iter().enumerate() {
+            let TerminalAffineCleanupAction::InvokeNominal(cleanup) = &cleanup_actions[ordinal]
+            else {
+                unreachable!()
+            };
+            assert_eq!(call.target, cleanup.cleanup_machine);
+            assert_eq!(
+                call.owner,
+                TerminalCallSiteOwner::CleanupAction {
+                    edge: emitted.unit_affine_cleanup.as_ref().unwrap().psi_edge,
+                    action_ordinal: u32::try_from(ordinal).unwrap(),
+                }
+            );
+        }
+        assert!(
+            emitted
+                .internal_unit_calls
+                .windows(2)
+                .all(|pair| pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset)
+        );
 
         let object = build_terminal_object_artifact(&machine).unwrap();
         let image = emit_terminal_executable_image(&object, 3).unwrap();
@@ -1793,6 +1829,13 @@ fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_target
             installed.unit_affine_cleanup.as_ref().unwrap().actions,
             cleanup_actions
         );
+        let installed_caller_calls = installation
+            .internal_unit_calls()
+            .iter()
+            .filter(|call| call.machine == caller_machine)
+            .collect::<Vec<_>>();
+        assert_eq!(installed_caller_calls.len(), 3);
+        assert_eq!(installation.internal_unit_calls().len(), 5);
         validate_terminal_installation_record(&installation, &image).unwrap();
         let bytes = encode_terminal_installation_record(&installation).unwrap();
         assert_eq!(

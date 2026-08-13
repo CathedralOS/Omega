@@ -218,8 +218,9 @@ Remaining:
   all five object/image/install paths. Empty drops add no call; each accepted
   executable form emits a call owned by its exact edge/action ordinal before
   return teardown and retains source-ordered operation-owned helper custody.
-  Empty bodies additionally admit the finite direct-Boolean contextual
-  contract subset described under CML4 across one or more cleanup roots.
+  The bounded empty/helper-call bodies additionally admit the finite
+  direct-Boolean contextual contract subset described under CML4 across one or
+  more cleanup roots.
   Shared targets reuse one proof receiver while each root receives distinct
   edge obligations. Nested/erased receivers, wider body shapes, locals,
   claims, qualifications, other contract forms, and non-root edges remain
@@ -465,7 +466,7 @@ reach or trust, and private proof improvements do not change public identity.
   source-produced semantic/proof artifact, and removes proof metadata before
   all five Omega runtime carriers. Missing premises reject with an edge- and
   cleanup-specific diagnostic. Extend contextual cleanup beyond this
-  direct-Boolean, empty-body subset; add wider structural partial-value cleanup,
+  direct-Boolean, receiver-independent-body subset; add wider structural partial-value cleanup,
   repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
