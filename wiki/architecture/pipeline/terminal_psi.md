@@ -194,9 +194,10 @@ The first nonempty scalar-return source path composes the same cleanup evidence
 with an attached, one-state signature containing only claim-free affine
 structural parameters. Its scalar work is an ordered prefix of immutable
 primitive locals followed by one return expression. Every initializer and the
-return are checked branch-free expressions: explicitly landed integer literals,
+return use checked scalar expressions: explicitly landed integer literals,
 terminal integer operations and casts, Boolean constants, negation, equality,
-comparisons, and references to already materialized scalar locals. State
+comparisons, and references to already materialized scalar locals. Initializers
+are branch-free except for the exact one-local Boolean continuation below. State
 parameters are partitioned explicitly: primitive inputs receive dense scalar
 positions plus retained authored positions, while affine custody retains its
 separate structural positions. Their authored-position maps must be disjoint and
@@ -210,11 +211,13 @@ cleanup positions to structural places. A final short-circuit Boolean return is
 expanded into explicit decision blocks: internal conditional edges preserve the
 unchanged structural frontier, and every terminal value leaf carries the same
 checked complete cleanup list. The verifier reconstructs that requirement on
-each path. Short-circuit local initializers remain fenced until their
-continuation/convergence stage also carries an explicit frontier. Calls, mutable
-or non-scalar locals, contracts, claims, effects, and multi-state control remain
-outside this source slice; structural custody is never represented as a scalar
-parameter.
+each path. One short-circuit Boolean local is also accepted when it is the sole
+binding: decision leaves jump without cleanup to one typed Boolean convergence
+parameter, then a branch-free return performs the complete cleanup. Multiple or
+later short-circuit bindings remain fenced until their carried local namespace
+is represented explicitly. Calls, mutable or non-scalar locals, contracts,
+claims, effects, and multi-state control remain outside this source slice;
+structural custody is never represented as a scalar parameter.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and

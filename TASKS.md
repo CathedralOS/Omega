@@ -204,8 +204,10 @@ Remaining:
   already materialized locals emit—with exact-operation proofs reconstructed
   where required—before exact reverse-declaration cleanup. Final short-circuit
   Boolean returns preserve the frontier across decisions and repeat cleanup on
-  every terminal leaf. Calls, mutable or non-scalar locals, short-circuit local
-  initializers, contracts, claims, effects, and multi-state control remain
+  every terminal leaf. One sole short-circuit Boolean local may instead converge
+  without cleanup into a typed continuation whose branch-free return performs
+  cleanup. Calls, mutable or non-scalar locals, later/multiple short-circuit
+  local initializers, contracts, claims, effects, and multi-state control remain
   fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
