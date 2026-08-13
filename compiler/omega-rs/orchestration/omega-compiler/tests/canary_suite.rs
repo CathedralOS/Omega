@@ -13533,16 +13533,11 @@ fn runtime_matrix_multiply_exit_canary_runs() {
     // accumulation with computed flat indices). [[1,2],[3,4]] * [[5,6],[7,8]] =
     // [[19,22],[43,50]] -> exit 70.
     let canary = pass_canary("collections/runtime_matrix_multiply_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-matrix-mul-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("matrix multiply canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-matrix-mul-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("matrix multiply canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("matrix multiply canary should run");
     assert_eq!(
@@ -13552,7 +13547,7 @@ fn runtime_matrix_multiply_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13562,16 +13557,11 @@ fn runtime_ring_buffer_queue_exit_canary_runs() {
     // pointers to wrap; each dequeue is checked against a running counter so FIFO order is
     // pinned. All of 1..6 dequeued in order -> exit 70.
     let canary = pass_canary("collections/runtime_ring_buffer_queue_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("ring buffer queue canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("ring buffer queue canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("ring buffer queue canary should run");
     assert_eq!(
@@ -13581,7 +13571,7 @@ fn runtime_ring_buffer_queue_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
