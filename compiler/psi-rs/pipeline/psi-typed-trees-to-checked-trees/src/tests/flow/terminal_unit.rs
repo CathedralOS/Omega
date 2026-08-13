@@ -971,6 +971,19 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_local_and_fences_wider
             let staged: bool = true && false;
             staged
         }
+        machine Root::short_circuit_return_expression(token: Token) -> bool {
+            let staged: bool = true && false;
+            !staged
+        }
+        machine Root::short_circuit_continuation_local(token: Token) -> bool {
+            let staged: bool = true && false;
+            let inverted: bool = !staged;
+            inverted
+        }
+        machine Root::reused_short_circuit_return(token: Token) -> bool {
+            let staged: bool = true && false;
+            staged == staged
+        }
         machine Root::nested_short_circuit(token: Token) -> bool {
             true && (false || true)
         }
@@ -999,8 +1012,18 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_local_and_fences_wider
         .expect("one final short-circuit local returned directly retains cleanup");
     assert_eq!(short_circuit.bindings.len(), 1);
     assert_eq!(short_circuit.return_statement_ordinal, 1);
+    let return_expression = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "short_circuit_return_expression"))
+        .expect("one branch-free return expression may consume the final short-circuit local");
+    assert_eq!(return_expression.bindings.len(), 1);
+    assert_eq!(return_expression.return_statement_ordinal, 1);
 
     for machine in [
+        "short_circuit_continuation_local",
+        "reused_short_circuit_return",
         "nested_short_circuit",
         "repeated_short_circuit",
         "mutable_local",
