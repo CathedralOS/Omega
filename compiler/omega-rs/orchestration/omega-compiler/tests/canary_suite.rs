@@ -20312,17 +20312,11 @@ fn runtime_entity_component_exit_canary_runs() {
     // a loop and temp-RMW written back. Three entities pos.x = 1,2,3: sum 6, doubled to
     // 2,4,6 -> exit 70.
     let canary = pass_canary("structs/runtime_entity_component_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-entity-component-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("entity component canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("entity component canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("entity component canary should run");
     assert_eq!(
@@ -20332,7 +20326,7 @@ fn runtime_entity_component_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20342,17 +20336,11 @@ fn runtime_nested_struct_state_machine_exit_canary_runs() {
     // runtime-indexed-ARRAY guard bug does NOT extend to member paths -- these resolve the
     // correct field. Sums 1..5 = 15 -> exit 70.
     let canary = pass_canary("structs/runtime_nested_struct_state_machine_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-sm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested struct state machine canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested struct state machine canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested struct state machine canary should run");
     assert_eq!(
@@ -20362,7 +20350,7 @@ fn runtime_nested_struct_state_machine_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20371,17 +20359,10 @@ fn runtime_array_element_struct_copy_exit_canary_runs() {
     // independent copy, so mutating f leaves arr[1] untouched. Discriminates both ways: arr[1]
     // keeps (5,6), f holds the mutated (50,60) -> exit 70.
     let canary = pass_canary("structs/runtime_array_element_struct_copy_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("array-element struct copy canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("array-element struct copy canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("array-element struct copy canary should run");
     assert_eq!(
@@ -20391,7 +20372,7 @@ fn runtime_array_element_struct_copy_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20400,19 +20381,12 @@ fn runtime_nested_struct_value_semantics_exit_canary_runs() {
     // write, a whole-struct copy by assignment, and copy independence (overwriting the
     // source leaves the copy intact). The data backbone of serious apps.
     let canary = pass_canary("structs/runtime_nested_struct_value_semantics_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-value-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested struct value-semantics canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested struct value-semantics canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested struct value-semantics canary should run");
 
@@ -20424,7 +20398,7 @@ fn runtime_nested_struct_value_semantics_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20433,19 +20407,12 @@ fn runtime_struct_array_literal_exit_canary_runs() {
     // array-of-struct-literals field. Guards the expression-handle + struct-field copy
     // paths near the nested-struct panic fix. Self-checks the constructed values.
     let canary = pass_canary("structs/runtime_struct_array_literal_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-struct-array-literal-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("struct-array literal canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("struct-array literal canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("struct-array literal canary should run");
 
@@ -20457,7 +20424,7 @@ fn runtime_struct_array_literal_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20467,19 +20434,12 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
     // skipped variant payload fields), so the layout builder errored. Now construct +
     // match + read the struct payload's fields.
     let canary = pass_canary("structs/runtime_enum_struct_payload_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-enum-struct-payload-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("enum struct-payload canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("enum struct-payload canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("enum struct-payload canary should run");
 
@@ -20491,7 +20451,7 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20501,17 +20461,10 @@ fn runtime_enum_classify_dispatch_exit_canary_runs() {
     // wrong classify arm or a wrong dispatch arm takes the false path. Value-call enum return +
     // multi-arm enum dispatch, in one program -> exit 70.
     let canary = pass_canary("structs/runtime_enum_classify_dispatch_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-enum-classify-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("enum classify-dispatch canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-enum-classify-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("enum classify-dispatch canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("enum classify-dispatch canary should run");
     assert_eq!(
@@ -20521,7 +20474,7 @@ fn runtime_enum_classify_dispatch_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20531,19 +20484,12 @@ fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
     // Two sibling nested fields must track independently (pos.x -> 70, pos.y -> 30),
     // chained-guard self-checked. Guards against nested-place read/write cross-talk.
     let canary = pass_canary("structs/runtime_nested_field_accumulate_loop_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-accum-loop-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested-field accumulate-loop canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-field accumulate-loop canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested-field accumulate-loop canary should run");
 
@@ -20555,27 +20501,20 @@ fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-indexed-write-const-read-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed-write/const-read canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-write/const-read canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed-write/const-read canary should run");
 
@@ -20587,25 +20526,18 @@ fn runtime_indexed_write_const_read_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_indexed_rmw_temp_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_rmw_temp_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-indexed-rmw-temp-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed-rmw-temp canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-rmw-temp canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed-rmw-temp canary should run");
 
@@ -20617,27 +20549,20 @@ fn runtime_indexed_rmw_temp_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_adjacent_field_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-indexed-write-adjacent-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed-write-adjacent-field canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed-write-adjacent-field canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed-write-adjacent-field canary should run");
 
@@ -20649,25 +20574,18 @@ fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_join_meet_bound_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_join_meet_bound_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-join-meet-bound-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("join-meet-bound canary should compile");
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("join-meet-bound canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("join-meet-bound canary should run");
 
@@ -20679,7 +20597,7 @@ fn runtime_join_meet_bound_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20689,16 +20607,10 @@ fn runtime_dual_indexed_comparison_guard_exit_canary_runs() {
     // own temp. arr[4]=20 < arr[2]=70 is true -> exit 70. A regression to the element-0 read would
     // flip the arm and diverge from the interpreter.
     let canary = pass_canary("collections/runtime_dual_indexed_comparison_guard_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dual-indexed comparison guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-dual-idx-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("dual-indexed comparison guard canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("dual-indexed comparison guard canary should run");
     assert_eq!(
@@ -20708,7 +20620,7 @@ fn runtime_dual_indexed_comparison_guard_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20717,16 +20629,10 @@ fn runtime_array_min_max_builtin_exit_canary_runs() {
     // `self.mn = min(self.mn, self.v)`, folding each element read from a runtime index. arr =
     // [30,50,70,20,60,10] -> mx 70, mn 10, both self-checked -> exit 70.
     let canary = pass_canary("collections/runtime_array_min_max_builtin_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-minmax-red-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("min/max reduction canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-minmax-red-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("min/max reduction canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("min/max reduction canary should run");
     assert_eq!(
@@ -20736,7 +20642,7 @@ fn runtime_array_min_max_builtin_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -20745,16 +20651,10 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
     // no local bind) -- the form that used to silently read element 0. Fixed by the frontend
     // operand-hoist now covering comparison guards. arr = [3,8,1,9,4,6]; 3 exceed 5 -> exit 70.
     let canary = pass_canary("collections/runtime_indexed_guard_subject_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-guard-subj-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime-indexed guard-subject canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-guard-subj-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime-indexed guard-subject canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-indexed guard-subject canary should run");
     assert_eq!(
@@ -20764,7 +20664,7 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
