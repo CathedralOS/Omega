@@ -11064,20 +11064,13 @@ fn runtime_bounded_carrier_write_line_exit_canary_runs() {
 #[test]
 fn runtime_text_builder_canary_runs() {
     let canary = pass_canary("text/runtime_text_builder");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-runtime-text-builder-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-field carrier builder canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested-field carrier builder canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested-field carrier builder canary should run");
 
@@ -11094,7 +11087,7 @@ fn runtime_text_builder_canary_runs() {
         "expected the cross-state nested-field carrier builder to print `Room A1`",
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call

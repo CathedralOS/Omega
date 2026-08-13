@@ -34,7 +34,7 @@ data Main {
     line: Line;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     self.room.label = "A1";
     self.line.text = "Room " + self.room.label;
 
@@ -46,6 +46,5 @@ machine Main::main(&mut self) -> i32 {
     state shutdown(&mut self) {
         self.console.write_line(self.line.text);
         self.console.exit_process(0);
-        0
     }
 }
