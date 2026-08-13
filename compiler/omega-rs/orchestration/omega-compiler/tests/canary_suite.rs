@@ -16549,20 +16549,12 @@ fn runtime_unsigned_division_exit_canary_runs() {
 #[test]
 fn runtime_unsigned_min_max_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_min_max_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-min-max-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("unsigned min/max canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned min/max canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("unsigned min/max canary should run");
 
@@ -16574,7 +16566,7 @@ fn runtime_unsigned_min_max_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
