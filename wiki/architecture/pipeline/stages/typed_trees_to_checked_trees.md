@@ -194,9 +194,10 @@ Current ownership is:
   write remains published. A transparent free helper result or an attached
   helper result rooted in its actual `self` receiver supplies the collection
   origin without an intermediate binding. An exact member projection may
-  follow that result before indexing: the suffix composes first, then the index
-  coarsens to that nearest collection; members after the index remain absorbed
-  by that coarse origin. Deeper or binding-reborrow index trees and recursive
+  follow that result before one or more indexes: the suffix composes first, the
+  first index coarsens to that nearest collection, and later indexes or members
+  remain absorbed while every independently bounded index frame publishes.
+  Deeper or binding-reborrow index trees and recursive
   or opaque free/attached collection producers remain fences. The
   bounded indexed target and bounded non-reference value tree may coexist on
   one assignment; their frames compose independently, while either side
