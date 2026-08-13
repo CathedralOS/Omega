@@ -1,6 +1,110 @@
 use super::*;
 
 #[test]
+fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::enter(pair: Pair) {
+            Sink::take(pair.right);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_none(),
+        "path-sensitive cleanup must not leak through the root-only terminal lane"
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine)
+        .expect("direct-field transfer with one affine sibling cleanup");
+    assert!(matches!(
+        plan.machine.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                claim_transfers,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            }
+        ] if structural_arguments.len() == 1
+            && structural_arguments[0].source_parameter_index == 0
+            && structural_arguments[0].path
+                == [CheckedUnitStructuralPathSegment::Field("right".to_owned())]
+            && claim_transfers.is_empty()
+            && trivial_affine_discards.is_empty()
+    ));
+    assert_eq!(plan.residual_affine_discards.len(), 1);
+    assert_eq!(plan.residual_affine_discards[0].source_parameter_index, 0);
+    assert_eq!(
+        plan.residual_affine_discards[0].path,
+        [CheckedUnitStructuralPathSegment::Field("left".to_owned())]
+    );
+    assert!(
+        plan.residual_affine_discards[0]
+            .type_identity
+            .contains("Token")
+    );
+}
+
+#[test]
+fn direct_field_partial_cleanup_fails_closed_for_wider_shapes() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data One { right: Token; }
+        data Triple { left: Token; middle: Token; right: Token; }
+        data Inner { right: Token; }
+        data Outer { left: Token; inner: Inner; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::missing(value: One) {
+            Sink::take(value.right);
+        }
+        machine Root::extra(value: Triple) {
+            Sink::take(value.right);
+        }
+        machine Root::nested(value: Outer) {
+            Sink::take(value.inner.right);
+        }
+        machine Root::multiple(value: Pair) {
+            Sink::take(value.right);
+            Sink::take(value.left);
+        }
+        "#,
+    );
+
+    for machine in ["missing", "extra", "nested", "multiple"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` must remain outside the exact partial-cleanup slice"
+        );
+    }
+}
+
+#[test]
 fn unit_body_retains_empty_affine_local_prefix_and_reverse_cleanup() {
     let checked = checked(
         r#"
