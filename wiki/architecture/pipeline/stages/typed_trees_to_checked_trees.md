@@ -192,11 +192,12 @@ Current ownership is:
   independently complete through depth two; the first index fixes the
   collection-coarse write, later indexes are absorbing, and every index-call
   write remains published. The compiler-owned `as_mut_slice()` view may occur
-  on the collection spine, including after a transparent free helper result or
-  an attached helper result rooted in its actual `self` receiver: it preserves
-  that helper's backing array origin before the index coarsens it. Recursive or
-  opaque free/attached view producers remain fences. A transparent free helper
-  result or an attached helper result rooted in its actual `self` receiver
+  on the collection spine, including after a stable helper-local alias, a
+  transparent free helper result, or an attached helper result rooted in its
+  actual `self` receiver: it preserves that source's backing array origin before
+  the index coarsens it. Recursive or opaque free/attached view producers remain
+  fences. A transparent free helper result or an attached helper result rooted
+  in its actual `self` receiver
   likewise supplies the collection origin without an intermediate binding. An
   exact member projection may follow that result before one or more indexes:
   the suffix composes first, the first index coarsens to that nearest

@@ -4335,6 +4335,33 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells
     }
 
+    machine return_after_alias_slice_view_index_target<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        let alias: &mut [u64; 2] = cells;
+        alias.as_mut_slice()[identity_index(write_index(value))] = 1;
+        cells
+    }
+
+    machine return_after_deep_alias_slice_view_index_target(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        let alias: &mut [u64; 2] = cells;
+        alias.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ] = 1;
+        cells
+    }
+
+    machine return_after_recursive_alias_slice_view_index_target(
+        cells: &mut [u64; 2]
+    ) -> &mut [u64; 2] {
+        let alias: &mut [u64; 2] = cells;
+        alias.as_mut_slice()[recursive_index()] = 1;
+        cells
+    }
+
     machine return_after_helper_slice_view_index_target<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -4588,6 +4615,26 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias[0] = 2;
     }
 
+    machine Main::alias_slice_view_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_alias_slice_view_index_target(
+            &mut self.cells,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::deep_alias_slice_view_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_deep_alias_slice_view_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
+    machine Main::recursive_alias_slice_view_index_target_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_recursive_alias_slice_view_index_target(&mut self.cells);
+        alias[0] = 2;
+    }
+
     machine Main::helper_slice_view_index_target_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_helper_slice_view_index_target(
             &mut self.cells,
@@ -4787,6 +4834,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::alias_slice_view_index_target_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
             "Main::helper_slice_view_index_target_result",
             vec!["self.cells", "self.value"],
         ),
@@ -4852,6 +4903,8 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::recursive_helper_index_target_result",
         "Main::deep_slice_view_index_target_result",
         "Main::recursive_slice_view_index_target_result",
+        "Main::deep_alias_slice_view_index_target_result",
+        "Main::recursive_alias_slice_view_index_target_result",
         "Main::deep_helper_slice_view_index_target_result",
         "Main::recursive_helper_slice_view_index_target_result",
         "Main::deep_projected_helper_index_target_result",
