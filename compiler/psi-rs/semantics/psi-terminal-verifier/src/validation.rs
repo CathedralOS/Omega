@@ -2454,9 +2454,12 @@ fn valid_nominal_cleanup_requirements(
     for requirement in &target.contract.requires {
         let Proposition::Equal(
             ScalarTerm::Boolean(expected),
-            ScalarTerm::BooleanField { root, field },
+            ScalarTerm::BooleanField { root, path },
         ) = requirement
         else {
+            return false;
+        };
+        let [field] = path.as_slice() else {
             return false;
         };
         let key = (*expected, field.get().to_le_bytes());
@@ -3136,32 +3139,51 @@ fn validate_boolean_field_terms(
         term: &ScalarTerm,
     ) -> Result<(), ModuleError> {
         match term {
-            ScalarTerm::BooleanField { root, field } => {
-                let valid = machine
+            ScalarTerm::BooleanField { root, path } => {
+                let mut structural_type = machine
                     .structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == *root)
-                    .and_then(|parameter| {
-                        module
-                            .structural_types
-                            .iter()
-                            .find(|declaration| declaration.id == parameter.structural_type)
-                    })
-                    .and_then(|declaration| match &declaration.shape {
-                        StructuralTypeShape::Record { fields } => {
-                            fields.iter().find(|candidate| candidate.id == *field)
+                    .map(|parameter| parameter.structural_type);
+                let mut valid = !path.is_empty();
+                for (index, field_id) in path.iter().enumerate() {
+                    let Some(current_type) = structural_type else {
+                        valid = false;
+                        break;
+                    };
+                    let field = module
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == current_type)
+                        .and_then(|declaration| match &declaration.shape {
+                            StructuralTypeShape::Record { fields } => {
+                                fields.iter().find(|candidate| candidate.id == *field_id)
+                            }
+                            StructuralTypeShape::FixedArray { .. } => None,
+                        });
+                    let Some(field) = field.filter(|field| !field.relevance.is_erased()) else {
+                        valid = false;
+                        break;
+                    };
+                    let is_last = index + 1 == path.len();
+                    match (&field.field_type, is_last) {
+                        (StructuralFieldType::Structural(next), false) => {
+                            structural_type = Some(*next);
                         }
-                        StructuralTypeShape::FixedArray { .. } => None,
-                    })
-                    .is_some_and(|field| {
-                        !field.relevance.is_erased()
-                            && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
-                    });
+                        (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {
+                            structural_type = None;
+                        }
+                        _ => {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
                 if !valid {
                     return Err(ModuleError::InvalidBooleanFieldTerm {
                         machine: machine.id,
                         root: *root,
-                        field: *field,
+                        path: path.clone(),
                     });
                 }
             }
@@ -5925,7 +5947,7 @@ pub enum ModuleError {
     InvalidBooleanFieldTerm {
         machine: MachineId,
         root: PlaceId,
-        field: psi_core::StructuralFieldId,
+        path: Vec<psi_core::StructuralFieldId>,
     },
     NonCanonicalCrashRoutes(MachineId),
     EmptyCrashRouteBucket {

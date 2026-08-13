@@ -831,12 +831,13 @@ pub enum ScalarTerm {
         id: ValueId,
         scalar_type: ScalarType,
     },
-    /// One direct relevant Boolean field below a terminal structural root.
-    /// The terminal verifier binds `field` against the root's exact declared
-    /// structural type and independently confirms its Boolean type.
+    /// One nonempty path to a relevant Boolean field below a terminal
+    /// structural root. The terminal verifier traverses every field against
+    /// the exact declared structural types and independently confirms that
+    /// the final field is Boolean.
     BooleanField {
         root: PlaceId,
-        field: StructuralFieldId,
+        path: Vec<StructuralFieldId>,
     },
     Boolean(bool),
     BooleanNot {
@@ -1001,7 +1002,11 @@ impl ScalarTerm {
     }
 
     pub fn boolean_field(root: PlaceId, field: StructuralFieldId) -> Self {
-        Self::BooleanField { root, field }
+        Self::boolean_field_path(root, vec![field])
+    }
+
+    pub fn boolean_field_path(root: PlaceId, path: Vec<StructuralFieldId>) -> Self {
+        Self::BooleanField { root, path }
     }
 
     pub const fn boolean(value: bool) -> Self {

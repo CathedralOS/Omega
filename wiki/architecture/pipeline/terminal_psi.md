@@ -389,13 +389,14 @@ the resulting calls inside conditional control. A guarded staged call follows
 the checked row's pinned target contract and substitutes its parameter-relative
 routes with the exact terminal argument values; it never reverse-matches caller
 expressions, which would be ambiguous for equal or overlapping arguments. A
-direct relevant Boolean field of a whole record parameter retains its canonical
-structural-field identity and rebases its root across structural Unit calls. The
-verifier resolves that field against the exact declared record and rejects
-absent, erased, or non-Boolean rows. Nested projections, projected structural
-arguments, wider aggregate predicates, and imported crash capsules remain
-fail-closed. Structural/content contracts reject because custody effects require
-their own vertical slice rather than an ordinary scalar flag.
+nonempty path to a relevant Boolean field of a whole record parameter retains
+every canonical structural-field identity and rebases its root across structural
+Unit calls. The verifier traverses the exact declared record type at every path
+segment, requires structural intermediate fields and a Boolean leaf, and rejects
+absent, erased, truncated, or mistyped paths. Projected structural arguments,
+wider aggregate predicates, and imported crash capsules remain fail-closed.
+Structural/content contracts reject because custody effects require their own
+vertical slice rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

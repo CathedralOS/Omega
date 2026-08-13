@@ -512,12 +512,12 @@ fn contextual_nominal_affine_cleanup_rejects_forged_requirement_binding() {
     );
 
     let mut wrong_field = contextual_nominal_affine_module();
-    let Proposition::Equal(_, ScalarTerm::BooleanField { field, .. }) =
+    let Proposition::Equal(_, ScalarTerm::BooleanField { path, .. }) =
         &mut wrong_field.machines[1].contract.requires[0]
     else {
         unreachable!()
     };
-    *field = psi_core::StructuralFieldId::new(2).expect("field");
+    path[0] = psi_core::StructuralFieldId::new(2).expect("field");
     assert_eq!(
         validate_module(&wrong_field).unwrap_err(),
         expected_invalid(&wrong_field)
