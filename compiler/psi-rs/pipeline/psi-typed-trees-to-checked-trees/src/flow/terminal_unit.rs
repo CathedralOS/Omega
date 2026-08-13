@@ -173,13 +173,12 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
 /// Build the checked front of the first executable nominal-cleanup slice.
 ///
 /// The admitted caller is deliberately tiny: one state, one whole claim-free
-/// unqualified affine parameter of an empty record type or a record with at
-/// most two relevant terminal-supported primitive scalar fields, an empty Unit
-/// body, and one exact checked empty `Type::drop(&mut self)` attached to that
-/// type.
-/// Anything wider is omitted atomically. In particular, the return operation
-/// publishes no trivial discard for the parameter; the separate cleanup row
-/// is the only disposal authority.
+/// unqualified affine parameter of a finite flat record whose fields are all
+/// relevant terminal-supported primitive scalars, an empty Unit body, and one
+/// exact checked empty `Type::drop(&mut self)` attached to that type. Nested,
+/// erased, floating-point, and aggregate fields are omitted atomically. In
+/// particular, the return operation publishes no trivial discard for the
+/// parameter; the separate cleanup row is the only disposal authority.
 pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1797,27 +1796,24 @@ fn build_nominal_affine_unit_cleanup_machine(
 
 fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
     match shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => {
-            fields.len() <= 2
-                && fields.iter().all(|field| {
-                    !field.relevance.is_erased()
-                        && matches!(
-                            &field.field_type,
-                            CheckedUnitStructuralFieldType::Scalar(
-                                PrimitiveType::Bool
-                                    | PrimitiveType::I8
-                                    | PrimitiveType::I16
-                                    | PrimitiveType::I32
-                                    | PrimitiveType::I64
-                                    | PrimitiveType::U8
-                                    | PrimitiveType::U16
-                                    | PrimitiveType::U32
-                                    | PrimitiveType::U64
-                                    | PrimitiveType::Addr
-                            )
-                        )
-                })
-        }
+        CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && matches!(
+                    &field.field_type,
+                    CheckedUnitStructuralFieldType::Scalar(
+                        PrimitiveType::Bool
+                            | PrimitiveType::I8
+                            | PrimitiveType::I16
+                            | PrimitiveType::I32
+                            | PrimitiveType::I64
+                            | PrimitiveType::U8
+                            | PrimitiveType::U16
+                            | PrimitiveType::U32
+                            | PrimitiveType::U64
+                            | PrimitiveType::Addr
+                    )
+                )
+        }),
         CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
     }
 }

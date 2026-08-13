@@ -67,7 +67,25 @@ fn exact_two_primitive_fields_nominal_affine_cleanup_validates() {
 }
 
 #[test]
-fn nominal_affine_cleanup_rejects_forged_target_and_wider_type() {
+fn wide_flat_primitive_nominal_affine_cleanup_validates() {
+    let mut module = nominal_affine_module();
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: (1..=5)
+            .map(|index| StructuralFieldDeclaration {
+                identity: format!("payload_{index}"),
+                id: psi_core::StructuralFieldId::new(index).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                    psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                )),
+                relevance: psi_terminal::BindingRelevance::Relevant,
+            })
+            .collect(),
+    };
+    validate_module(&module).expect("wide flat primitive nominal cleanup should validate");
+}
+
+#[test]
+fn nominal_affine_cleanup_rejects_forged_target_and_unsupported_field_type() {
     let mut wrong_attachment = nominal_affine_module();
     wrong_attachment.machines[1].attachment = None;
     assert!(matches!(
@@ -84,34 +102,6 @@ fn nominal_affine_cleanup_rejects_forged_target_and_wider_type() {
         });
     assert!(matches!(
         validate_module(&target_parameter),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
-
-    let mut too_wide = nominal_affine_module();
-    too_wide.structural_types[0].shape = StructuralTypeShape::Record {
-        fields: vec![
-            StructuralFieldDeclaration {
-                identity: "first".into(),
-                id: psi_core::StructuralFieldId::new(1).unwrap(),
-                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-                relevance: psi_terminal::BindingRelevance::Relevant,
-            },
-            StructuralFieldDeclaration {
-                identity: "second".into(),
-                id: psi_core::StructuralFieldId::new(2).unwrap(),
-                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-                relevance: psi_terminal::BindingRelevance::Relevant,
-            },
-            StructuralFieldDeclaration {
-                identity: "third".into(),
-                id: psi_core::StructuralFieldId::new(3).unwrap(),
-                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-                relevance: psi_terminal::BindingRelevance::Relevant,
-            },
-        ],
-    };
-    assert!(matches!(
-        validate_module(&too_wide),
         Err(ModuleError::InvalidNominalAffineCleanup { .. })
     ));
 
