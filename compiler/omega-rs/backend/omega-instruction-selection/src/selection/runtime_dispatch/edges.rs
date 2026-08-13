@@ -560,6 +560,7 @@ fn select_runtime_dispatch_return_value(
             edge,
             source_key,
             source_dispatch_index,
+            RuntimeStorageRegion::RuntimeFrame,
             scratch_offset,
             scratch_size,
             value_expr,
@@ -1011,6 +1012,25 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
+    // Scalar cast terminal (`-> value as i32`): reuse the checked conversion
+    // writer used by entry returns, but target this call site's exact result
+    // place. Recursive slice folds commonly return a domain-removing cast of
+    // their accumulator; without this path the caller slot stayed ZII.
+    if select_dispatch_cast_terminal_return(
+        input,
+        edge,
+        source_key,
+        source_dispatch_index,
+        target_region,
+        target_offset,
+        byte_size,
+        value_expr,
+        runtime_value_operands,
+        selected_instructions,
+    ) {
+        return;
+    }
+
     // SLICE-ELEMENT terminal (`-> s[j]`): the callee's frame holds the slice
     // DESCRIPTOR and the index; copy the indexed element into the caller's
     // result place. The kind is picked BY TARGET REGION, exactly as the
@@ -1382,6 +1402,7 @@ fn select_dispatch_cast_terminal_return(
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
     source_dispatch_index: u32,
+    target_region: RuntimeStorageRegion,
     target_offset: usize,
     byte_size: usize,
     value_expr: ExpressionHandle,
@@ -1392,11 +1413,41 @@ fn select_dispatch_cast_terminal_return(
     let ExpressionNode::Cast(cast) = expressions.expression(value_expr) else {
         return false;
     };
-    let Some(target_primitive) = super::normalized_entry_scalar_result_primitive(input) else {
+    let Some(target_primitive) = input.program.primitive_type_reference(cast.target_type) else {
         return false;
     };
     if target_primitive.scalar_byte_size() != Some(byte_size) {
         return false;
+    }
+    let source_primitive = resolve_runtime_storage_primitive_type_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        expressions,
+        cast.value,
+    );
+    if source_primitive == Some(target_primitive)
+        && let Some(source) = resolve_runtime_storage_place_in_table(
+            input,
+            source_dispatch_index,
+            source_key,
+            expressions,
+            cast.value,
+        )
+        && source.byte_count == byte_size
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::copy_places_direct(
+                source.region,
+                source.byte_offset,
+                target_region,
+                target_offset,
+                byte_size,
+            ),
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
     }
     let static_values = super::writes::RuntimeStaticValues::new();
     let Some(kind) = super::writes::mutation::build_runtime_convert_write(
@@ -1405,7 +1456,7 @@ fn select_dispatch_cast_terminal_return(
         source_key,
         edge.statement_index,
         expressions,
-        RuntimeStorageRegion::RuntimeFrame,
+        target_region,
         target_offset,
         None,
         target_primitive,
