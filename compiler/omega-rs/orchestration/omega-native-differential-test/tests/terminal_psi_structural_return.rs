@@ -15,7 +15,7 @@ use omega_terminal_image_emission::{
     emit_terminal_object_container, encode_terminal_installation_record,
     validate_terminal_installation_record,
 };
-use omega_terminal_machine_code::TerminalNativeFuelSite;
+use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalScalarControlFlowEvidence};
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
 use omega_terminal_target_operations::{
@@ -286,6 +286,204 @@ fn source_scalar_result_precedes_nominal_cleanup_through_all_native_artifacts() 
         );
         validate_terminal_installation_record(&installation, &image)
             .expect("installed scalar cleanup binds its exact image");
+    }
+}
+
+#[test]
+fn source_short_circuit_boolean_cleans_every_leaf_through_all_native_artifacts() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+        data Plain { observed: bool; }
+
+        data Root {}
+        machine Root::measure(
+            token: Token,
+            left: bool,
+            plain: Plain,
+            right: bool
+        ) -> bool
+        {
+            let inverted: bool = !right;
+            left && inverted
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize bounded Boolean cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse bounded Boolean cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve bounded Boolean cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded Boolean cleanup");
+    let checked = lower_typed_trees(typed).expect("check bounded Boolean cleanup");
+    let lowered = lower_machine(&checked, "Root::measure")
+        .expect("bounded Boolean nominal cleanup reaches terminal Psi");
+    let semantic_bytes = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry_machine = lowered.semantic_module.entry;
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry_machine)
+        .expect("bounded Boolean cleanup entry");
+    let return_edges = entry
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::Return {
+                edge,
+                cleanup_actions,
+                ..
+            } => {
+                assert!(matches!(
+                    cleanup_actions.as_slice(),
+                    [
+                        TerminalAffineCleanupAction::DiscardRoot(_),
+                        TerminalAffineCleanupAction::InvokeNominal(_),
+                    ]
+                ));
+                Some(*edge)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(return_edges.len(), 3);
+    assert_eq!(
+        return_edges
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        3
+    );
+    assert!(lowered.proof_bundle.evidence.is_empty());
+    drop(checked);
+    drop(lowered);
+
+    let abstract_plan =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("verified bounded Boolean cleanup crosses the Omega boundary");
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        assert!(matches!(
+            target_plan
+                .functions
+                .iter()
+                .find(|function| function.machine == entry_machine)
+                .map(|function| &function.operation),
+            Some(TerminalTargetOperation::BooleanControlWithCleanup { .. })
+        ));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
+        assert!(matches!(
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry_machine)
+                .map(|function| &function.operation),
+            Some(TerminalAssignedOperation::BooleanControlWithCleanup { .. })
+        ));
+
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission failed: {error:?}", case.target));
+        let emitted_entry = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted bounded Boolean cleanup entry");
+        assert!(emitted_entry.scalar_affine_cleanup.is_none());
+        assert_eq!(emitted_entry.scalar_control_affine_cleanups.len(), 3);
+        assert_eq!(emitted_entry.internal_unit_calls.len(), 3);
+        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 2);
+        assert!(matches!(
+            emitted_entry
+                .scalar_stack
+                .as_ref()
+                .map(|stack| stack.control_flow),
+            Some(TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn { .. })
+        ));
+        let emitted_edges = emitted_entry
+            .scalar_control_affine_cleanups
+            .iter()
+            .map(|record| record.cleanup.psi_edge)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            emitted_edges
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            3
+        );
+        assert_eq!(
+            emitted_entry
+                .internal_unit_calls
+                .iter()
+                .map(|call| call.owner)
+                .collect::<std::collections::BTreeSet<_>>(),
+            emitted_edges
+                .iter()
+                .copied()
+                .map(|edge| TerminalCallSiteOwner::CleanupAction {
+                    edge,
+                    action_ordinal: 1,
+                })
+                .collect()
+        );
+        for record in &emitted_entry.scalar_control_affine_cleanups {
+            assert!(matches!(
+                record.cleanup.actions.as_slice(),
+                [
+                    TerminalAffineCleanupAction::DiscardRoot(_),
+                    TerminalAffineCleanupAction::InvokeNominal(_),
+                ]
+            ));
+            assert!(record.cleanup.byte_count > 0);
+        }
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let object_entry = object
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("object bounded Boolean cleanup entry");
+        assert_eq!(
+            object_entry.scalar_control_affine_cleanups,
+            emitted_entry.scalar_control_affine_cleanups
+        );
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation failed: {error:?}", case.target));
+        let installed_entry = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("installed bounded Boolean cleanup entry");
+        assert_eq!(
+            installed_entry.scalar_control_affine_cleanups,
+            emitted_entry
+                .scalar_control_affine_cleanups
+                .iter()
+                .map(|record| record.cleanup.clone())
+                .collect::<Vec<_>>()
+        );
+        let installation_bytes = encode_terminal_installation_record(&installation)
+            .expect("canonical bounded Boolean cleanup installation");
+        assert_eq!(
+            decode_terminal_installation_record(&installation_bytes),
+            Ok(installation.clone())
+        );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed bounded Boolean cleanup binds its exact image");
     }
 }
 

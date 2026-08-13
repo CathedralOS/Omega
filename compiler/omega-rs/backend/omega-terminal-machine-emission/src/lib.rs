@@ -23,10 +23,11 @@ use omega_terminal_machine_code::{
     TerminalInternalUnitCallRecord, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
     TerminalScalarCallStackEvidence, TerminalScalarCleanupPreservationEvidence,
-    TerminalScalarConditionalCondition, TerminalScalarControlFlowEvidence,
-    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalScalarConditionalArm, TerminalScalarConditionalBranchEvidence,
+    TerminalScalarConditionalCondition, TerminalScalarControlAffineCleanupRecord,
+    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
+    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
+    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{MachineRegister, TerminalCallSiteOwner};
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -79,6 +80,25 @@ fn emit_function(
             functions,
         );
     }
+    if let TerminalAssignedOperation::BooleanControlWithCleanup {
+        control,
+        structural_types,
+        call_plan,
+        structural_parameters,
+        cleanup_actions,
+    } = &function.operation
+    {
+        return emit_boolean_control_with_cleanup(
+            function,
+            control,
+            structural_types,
+            call_plan,
+            structural_parameters,
+            cleanup_actions,
+            target,
+            functions,
+        );
+    }
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
@@ -95,6 +115,9 @@ fn emit_function(
     let bytes = match &function.operation {
         TerminalAssignedOperation::ScalarReturnWithCleanup { .. } => {
             unreachable!("scalar cleanup returns are emitted by the early carrier path")
+        }
+        TerminalAssignedOperation::BooleanControlWithCleanup { .. } => {
+            unreachable!("Boolean-control cleanup is emitted by the early carrier path")
         }
         TerminalAssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target, functions)?;
@@ -433,6 +456,7 @@ fn emit_function(
         internal_unit_calls,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
+        scalar_control_affine_cleanups: Vec::new(),
         scalar_structural_parameters: Vec::new(),
         scalar_structural_parameter_homes: Vec::new(),
         fuel_attribution,
@@ -716,6 +740,604 @@ fn emit_scalar_return_with_cleanup(
             byte_count: cleanup.byte_count,
         });
     Ok(emitted)
+}
+
+struct BooleanControlCleanupEmission {
+    bytes: Vec<u8>,
+    internal_calls: Vec<TerminalInternalCallRelocation>,
+    internal_unit_calls: Vec<TerminalInternalUnitCallRecord>,
+    cleanups: Vec<TerminalScalarControlAffineCleanupRecord>,
+    branches: Vec<TerminalScalarConditionalBranchEvidence>,
+    nested_arm: Option<TerminalScalarConditionalArm>,
+}
+
+impl BooleanControlCleanupEmission {
+    fn append(&mut self, mut child: Self) -> Result<(), EmissionError> {
+        let base = self.bytes.len();
+        shift_boolean_control_cleanup_emission(&mut child, base)?;
+        self.bytes.append(&mut child.bytes);
+        self.internal_calls.append(&mut child.internal_calls);
+        self.internal_unit_calls
+            .append(&mut child.internal_unit_calls);
+        self.cleanups.append(&mut child.cleanups);
+        self.branches.append(&mut child.branches);
+        Ok(())
+    }
+}
+
+fn shift_boolean_control_cleanup_emission(
+    emission: &mut BooleanControlCleanupEmission,
+    base: usize,
+) -> Result<(), EmissionError> {
+    let shift = |offset: &mut usize| -> Result<(), EmissionError> {
+        *offset = offset
+            .checked_add(base)
+            .ok_or(EmissionError::InternalCallRelocationOffsetNotEncodable)?;
+        Ok(())
+    };
+    for call in &mut emission.internal_calls {
+        shift(&mut call.offset)?;
+        if let Some(stack) = &mut call.scalar_stack {
+            if let Some(outbound) = &mut stack.outbound {
+                shift(&mut outbound.allocation_offset)?;
+                shift(&mut outbound.release_offset)?;
+            }
+            if let Some(link) = &mut stack.aarch64_return_link {
+                shift(&mut link.store_offset)?;
+                shift(&mut link.load_offset)?;
+            }
+        }
+    }
+    for call in &mut emission.internal_unit_calls {
+        shift(&mut call.code_offset)?;
+    }
+    for leaf in &mut emission.cleanups {
+        shift(&mut leaf.cleanup.code_offset)?;
+        shift(&mut leaf.preservation.frame.allocation_offset)?;
+        shift(&mut leaf.preservation.frame.release_offset)?;
+        shift(&mut leaf.preservation.result_store_offset)?;
+        shift(&mut leaf.preservation.result_load_offset)?;
+        if let Some(link) = &mut leaf.preservation.aarch64_return_link {
+            shift(&mut link.store_offset)?;
+            shift(&mut link.load_offset)?;
+        }
+    }
+    for branch in &mut emission.branches {
+        shift(&mut branch.branch_offset)?;
+        shift(&mut branch.false_arm_offset)?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_control_with_cleanup(
+    function: &TerminalAssignedFunction,
+    control: &TerminalAssignedBooleanControl,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    call_plan: &omega_calling_conventions::CallPlan,
+    structural_parameters: &[omega_terminal_target_operations::TerminalTargetStructuralParameter],
+    cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
+    target: NativeTarget,
+    functions: &[TerminalAssignedFunction],
+) -> Result<TerminalMachineCodeFunction, EmissionError> {
+    if cleanup_actions.is_empty()
+        || cleanup_actions.len() != structural_parameters.len()
+        || call_plan.parameters.len() < structural_parameters.len()
+        || call_plan.parameters[call_plan.parameters.len() - structural_parameters.len()..]
+            .iter()
+            .zip(structural_parameters)
+            .any(|(placement, parameter)| placement != &parameter.placement)
+        || structural_parameters
+            .iter()
+            .rev()
+            .zip(cleanup_actions)
+            .any(|(parameter, action)| match action {
+                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    *place != parameter.place
+                }
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    cleanup.place != parameter.place
+                        || cleanup.structural_type != parameter.structural_type
+                }
+                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => true,
+            })
+    {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
+
+    let mut leaf_ordinal = 0_usize;
+    let emitted = emit_boolean_control_cleanup_tree(
+        control,
+        structural_types,
+        cleanup_actions,
+        target,
+        functions,
+        &mut leaf_ordinal,
+    )?;
+    if leaf_ordinal != 3 || emitted.cleanups.len() != 3 || emitted.branches.len() != 2 {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
+    let mut edges = emitted
+        .cleanups
+        .iter()
+        .map(|leaf| leaf.cleanup.psi_edge)
+        .collect::<Vec<_>>();
+    edges.sort_unstable();
+    edges.dedup();
+    if edges.len() != 3 {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
+    let nested_arm = emitted
+        .nested_arm
+        .ok_or(EmissionError::UnsupportedScalarCleanup)?;
+    let control_flow = TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+        root: emitted.branches[0],
+        nested: emitted.branches[1],
+        nested_arm,
+    };
+    let scalar_stack = Some(collect_scalar_stack_evidence(
+        target.architecture,
+        &emitted.bytes,
+        control_flow,
+        None,
+    )?);
+    let parameter_records = structural_parameters
+        .iter()
+        .map(
+            |parameter| omega_terminal_machine_code::TerminalUnitParameterRecord {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
+                shape: parameter.shape,
+            },
+        )
+        .collect::<Vec<_>>();
+    let parameter_homes = structural_parameters
+        .iter()
+        .map(
+            |parameter| omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
+                shape: parameter.shape,
+                source: parameter.placement.clone(),
+                byte_offset: 0,
+                indirect: matches!(
+                    parameter.placement.locations.as_slice(),
+                    [ValueLocation::Indirect { .. }]
+                ),
+            },
+        )
+        .collect::<Vec<_>>();
+    let fuel_attribution = emitted
+        .cleanups
+        .iter()
+        .enumerate()
+        .map(|(operation_ordinal, leaf)| TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site: TerminalNativeFuelSite::Edge(leaf.cleanup.psi_edge),
+            units: 1,
+            operation_ordinal,
+            code_offset: leaf.cleanup.code_offset,
+            byte_count: leaf.cleanup.byte_count,
+        })
+        .collect();
+    Ok(TerminalMachineCodeFunction {
+        machine: function.machine,
+        attachment: function.attachment,
+        provenance: function.provenance.clone(),
+        bytes: emitted.bytes,
+        unit_stack: None,
+        unit_parameter_homes: Vec::new(),
+        unit_parameters: Vec::new(),
+        scalar_stack,
+        internal_calls: emitted.internal_calls,
+        internal_unit_calls: emitted.internal_unit_calls,
+        unit_affine_cleanup: None,
+        scalar_affine_cleanup: None,
+        scalar_control_affine_cleanups: emitted.cleanups,
+        scalar_structural_parameters: parameter_records,
+        scalar_structural_parameter_homes: parameter_homes,
+        fuel_attribution,
+        port_effects: Vec::new(),
+        boundary_settlements: Vec::new(),
+        structural_return: None,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_control_cleanup_tree(
+    control: &TerminalAssignedBooleanControl,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
+    target: NativeTarget,
+    functions: &[TerminalAssignedFunction],
+    leaf_ordinal: &mut usize,
+) -> Result<BooleanControlCleanupEmission, EmissionError> {
+    match control {
+        TerminalAssignedBooleanControl::Conditional {
+            condition_source,
+            condition_location,
+            when_true,
+            when_false,
+            ..
+        } => {
+            let (prefix, condition, aarch64_condition_register) = match target.architecture {
+                Architecture::X86_64 => {
+                    let mut bytes = emit_x86_64_parameter_return(
+                        *condition_source,
+                        false,
+                        *condition_location,
+                    )?;
+                    if bytes.pop() != Some(0xc3) {
+                        return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                    }
+                    bytes.extend_from_slice(&[0x85, 0xc0]);
+                    (bytes, TerminalScalarConditionalCondition::Parameter, None)
+                }
+                Architecture::Aarch64 => {
+                    let (bytes, condition_register) =
+                        emit_aarch64_condition_load(*condition_source, *condition_location)?;
+                    (
+                        bytes,
+                        TerminalScalarConditionalCondition::Parameter,
+                        Some(condition_register),
+                    )
+                }
+            };
+            emit_boolean_cleanup_conditional(
+                prefix,
+                condition,
+                when_true,
+                when_false,
+                structural_types,
+                cleanup_actions,
+                target,
+                functions,
+                leaf_ordinal,
+                aarch64_condition_register,
+            )
+        }
+        TerminalAssignedBooleanControl::ConditionalExpression {
+            condition_frame,
+            condition,
+            when_true,
+            when_false,
+            ..
+        } if linear_boolean_expression(condition) => {
+            let mut condition_calls = Vec::new();
+            let prefix = match target.architecture {
+                Architecture::X86_64 => emit_x86_64_boolean_condition_value(
+                    condition_frame,
+                    condition,
+                    Some((&mut condition_calls, target)),
+                )?,
+                Architecture::Aarch64 => emit_aarch64_boolean_condition_value(
+                    condition_frame,
+                    condition,
+                    Some((&mut condition_calls, target)),
+                )?,
+            };
+            if !condition_calls.is_empty() {
+                return Err(EmissionError::UnsupportedScalarCleanup);
+            }
+            emit_boolean_cleanup_conditional(
+                prefix,
+                TerminalScalarConditionalCondition::Expression,
+                when_true,
+                when_false,
+                structural_types,
+                cleanup_actions,
+                target,
+                functions,
+                leaf_ordinal,
+                None,
+            )
+        }
+        TerminalAssignedBooleanControl::ReturnExpression { expression, .. }
+            if !linear_boolean_expression(expression) =>
+        {
+            Err(EmissionError::UnsupportedScalarCleanup)
+        }
+        TerminalAssignedBooleanControl::ReturnImmediate {
+            psi_return_edge, ..
+        }
+        | TerminalAssignedBooleanControl::ReturnParameter {
+            psi_return_edge, ..
+        }
+        | TerminalAssignedBooleanControl::ReturnNotParameter {
+            psi_return_edge, ..
+        }
+        | TerminalAssignedBooleanControl::ReturnExpression {
+            psi_return_edge, ..
+        } => {
+            let fragment = match target.architecture {
+                Architecture::X86_64 => emit_x86_64_boolean_control(control, target)?,
+                Architecture::Aarch64 => emit_aarch64_boolean_control(control, target)?,
+            };
+            if !fragment.internal_calls.is_empty() || fragment.conditional.is_some() {
+                return Err(EmissionError::UnsupportedScalarCleanup);
+            }
+            let ordinal = *leaf_ordinal;
+            *leaf_ordinal = leaf_ordinal
+                .checked_add(1)
+                .ok_or(EmissionError::UnsupportedScalarCleanup)?;
+            emit_boolean_cleanup_leaf(
+                fragment.bytes,
+                *psi_return_edge,
+                structural_types,
+                cleanup_actions,
+                target,
+                functions,
+                ordinal,
+            )
+        }
+        _ => Err(EmissionError::UnsupportedScalarCleanup),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_cleanup_conditional(
+    mut prefix: Vec<u8>,
+    condition: TerminalScalarConditionalCondition,
+    when_true: &TerminalAssignedConditionalBooleanArm,
+    when_false: &TerminalAssignedConditionalBooleanArm,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
+    target: NativeTarget,
+    functions: &[TerminalAssignedFunction],
+    leaf_ordinal: &mut usize,
+    aarch64_condition_register: Option<u8>,
+) -> Result<BooleanControlCleanupEmission, EmissionError> {
+    let true_emission = emit_boolean_control_cleanup_tree(
+        &when_true.control,
+        structural_types,
+        cleanup_actions,
+        target,
+        functions,
+        leaf_ordinal,
+    )?;
+    let false_emission = emit_boolean_control_cleanup_tree(
+        &when_false.control,
+        structural_types,
+        cleanup_actions,
+        target,
+        functions,
+        leaf_ordinal,
+    )?;
+    let nested_arm = match (true_emission.branches.len(), false_emission.branches.len()) {
+        (1, 0) => Some(TerminalScalarConditionalArm::True),
+        (0, 1) => Some(TerminalScalarConditionalArm::False),
+        _ => None,
+    };
+    let branch_offset = prefix.len();
+    let branch_byte_count = match target.architecture {
+        Architecture::X86_64 => {
+            let displacement = i32::try_from(true_emission.bytes.len())
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            prefix.extend_from_slice(&[0x0f, 0x84]);
+            prefix.extend_from_slice(&displacement.to_le_bytes());
+            6
+        }
+        Architecture::Aarch64 => {
+            let branch_words = true_emission
+                .bytes
+                .len()
+                .checked_div(4)
+                .and_then(|words| words.checked_add(1))
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            if branch_words > 0x3ffff {
+                return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+            }
+            let branch = match (condition, aarch64_condition_register) {
+                (TerminalScalarConditionalCondition::Parameter, Some(register)) => {
+                    0x3400_0000_u32 | ((branch_words as u32) << 5) | u32::from(register)
+                }
+                (TerminalScalarConditionalCondition::Expression, None) => {
+                    0x5400_0000_u32 | ((branch_words as u32) << 5)
+                }
+                _ => return Err(EmissionError::ConditionalBranchEncodingInvalid),
+            };
+            prefix.extend_from_slice(&branch.to_le_bytes());
+            4
+        }
+    };
+    let false_arm_offset = prefix
+        .len()
+        .checked_add(true_emission.bytes.len())
+        .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+    let mut emission = BooleanControlCleanupEmission {
+        bytes: prefix,
+        internal_calls: Vec::new(),
+        internal_unit_calls: Vec::new(),
+        cleanups: Vec::new(),
+        branches: vec![TerminalScalarConditionalBranchEvidence {
+            condition,
+            branch_offset,
+            branch_byte_count,
+            false_arm_offset,
+        }],
+        nested_arm,
+    };
+    emission.append(true_emission)?;
+    emission.append(false_emission)?;
+    Ok(emission)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_boolean_cleanup_leaf(
+    mut bytes: Vec<u8>,
+    psi_edge: psi_core::EdgeId,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
+    target: NativeTarget,
+    functions: &[TerminalAssignedFunction],
+    leaf_ordinal: usize,
+) -> Result<BooleanControlCleanupEmission, EmissionError> {
+    match target.architecture {
+        Architecture::X86_64 if bytes.pop() == Some(0xc3) => {}
+        Architecture::Aarch64
+            if bytes.len() >= 4
+                && bytes.split_off(bytes.len() - 4) == 0xd65f_03c0_u32.to_le_bytes() => {}
+        _ => return Err(EmissionError::UnsupportedScalarCleanup),
+    }
+    let cleanup_offset = bytes.len();
+    let mut internal_calls = Vec::new();
+    let mut internal_unit_calls = Vec::new();
+    let (frame_allocation_byte_count, result_store_offset, aarch64_link_store_offset) =
+        match target.architecture {
+            Architecture::X86_64 => {
+                emit_x86_64_adjust_sp(&mut bytes, 16, false);
+                let result_store_offset = bytes.len();
+                emit_x86_64_stack_store(&mut bytes, 0, 0);
+                (
+                    result_store_offset - cleanup_offset,
+                    result_store_offset,
+                    None,
+                )
+            }
+            Architecture::Aarch64 => {
+                let mut instructions = Vec::new();
+                emit_aarch64_adjust_sp(&mut instructions, 16, false)?;
+                let result_store_offset = bytes.len() + instructions.len() * 4;
+                instructions.push(aarch64_unit_stack_access(0xf900_0000, 0, 0, 8)?);
+                let link_store_offset = bytes.len() + instructions.len() * 4;
+                instructions.push(aarch64_unit_stack_access(0xf900_0000, 30, 8, 8)?);
+                append_aarch64_instructions(&mut bytes, instructions);
+                (4, result_store_offset, Some(link_store_offset))
+            }
+        };
+    for (ordinal, action) in cleanup_actions.iter().enumerate() {
+        let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
+            continue;
+        };
+        if !executable_nominal_cleanup(cleanup, functions)? {
+            continue;
+        }
+        let action_ordinal =
+            u32::try_from(ordinal).map_err(|_| EmissionError::UnsupportedScalarCleanup)?;
+        let owner = TerminalCallSiteOwner::CleanupAction {
+            edge: psi_edge,
+            action_ordinal,
+        };
+        let code_offset = bytes.len();
+        match target.architecture {
+            Architecture::X86_64 => {
+                emit_x86_64_unit_call(
+                    &mut bytes,
+                    owner,
+                    cleanup.cleanup_machine,
+                    &[],
+                    target,
+                    &[],
+                    &mut internal_calls,
+                )?;
+            }
+            Architecture::Aarch64 => {
+                emit_aarch64_unit_call(
+                    &mut bytes,
+                    owner,
+                    cleanup.cleanup_machine,
+                    &[],
+                    &[],
+                    &mut internal_calls,
+                )?;
+            }
+        }
+        let relocation = internal_calls
+            .last_mut()
+            .expect("cleanup call emission retains its relocation");
+        let unit_stack = relocation
+            .unit_stack
+            .take()
+            .expect("cleanup call starts from the Unit call emitter");
+        relocation.scalar_stack = Some(TerminalScalarCallStackEvidence {
+            outbound: unit_stack.outbound,
+            aarch64_return_link: None,
+        });
+        internal_unit_calls.push(TerminalInternalUnitCallRecord {
+            owner,
+            target: cleanup.cleanup_machine,
+            arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            operation_ordinal: leaf_ordinal,
+            code_offset,
+            byte_count: bytes.len() - code_offset,
+        });
+    }
+    let (
+        result_load_offset,
+        aarch64_link_load_offset,
+        frame_release_offset,
+        frame_release_byte_count,
+    ) = match target.architecture {
+        Architecture::X86_64 => {
+            let result_load_offset = bytes.len();
+            emit_x86_64_stack_load(&mut bytes, 0, 0);
+            let release_offset = bytes.len();
+            emit_x86_64_adjust_sp(&mut bytes, 16, true);
+            let release_byte_count = bytes.len() - release_offset;
+            bytes.push(0xc3);
+            (result_load_offset, None, release_offset, release_byte_count)
+        }
+        Architecture::Aarch64 => {
+            let mut instructions = Vec::new();
+            let result_load_offset = bytes.len();
+            instructions.push(aarch64_unit_stack_access(0xf940_0000, 0, 0, 8)?);
+            let link_load_offset = bytes.len() + instructions.len() * 4;
+            instructions.push(aarch64_unit_stack_access(0xf940_0000, 30, 8, 8)?);
+            let release_offset = bytes.len() + instructions.len() * 4;
+            emit_aarch64_adjust_sp(&mut instructions, 16, true)?;
+            append_aarch64_instructions(&mut bytes, instructions);
+            bytes.extend_from_slice(&0xd65f_03c0_u32.to_le_bytes());
+            (
+                result_load_offset,
+                Some(link_load_offset),
+                release_offset,
+                4,
+            )
+        }
+    };
+    let cleanup = omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
+        psi_edge,
+        structural_types: structural_types.to_vec(),
+        locals: Vec::new(),
+        actions: cleanup_actions.to_vec(),
+        code_offset: cleanup_offset,
+        byte_count: bytes.len() - cleanup_offset,
+    };
+    let preservation = TerminalScalarCleanupPreservationEvidence {
+        frame: TerminalStackAdjustmentPair {
+            byte_size: 16,
+            allocation_offset: cleanup_offset,
+            allocation_byte_count: frame_allocation_byte_count,
+            release_offset: frame_release_offset,
+            release_byte_count: frame_release_byte_count,
+        },
+        result_byte_offset: 0,
+        result_store_offset,
+        result_load_offset,
+        aarch64_return_link: match (aarch64_link_store_offset, aarch64_link_load_offset) {
+            (Some(store_offset), Some(load_offset)) => Some(TerminalAarch64ReturnLinkEvidence {
+                frame_byte_offset: 8,
+                store_offset,
+                load_offset,
+            }),
+            (None, None) => None,
+            _ => unreachable!("AArch64 cleanup link save and restore are paired"),
+        },
+    };
+    Ok(BooleanControlCleanupEmission {
+        bytes,
+        internal_calls,
+        internal_unit_calls,
+        cleanups: vec![TerminalScalarControlAffineCleanupRecord {
+            cleanup,
+            preservation,
+        }],
+        branches: Vec::new(),
+        nested_arm: None,
+    })
 }
 
 fn scalar_operation_edge(operation: &TerminalAssignedOperation) -> Option<psi_core::EdgeId> {
@@ -6305,6 +6927,208 @@ mod tests {
             cleanup_machine,
             helper,
         )
+    }
+
+    fn boolean_control_nominal_cleanup_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
+        let (mut plan, _, _, _, _) = executable_nominal_cleanup_plan(target);
+        let TerminalTargetOperation::UnitBody(root_body) = &plan.functions[0].operation else {
+            unreachable!("fixture root starts as Unit")
+        };
+        let structural_types = root_body.structural_types.clone();
+        let mut structural_parameters = root_body.parameters.clone();
+        let [
+            TerminalTargetUnitOperation::Return {
+                cleanup_actions, ..
+            },
+        ] = root_body.operations.as_slice()
+        else {
+            unreachable!("fixture root has one return")
+        };
+        let cleanup_actions = cleanup_actions.clone();
+        let scalar_shape = ValueShape::integer(1, 1);
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![scalar_shape, structural_parameters[0].shape],
+                result: Some(scalar_shape),
+            },
+        )
+        .expect("Boolean control plus nominal receiver ABI");
+        structural_parameters[0].placement = call_plan.parameters[1].clone();
+        let [ValueLocation::Register { register, .. }] =
+            call_plan.parameters[0].locations.as_slice()
+        else {
+            panic!("Boolean condition has one direct register home")
+        };
+        let condition_location = TerminalScalarParameterLocation::Register(*register);
+        let leaf = |edge: u64, value: bool| TerminalTargetBooleanControl::ReturnImmediate {
+            psi_return_edge: EdgeId::new(edge).unwrap(),
+            source_value: ValueId::new(edge).unwrap(),
+            value,
+        };
+        let arm = |edge: u64, control| TerminalTargetConditionalBooleanArm {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            control: Box::new(control),
+        };
+        let nested = TerminalTargetBooleanControl::Conditional {
+            condition_source: ValueId::new(1).unwrap(),
+            condition_parameter_index: 0,
+            condition_location,
+            when_true: arm(4, leaf(10, true)),
+            when_false: arm(5, leaf(11, false)),
+        };
+        plan.functions[0].provenance.edges = (1..=5)
+            .chain(10..=12)
+            .map(|edge| EdgeId::new(edge).unwrap())
+            .collect();
+        plan.functions[0].operation = TerminalTargetOperation::BooleanControlWithCleanup {
+            control: TerminalTargetBooleanControl::Conditional {
+                condition_source: ValueId::new(1).unwrap(),
+                condition_parameter_index: 0,
+                condition_location,
+                when_true: arm(2, nested),
+                when_false: arm(3, leaf(12, true)),
+            },
+            structural_types,
+            call_plan,
+            structural_parameters,
+            cleanup_actions,
+        };
+        plan
+    }
+
+    #[test]
+    fn bounded_boolean_control_duplicates_edge_owned_cleanup_at_all_three_leaves() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let emitted = emit_machine_code(&boolean_control_nominal_cleanup_plan(target))
+                .expect("bounded Boolean control cleanup emits");
+            let root = &emitted.functions[0];
+            assert!(root.scalar_affine_cleanup.is_none());
+            assert_eq!(root.scalar_control_affine_cleanups.len(), 3);
+            assert_eq!(root.internal_calls.len(), 3);
+            assert_eq!(root.internal_unit_calls.len(), 3);
+            assert_eq!(root.fuel_attribution.len(), 3);
+            assert_eq!(
+                root.scalar_control_affine_cleanups
+                    .iter()
+                    .map(|leaf| leaf.cleanup.psi_edge)
+                    .collect::<Vec<_>>(),
+                [10, 11, 12].map(|edge| EdgeId::new(edge).unwrap()).to_vec()
+            );
+            assert!(root.scalar_control_affine_cleanups.windows(2).all(|pair| {
+                pair[0].cleanup.code_offset + pair[0].cleanup.byte_count
+                    <= pair[1].cleanup.code_offset
+            }));
+            assert_eq!(
+                root.scalar_control_affine_cleanups[2].cleanup.code_offset
+                    + root.scalar_control_affine_cleanups[2].cleanup.byte_count,
+                root.bytes.len()
+            );
+            for (ordinal, leaf) in root.scalar_control_affine_cleanups.iter().enumerate() {
+                let cleanup = &leaf.cleanup;
+                let preservation = leaf.preservation;
+                assert!(preservation.frame.allocation_offset >= cleanup.code_offset);
+                assert!(preservation.result_store_offset >= cleanup.code_offset);
+                assert!(preservation.result_load_offset >= preservation.result_store_offset);
+                assert!(preservation.frame.release_offset >= preservation.result_load_offset);
+                assert!(
+                    preservation.frame.release_offset + preservation.frame.release_byte_count
+                        < cleanup.code_offset + cleanup.byte_count
+                );
+                assert_eq!(root.internal_unit_calls[ordinal].operation_ordinal, ordinal);
+                assert!(matches!(
+                    root.internal_unit_calls[ordinal].owner,
+                    TerminalCallSiteOwner::CleanupAction {
+                        edge,
+                        action_ordinal: 0,
+                    } if edge == cleanup.psi_edge
+                ));
+                assert_eq!(
+                    root.fuel_attribution[ordinal].site,
+                    TerminalNativeFuelSite::Edge(cleanup.psi_edge)
+                );
+                assert_eq!(root.fuel_attribution[ordinal].operation_ordinal, ordinal);
+                assert_eq!(
+                    root.fuel_attribution[ordinal].code_offset,
+                    cleanup.code_offset
+                );
+                assert_eq!(
+                    root.fuel_attribution[ordinal].byte_count,
+                    cleanup.byte_count
+                );
+                match target.architecture {
+                    Architecture::X86_64 => {
+                        assert!(preservation.aarch64_return_link.is_none())
+                    }
+                    Architecture::Aarch64 => {
+                        assert!(preservation.aarch64_return_link.is_some())
+                    }
+                }
+            }
+            let stack = root.scalar_stack.as_ref().expect("scalar stack evidence");
+            assert!(stack.cleanup_preservation.is_none());
+            let TerminalScalarControlFlowEvidence::TopLevelTwoDecisionThreeReturn {
+                root: root_branch,
+                nested,
+                nested_arm,
+            } = stack.control_flow
+            else {
+                panic!("exact two-decision/three-return evidence is retained")
+            };
+            assert_eq!(nested_arm, TerminalScalarConditionalArm::True);
+            assert!(root_branch.branch_offset < nested.branch_offset);
+            assert!(nested.false_arm_offset < root_branch.false_arm_offset);
+            assert_eq!(
+                root_branch.condition,
+                TerminalScalarConditionalCondition::Parameter
+            );
+            assert_eq!(
+                nested.condition,
+                TerminalScalarConditionalCondition::Parameter
+            );
+            assert_eq!(
+                stack
+                    .mutations
+                    .iter()
+                    .filter(|mutation| matches!(
+                        mutation.kind,
+                        TerminalScalarStackMutationKind::Allocate { byte_size: 16 }
+                    ))
+                    .count(),
+                3
+            );
+        }
+    }
+
+    #[test]
+    fn bounded_boolean_cleanup_emission_rechecks_distinct_leaf_edges() {
+        let target = NativeTarget::linux_x64();
+        let mut assigned = assign_registers(&boolean_control_nominal_cleanup_plan(target))
+            .expect("valid fixture assigns");
+        let TerminalAssignedOperation::BooleanControlWithCleanup { control, .. } =
+            &mut assigned.functions[0].operation
+        else {
+            unreachable!("fixture retains Boolean cleanup control")
+        };
+        let TerminalAssignedBooleanControl::Conditional { when_true, .. } = control else {
+            unreachable!("fixture root remains conditional")
+        };
+        let TerminalAssignedBooleanControl::Conditional { when_false, .. } =
+            when_true.control.as_mut()
+        else {
+            unreachable!("fixture true arm remains nested conditional")
+        };
+        let TerminalAssignedBooleanControl::ReturnImmediate {
+            psi_return_edge, ..
+        } = when_false.control.as_mut()
+        else {
+            unreachable!("fixture nested false arm remains a return")
+        };
+        *psi_return_edge = EdgeId::new(10).unwrap();
+        assert_eq!(
+            super::emit_machine_code(&assigned),
+            Err(EmissionError::UnsupportedScalarCleanup)
+        );
     }
 
     #[test]

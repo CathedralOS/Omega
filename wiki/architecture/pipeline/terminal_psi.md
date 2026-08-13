@@ -302,7 +302,8 @@ structural parameters that may mix no-code and nominal roots, a finite set of
 direct primitive scalar inputs interleaved at authored parameter positions,
 and no authored contract beyond the direct-Boolean contextual subset below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
-and one branch-free scalar result over the inputs and locals. Checked plans
+and either one branch-free scalar result or one proof-free top-level Boolean
+`&&`/`||` whose operands are branch-free over the inputs and locals. Checked plans
 retain the complete authored parameter partition; terminal Psi gives scalar
 values and structural places independent dense namespaces. Terminal production
 materializes the input-dependent local and result operations in
@@ -310,8 +311,10 @@ source order, then executes the complete cleanup stream in reverse authored
 root order. No-code roots retain their exact position without invoking a
 machine; nominal targets may be distinct or shared, and each drop may be empty
 or contain the bounded source-ordered zero-argument helper-call body accepted
-by the Unit nominal slice. Terminal production retains the cleanup targets and
-helpers in the same closed module. Contextual cleanup requirements are accepted
+by the Unit nominal slice. For the bounded Boolean form, terminal production
+retains exactly two decisions and three distinct return edges, and attaches the
+same complete cleanup stream to every leaf. Terminal production retains the
+cleanup targets and helpers in the same closed module. Contextual cleanup requirements are accepted
 for a finite mixed root list in the same direct-Boolean subset as Unit cleanup.
 Checked production binds every target premise to the exact nominal caller root
 and retains supported caller-only facts on no-code roots; terminal Psi carries
@@ -320,8 +323,11 @@ obligations. Omega consumes those facts only after verification and projects
 the proof metadata away before target lowering. Native lowering preserves the
 computed ABI result and, on AArch64, the return link across executable cleanup
 calls in an exact lifetime frame; object construction validates the frame,
-stores, loads, calls, and stack ceiling from emitted bytes. Short-circuit/
-control bodies, calls, effects, nested nominal ownership, projections, and
+stores, loads, calls, and stack ceiling from emitted bytes. The bounded Boolean
+form instead retains three edge-specific cleanup intervals and validates the
+result and return-link lifetime independently on every native path.
+Contextual/proof-bearing Boolean cleanup, short-circuit locals, nested or
+repeated decisions, calls, effects, nested nominal ownership, projections, and
 wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
@@ -707,11 +713,13 @@ the native terminal Unit and branch-free scalar slices now retain exact
 emitter evidence that object construction validates and replays to derive
 local peaks plus caller-live stack at each typed internal-call relocation and
 compose that acyclic closure below function entry. Conditional scalar control
-flow is limited to one exact two-terminal-arm shape: a top-level Boolean
-parameter or linear Boolean-expression condition with two direct linear
-integer returns. The balanced expression prefix and both arms replay
-independently and compose by maximum; exact x86 flag-preserving release and
-AArch64 expression-branch encodings are validated. Typed scalar calls in the
+flow without cleanup is limited to one exact two-terminal-arm shape: a top-level
+Boolean parameter or linear Boolean-expression condition with two direct linear
+integer returns. The bounded nominal-cleanup exception is one top-level
+short-circuit Boolean result represented by exactly two decisions and three
+direct return leaves. Its three edge-specific cleanup suffixes replay
+independently and compose by maximum. The balanced expression prefix and arms
+retain exact x86 and AArch64 branch encodings. Typed scalar calls in the
 prefix or either arm reuse the exact call evidence and closure composition.
 Nesting, reconvergence, crashes in arms, division/remainder expressions,
 external adapter/interrupt-arrival state, other terminal function forms,
