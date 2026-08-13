@@ -121,7 +121,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     }
 }
 
-/// Build the checked front of the first path-sensitive affine cleanup slice.
+/// Build the checked front of direct-record path-sensitive affine cleanup.
 ///
 /// This plan is deliberately parallel to `CheckedUnitEffectPlans`: current
 /// terminal Psi still has a root-only affine frontier, so publishing the
@@ -2022,32 +2022,38 @@ fn build_partial_affine_unit_cleanup_machine(
     let CheckedUnitStructuralTypeShape::Record { fields } = &source_shape.shape else {
         return None;
     };
-    let [first, second] = fields.as_slice() else {
-        return None;
-    };
-    if first.relevance.is_erased() || second.relevance.is_erased() {
-        return None;
-    }
-    let residual = match (
-        first.identity == *moved_field,
-        second.identity == *moved_field,
-    ) {
-        (true, false) => second,
-        (false, true) => first,
-        _ => return None,
-    };
-    if structural_field_type_identity(if first.identity == *moved_field {
-        first
-    } else {
-        second
-    })? != &argument.type_identity
+    if fields.len() < 2
+        || fields.iter().enumerate().any(|(index, field)| {
+            field.relevance.is_erased()
+                || structural_field_type_identity(field).is_none()
+                || fields[..index]
+                    .iter()
+                    .any(|earlier| earlier.identity == field.identity)
+        })
     {
         return None;
     }
-
-    let residual_path = vec![CheckedUnitStructuralPathSegment::Field(
-        residual.identity.clone(),
-    )];
+    let mut moved_candidates = fields.iter().filter(|field| field.identity == *moved_field);
+    let moved = moved_candidates.next()?;
+    if moved_candidates.next().is_some()
+        || structural_field_type_identity(moved)? != &argument.type_identity
+    {
+        return None;
+    }
+    let residual_affine_discards = fields
+        .iter()
+        .rev()
+        .filter(|field| field.identity != *moved_field)
+        .map(|field| {
+            Some(CheckedUnitPartialAffineDiscardPlan {
+                source_parameter_index: 0,
+                path: vec![CheckedUnitStructuralPathSegment::Field(
+                    field.identity.clone(),
+                )],
+                type_identity: structural_field_type_identity(field)?.clone(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
     if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
         return None;
     }
@@ -2076,11 +2082,7 @@ fn build_partial_affine_unit_cleanup_machine(
                 },
             ],
         },
-        residual_affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
-            source_parameter_index: 0,
-            path: residual_path,
-            type_identity: structural_field_type_identity(residual)?.clone(),
-        }],
+        residual_affine_discards,
     })
 }
 

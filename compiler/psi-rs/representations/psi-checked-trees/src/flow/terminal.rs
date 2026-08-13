@@ -513,9 +513,9 @@ pub struct CheckedUnitPartialAffineDiscardPlan {
     pub type_identity: String,
 }
 
-/// Checked-only carrier for the first direct-record-field partial cleanup
-/// slice. It remains separate from `CheckedUnitEffectPlans` until terminal Psi
-/// gains the matching path-sensitive frontier and cleanup vocabulary.
+/// Checked-only carrier for direct-record-field partial cleanup. It remains
+/// separate from `CheckedUnitEffectPlans` because its return cleanup is
+/// path-sensitive rather than a whole-root discard.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedPartialAffineUnitCleanupPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
@@ -539,7 +539,8 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     /// published through `CheckedUnitEffectPlans` while its return cleanup is
     /// still path-sensitive.
     pub machine: CheckedUnitEffectMachinePlan,
-    /// Exact residual cleanup after the sole projected call commits.
+    /// Exact reverse-declaration-ordered residual cleanup after the sole
+    /// projected call commits.
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 

@@ -5,12 +5,12 @@ fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
     let checked = checked(
         r#"
         data Token { value: u64; }
-        data Pair { left: Token; right: Token; }
+        data Quartet { first: Token; second: Token; third: Token; fourth: Token; }
         data Sink {}
         machine Sink::take(token: Token) {}
         data Root {}
-        machine Root::enter(pair: Pair) {
-            Sink::take(pair.right);
+        machine Root::enter(value: Quartet) {
+            Sink::take(value.third);
         }
         "#,
     );
@@ -45,40 +45,42 @@ fn retains_direct_field_transfer_with_exact_residual_affine_cleanup() {
         ] if structural_arguments.len() == 1
             && structural_arguments[0].source_parameter_index == 0
             && structural_arguments[0].path
-                == [CheckedUnitStructuralPathSegment::Field("right".to_owned())]
+                == [CheckedUnitStructuralPathSegment::Field("third".to_owned())]
             && claim_transfers.is_empty()
             && trivial_affine_discards.is_empty()
     ));
-    assert_eq!(plan.residual_affine_discards.len(), 1);
-    assert_eq!(plan.residual_affine_discards[0].source_parameter_index, 0);
+    assert_eq!(plan.residual_affine_discards.len(), 3);
     assert_eq!(
-        plan.residual_affine_discards[0].path,
-        [CheckedUnitStructuralPathSegment::Field("left".to_owned())]
-    );
-    assert!(
-        plan.residual_affine_discards[0]
-            .type_identity
-            .contains("Token")
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| {
+                assert_eq!(discard.source_parameter_index, 0);
+                assert!(discard.type_identity.contains("Token"));
+                discard.path.clone()
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            vec![CheckedUnitStructuralPathSegment::Field("fourth".to_owned())],
+            vec![CheckedUnitStructuralPathSegment::Field("second".to_owned())],
+            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
+        ]
     );
 }
 
 #[test]
-fn direct_field_partial_cleanup_fails_closed_for_wider_shapes() {
+fn direct_field_partial_cleanup_fails_closed_outside_finite_structural_records() {
     let checked = checked(
         r#"
         data Token { value: u64; }
         data One { right: Token; }
-        data Triple { left: Token; middle: Token; right: Token; }
         data Inner { right: Token; }
         data Outer { left: Token; inner: Inner; }
         data Pair { left: Token; right: Token; }
+        data Mixed { left: Token; count: u64; right: Token; }
         data Sink {}
         machine Sink::take(token: Token) {}
         data Root {}
         machine Root::missing(value: One) {
-            Sink::take(value.right);
-        }
-        machine Root::extra(value: Triple) {
             Sink::take(value.right);
         }
         machine Root::nested(value: Outer) {
@@ -88,10 +90,13 @@ fn direct_field_partial_cleanup_fails_closed_for_wider_shapes() {
             Sink::take(value.right);
             Sink::take(value.left);
         }
+        machine Root::scalar(value: Mixed) {
+            Sink::take(value.right);
+        }
         "#,
     );
 
-    for machine in ["missing", "extra", "nested", "multiple"] {
+    for machine in ["missing", "nested", "multiple", "scalar"] {
         assert!(
             checked
                 .facts

@@ -2,7 +2,7 @@ use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::{OperationKind, StructuralAffineDiscard, StructuralPathSegment, Terminator};
+use psi_terminal::{OperationKind, StructuralPathSegment, Terminator};
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
@@ -13,14 +13,20 @@ use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data Token { value: u64; }
-    data Pair { left: Token; right: Token; }
+    data Quintet {
+        first: Token;
+        second: Token;
+        third: Token;
+        fourth: Token;
+        fifth: Token;
+    }
 
     data Sink {}
     machine Sink::take(token: Token) {}
 
     data Root {}
-    machine Root::enter(pair: Pair) {
-        Sink::take(pair.right);
+    machine Root::enter(value: Quintet) {
+        Sink::take(value.third);
     }
 "#;
 
@@ -62,7 +68,7 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         structural_arguments.as_slice(),
         [argument]
             if argument.place == root.place
-                && argument.path == [StructuralPathSegment::Field("right".into())]
+                && argument.path == [StructuralPathSegment::Field("third".into())]
     ));
 
     let Terminator::ReturnUnitPartialAffine {
@@ -74,11 +80,21 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         panic!("expected path-sensitive Unit return")
     };
     assert!(trivial_affine_discards.is_empty());
-    let [residual] = residual_affine_discards.as_slice() else {
-        panic!("expected one residual affine field")
-    };
-    assert_eq!(residual.place, root.place);
-    assert_eq!(residual.path, [StructuralPathSegment::Field("left".into())]);
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|residual| {
+                assert_eq!(residual.place, root.place);
+                residual.path.clone()
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            vec![StructuralPathSegment::Field("fifth".into())],
+            vec![StructuralPathSegment::Field("fourth".into())],
+            vec![StructuralPathSegment::Field("second".into())],
+            vec![StructuralPathSegment::Field("first".into())],
+        ]
+    );
 
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -110,8 +126,8 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     .expect("verified source artifact starts");
 
     // The projected call and callee return commit first. With no remaining
-    // allowance, the caller suspends at its return edge while the exact left
-    // residual remains live; cleanup commits only after replenishment.
+    // allowance, the caller suspends at its return edge while every residual
+    // remains live; cleanup commits only after replenishment.
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
         execution
@@ -124,16 +140,15 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
             remaining_units: 0,
         })
     );
-    assert_eq!(
-        execution
-            .live_affine_frontier()
-            .cloned()
-            .collect::<Vec<_>>(),
-        vec![StructuralAffineDiscard {
-            place: residual.place,
-            path: residual.path.clone(),
-            structural_type: residual.structural_type,
-        }]
+    let live_residuals = execution
+        .live_affine_frontier()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(live_residuals.len(), residual_affine_discards.len());
+    assert!(
+        residual_affine_discards
+            .iter()
+            .all(|residual| live_residuals.contains(residual))
     );
 
     meter.replenish(1).expect("replenish return-edge fuel");
