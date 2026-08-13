@@ -266,12 +266,7 @@ pub(crate) fn schema_fields(
             declared_range,
         });
     }
-    if fields.is_empty()
-        && !typed
-            .data_members(data)
-            .iter()
-            .any(|member| matches!(member, psi_typed_trees::data::DataMember::Variant(_)))
-    {
+    if fields.is_empty() && typed.data_members(data).is_empty() {
         return Err(format!("schema data `{schema_data}` has no members"));
     }
     if fields.len() > SCHEMA_FIELD_CAPACITY {
