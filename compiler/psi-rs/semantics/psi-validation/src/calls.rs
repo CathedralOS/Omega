@@ -2631,9 +2631,9 @@ fn statement_call_preserves_transparent_result(
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. One primitive-only record or selected-case literal may
-/// independently contain such a tree in each field, and one nested plain-record
-/// literal may do the same. Reference-bearing or generic literals, nested
-/// cases, wider aggregate depth, computed field expressions, and unknown
+/// independently contain such a tree in each field, and one nested record or
+/// selected-case literal may do the same. Reference-bearing or generic
+/// literals, wider aggregate depth, computed field expressions, and unknown
 /// return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
@@ -2667,7 +2667,6 @@ fn value_expression_assignment_preserves_transparent_result(
                 parameters,
                 aliases,
                 TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
-                true,
             )
         }
         _ => false,
@@ -2684,7 +2683,6 @@ fn aggregate_value_assignment_preserves_transparent_result(
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
     remaining_aggregate_depth: usize,
-    case_literal_allowed: bool,
 ) -> bool {
     if remaining_aggregate_depth == 0 {
         return false;
@@ -2693,9 +2691,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
     else {
         return false;
     };
-    if (!case_literal_allowed && literal.case_name.is_some())
-        || !struct_literal_type_is_caller_isolated(program, literal)
-    {
+    if !struct_literal_type_is_caller_isolated(program, literal) {
         return false;
     }
     program
@@ -2726,7 +2722,6 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         parameters,
                         aliases,
                         remaining_aggregate_depth - 1,
-                        false,
                     )
                 }
                 _ => false,

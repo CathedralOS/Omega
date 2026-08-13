@@ -388,11 +388,12 @@ binding-reborrow, recursive, or opaque branch fences the whole right-hand side;
 reference-valued roots retain their existing relational handling. One
 top-level concrete primitive-only record or selected-case literal may likewise
 contain an independently bounded call tree in each direct common or payload
-field. A direct field may instead be one nested concrete primitive-only plain
-record literal whose direct fields obey the same rule. This aggregate depth-two
-rail composes without changing the call-depth budget. A third aggregate level,
-nested selected cases, generic, recursive, or reference-bearing carriers, and
-calls under operators or other computed field shapes remain fences.
+field. A direct field may instead be one nested concrete primitive-only record
+or selected-case literal whose direct common or payload fields obey the same
+rule. This aggregate depth-two rail composes without changing the call-depth
+budget. A third aggregate level, generic, recursive, or reference-bearing
+carriers, and calls under operators or other computed field shapes remain
+fences.
 A value-shaped assignment through an indexed target likewise preserves a
 separately returned parameter origin when the collection projects through a
 stable helper-local mutable alias or an exact transparent helper result and
