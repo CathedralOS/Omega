@@ -119,10 +119,12 @@ The same normalized geometry may feed different compiler-owned consumers:
   out-of-bounds placement reject before destination mutation. The typed
   source-owned bridge now derives complete field bytes and extents from a
   checked structured value plus its exact typed-tree schema for fixed records
-  and arrays of supported primitives. Psi retains the semantic value and shape;
-  the Omega realization seam supplies target byte order. Schema/type mismatch,
-  duplicate or missing fields, out-of-range scalars, erased/sum/generic/reference
-  shapes, and unsupported recursion reject before destination mutation. An
+  and arrays in the supported fixed subset. Psi retains the semantic value and
+  shape; the Omega realization seam supplies target byte order. Erased bindings
+  remain required semantic terms but contribute no bytes or initialization
+  work. Schema/type mismatch, duplicate or missing fields, out-of-range scalars,
+  sum/generic/reference shapes, and unsupported recursion reject before
+  destination mutation. An
   admitted zero-argument source machine may supply that structured value through
   Psi's checked interpreter, so source construction reaches the same writer
   without exposing physical field bytes; or

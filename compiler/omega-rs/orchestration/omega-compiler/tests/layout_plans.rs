@@ -588,6 +588,63 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_erased_fields_are_semantic_but_not_materialized() {
+    let main_path = write_program(
+        "source-owned-erased-field",
+        r#"
+use omega::language::core::layout;
+
+data Spread { entries: [FieldEntry; 64]; }
+machine Spread::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 12 },
+    };
+    Plan { entries: self.entries, entry_count: 2,
+           size_fixed: 20, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data Certified {
+    left: u16;
+    proof [erased]: Evidence;
+    right: u32;
+}
+machine make_certified() -> Certified {
+    Certified { left: 258, proof: Evidence::Only, right: 100992003 }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("erased field producer should check");
+    let report = compute_layout_plan(&checked.typed, "Spread::plan", "Certified")
+        .expect("only relevant fields should enter the normalized layout");
+    let mut bytes = [0xa5; 20];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_certified",
+        "Certified",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("erased semantic evidence should contribute no physical bytes");
+    assert_eq!(&bytes[4..6], &[2, 1]);
+    assert_eq!(&bytes[12..16], &[3, 4, 5, 6]);
+    assert!(
+        bytes[..4]
+            .iter()
+            .chain(&bytes[6..12])
+            .chain(&bytes[16..])
+            .all(|byte| *byte == 0)
+    );
+}
+
+#[test]
 fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
     let main_path = write_program(
         "typed-owned-negative-u64",

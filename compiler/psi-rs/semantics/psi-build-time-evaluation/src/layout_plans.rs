@@ -100,8 +100,16 @@ pub fn materialize_typed_owned_layout_into(
         )));
     }
     let supplied = exact_struct_fields(schema_data, fields)?;
-    let physical_fields = typed
-        .data_members(data)
+    let members = typed.data_members(data);
+    if members
+        .iter()
+        .any(|member| matches!(member, psi_typed_trees::data::DataMember::Variant(_)))
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned materialization does not yet admit sum cases in `{schema_data}`"
+        )));
+    }
+    let physical_fields = members
         .iter()
         .filter_map(|member| match member {
             psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
@@ -110,17 +118,23 @@ pub fn materialize_typed_owned_layout_into(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if physical_fields.len() != typed.data_members(data).len() {
-        return Err(MaterializationDiagnostic(format!(
-            "typed owned materialization does not yet admit erased fields or sum cases in `{schema_data}`"
-        )));
-    }
-    if supplied.len() != physical_fields.len() {
+    if supplied.len() != members.len() {
         return Err(MaterializationDiagnostic(format!(
             "typed owned value `{schema_data}` has {} fields, expected {}",
             supplied.len(),
-            physical_fields.len()
+            members.len()
         )));
+    }
+    for member in members {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            unreachable!("sum cases rejected above")
+        };
+        if !supplied.contains_key(field.name.as_str()) {
+            return Err(MaterializationDiagnostic(format!(
+                "typed owned value `{schema_data}` has no field `{}`",
+                field.name
+            )));
+        }
     }
 
     let mut schemas = Vec::with_capacity(schema_fields.len());
@@ -724,11 +738,12 @@ fn encode_typed_owned_record(
     }
     let supplied = exact_struct_fields(name, fields)?;
     let members = typed.data_members(data);
-    if members.iter().any(|member| {
-        !matches!(member, psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased())
-    }) {
+    if members
+        .iter()
+        .any(|member| matches!(member, psi_typed_trees::data::DataMember::Variant(_)))
+    {
         return Err(MaterializationDiagnostic(format!(
-            "typed owned record `{name}` contains an erased field or sum case"
+            "typed owned record `{name}` contains a sum case"
         )));
     }
     if supplied.len() != members.len() {
@@ -747,6 +762,9 @@ fn encode_typed_owned_record(
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 unreachable!("record subset validated above")
             };
+            if field.relevance.is_erased() {
+                continue;
+            }
             let (_, align) = reflected_nested_member_layout(typed, field.type_reference, visiting)
                 .ok_or_else(|| {
                     MaterializationDiagnostic(format!(
