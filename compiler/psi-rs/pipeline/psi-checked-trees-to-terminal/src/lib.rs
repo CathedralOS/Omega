@@ -10107,6 +10107,127 @@ fn lower_structural_crash_route_buckets(
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<psi_terminal::CrashRouteBucket>, LoweringError> {
+    fn checked_member_path(
+        expression: &psi_checked_trees::CrashPredicateExpression,
+        path: &mut Vec<String>,
+    ) -> Option<u32> {
+        match expression {
+            psi_checked_trees::CrashPredicateExpression::Parameter(position) => Some(*position),
+            psi_checked_trees::CrashPredicateExpression::Member { receiver, member } => {
+                let parameter = checked_member_path(receiver, path)?;
+                path.push(member.clone());
+                Some(parameter)
+            }
+            _ => None,
+        }
+    }
+
+    fn lower_member_term(
+        parameter_position: u32,
+        path: &[String],
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+    ) -> Result<ScalarTerm, LoweringError> {
+        if path.is_empty() {
+            return unsupported("structural crash route has an empty member path");
+        }
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.position == parameter_position)
+            .ok_or(LoweringError::Unsupported(
+                "structural crash route names a non-structural parameter",
+            ))?;
+        let mut structural_type = parameter.structural_type;
+        let mut terminal_path = Vec::with_capacity(path.len());
+        for (index, identity) in path.iter().enumerate() {
+            let declaration = structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "structural crash route path type is absent",
+                ))?;
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return unsupported("structural crash route path receiver is not a record");
+            };
+            let field = fields
+                .iter()
+                .find(|candidate| candidate.identity == *identity)
+                .filter(|field| !field.relevance.is_erased())
+                .ok_or(LoweringError::Unsupported(
+                    "structural crash route path field is absent or erased",
+                ))?;
+            terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
+            let is_last = index + 1 == path.len();
+            match (&field.field_type, is_last) {
+                (StructuralFieldType::Structural(next), false) => {
+                    structural_type = *next;
+                }
+                (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {}
+                _ => {
+                    return unsupported(
+                        "structural crash route path does not end at a Boolean field",
+                    );
+                }
+            }
+        }
+        Ok(ScalarTerm::boolean_field_path(
+            parameter.place,
+            terminal_path,
+        ))
+    }
+
+    fn lower_term(
+        expression: &CheckedBooleanExpression,
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+    ) -> Result<ScalarTerm, LoweringError> {
+        match expression {
+            CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
+            CheckedBooleanExpression::StructuralParameterField {
+                parameter_position,
+                path,
+            } => lower_member_term(*parameter_position, path, parameters, structural_types),
+            CheckedBooleanExpression::Not(operand) => {
+                ScalarTerm::boolean_not(lower_term(operand, parameters, structural_types)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
+            CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
+                lower_term(left, parameters, structural_types)?,
+                lower_term(right, parameters, structural_types)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
+            CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::Local { .. }
+            | CheckedBooleanExpression::IntegerComparison { .. }
+            | CheckedBooleanExpression::And { .. }
+            | CheckedBooleanExpression::Or { .. } => {
+                unsupported("structural crash route contains an unsupported Boolean term")
+            }
+        }
+    }
+
+    fn lower_proposition(
+        expression: &CheckedBooleanExpression,
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+    ) -> Result<Proposition, LoweringError> {
+        if let CheckedBooleanExpression::And { left, right } = expression {
+            return Ok(Proposition::Conjunction(vec![
+                lower_proposition(left, parameters, structural_types)?,
+                lower_proposition(right, parameters, structural_types)?,
+            ]));
+        }
+        if matches!(expression, CheckedBooleanExpression::Or { .. }) {
+            return unsupported(
+                "disjunctive structural crash predicates require terminal proposition disjunction",
+            );
+        }
+        Ok(Proposition::Equal(
+            ScalarTerm::boolean(true),
+            lower_term(expression, parameters, structural_types)?,
+        ))
+    }
+
     buckets
         .iter()
         .map(|bucket| {
@@ -10118,96 +10239,28 @@ fn lower_structural_crash_route_buckets(
                         Ok(psi_terminal::CrashRouteGuard::Truth)
                     }
                     psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                        fn member_path(
-                            expression: &psi_checked_trees::CrashPredicateExpression,
-                            path: &mut Vec<String>,
-                        ) -> Option<u32> {
-                            match expression {
-                                psi_checked_trees::CrashPredicateExpression::Parameter(position) => {
-                                    Some(*position)
-                                }
-                                psi_checked_trees::CrashPredicateExpression::Member {
-                                    receiver,
-                                    member,
-                                } => {
-                                    let parameter = member_path(receiver, path)?;
-                                    path.push(member.clone());
-                                    Some(parameter)
-                                }
-                                _ => None,
-                            }
-                        }
-
-                        let (parameter_position, path) = match predicate.scalar_expression() {
-                            Some(CheckedBooleanExpression::StructuralParameterField {
-                                parameter_position,
-                                path,
-                            }) => (*parameter_position, path.clone()),
-                            None => match predicate.expression() {
-                                Some(expression) => {
-                                    let mut path = Vec::new();
-                                    let Some(parameter) = member_path(expression, &mut path) else {
-                                        return unsupported(
-                                            "structural crash member receiver is not a parameter field path",
-                                        );
-                                    };
-                                    (parameter, path)
-                                }
-                                _ => return unsupported(
-                                    "structural crash route is not one Boolean member path",
-                                ),
-                            },
-                            Some(_) => return unsupported(
-                                "structural crash route is not one Boolean member path",
-                            ),
-                        };
-                        if path.is_empty() {
-                            return unsupported("structural crash route has an empty member path");
-                        }
-                        let parameter = parameters
-                            .iter()
-                            .find(|parameter| parameter.position == parameter_position)
-                            .ok_or(LoweringError::Unsupported(
-                                "structural crash route names a non-structural parameter",
-                            ))?;
-                        let mut structural_type = parameter.structural_type;
-                        let mut terminal_path = Vec::with_capacity(path.len());
-                        for (index, identity) in path.iter().enumerate() {
-                            let declaration = structural_types
-                                .iter()
-                                .find(|declaration| declaration.id == structural_type)
+                        let proposition = if let Some(expression) = predicate.scalar_expression() {
+                            lower_proposition(expression, parameters, structural_types)?
+                        } else {
+                            let mut path = Vec::new();
+                            let parameter_position = predicate
+                                .expression()
+                                .and_then(|expression| checked_member_path(expression, &mut path))
                                 .ok_or(LoweringError::Unsupported(
-                                    "structural crash route path type is absent",
+                                    "structural crash route is outside checked Boolean member lowering",
                                 ))?;
-                            let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                                return unsupported(
-                                    "structural crash route path receiver is not a record",
-                                );
-                            };
-                            let field = fields
-                                .iter()
-                                .find(|candidate| candidate.identity == *identity)
-                                .filter(|field| !field.relevance.is_erased())
-                                .ok_or(LoweringError::Unsupported(
-                                    "structural crash route path field is absent or erased",
-                                ))?;
-                            terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
-                            let is_last = index + 1 == path.len();
-                            match (&field.field_type, is_last) {
-                                (StructuralFieldType::Structural(next), false) => {
-                                    structural_type = *next;
-                                }
-                                (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {}
-                                _ => return unsupported(
-                                    "structural crash route path does not end at a Boolean field",
-                                ),
-                            }
-                        }
-                        Ok(psi_terminal::CrashRouteGuard::Predicate(
-                            psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
+                            Proposition::Equal(
                                 ScalarTerm::boolean(true),
-                                ScalarTerm::boolean_field_path(parameter.place, terminal_path),
-                            )),
+                                lower_member_term(
+                                    parameter_position,
+                                    &path,
+                                    parameters,
+                                    structural_types,
+                                )?,
+                            )
+                        };
+                        Ok(psi_terminal::CrashRouteGuard::Predicate(
+                            psi_terminal::CrashPredicateTerm::new(proposition),
                         ))
                     }
                 })
@@ -10233,32 +10286,56 @@ fn substitute_structural_crash_route_roots(
         term: &mut ScalarTerm,
         substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) -> Result<(), LoweringError> {
-        if let ScalarTerm::BooleanField { root, path } = term {
-            let Some((replacement, prefix)) = substitutions.get(root) else {
-                return Ok(());
-            };
-            *root = *replacement;
-            if !prefix.is_empty() {
-                let mut rebased = Vec::with_capacity(prefix.len() + path.len());
-                rebased.extend(prefix);
-                rebased.append(path);
-                *path = rebased;
+        match term {
+            ScalarTerm::BooleanField { root, path } => {
+                let Some((replacement, prefix)) = substitutions.get(root) else {
+                    return Ok(());
+                };
+                *root = *replacement;
+                if !prefix.is_empty() {
+                    let mut rebased = Vec::with_capacity(prefix.len() + path.len());
+                    rebased.extend(prefix);
+                    rebased.append(path);
+                    *path = rebased;
+                }
             }
+            ScalarTerm::BooleanNot { operand } => substitute_term(operand, substitutions)?,
+            ScalarTerm::BooleanEqual { left, right } => {
+                substitute_term(left, substitutions)?;
+                substitute_term(right, substitutions)?;
+            }
+            _ => {}
         }
         Ok(())
     }
+
+    fn substitute_proposition(
+        proposition: &mut Proposition,
+        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) -> Result<(), LoweringError> {
+        match proposition {
+            Proposition::Equal(left, right) => {
+                substitute_term(left, substitutions)?;
+                substitute_term(right, substitutions)?;
+            }
+            Proposition::Conjunction(conjuncts) => {
+                for conjunct in conjuncts {
+                    substitute_proposition(conjunct, substitutions)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     for bucket in buckets {
         for alternative in &mut bucket.alternatives {
             let psi_terminal::CrashRouteGuard::Predicate(predicate) = alternative else {
                 continue;
             };
-            let Proposition::Equal(left, right) = predicate.proposition() else {
-                continue;
-            };
-            let (mut left, mut right) = (left.clone(), right.clone());
-            substitute_term(&mut left, substitutions)?;
-            substitute_term(&mut right, substitutions)?;
-            *predicate = psi_terminal::CrashPredicateTerm::new(Proposition::Equal(left, right));
+            let mut proposition = predicate.proposition().clone();
+            substitute_proposition(&mut proposition, substitutions)?;
+            *predicate = psi_terminal::CrashPredicateTerm::new(proposition);
         }
     }
     Ok(())
