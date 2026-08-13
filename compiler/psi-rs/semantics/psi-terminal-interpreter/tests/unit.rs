@@ -132,7 +132,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
             entry_claims: vec![EntryClaim {
                 claim,
                 input: source,
-                field_path: Vec::new(),
+                path: Vec::new(),
             }],
             published_service_ceiling: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -159,6 +159,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         opaque_identity: 0x5eed,
         structural_type,
         qualifications: vec![domain],
+        path: Vec::new(),
     };
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
@@ -498,7 +499,9 @@ fn unit_calls_transfer_numbered_record_field_claims() {
         identity: "test::Token".into(),
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("expected record shape")
+    };
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).expect("field identity"),
         identity: "#7".into(),
@@ -506,7 +509,7 @@ fn unit_calls_transfer_numbered_record_field_claims() {
         field_type: StructuralFieldType::Structural(structural_type_id(2)),
     });
     for machine in &mut module.machines {
-        machine.entry_claims[0].field_path = vec!["#7".into()];
+        machine.entry_claims[0].path = vec!["#7".into()];
     }
     let semantic = encode_module(&module).expect("numbered field-custody module encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
@@ -547,7 +550,9 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         },
     ]);
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("expected record shape")
+    };
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).expect("field identity"),
         identity: "#7".into(),
@@ -558,7 +563,7 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
         StructuralMultiplicity::Affine;
     for machine in &mut module.machines {
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims[0].field_path = vec!["#7".into(), "#9".into()];
+        machine.entry_claims[0].path = vec!["#7".into(), "#9".into()];
     }
 
     let semantic = encode_module(&module).expect("nested field-custody module encodes");
@@ -596,7 +601,9 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         identity: "test::Token".into(),
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("expected record shape")
+    };
     fields.extend([
         StructuralFieldDeclaration {
             id: psi_core::StructuralFieldId::new(1).expect("field identity"),
@@ -615,11 +622,11 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         StructuralMultiplicity::Affine;
     for machine in &mut module.machines {
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims[0].field_path = vec!["#7".into()];
+        machine.entry_claims[0].path = vec!["#7".into()];
         machine.entry_claims.push(EntryClaim {
             claim: claim_id(2),
             input: machine.structural_parameters[0].place,
-            field_path: vec!["#9".into()],
+            path: vec!["#9".into()],
         });
     }
     let OperationKind::CallUnit {
@@ -722,6 +729,7 @@ fn structural_runtime_mismatches_and_effect_rejection_fail_closed() {
         opaque_identity: 43,
         structural_type: structural_type_id(1),
         qualifications: Vec::new(),
+        path: Vec::new(),
     };
     assert!(matches!(
         TerminalExecution::start_artifact_with_structural_arguments(
@@ -851,7 +859,7 @@ fn effect_module() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: place_id(1),
-                    field_path: Vec::new(),
+                    path: Vec::new(),
                 }],
                 published_service_ceiling: vec![service],
                 content_entry_claims: Vec::new(),
@@ -869,6 +877,7 @@ fn effect_module() -> TerminalModule {
                                 callee: machine_id(2),
                                 structural_arguments: vec![StructuralArgument {
                                     place: place_id(1),
+                                    path: Vec::new(),
                                 }],
                                 claim_transfers: vec![ClaimTransfer {
                                     claim: claim_id(1),
@@ -909,7 +918,7 @@ fn effect_module() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: place_id(2),
-                    field_path: Vec::new(),
+                    path: Vec::new(),
                 }],
                 published_service_ceiling: Vec::new(),
                 content_entry_claims: Vec::new(),
@@ -924,7 +933,10 @@ fn effect_module() -> TerminalModule {
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCallUnit {
                             boundary: boundary_id(1),
-                            structural_arguments: vec![StructuralArgument { place: place_id(2) }],
+                            structural_arguments: vec![StructuralArgument {
+                                place: place_id(2),
+                                path: Vec::new(),
+                            }],
                             completion_receipts: vec![CompletionReceipt {
                                 claim: claim_id(1),
                                 argument_index: 0,
@@ -973,6 +985,7 @@ fn structural_value(opaque_identity: u64) -> TerminalStructuralValue {
         opaque_identity,
         structural_type: structural_type_id(1),
         qualifications: vec![structural_domain_id(1)],
+        path: Vec::new(),
     }
 }
 

@@ -108,7 +108,7 @@ fn structural_return_is_one_normal_edge_unit() {
     machine.entry_claims = vec![EntryClaim {
         claim,
         input: source,
-        field_path: Vec::new(),
+        path: Vec::new(),
     }];
     machine.blocks[0].terminator = Terminator::ReturnStructural {
         edge: edge_id(900),
@@ -186,7 +186,7 @@ fn trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
     machine.entry_claims = vec![EntryClaim {
         claim,
         input: source,
-        field_path: Vec::new(),
+        path: Vec::new(),
     }];
     machine.blocks[0].operations = vec![Operation {
         id: operation_id(900),

@@ -14,7 +14,8 @@ use psi_core::{
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
     OperationKind, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    TerminalMachineResult, Terminator,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult,
+    Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -116,6 +117,7 @@ pub struct TerminalStructuralValue {
     pub opaque_identity: u64,
     pub structural_type: StructuralTypeId,
     pub qualifications: Vec<StructuralDomainId>,
+    pub path: Vec<StructuralPathSegment>,
 }
 
 /// One externally observable terminal-Psi effect in semantic execution order.
@@ -196,6 +198,7 @@ impl TerminalScalarValue {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution {
+    structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: BTreeMap<MachineId, ExecutableMachine>,
     boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
     blocks: BTreeMap<BlockId, Block>,
@@ -234,9 +237,10 @@ struct SuspendedCall {
     result: SuspendedCallResult,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct LiveClaim {
     place: Option<PlaceId>,
+    path: Vec<StructuralPathSegment>,
     multiplicity: Option<StructuralMultiplicity>,
 }
 
@@ -316,6 +320,12 @@ impl TerminalExecution {
             .cloned()
             .map(|boundary| (boundary.id, boundary))
             .collect::<BTreeMap<_, _>>();
+        let structural_types = module
+            .structural_types
+            .iter()
+            .cloned()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
         let machine = machines
             .get(&module.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
@@ -331,6 +341,7 @@ impl TerminalExecution {
         let blocks = machine.blocks.clone();
         let current = machine.entry;
         Ok(Self {
+            structural_types,
             machines,
             boundary_machines,
             blocks,
@@ -417,6 +428,7 @@ impl TerminalExecution {
                                 opaque_identity: destination.get(),
                                 structural_type: *structural_type,
                                 qualifications: Vec::new(),
+                                path: Vec::new(),
                             },
                         );
                     }
@@ -440,6 +452,7 @@ impl TerminalExecution {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let arguments = resolve_structural_arguments(
+                            &self.structural_types,
                             &self.structural_values,
                             &structural_arguments,
                         )?;
@@ -489,6 +502,7 @@ impl TerminalExecution {
                             TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
                         )?;
                         let arguments = resolve_structural_arguments(
+                            &self.structural_types,
                             &self.structural_values,
                             &structural_arguments,
                         )?;
@@ -1491,7 +1505,8 @@ fn bind_entry_claims(
                     entry_claim.claim,
                     LiveClaim {
                         place: Some(parameter.place),
-                        multiplicity: Some(if entry_claim.field_path.is_empty() {
+                        path: entry_claim.path.clone(),
+                        multiplicity: Some(if entry_claim.path.is_empty() {
                             parameter.multiplicity
                         } else {
                             StructuralMultiplicity::Linear
@@ -1509,6 +1524,7 @@ fn bind_entry_claims(
             .find(|parameter| parameter.place == entry_claim.input.root);
         claims.entry(entry_claim.claim).or_insert(LiveClaim {
             place: parameter.map(|_| entry_claim.input.root),
+            path: Vec::new(),
             multiplicity: parameter.map(|parameter| parameter.multiplicity),
         });
     }
@@ -1516,15 +1532,51 @@ fn bind_entry_claims(
 }
 
 fn resolve_structural_arguments(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[StructuralArgument],
 ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
     arguments
         .iter()
         .map(|argument| {
-            values.get(&argument.place).cloned().ok_or(
+            let mut value = values.get(&argument.place).cloned().ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
-            )
+            )?;
+            let mut structural_type = value.structural_type;
+            for segment in &argument.path {
+                let declaration = structural_types
+                    .get(&structural_type)
+                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                structural_type = match (segment, &declaration.shape) {
+                    (
+                        StructuralPathSegment::FixedIndex(index),
+                        StructuralTypeShape::FixedArray { element, length },
+                    ) if index < length => *element,
+                    (
+                        StructuralPathSegment::Field(identity),
+                        StructuralTypeShape::Record { fields },
+                    ) => {
+                        let field = fields
+                            .iter()
+                            .find(|field| {
+                                field.identity == *identity && !field.relevance.is_erased()
+                            })
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let psi_terminal::StructuralFieldType::Structural(next) = field.field_type
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        next
+                    }
+                    _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+                };
+            }
+            value.structural_type = structural_type;
+            if !argument.path.is_empty() {
+                value.qualifications.clear();
+            }
+            value.path.extend(argument.path.clone());
+            Ok(value)
         })
         .collect()
 }
@@ -1599,7 +1651,8 @@ fn transfer_claims(
                     entry_claim.claim,
                     LiveClaim {
                         place: Some(parameter.place),
-                        multiplicity: Some(if entry_claim.field_path.is_empty() {
+                        path: entry_claim.path.clone(),
+                        multiplicity: Some(if entry_claim.path.is_empty() {
                             parameter.multiplicity
                         } else {
                             StructuralMultiplicity::Linear
@@ -1615,6 +1668,7 @@ fn transfer_claims(
     for entry_claim in callee_content_entry_claims {
         callee_claims.entry(entry_claim.claim).or_insert(LiveClaim {
             place: None,
+            path: Vec::new(),
             multiplicity: None,
         });
     }
@@ -1651,7 +1705,9 @@ fn complete_claims(
         .enumerate()
         .flat_map(|(index, argument)| {
             caller_claims.iter().filter_map(move |(claim, live)| {
-                (live.place == Some(argument.place)).then_some((index as u32, *claim))
+                (live.place == Some(argument.place)
+                    && (argument.path.is_empty() || live.path == argument.path))
+                    .then_some((index as u32, *claim))
             })
         })
         .collect::<BTreeSet<_>>();
@@ -1669,7 +1725,9 @@ fn complete_claims(
         let claim = remaining
             .remove(&receipt.claim)
             .ok_or(TerminalInterpretError::CompletionReceiptMismatch)?;
-        if claim.place != Some(argument.place) {
+        if claim.place != Some(argument.place)
+            || (!argument.path.is_empty() && claim.path != argument.path)
+        {
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
     }

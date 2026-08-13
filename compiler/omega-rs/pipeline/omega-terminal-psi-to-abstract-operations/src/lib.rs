@@ -807,7 +807,7 @@ fn lower_structural_machine(
         || parameter.qualifications != result.qualifications
         || parameter.place != *source
         || entry_claim.input != parameter.place
-        || !entry_claim.field_path.is_empty()
+        || !entry_claim.path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
         || trivial_affine_discards
             != &trivial_affine_locals

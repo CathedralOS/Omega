@@ -195,7 +195,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             entry_claims: vec![EntryClaim {
                 claim,
                 input: source,
-                field_path: Vec::new(),
+                path: Vec::new(),
             }],
             published_service_ceiling: Vec::new(),
             content_entry_claims: Vec::new(),

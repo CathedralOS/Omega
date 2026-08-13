@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        4
+        5
     }
 }
 
@@ -111,6 +111,10 @@ pub enum StructuralTypeShape {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.
         fields: Vec<StructuralFieldDeclaration>,
+    },
+    FixedArray {
+        element: StructuralTypeId,
+        length: u64,
     },
 }
 
@@ -294,10 +298,27 @@ pub struct EntryClaim {
     pub claim: ClaimId,
     /// Structural parameter root that owns this claim.
     pub input: PlaceId,
-    /// Stable record-field identities below `input`. Empty names the complete
-    /// parameter. This first aggregate-custody slice deliberately excludes
-    /// cases and indexes, which require their own typed-place vocabulary.
-    pub field_path: Vec<String>,
+    /// Statically typed structural projection below `input`. Empty names the
+    /// complete parameter.
+    pub path: Vec<StructuralPathSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralPathSegment {
+    Field(String),
+    FixedIndex(u64),
+}
+
+impl From<String> for StructuralPathSegment {
+    fn from(identity: String) -> Self {
+        Self::Field(identity)
+    }
+}
+
+impl From<&str> for StructuralPathSegment {
+    fn from(identity: &str) -> Self {
+        Self::Field(identity.to_owned())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -474,9 +495,10 @@ impl OperationResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralArgument {
     pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
 }
 
 /// Transfer one caller-local live claim through the structural argument at

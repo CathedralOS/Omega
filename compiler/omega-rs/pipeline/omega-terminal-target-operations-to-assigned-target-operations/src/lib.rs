@@ -70,6 +70,7 @@ fn assign_function(
                             .iter()
                             .map(|argument| TerminalAssignedAggregateCopy {
                                 place: argument.place,
+                                path: argument.path.clone(),
                                 structural_type: argument.structural_type,
                                 shape: argument.shape,
                                 source: argument.source.clone(),
@@ -94,14 +95,14 @@ fn assign_function(
                         boundary,
                         provider_execution,
                         realization,
-                        argument_places,
+                        arguments,
                         completion_receipts,
                     } => TerminalAssignedUnitOperation::BoundarySettlement {
                         psi_operation: *psi_operation,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
                         realization: *realization,
-                        argument_places: argument_places.clone(),
+                        arguments: arguments.clone(),
                         completion_receipts: completion_receipts.clone(),
                     },
                     TerminalTargetUnitOperation::Return { psi_edge } => {
@@ -1904,8 +1905,12 @@ mod tests {
         TerminalPsiProvenance, TerminalTargetCallArgument, TerminalTargetFunction,
         TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetScalarExpression,
     };
-    use psi_core::{EdgeId, IntegerSign, IntegerType, OperationId, ScalarType};
-    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use psi_core::{
+        EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
+    };
+    use psi_terminal::{
+        SemanticFingerprint, StructuralPathSegment, TerminalPsiIdentity, VocabularyMarker,
+    };
 
     #[test]
     fn aarch64_expression_registers_receive_stable_frame_spills() {
@@ -2192,6 +2197,65 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn unit_assignment_retains_typed_structural_argument_paths() {
+        let target = NativeTarget::linux_x64();
+        let shape = omega_calling_conventions::ValueShape::integer(8, 8);
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        let place = PlaceId::new(1).unwrap();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let path = vec![StructuralPathSegment::FixedIndex(1)];
+        let plan = TerminalTargetOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([3; 32]),
+            },
+            target,
+            entry: MachineId::new(1).unwrap(),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).unwrap(),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::UnitBody(
+                    omega_terminal_target_operations::TerminalTargetUnitBody {
+                        call_plan: call_plan.clone(),
+                        parameters: Vec::new(),
+                        operations: vec![TerminalTargetUnitOperation::Call {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            callee: MachineId::new(2).unwrap(),
+                            arguments: vec![
+                                omega_terminal_target_operations::TerminalTargetStructuralArgument {
+                                    place,
+                                    path: path.clone(),
+                                    structural_type,
+                                    shape,
+                                    source: call_plan.parameters[0].clone(),
+                                    destination: call_plan.parameters[0].clone(),
+                                },
+                            ],
+                            claim_transfers: Vec::new(),
+                        }],
+                    },
+                ),
+            }],
+        };
+
+        let assigned = assign_registers(&plan).unwrap();
+        let TerminalAssignedOperation::UnitBody(body) = &assigned.functions[0].operation else {
+            panic!("Unit body")
+        };
+        let TerminalAssignedUnitOperation::Call { copies, .. } = &body.operations[0] else {
+            panic!("Unit call")
+        };
+        assert_eq!(copies[0].path, path);
     }
 
     fn expression_plan(

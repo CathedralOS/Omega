@@ -14,9 +14,9 @@ use psi_core::{
     ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,6 +145,7 @@ pub struct TerminalAssignedUnitBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAssignedAggregateCopy {
     pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
     pub structural_type: StructuralTypeId,
     pub shape: ValueShape,
     pub source: ValuePlacement,
@@ -170,7 +171,7 @@ pub enum TerminalAssignedUnitOperation {
         boundary: BoundaryMachineId,
         provider_execution: TerminalProviderExecutionBinding,
         realization: TerminalMetadataOnlyPortRealization,
-        argument_places: Vec<PlaceId>,
+        arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
     },
     Return {

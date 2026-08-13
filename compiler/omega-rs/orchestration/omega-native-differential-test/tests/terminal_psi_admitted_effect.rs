@@ -38,8 +38,9 @@ use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_target_operations::TerminalMetadataOnlyPortRealization;
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, MachineId, OperationId,
-    ProfileDecisionId, ServiceId,
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
+    OperationId, PlaceId, ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId,
+    StructuralTypeId,
 };
 use psi_extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
@@ -53,7 +54,10 @@ use psi_layout_plans::{
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
+    BindingRelevance, BoundaryMachineDeclaration, SemanticFingerprint, StructuralArgument,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
 #[test]
@@ -299,18 +303,56 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         port: 0x20,
         value: 0x20,
     };
+    let element_type = StructuralTypeId::new(1).unwrap();
+    let array_type = StructuralTypeId::new(2).unwrap();
+    let custody_place = PlaceId::new(1).unwrap();
+    let boundary_place = PlaceId::new(2).unwrap();
+    let settlement_arguments = vec![StructuralArgument {
+        place: custody_place,
+        path: vec![StructuralPathSegment::FixedIndex(3)],
+    }];
     let abstract_plan = TerminalAbstractOperationPlan {
         terminal_psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
         },
         entry: machine,
-        structural_types: Vec::new(),
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: element_type,
+                identity: "Acknowledgement".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "value".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        )),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: array_type,
+                identity: "Acknowledgements".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: element_type,
+                    length: 5,
+                },
+            },
+        ],
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "TimerRoot::tick".into(),
             attachment: None,
-            structural_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: boundary_place,
+                position: 0,
+                is_self: false,
+                structural_type: element_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                qualifications: Vec::new(),
+            }],
             requires: Vec::new(),
             published_service_ceiling: vec![service],
         }],
@@ -319,7 +361,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             attachment: None,
             entry: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
-            structural_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: custody_place,
+                position: 0,
+                is_self: false,
+                structural_type: array_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                qualifications: Vec::new(),
+            }],
             result: TerminalAbstractFunctionResult::Unit,
             entry_claims: Vec::new(),
             published_service_ceiling: vec![service],
@@ -337,7 +386,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 TerminalAbstractOperation::BoundaryCallUnit {
                     psi_operation: settlement_operation,
                     boundary,
-                    structural_arguments: Vec::new(),
+                    structural_arguments: settlement_arguments.clone(),
                     completion_receipts: Vec::new(),
                 },
                 TerminalAbstractOperation::ReturnUnit {
@@ -358,8 +407,20 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     .expect("admitted effect lowering");
     let assigned = assign_registers(&target).expect("register assignment");
     let machine_code = emit_machine_code(&assigned).expect("machine emission");
+    assert_eq!(
+        machine_code.functions[0].boundary_settlements[0].arguments,
+        settlement_arguments
+    );
     let object = build_terminal_object_artifact(&machine_code).expect("object artifact");
+    assert_eq!(
+        object.boundary_settlements()[0].settlement.arguments,
+        settlement_arguments
+    );
     let image = emit_terminal_executable_image(&object, 3).expect("executable image");
+    assert_eq!(
+        image.boundary_settlements()[0].settlement.arguments,
+        settlement_arguments
+    );
     let profile = ProfileDecisionId::new(1).unwrap();
 
     assert_eq!(
@@ -384,9 +445,29 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     assert_eq!(installation.fuel_attribution(), image.fuel_attribution());
     validate_terminal_installation_record(&installation, &image).expect("image binding");
     let encoded = encode_terminal_installation_record(&installation).expect("installation bytes");
+    let decoded = decode_terminal_installation_record(&encoded).expect("installation decoding");
     assert_eq!(
-        decode_terminal_installation_record(&encoded),
-        Ok(installation)
+        decoded.boundary_settlements()[0].settlement.arguments,
+        settlement_arguments
+    );
+    assert_eq!(decoded, installation);
+
+    let mut argument_prefix = Vec::new();
+    argument_prefix.extend_from_slice(&custody_place.get().to_le_bytes());
+    argument_prefix.extend_from_slice(&1_u32.to_le_bytes());
+    argument_prefix.push(2);
+    argument_prefix.extend_from_slice(&[0; 3]);
+    let argument_offset = encoded
+        .windows(argument_prefix.len())
+        .rposition(|window| window == argument_prefix)
+        .expect("encoded structural argument");
+    let mut malformed = encoded;
+    malformed[argument_offset + 12] = 0xff;
+    assert_eq!(
+        decode_terminal_installation_record(&malformed),
+        Err(TerminalInstallationError::InvalidSettlementArgumentPathTag(
+            0xff
+        ))
     );
 }
 

@@ -253,6 +253,7 @@ fn assert_source_structural_return(
         opaque_identity: OPAQUE_REGION_IDENTITY,
         structural_type: result.structural_type,
         qualifications: result.qualifications.clone(),
+        path: Vec::new(),
     };
     let mut structural_arguments = vec![argument.clone()];
     if let Some(cleanup_parameter) = machine.structural_parameters.get(1) {
@@ -260,6 +261,7 @@ fn assert_source_structural_return(
             opaque_identity: 0xd15c_a4d,
             structural_type: cleanup_parameter.structural_type,
             qualifications: cleanup_parameter.qualifications.clone(),
+            path: Vec::new(),
         });
     }
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(

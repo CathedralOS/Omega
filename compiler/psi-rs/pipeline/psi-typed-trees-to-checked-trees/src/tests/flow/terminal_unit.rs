@@ -1,5 +1,8 @@
 use super::*;
-use psi_checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType};
+use psi_checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
+};
 use psi_language_core::BindingRelevance;
 use psi_language_semantics::Multiplicity;
 use psi_typed_trees::types::PrimitiveType;
@@ -25,6 +28,15 @@ fn machine_named(
         })
         .unwrap_or_else(|| panic!("missing machine `{name}`"))
         .symbol
+}
+
+fn record_fields(
+    shape: &psi_checked_trees::CheckedUnitStructuralTypePlan,
+) -> &[CheckedUnitStructuralFieldPlan] {
+    let CheckedUnitStructuralTypeShape::Record { fields } = &shape.shape else {
+        panic!("expected record structural shape")
+    };
+    fields
 }
 
 #[test]
@@ -90,7 +102,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     );
     assert_eq!(root.structural_parameters[0].qualifications.len(), 1);
     assert_eq!(root.entry_claims.len(), 1);
-    assert!(root.entry_claims[0].field_path.is_empty());
+    assert!(root.entry_claims[0].path.is_empty());
     assert_eq!(helper.entry_claims.len(), 1);
     assert_eq!(settle.structural_parameters.len(), 1);
     assert_eq!(
@@ -148,10 +160,10 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
         .iter()
         .find(|shape| shape.identity.contains("Acknowledgement"))
         .expect("acknowledgement shape");
-    assert_eq!(acknowledgement.fields.len(), 5);
+    let acknowledgement_fields = record_fields(acknowledgement);
+    assert_eq!(acknowledgement_fields.len(), 5);
     assert_eq!(
-        acknowledgement
-            .fields
+        acknowledgement_fields
             .iter()
             .map(|field| field.identity.as_str())
             .collect::<Vec<_>>(),
@@ -163,7 +175,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
             "acknowledgement",
         ]
     );
-    assert!(acknowledgement.fields.iter().all(|field| {
+    assert!(acknowledgement_fields.iter().all(|field| {
         field.field_type == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64)
     }));
 
@@ -282,9 +294,15 @@ fn retains_numbered_record_field_custody_for_unit_call_closure() {
         .for_machine(machine_named(&checked, "run"))
         .expect("aggregate-custody helper plan");
     assert_eq!(root.entry_claims.len(), 1);
-    assert_eq!(root.entry_claims[0].field_path, ["#7"]);
+    assert_eq!(
+        root.entry_claims[0].path,
+        [CheckedUnitStructuralPathSegment::Field("#7".to_owned())]
+    );
     assert_eq!(helper.entry_claims.len(), 1);
-    assert_eq!(helper.entry_claims[0].field_path, ["#7"]);
+    assert_eq!(
+        helper.entry_claims[0].path,
+        [CheckedUnitStructuralPathSegment::Field("#7".to_owned())]
+    );
     let CheckedUnitEffectOperationPlan::CallUnit {
         claim_transfers, ..
     } = &root.operations[0]
@@ -348,8 +366,14 @@ fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
             Multiplicity::Affine
         );
         assert_eq!(machine.entry_claims.len(), 2);
-        assert_eq!(machine.entry_claims[0].field_path, ["#7"]);
-        assert_eq!(machine.entry_claims[1].field_path, ["#9"]);
+        assert_eq!(
+            machine.entry_claims[0].path,
+            [CheckedUnitStructuralPathSegment::Field("#7".to_owned())]
+        );
+        assert_eq!(
+            machine.entry_claims[1].path,
+            [CheckedUnitStructuralPathSegment::Field("#9".to_owned())]
+        );
     }
     let CheckedUnitEffectOperationPlan::CallUnit {
         claim_transfers, ..
@@ -425,7 +449,13 @@ fn retains_nested_record_field_custody_for_unit_call_closure() {
             Multiplicity::Affine
         );
         assert_eq!(machine.entry_claims.len(), 1);
-        assert_eq!(machine.entry_claims[0].field_path, ["#7", "#9"]);
+        assert_eq!(
+            machine.entry_claims[0].path,
+            [
+                CheckedUnitStructuralPathSegment::Field("#7".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("#9".to_owned()),
+            ]
+        );
     }
     let CheckedUnitEffectOperationPlan::CallUnit {
         claim_transfers, ..
@@ -442,6 +472,169 @@ fn retains_nested_record_field_custody_for_unit_call_closure() {
         panic!("helper should settle nested custody at the boundary")
     };
     assert_eq!(completion_receipts.len(), 1);
+}
+
+#[test]
+fn retains_literal_fixed_array_boundary_settlements_with_sibling_claims() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { value: u64; }
+
+        boundary machine Receipt::settle(self)
+        reaches PortIo
+        ensures true;
+
+        data Root {}
+
+        machine Root::enter(receipts: [Receipt; 2])
+        reaches PortIo
+        {
+            Receipt::settle(receipts[0]);
+            Receipt::settle(receipts[1]);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("literal fixed-array settlement plan");
+    assert_eq!(root.structural_parameters.len(), 1);
+    assert_eq!(
+        root.structural_parameters[0].multiplicity,
+        Multiplicity::Linear
+    );
+    assert_eq!(root.entry_claims.len(), 2);
+    for (index, claim) in root.entry_claims.iter().enumerate() {
+        assert_eq!(claim.parameter_index, 0);
+        assert_eq!(
+            claim.path,
+            [CheckedUnitStructuralPathSegment::FixedIndex(
+                u64::try_from(index).unwrap()
+            )]
+        );
+    }
+
+    let array = plans
+        .structural_types
+        .iter()
+        .find(|shape| {
+            matches!(
+                shape.shape,
+                CheckedUnitStructuralTypeShape::FixedArray { .. }
+            )
+        })
+        .expect("fixed-array structural shape");
+    let CheckedUnitStructuralTypeShape::FixedArray {
+        element_type_identity,
+        length,
+    } = &array.shape
+    else {
+        panic!("expected fixed-array shape")
+    };
+    assert!(element_type_identity.contains("Receipt"));
+    assert_eq!(*length, 2);
+
+    assert_eq!(root.operations.len(), 3);
+    for (index, operation) in root.operations[..2].iter().enumerate() {
+        let CheckedUnitEffectOperationPlan::BoundaryCallUnit {
+            structural_arguments,
+            completion_receipts,
+            ..
+        } = operation
+        else {
+            panic!("each literal element should settle at the boundary")
+        };
+        assert_eq!(structural_arguments.len(), 1);
+        assert_eq!(
+            structural_arguments[0].path,
+            [CheckedUnitStructuralPathSegment::FixedIndex(
+                u64::try_from(index).unwrap()
+            )]
+        );
+        assert!(structural_arguments[0].type_identity.contains("Receipt"));
+        assert_eq!(completion_receipts.len(), 1);
+        assert_eq!(completion_receipts[0].argument_index, 0);
+        assert_eq!(
+            completion_receipts[0].claim_identity,
+            root.entry_claims[index].claim_identity
+        );
+    }
+}
+
+#[test]
+fn fences_literal_fixed_array_projection_for_direct_unit_calls() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { value: u64; }
+
+        boundary machine Receipt::settle(self)
+        reaches PortIo
+        ensures true;
+
+        data Helper {}
+        machine Helper::run(receipt: Receipt)
+        reaches PortIo
+        {
+            Receipt::settle(receipt);
+        }
+
+        data Root {}
+        machine Root::enter(receipts: [Receipt; 2])
+        reaches PortIo
+        {
+            Helper::run(receipts[0]);
+            Receipt::settle(receipts[1]);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "projected direct calls remain outside the checked terminal slice"
+    );
+    assert!(plans.for_machine(machine_named(&checked, "run")).is_some());
+}
+
+#[test]
+fn fences_nested_fixed_array_projection_without_partial_plan() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { value: u64; }
+
+        boundary machine Receipt::settle(self)
+        reaches PortIo
+        ensures true;
+
+        data Root {}
+        machine Root::enter(receipts: [[Receipt; 2]; 2])
+        reaches PortIo
+        {
+            Receipt::settle(receipts[0][0]);
+            Receipt::settle(receipts[0][1]);
+            Receipt::settle(receipts[1][0]);
+            Receipt::settle(receipts[1][1]);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "nested indexed custody must not publish a partial checked plan"
+    );
+    assert!(
+        plans.structural_types.iter().all(|shape| !matches!(
+            shape.shape,
+            CheckedUnitStructuralTypeShape::FixedArray { .. }
+        )),
+        "a rejected nested array must not leave a retained placeholder shape"
+    );
 }
 
 #[test]
@@ -569,11 +762,12 @@ fn retains_opaque_erased_field_identity_in_unit_structural_shape() {
         .iter()
         .find(|shape| shape.identity.contains("Certified"))
         .expect("certified structural shape");
-    assert_eq!(certified.fields.len(), 2);
-    assert_eq!(certified.fields[0].relevance, BindingRelevance::Relevant);
-    assert_eq!(certified.fields[1].relevance, BindingRelevance::Erased);
+    let certified_fields = record_fields(certified);
+    assert_eq!(certified_fields.len(), 2);
+    assert_eq!(certified_fields[0].relevance, BindingRelevance::Relevant);
+    assert_eq!(certified_fields[1].relevance, BindingRelevance::Erased);
     assert!(matches!(
-        &certified.fields[1].field_type,
+        &certified_fields[1].field_type,
         CheckedUnitStructuralFieldType::Erased { type_identity }
             if type_identity.contains("Evidence")
     ));

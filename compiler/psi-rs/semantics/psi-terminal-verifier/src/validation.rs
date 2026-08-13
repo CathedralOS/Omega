@@ -12,7 +12,8 @@ use psi_terminal::{
     CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, OperationKind,
     PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator,
 };
 
 use crate::verification::{substitute_proposition_places, substitute_proposition_values};
@@ -287,47 +288,61 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
         if declaration.identity.is_empty() || !type_names.insert(declaration.identity.as_str()) {
             return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         }
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        let mut field_ids = BTreeSet::new();
-        let mut field_names = BTreeSet::new();
-        for field in fields {
-            if !field_ids.insert(field.id)
-                || field.identity.is_empty()
-                || !field_names.insert(field.identity.as_str())
-            {
-                return Err(ModuleError::InvalidStructuralFieldIdentity {
-                    structural_type: declaration.id,
-                    field: field.id,
-                });
-            }
-            match &field.field_type {
-                StructuralFieldType::Erased { type_identity }
-                    if !field.relevance.is_erased() || type_identity.is_empty() =>
+        if let StructuralTypeShape::Record { fields } = &declaration.shape {
+            let mut field_ids = BTreeSet::new();
+            let mut field_names = BTreeSet::new();
+            for field in fields {
+                if !field_ids.insert(field.id)
+                    || field.identity.is_empty()
+                    || !field_names.insert(field.identity.as_str())
                 {
-                    return Err(ModuleError::InvalidErasedStructuralField {
+                    return Err(ModuleError::InvalidStructuralFieldIdentity {
                         structural_type: declaration.id,
                         field: field.id,
                     });
                 }
-                StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
-                    if field.relevance.is_erased() =>
-                {
-                    return Err(ModuleError::InvalidErasedStructuralField {
-                        structural_type: declaration.id,
-                        field: field.id,
-                    });
+                match &field.field_type {
+                    StructuralFieldType::Erased { type_identity }
+                        if !field.relevance.is_erased() || type_identity.is_empty() =>
+                    {
+                        return Err(ModuleError::InvalidErasedStructuralField {
+                            structural_type: declaration.id,
+                            field: field.id,
+                        });
+                    }
+                    StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                        if field.relevance.is_erased() =>
+                    {
+                        return Err(ModuleError::InvalidErasedStructuralField {
+                            structural_type: declaration.id,
+                            field: field.id,
+                        });
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
+        } else if matches!(
+            declaration.shape,
+            StructuralTypeShape::FixedArray { length: 0, .. }
+        ) {
+            return Err(ModuleError::InvalidStructuralArrayLength(declaration.id));
         }
     }
     for declaration in &module.structural_types {
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        for field in fields {
-            if let StructuralFieldType::Structural(target) = &field.field_type
-                && !types.contains_key(target)
-            {
-                return Err(ModuleError::UnknownStructuralType(*target));
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if let StructuralFieldType::Structural(target) = &field.field_type
+                        && !types.contains_key(target)
+                    {
+                        return Err(ModuleError::UnknownStructuralType(*target));
+                    }
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => {
+                if !types.contains_key(element) {
+                    return Err(ModuleError::UnknownStructuralType(*element));
+                }
             }
         }
     }
@@ -467,8 +482,8 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             let Some(declaration) = types.get(structural_type) else {
                 return Err(ModuleError::UnknownStructuralType(*structural_type));
             };
-            let StructuralTypeShape::Record { fields } = &declaration.shape;
-            if !fields.is_empty() {
+            if !matches!(declaration.shape, StructuralTypeShape::Record { ref fields } if fields.is_empty())
+            {
                 return Err(
                     ModuleError::TrivialAffineLocalDeclarationRequiresEmptyRecord {
                         machine: machine.id,
@@ -633,10 +648,16 @@ fn validate_structural_type_graph(
             return Err(ModuleError::RecursiveStructuralType(id));
         }
         let declaration = types[&id];
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        for field in fields {
-            if let StructuralFieldType::Structural(target) = &field.field_type {
-                visit(*target, types, active, complete)?;
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if let StructuralFieldType::Structural(target) = &field.field_type {
+                        visit(*target, types, active, complete)?;
+                    }
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => {
+                visit(*element, types, active, complete)?;
             }
         }
         active.remove(&id);
@@ -869,9 +890,10 @@ fn validate_machine_entry_claims(
         if !claims.insert(claim.claim) {
             return Err(ModuleError::DuplicateClaim(claim.claim));
         }
-        if inputs.iter().any(|previous| {
-            previous.input == claim.input && previous.field_path == claim.field_path
-        }) {
+        if inputs
+            .iter()
+            .any(|previous| previous.input == claim.input && previous.path == claim.path)
+        {
             return Err(ModuleError::DuplicateEntryClaimInput(claim.input));
         }
         let Some(parameter) = machine
@@ -886,21 +908,21 @@ fn validate_machine_entry_claims(
         if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
             return Err(ModuleError::EntryClaimRequiresOwnedParameter(claim.claim));
         }
-        if !entry_claim_field_path_is_valid(module, parameter.structural_type, &claim.field_path) {
+        if resolve_structural_path(module, parameter.structural_type, &claim.path).is_none() {
             return Err(ModuleError::InvalidEntryClaimFieldPath(claim.claim));
         }
         if inputs.iter().any(|previous| {
             previous.input == claim.input
-                && (previous.field_path.starts_with(&claim.field_path)
-                    || claim.field_path.starts_with(&previous.field_path))
+                && (previous.path.starts_with(&claim.path)
+                    || claim.path.starts_with(&previous.path))
         }) {
             return Err(ModuleError::OverlappingEntryClaimInput {
                 first: inputs
                     .iter()
                     .find(|previous| {
                         previous.input == claim.input
-                            && (previous.field_path.starts_with(&claim.field_path)
-                                || claim.field_path.starts_with(&previous.field_path))
+                            && (previous.path.starts_with(&claim.path)
+                                || claim.path.starts_with(&previous.path))
                     })
                     .expect("overlap predicate found a prior claim")
                     .claim,
@@ -921,6 +943,38 @@ fn validate_machine_entry_claims(
                 place: parameter.place,
             });
         }
+        let Some(StructuralTypeShape::FixedArray { length, .. }) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == parameter.structural_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            continue;
+        };
+        if parameter.multiplicity != StructuralMultiplicity::Linear {
+            continue;
+        }
+        let actual = machine
+            .entry_claims
+            .iter()
+            .filter(|claim| claim.input == parameter.place)
+            .map(|claim| claim.path.as_slice())
+            .collect::<Vec<_>>();
+        let complete = usize::try_from(*length).ok().is_some_and(|length| {
+            actual.len() == length
+                && actual.iter().enumerate().all(|(index, path)| {
+                    **path
+                        == [StructuralPathSegment::FixedIndex(
+                            u64::try_from(index).expect("a usize index fits u64"),
+                        )]
+                })
+        });
+        if !complete {
+            return Err(ModuleError::IncompleteFixedArrayEntryClaims {
+                machine: machine.id,
+                place: parameter.place,
+            });
+        }
     }
     if machine.entry_claims.windows(2).any(|pair| {
         let key = |claim: &EntryClaim| {
@@ -930,7 +984,7 @@ fn validate_machine_entry_claims(
                 .find(|parameter| parameter.place == claim.input)
                 .expect("entry claim parameter was validated")
                 .position;
-            (position, claim.field_path.clone())
+            (position, claim.path.clone())
         };
         key(&pair[0]) >= key(&pair[1])
     }) {
@@ -939,32 +993,37 @@ fn validate_machine_entry_claims(
     Ok(())
 }
 
-fn entry_claim_field_path_is_valid(
+fn resolve_structural_path(
     module: &TerminalModule,
     mut structural_type: StructuralTypeId,
-    field_path: &[String],
-) -> bool {
-    for identity in field_path {
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    for segment in path {
         let Some(declaration) = module
             .structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
         else {
-            return false;
+            return None;
         };
-        let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape;
-        let Some(field) = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())
-        else {
-            return false;
+        structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                next
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
         };
-        let psi_terminal::StructuralFieldType::Structural(next) = field.field_type else {
-            return false;
-        };
-        structural_type = next;
     }
-    true
+    Some(structural_type)
 }
 
 #[derive(Default)]
@@ -1654,10 +1713,12 @@ fn validate_unit_operation_static(
                 });
             }
             validate_structural_arguments(
+                module,
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
                 operation.id,
+                false,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -1707,10 +1768,12 @@ fn validate_unit_operation_static(
                 ));
             }
             validate_structural_arguments(
+                module,
                 machine,
                 structural_arguments,
                 &boundary.structural_parameters,
                 operation.id,
+                true,
             )?;
             validate_service_reach(
                 operation.id,
@@ -1770,8 +1833,8 @@ fn validate_unit_operation_static(
             else {
                 return Err(ModuleError::UnknownStructuralType(structural_type));
             };
-            let StructuralTypeShape::Record { fields } = &declaration.shape;
-            if !fields.is_empty() {
+            if !matches!(declaration.shape, StructuralTypeShape::Record { ref fields } if fields.is_empty())
+            {
                 return Err(ModuleError::TrivialAffineLocalRequiresEmptyRecord {
                     operation: operation.id,
                     place: *destination,
@@ -1830,10 +1893,12 @@ fn validate_unit_call_contract_places(
 }
 
 fn validate_structural_arguments(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     arguments: &[StructuralArgument],
     expected: &[StructuralParameterDeclaration],
     operation: OperationId,
+    allow_projected: bool,
 ) -> Result<(), ModuleError> {
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {
@@ -1854,24 +1919,43 @@ fn validate_structural_arguments(
                 place: argument.place,
             });
         };
-        if actual.structural_type != expected.structural_type {
+        if !allow_projected && !argument.path.is_empty() {
+            return Err(ModuleError::InvalidStructuralArgumentPath {
+                operation,
+                argument_index: index as u32,
+            });
+        }
+        let Some(actual_type) =
+            resolve_structural_path(module, actual.structural_type, &argument.path)
+        else {
+            return Err(ModuleError::InvalidStructuralArgumentPath {
+                operation,
+                argument_index: index as u32,
+            });
+        };
+        if actual_type != expected.structural_type {
             return Err(ModuleError::StructuralArgumentTypeMismatch {
                 operation,
                 argument_index: index as u32,
                 expected: expected.structural_type,
-                actual: actual.structural_type,
+                actual: actual_type,
             });
         }
-        if actual.multiplicity != expected.multiplicity {
+        let actual_multiplicity = if argument.path.is_empty() {
+            actual.multiplicity
+        } else {
+            StructuralMultiplicity::Linear
+        };
+        if actual_multiplicity != expected.multiplicity {
             return Err(ModuleError::StructuralArgumentMultiplicityMismatch {
                 operation,
                 argument_index: index as u32,
                 expected: expected.multiplicity,
-                actual: actual.multiplicity,
+                actual: actual_multiplicity,
             });
         }
         for qualification in &expected.qualifications {
-            if !actual.qualifications.contains(qualification) {
+            if !argument.path.is_empty() || !actual.qualifications.contains(qualification) {
                 return Err(ModuleError::StructuralArgumentMissingQualification {
                     operation,
                     argument_index: index as u32,
@@ -1913,13 +1997,13 @@ fn validate_unit_call_claim_transfers(
             .entry_claims
             .iter()
             .filter(|claim| claim.input == argument.place)
-            .map(|claim| claim.field_path.as_slice())
+            .map(|claim| claim.path.as_slice())
             .collect::<Vec<_>>();
         let mut callee_claim_paths = callee
             .entry_claims
             .iter()
             .filter(|claim| claim.input == parameter.place)
-            .map(|claim| claim.field_path.as_slice())
+            .map(|claim| claim.path.as_slice())
             .collect::<Vec<_>>();
         caller_claim_paths.sort();
         callee_claim_paths.sort();
@@ -1991,7 +2075,7 @@ fn validate_unit_call_claim_transfers(
                 argument_index: transfer.argument_index,
             });
         };
-        let Some(claim_input) = claim_input(caller, transfer.claim) else {
+        let Some((claim_input, _claim_path)) = claim_input(caller, transfer.claim) else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: transfer.claim,
@@ -2028,16 +2112,21 @@ fn validate_unit_call_claim_transfers(
     Ok(())
 }
 
-fn claim_input(machine: &TerminalMachine, claim: ClaimId) -> Option<PlaceId> {
+fn claim_input(
+    machine: &TerminalMachine,
+    claim: ClaimId,
+) -> Option<(PlaceId, &[StructuralPathSegment])> {
     machine
         .entry_claims
         .iter()
-        .find_map(|candidate| (candidate.claim == claim).then_some(candidate.input))
+        .find_map(|candidate| {
+            (candidate.claim == claim).then_some((candidate.input, candidate.path.as_slice()))
+        })
         .or_else(|| {
-            machine
-                .content_entry_claims
-                .iter()
-                .find_map(|candidate| (candidate.claim == claim).then_some(candidate.input.root))
+            machine.content_entry_claims.iter().find_map(|candidate| {
+                (candidate.claim == claim)
+                    .then_some((candidate.input.root, &[] as &[StructuralPathSegment]))
+            })
         })
 }
 
@@ -2150,7 +2239,9 @@ fn validate_boundary_completion_receipts(
                 .entry_claims
                 .iter()
                 .filter_map(move |claim| {
-                    (claim.input == argument.place).then_some((index as u32, claim.claim))
+                    (claim.input == argument.place
+                        && (argument.path.is_empty() || claim.path == argument.path))
+                        .then_some((index as u32, claim.claim))
                 })
                 .chain(caller.content_entry_claims.iter().filter_map(move |claim| {
                     (claim.input.root == argument.place).then_some((index as u32, claim.claim))
@@ -2170,13 +2261,15 @@ fn validate_boundary_completion_receipts(
                 argument_index: receipt.argument_index,
             });
         };
-        let Some(claim_input) = claim_input(caller, receipt.claim) else {
+        let Some((claim_input, claim_path)) = claim_input(caller, receipt.claim) else {
             return Err(ModuleError::UnknownClaimAtOperation {
                 operation,
                 claim: receipt.claim,
             });
         };
-        if claim_input != argument.place {
+        if claim_input != argument.place
+            || (!argument.path.is_empty() && claim_path != argument.path.as_slice())
+        {
             return Err(ModuleError::ClaimActionPlaceMismatch {
                 operation,
                 claim: receipt.claim,
@@ -2391,10 +2484,16 @@ fn validate_content_entry_claims(
             && (structural_claim.input != binding.input.root
                 || binding.input.segments
                     != structural_claim
-                        .field_path
+                        .path
                         .iter()
-                        .cloned()
-                        .map(psi_core::ContentPlaceSegment::Field)
+                        .map(|segment| match segment {
+                            StructuralPathSegment::Field(identity) => {
+                                psi_core::ContentPlaceSegment::Field(identity.clone())
+                            }
+                            StructuralPathSegment::FixedIndex(index) => {
+                                psi_core::ContentPlaceSegment::FixedIndex(*index)
+                            }
+                        })
                         .collect::<Vec<_>>())
         {
             return Err(ModuleError::ContentEntryClaimStructuralBindingMismatch(
@@ -2982,9 +3081,10 @@ fn validate_term_scope(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct LiveClaim {
     input: Option<PlaceId>,
+    path: Vec<StructuralPathSegment>,
     multiplicity: Option<StructuralMultiplicity>,
 }
 
@@ -3013,7 +3113,8 @@ fn validate_structural_frontier(
             claim.claim,
             LiveClaim {
                 input: Some(claim.input),
-                multiplicity: Some(if claim.field_path.is_empty() {
+                path: claim.path.clone(),
+                multiplicity: Some(if claim.path.is_empty() {
                     parameter.multiplicity
                 } else {
                     StructuralMultiplicity::Linear
@@ -3028,6 +3129,7 @@ fn validate_structural_frontier(
             .find(|parameter| parameter.place == claim.input.root);
         claims.entry(claim.claim).or_insert(LiveClaim {
             input: parameter.map(|_| claim.input.root),
+            path: Vec::new(),
             multiplicity: parameter.map(|parameter| parameter.multiplicity),
         });
     }
@@ -3158,7 +3260,8 @@ fn validate_structural_frontier(
                     .iter()
                     .zip(&machines[callee].structural_parameters)
                     .filter_map(|(argument, parameter)| {
-                        (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                        (argument.path.is_empty()
+                            && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                             .then_some(argument.place)
                     })
                     .collect::<Vec<_>>(),
@@ -3176,7 +3279,8 @@ fn validate_structural_frontier(
                         .iter()
                         .zip(&boundary.structural_parameters)
                         .filter_map(|(argument, parameter)| {
-                            (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                            (argument.path.is_empty()
+                                && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                                 .then_some(argument.place)
                         })
                         .collect()
@@ -3189,6 +3293,28 @@ fn validate_structural_frontier(
                         operation: operation.id,
                         place,
                     });
+                }
+            }
+            if let OperationKind::BoundaryCallUnit {
+                structural_arguments,
+                ..
+            } = &operation.kind
+            {
+                for argument in structural_arguments
+                    .iter()
+                    .filter(|argument| !argument.path.is_empty())
+                {
+                    if !frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(argument.place))
+                        && frontier.owned_places.remove(&argument.place).is_none()
+                    {
+                        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                            operation: operation.id,
+                            place: argument.place,
+                        });
+                    }
                 }
             }
         }
@@ -4378,6 +4504,7 @@ pub enum ModuleError {
         structural_type: StructuralTypeId,
         field: psi_core::StructuralFieldId,
     },
+    InvalidStructuralArrayLength(StructuralTypeId),
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     DuplicateStructuralDomain(StructuralDomainId),
@@ -4491,6 +4618,10 @@ pub enum ModuleError {
         machine: MachineId,
         place: PlaceId,
     },
+    IncompleteFixedArrayEntryClaims {
+        machine: MachineId,
+        place: PlaceId,
+    },
     DuplicateBlock(BlockId),
     DuplicateContract(ContractId),
     DuplicateOperation(OperationId),
@@ -4519,6 +4650,10 @@ pub enum ModuleError {
         operation: OperationId,
         argument_index: u32,
         place: PlaceId,
+    },
+    InvalidStructuralArgumentPath {
+        operation: OperationId,
+        argument_index: u32,
     },
     StructuralArgumentTypeMismatch {
         operation: OperationId,

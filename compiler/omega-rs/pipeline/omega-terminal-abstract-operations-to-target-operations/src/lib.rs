@@ -1382,7 +1382,7 @@ fn lower_structural_return_function(
                 parameter.is_self || usize::try_from(parameter.position) != Ok(index)
             })
         || trivial_affine_locals.len() > 1
-        || !entry_claim.field_path.is_empty()
+        || !entry_claim.path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
     {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
@@ -1653,7 +1653,8 @@ fn lower_unit_function(
                                 place: argument.place,
                             },
                         )?;
-                        if source.structural_type != callee_parameter.structural_type
+                        if !argument.path.is_empty()
+                            || source.structural_type != callee_parameter.structural_type
                             || source.shape != shape
                         {
                             return Err(LoweringError::StructuralCallArgumentTypeMismatch {
@@ -1663,6 +1664,7 @@ fn lower_unit_function(
                         }
                         Ok(TerminalTargetStructuralArgument {
                             place: argument.place,
+                            path: argument.path.clone(),
                             structural_type: source.structural_type,
                             shape,
                             source: source.placement.clone(),
@@ -1730,10 +1732,7 @@ fn lower_unit_function(
                     boundary: *boundary,
                     provider_execution: binding.provider_execution,
                     realization,
-                    argument_places: structural_arguments
-                        .iter()
-                        .map(|argument| argument.place)
-                        .collect(),
+                    arguments: structural_arguments.clone(),
                     completion_receipts: completion_receipts.clone(),
                 });
                 provenance.operations.push(*psi_operation);
@@ -1812,56 +1811,87 @@ fn structural_shape(
     if !active.insert(structural_type) {
         return Err(LoweringError::RecursiveStructuralType(structural_type));
     }
-    let declaration = declarations
-        .get(&structural_type)
-        .copied()
-        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape;
-    if fields.is_empty() {
-        return Err(LoweringError::EmptyStructuralType(structural_type));
-    }
-    let mut byte_size = 0_u32;
-    let mut alignment = 1_u16;
-    for field in fields {
-        if field.relevance.is_erased() {
-            continue;
+    let result = (|| {
+        let declaration = declarations
+            .get(&structural_type)
+            .copied()
+            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                if fields.is_empty() {
+                    return Err(LoweringError::EmptyStructuralType(structural_type));
+                }
+                let mut byte_size = 0_u32;
+                let mut alignment = 1_u16;
+                for field in fields {
+                    if field.relevance.is_erased() {
+                        continue;
+                    }
+                    let field_shape = match &field.field_type {
+                        StructuralFieldType::Scalar(ScalarType::Boolean) => {
+                            ValueShape::integer(1, 1)
+                        }
+                        StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                            let size = integer.bits().div_ceil(8);
+                            let field_alignment = size.next_power_of_two().min(16);
+                            ValueShape::integer(size, field_alignment)
+                        }
+                        StructuralFieldType::Structural(nested) => {
+                            structural_shape(*nested, declarations, cache, active)?
+                        }
+                        StructuralFieldType::Erased { .. } => {
+                            return Err(LoweringError::RelevantOpaqueStructuralField(
+                                structural_type,
+                            ));
+                        }
+                    };
+                    alignment = alignment.max(field_shape.alignment);
+                    byte_size = checked_align_up_u32(byte_size, u32::from(field_shape.alignment))
+                        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+                    byte_size = byte_size
+                        .checked_add(u32::from(field_shape.byte_size))
+                        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+                }
+                byte_size = checked_align_up_u32(byte_size, u32::from(alignment))
+                    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+                if byte_size == 0 {
+                    return Err(LoweringError::EmptyStructuralType(structural_type));
+                }
+                let byte_size = u16::try_from(byte_size)
+                    .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?;
+                Ok(ValueShape::integer(byte_size, alignment))
+            }
+            StructuralTypeShape::FixedArray { element, length } => {
+                if *length == 0 {
+                    return Err(LoweringError::EmptyStructuralType(structural_type));
+                }
+                let element = structural_shape(*element, declarations, cache, active)?;
+                let stride = checked_align_up_u32(
+                    u32::from(element.byte_size),
+                    u32::from(element.alignment),
+                )
+                .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+                let byte_size = u64::from(stride)
+                    .checked_mul(*length)
+                    .and_then(|size| u16::try_from(size).ok())
+                    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+                Ok(ValueShape::integer(byte_size, element.alignment))
+            }
         }
-        let field_shape = match &field.field_type {
-            StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
-            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-                let size = integer.bits().div_ceil(8);
-                let field_alignment = size.next_power_of_two().min(16);
-                ValueShape::integer(size, field_alignment)
-            }
-            StructuralFieldType::Structural(nested) => {
-                structural_shape(*nested, declarations, cache, active)?
-            }
-            StructuralFieldType::Erased { .. } => {
-                return Err(LoweringError::RelevantOpaqueStructuralField(
-                    structural_type,
-                ));
-            }
-        };
-        alignment = alignment.max(field_shape.alignment);
-        byte_size = align_up_u32(byte_size, u32::from(field_shape.alignment));
-        byte_size = byte_size
-            .checked_add(u32::from(field_shape.byte_size))
-            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-    }
-    byte_size = align_up_u32(byte_size, u32::from(alignment));
-    if byte_size == 0 {
-        return Err(LoweringError::EmptyStructuralType(structural_type));
-    }
-    let byte_size = u16::try_from(byte_size)
-        .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?;
-    let shape = ValueShape::integer(byte_size, alignment);
+    })();
     active.remove(&structural_type);
+    let shape = result?;
     cache.insert(structural_type, shape);
     Ok(shape)
 }
 
-fn align_up_u32(value: u32, alignment: u32) -> u32 {
-    value.next_multiple_of(alignment)
+fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
+    let remainder = value % alignment;
+    if remainder == 0 {
+        Some(value)
+    } else {
+        value.checked_add(alignment - remainder)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4220,8 +4250,8 @@ mod tests {
     use psi_core::{BlockId, EdgeId, PlaceId, StructuralFieldId, StructuralTypeId};
     use psi_terminal::{
         BoundaryMachineDeclaration, SemanticFingerprint, StructuralFieldDeclaration,
-        StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
-        StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
     };
 
     #[test]
@@ -4264,36 +4294,47 @@ mod tests {
     }
 
     #[test]
-    fn unit_structural_call_selects_exact_forty_byte_native_placements() {
+    fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
         let root = MachineId::new(1).unwrap();
         let callee = MachineId::new(2).unwrap();
-        let structural_type = StructuralTypeId::new(1).unwrap();
+        let element_type = StructuralTypeId::new(1).unwrap();
+        let structural_type = StructuralTypeId::new(2).unwrap();
         let root_place = PlaceId::new(1).unwrap();
         let callee_place = PlaceId::new(2).unwrap();
         let u64_type =
             ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
-        let structural_types = vec![StructuralTypeDeclaration {
-            id: structural_type,
-            identity: "Acknowledgement".into(),
-            shape: StructuralTypeShape::Record {
-                fields: (1..=5)
-                    .map(|id| StructuralFieldDeclaration {
-                        id: StructuralFieldId::new(id).unwrap(),
-                        identity: format!("field_{id}"),
-                        relevance: psi_terminal::BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(u64_type),
-                    })
-                    .chain(std::iter::once(StructuralFieldDeclaration {
-                        id: StructuralFieldId::new(6).unwrap(),
-                        identity: "proof".into(),
-                        relevance: psi_terminal::BindingRelevance::Erased,
-                        field_type: StructuralFieldType::Erased {
-                            type_identity: "named(name(example::Evidence))".into(),
+        let structural_types = vec![
+            StructuralTypeDeclaration {
+                id: element_type,
+                identity: "Acknowledgement".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(u64_type),
                         },
-                    }))
-                    .collect(),
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "proof".into(),
+                            relevance: psi_terminal::BindingRelevance::Erased,
+                            field_type: StructuralFieldType::Erased {
+                                type_identity: "named(name(example::Evidence))".into(),
+                            },
+                        },
+                    ],
+                },
             },
-        }];
+            StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "[Acknowledgement; 5]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: element_type,
+                    length: 5,
+                },
+            },
+        ];
         let parameter = |place| StructuralParameterDeclaration {
             place,
             position: 0,
@@ -4334,6 +4375,7 @@ mod tests {
                             callee,
                             structural_arguments: vec![psi_terminal::StructuralArgument {
                                 place: root_place,
+                                path: Vec::new(),
                             }],
                             claim_transfers: Vec::new(),
                         },
@@ -4351,6 +4393,25 @@ mod tests {
                 ),
             ],
         };
+
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let lowered = lower_to_target_operations(&plan, target).unwrap();
+            let TerminalTargetOperation::UnitBody(root) = &lowered.functions[0].operation else {
+                panic!("root must remain Unit")
+            };
+            assert_eq!(root.parameters[0].shape, ValueShape::integer(40, 8));
+            let TerminalTargetUnitOperation::Call { arguments, .. } = &root.operations[0] else {
+                panic!("root must call helper")
+            };
+            assert!(arguments[0].path.is_empty());
+            assert_eq!(arguments[0].shape, ValueShape::integer(40, 8));
+        }
 
         let linux = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
         let TerminalTargetOperation::UnitBody(linux_root) = &linux.functions[0].operation else {
@@ -4404,6 +4465,84 @@ mod tests {
     }
 
     #[test]
+    fn fixed_array_layout_repeats_padded_nested_elements_and_rejects_overflow() {
+        let element_type = StructuralTypeId::new(1).unwrap();
+        let inner_array_type = StructuralTypeId::new(2).unwrap();
+        let outer_array_type = StructuralTypeId::new(3).unwrap();
+        let oversized_array_type = StructuralTypeId::new(4).unwrap();
+        let u64_type =
+            ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
+        let declarations = vec![
+            StructuralTypeDeclaration {
+                id: element_type,
+                identity: "PaddedElement".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "tag".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                        },
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(u64_type),
+                        },
+                    ],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: inner_array_type,
+                identity: "[PaddedElement; 2]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: element_type,
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: outer_array_type,
+                identity: "[[PaddedElement; 2]; 3]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: inner_array_type,
+                    length: 3,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: oversized_array_type,
+                identity: "[PaddedElement; 4096]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: element_type,
+                    length: 4096,
+                },
+            },
+        ];
+        let declarations = declarations
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect::<BTreeMap<_, _>>();
+
+        let shape = structural_shape(
+            outer_array_type,
+            &declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .unwrap();
+        assert_eq!(shape, ValueShape::integer(96, 8));
+        assert_eq!(
+            structural_shape(
+                oversized_array_type,
+                &declarations,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            ),
+            Err(LoweringError::StructuralTypeTooLarge(oversized_array_type))
+        );
+    }
+
+    #[test]
     fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         use omega_terminal_target_operations::{
             TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
@@ -4415,6 +4554,12 @@ mod tests {
         let port_operation = OperationId::new(1).unwrap();
         let settlement_operation = OperationId::new(2).unwrap();
         let service = psi_core::ServiceId::new(1).unwrap();
+        let element_type = StructuralTypeId::new(1).unwrap();
+        let array_type = StructuralTypeId::new(2).unwrap();
+        let argument_place = PlaceId::new(1).unwrap();
+        let boundary_place = PlaceId::new(2).unwrap();
+        let u64_type =
+            ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
         let provider_execution = TerminalProviderExecutionBinding::from_execution_record(
             TerminalProviderPlanIdentity::new(7).unwrap(),
             8,
@@ -4432,12 +4577,40 @@ mod tests {
         let plan = TerminalAbstractOperationPlan {
             terminal_psi: identity(),
             entry: machine,
-            structural_types: Vec::new(),
+            structural_types: vec![
+                StructuralTypeDeclaration {
+                    id: element_type,
+                    identity: "Acknowledgement".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(u64_type),
+                        }],
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: array_type,
+                    identity: "[Acknowledgement; 2]".into(),
+                    shape: StructuralTypeShape::FixedArray {
+                        element: element_type,
+                        length: 2,
+                    },
+                },
+            ],
             boundary_machines: vec![BoundaryMachineDeclaration {
                 id: boundary,
                 identity: "InterruptAcknowledgement::complete".into(),
                 attachment: None,
-                structural_parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: boundary_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: element_type,
+                    multiplicity: StructuralMultiplicity::Linear,
+                    qualifications: Vec::new(),
+                }],
                 requires: Vec::new(),
                 published_service_ceiling: vec![service],
             }],
@@ -4446,7 +4619,14 @@ mod tests {
                 attachment: None,
                 entry: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
-                structural_parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: argument_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: array_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                }],
                 result: TerminalAbstractFunctionResult::Unit,
                 entry_claims: Vec::new(),
                 published_service_ceiling: vec![service],
@@ -4466,7 +4646,10 @@ mod tests {
                     TerminalAbstractOperation::BoundaryCallUnit {
                         psi_operation: settlement_operation,
                         boundary,
-                        structural_arguments: Vec::new(),
+                        structural_arguments: vec![psi_terminal::StructuralArgument {
+                            place: argument_place,
+                            path: vec![StructuralPathSegment::FixedIndex(1)],
+                        }],
                         completion_receipts: Vec::new(),
                     },
                     TerminalAbstractOperation::ReturnUnit {
@@ -4489,14 +4672,24 @@ mod tests {
         let TerminalTargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
             panic!("Unit body")
         };
-        assert!(matches!(
-            body.operations[1],
-            TerminalTargetUnitOperation::BoundarySettlement {
-                provider_execution: actual,
-                realization: actual_realization,
-                ..
-            } if actual == provider_execution && actual_realization == realization
-        ));
+        let TerminalTargetUnitOperation::BoundarySettlement {
+            provider_execution: actual,
+            realization: actual_realization,
+            arguments,
+            ..
+        } = &body.operations[1]
+        else {
+            panic!("boundary settlement")
+        };
+        assert_eq!(*actual, provider_execution);
+        assert_eq!(*actual_realization, realization);
+        assert_eq!(
+            arguments,
+            &[psi_terminal::StructuralArgument {
+                place: argument_place,
+                path: vec![StructuralPathSegment::FixedIndex(1)],
+            }]
+        );
 
         let wrong = TerminalBoundarySettlementBinding {
             realization: TerminalMetadataOnlyPortRealization {

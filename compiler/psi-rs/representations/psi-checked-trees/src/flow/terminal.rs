@@ -393,12 +393,28 @@ pub struct CheckedStructuralResultPlan {
     pub qualifications: Vec<SemanticDomainId>,
 }
 
-/// One concrete target-neutral record shape. Field order is declaration order;
-/// identities are normalized declaration identities rather than field names.
+/// One concrete target-neutral structural shape. Identities are normalized
+/// semantic type identities rather than source-tree handles.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralTypePlan {
     pub identity: String,
-    pub fields: Vec<CheckedUnitStructuralFieldPlan>,
+    pub shape: CheckedUnitStructuralTypeShape,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedUnitStructuralTypeShape {
+    /// Field order is declaration order; field identities are normalized
+    /// declaration identities rather than source spellings alone.
+    Record {
+        fields: Vec<CheckedUnitStructuralFieldPlan>,
+    },
+    /// The first indexed aggregate carrier admits only literal lengths and a
+    /// structural element type. Runtime lengths and scalar elements remain
+    /// outside this checked terminal slice.
+    FixedArray {
+        element_type_identity: String,
+        length: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -451,14 +467,22 @@ pub struct CheckedUnitStructuralParameterPlan {
     pub qualifications: Vec<SemanticDomainId>,
 }
 
+/// Source-handle-free structural path retained by checked terminal plans.
+/// Cases and runtime indexes deliberately have no variant in this vocabulary.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedUnitStructuralPathSegment {
+    Field(String),
+    FixedIndex(u64),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEntryClaimPlan {
     pub claim_identity: psi_language_semantics::PermissionClaimIdentity,
     /// Dense index into `structural_parameters`.
     pub parameter_index: u32,
-    /// Stable field identities below the parameter root. The Stage-1 record
-    /// shape rejects cases and dynamic indexes rather than retaining handles.
-    pub field_path: Vec<String>,
+    /// Stable structural path below the parameter root. Cases and dynamic
+    /// indexes reject rather than retaining source handles.
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub carry: CarryPolicy,
 }
 
@@ -472,6 +496,10 @@ pub struct CheckedUnitCallCoordinate {
 pub struct CheckedUnitStructuralArgumentPlan {
     /// Dense index into the caller's structural parameter list.
     pub source_parameter_index: u32,
+    /// Empty names the complete source parameter. The first projected slice
+    /// admits exactly one literal fixed-array index and only for a boundary
+    /// settlement.
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
 }
 

@@ -15,9 +15,10 @@ use psi_terminal::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -37,7 +38,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "c12113c93e2751583d061b2d5b8adbe89d28804374150e0bdf2a7171b175d3d2"
+        "369b7c98689bb6aef66d0eb26020288f8b2bc13f1fdd806a82398be9d32a12bf"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -138,7 +139,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         entry_claims: vec![EntryClaim {
             claim: claim_id(1),
             input: source,
-            field_path: Vec::new(),
+            path: Vec::new(),
         }],
         published_service_ceiling: Vec::new(),
         content_entry_claims: Vec::new(),
@@ -311,7 +312,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 4_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 5_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -380,7 +381,9 @@ fn structural_result_and_return_round_trip_as_semantic_identity() {
 fn erased_structural_field_round_trips_and_changes_semantic_identity() {
     let baseline = structural_effect_fixture();
     let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
     fields.push(StructuralFieldDeclaration {
         id: structural_field_id(3),
         identity: "proof".to_owned(),
@@ -401,13 +404,21 @@ fn erased_structural_field_round_trips_and_changes_semantic_identity() {
 
 #[test]
 fn numbered_entry_claim_path_round_trips_and_enters_semantic_identity() {
-    let baseline = structural_effect_fixture();
+    let mut baseline = structural_effect_fixture();
+    project_boundary_argument(
+        &mut baseline,
+        vec![StructuralPathSegment::Field("metadata".to_owned())],
+        structural_type_id(2),
+    );
     let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
     fields[1].identity = "#7".to_owned();
-    for machine in &mut module.machines {
-        machine.entry_claims[0].field_path = vec!["#7".to_owned()];
-    }
+    project_boundary_path_only(
+        &mut module,
+        vec![StructuralPathSegment::Field("#7".to_owned())],
+    );
 
     let bytes = encode_module(&module).expect("numbered aggregate claim path should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -420,23 +431,40 @@ fn numbered_entry_claim_path_round_trips_and_enters_semantic_identity() {
 
 #[test]
 fn nested_record_claim_path_round_trips_and_enters_semantic_identity() {
-    let baseline = structural_effect_fixture();
-    let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
-    fields[1].identity = "#7".to_owned();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape;
+    let mut baseline = structural_effect_fixture();
+    let StructuralTypeShape::Record { fields } = &mut baseline.structural_types[1].shape else {
+        unreachable!()
+    };
     fields.push(StructuralFieldDeclaration {
         id: structural_field_id(1),
-        identity: "#9".to_owned(),
+        identity: "inner".to_owned(),
         relevance: BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(structural_type_id(3)),
     });
-    module.boundary_machines[0].structural_parameters[0].multiplicity =
-        StructuralMultiplicity::Affine;
-    for machine in &mut module.machines {
-        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims[0].field_path = vec!["#7".to_owned(), "#9".to_owned()];
-    }
+    project_boundary_argument(
+        &mut baseline,
+        vec![
+            StructuralPathSegment::Field("metadata".to_owned()),
+            StructuralPathSegment::Field("inner".to_owned()),
+        ],
+        structural_type_id(3),
+    );
+    let mut module = baseline.clone();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[1].identity = "#7".to_owned();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        unreachable!()
+    };
+    fields[0].identity = "#9".to_owned();
+    project_boundary_path_only(
+        &mut module,
+        vec![
+            StructuralPathSegment::Field("#7".to_owned()),
+            StructuralPathSegment::Field("#9".to_owned()),
+        ],
+    );
 
     let bytes = encode_module(&module).expect("nested aggregate claim path should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -448,10 +476,54 @@ fn nested_record_claim_path_round_trips_and_enters_semantic_identity() {
 }
 
 #[test]
+fn fixed_array_claim_and_argument_paths_round_trip_canonically() {
+    let module = fixed_array_custody_fixture();
+    let bytes = encode_module(&module).expect("literal fixed-index custody should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn structural_foundation_rejects_an_out_of_bounds_fixed_index() {
+    let mut module = fixed_array_custody_fixture();
+    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(2)];
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural path fixed index is out of bounds"
+        ))
+    );
+}
+
+#[test]
+fn structural_foundation_requires_claim_and_argument_paths_to_match() {
+    let mut module = fixed_array_custody_fixture();
+    let OperationKind::BoundaryCallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(0)];
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "claim action does not match its structural argument path"
+        ))
+    );
+}
+
+#[test]
 fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
     let baseline = structural_effect_fixture();
     let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
     fields[1].identity = "#7".to_owned();
     fields.push(StructuralFieldDeclaration {
         id: structural_field_id(3),
@@ -459,38 +531,30 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
         relevance: BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(structural_type_id(2)),
     });
-    module.boundary_machines[0].structural_parameters[0].multiplicity =
-        StructuralMultiplicity::Affine;
-    for machine in &mut module.machines {
-        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims[0].field_path = vec!["#7".to_owned()];
-        machine.entry_claims.push(EntryClaim {
-            claim: claim_id(2),
-            input: machine.structural_parameters[0].place,
-            field_path: vec!["#9".to_owned()],
-        });
-    }
-    let OperationKind::CallUnit {
-        claim_transfers, ..
-    } = &mut module.machines[0].blocks[0].operations[0].kind
-    else {
-        unreachable!()
-    };
-    claim_transfers.push(ClaimTransfer {
+    project_boundary_argument(
+        &mut module,
+        vec![StructuralPathSegment::Field("#7".to_owned())],
+        structural_type_id(2),
+    );
+    let machine_place = module.machines[0].structural_parameters[0].place;
+    module.machines[0].entry_claims.push(EntryClaim {
         claim: claim_id(2),
-        argument_index: 0,
+        input: machine_place,
+        path: vec![StructuralPathSegment::Field("#9".to_owned())],
     });
+    let mut second_call = module.machines[0].blocks[0].operations[1].clone();
+    second_call.id = operation_id(4);
     let OperationKind::BoundaryCallUnit {
+        structural_arguments,
         completion_receipts,
         ..
-    } = &mut module.machines[1].blocks[0].operations[1].kind
+    } = &mut second_call.kind
     else {
         unreachable!()
     };
-    completion_receipts.push(CompletionReceipt {
-        claim: claim_id(2),
-        argument_index: 0,
-    });
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("#9".to_owned())];
+    completion_receipts[0].claim = claim_id(2);
+    module.machines[0].blocks[0].operations.push(second_call);
 
     let bytes = encode_module(&module).expect("canonical sibling claim set should encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -504,7 +568,10 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
 #[test]
 fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
     let mut opaque_relevant = structural_effect_fixture();
-    let StructuralTypeShape::Record { fields } = &mut opaque_relevant.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut opaque_relevant.structural_types[0].shape
+    else {
+        unreachable!()
+    };
     fields.push(StructuralFieldDeclaration {
         id: structural_field_id(3),
         identity: "bad".to_owned(),
@@ -521,7 +588,10 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
     );
 
     let mut nonopaque_erased = structural_effect_fixture();
-    let StructuralTypeShape::Record { fields } = &mut nonopaque_erased.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut nonopaque_erased.structural_types[0].shape
+    else {
+        unreachable!()
+    };
     fields.push(StructuralFieldDeclaration {
         id: structural_field_id(3),
         identity: "bad".to_owned(),
@@ -563,12 +633,12 @@ fn structural_foundation_rejects_noncanonical_rows() {
         EntryClaim {
             claim: claim_id(2),
             input: place_id(10),
-            field_path: Vec::new(),
+            path: Vec::new(),
         },
         EntryClaim {
             claim: claim_id(1),
             input: place_id(10),
-            field_path: Vec::new(),
+            path: Vec::new(),
         },
     ];
     assert_eq!(
@@ -1231,7 +1301,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: caller_place,
-                    field_path: Vec::new(),
+                    path: Vec::new(),
                 }],
                 published_service_ceiling: vec![service],
                 content_entry_claims: Vec::new(),
@@ -1248,6 +1318,7 @@ fn structural_effect_fixture() -> TerminalModule {
                             callee: machine_id(101),
                             structural_arguments: vec![StructuralArgument {
                                 place: caller_place,
+                                path: Vec::new(),
                             }],
                             claim_transfers: vec![ClaimTransfer {
                                 claim: claim_id(1),
@@ -1290,7 +1361,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 entry_claims: vec![EntryClaim {
                     claim: claim_id(1),
                     input: callee_place,
-                    field_path: Vec::new(),
+                    path: Vec::new(),
                 }],
                 published_service_ceiling: vec![service],
                 content_entry_claims: Vec::new(),
@@ -1317,6 +1388,7 @@ fn structural_effect_fixture() -> TerminalModule {
                                 boundary: boundary_machine_id(1),
                                 structural_arguments: vec![StructuralArgument {
                                     place: callee_place,
+                                    path: Vec::new(),
                                 }],
                                 completion_receipts: vec![CompletionReceipt {
                                     claim: claim_id(1),
@@ -1340,6 +1412,79 @@ fn structural_effect_fixture() -> TerminalModule {
             },
         ],
     }
+}
+
+fn project_boundary_argument(
+    module: &mut TerminalModule,
+    path: Vec<StructuralPathSegment>,
+    projected_type: StructuralTypeId,
+) {
+    let boundary_caller = module.machines.pop().expect("boundary caller fixture");
+    module.machines = vec![boundary_caller];
+    module.entry = module.machines[0].id;
+
+    let boundary = &mut module.boundary_machines[0];
+    boundary.requires.clear();
+    boundary.attachment = Some(projected_type);
+    boundary.structural_parameters[0].structural_type = projected_type;
+    boundary.structural_parameters[0].qualifications.clear();
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    module.machines[0].structural_parameters[0]
+        .qualifications
+        .clear();
+    project_boundary_path_only(module, path);
+}
+
+fn project_boundary_path_only(module: &mut TerminalModule, path: Vec<StructuralPathSegment>) {
+    module.machines[0].entry_claims[0].path = path.clone();
+    let OperationKind::BoundaryCallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = path;
+}
+
+fn fixed_array_custody_fixture() -> TerminalModule {
+    let mut module = structural_effect_fixture();
+    let element = structural_type_id(1);
+    let array = structural_type_id(4);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: array,
+        identity: "example::OccurrencePair".to_owned(),
+        shape: StructuralTypeShape::FixedArray { element, length: 2 },
+    });
+
+    let boundary_caller = module.machines.pop().expect("boundary caller fixture");
+    module.machines = vec![boundary_caller];
+    module.entry = module.machines[0].id;
+
+    for boundary in &mut module.boundary_machines {
+        boundary.requires.clear();
+        for parameter in &mut boundary.structural_parameters {
+            parameter.qualifications.clear();
+        }
+    }
+    for machine in &mut module.machines {
+        for parameter in &mut machine.structural_parameters {
+            parameter.multiplicity = StructuralMultiplicity::Affine;
+            parameter.qualifications.clear();
+        }
+    }
+
+    module.machines[0].structural_parameters[0].structural_type = array;
+    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    let OperationKind::BoundaryCallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    module
 }
 
 fn unit_fixture() -> TerminalModule {

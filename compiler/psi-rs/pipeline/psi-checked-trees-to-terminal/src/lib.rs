@@ -20,8 +20,9 @@ use psi_checked_trees::{
     CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
     CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
@@ -55,9 +56,10 @@ use psi_terminal::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -1638,7 +1640,7 @@ fn lower_structural_return_machine(
         })
         || plan.result.multiplicity != Multiplicity::Linear
         || plan.entry_claim.parameter_index != 0
-        || !plan.entry_claim.field_path.is_empty()
+        || !plan.entry_claim.path.is_empty()
         || plan.entry_claim.carry != CarryPolicy::STRICT
         || plan.entry_claim.claim_identity != plan.transferred_claim
         || returned_plan.type_identity != plan.result.type_identity
@@ -1702,7 +1704,9 @@ fn lower_structural_return_machine(
             else {
                 return unsupported("trivial affine local has no structural type declaration");
             };
-            let StructuralTypeShape::Record { fields } = &declaration.shape;
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return unsupported("trivial affine local is not a record");
+            };
             if !fields.is_empty() {
                 return unsupported("trivial affine local is not an empty record");
             }
@@ -1807,7 +1811,7 @@ fn lower_structural_return_machine(
         entry_claims: vec![EntryClaim {
             claim,
             input: input_place,
-            field_path: Vec::new(),
+            path: Vec::new(),
         }],
         published_service_ceiling: Vec::new(),
         content_entry_claims: identity.entry_claims,
@@ -3197,11 +3201,11 @@ fn lower_structural_type_plans(
     let declarations = ordered
         .into_iter()
         .map(|plan| {
-            let mut identities = BTreeSet::new();
-            let fields = plan
-                .fields
-                .iter()
-                .map(|field| {
+            let shape =
+                match &plan.shape {
+                    CheckedUnitStructuralTypeShape::Record { fields } => {
+                        let mut identities = BTreeSet::new();
+                        let fields = fields.iter().map(|field| {
                     if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
                         return Err(LoweringError::Unsupported(
                             "structural Unit control type has duplicate field identities",
@@ -3229,12 +3233,21 @@ fn lower_structural_type_plans(
                         relevance: field.relevance,
                         field_type,
                     })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?;
+                    }).collect::<Result<Vec<_>, LoweringError>>()?;
+                        StructuralTypeShape::Record { fields }
+                    }
+                    CheckedUnitStructuralTypeShape::FixedArray {
+                        element_type_identity,
+                        length,
+                    } => StructuralTypeShape::FixedArray {
+                        element: lookup_type_id(&type_ids, element_type_identity)?,
+                        length: *length,
+                    },
+                };
             Ok(StructuralTypeDeclaration {
                 id: lookup_type_id(&type_ids, &plan.identity)?,
                 identity: plan.identity.clone(),
-                shape: StructuralTypeShape::Record { fields },
+                shape,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -3437,7 +3450,7 @@ fn lower_attached_unit_closure(
             claims.push(EntryClaim {
                 claim: id,
                 input: parameter.place,
-                field_path: claim.field_path.clone(),
+                path: lower_structural_path(&claim.path),
             });
             claim_bindings.push((claim.claim_identity, id));
         }
@@ -3525,6 +3538,7 @@ fn lower_attached_unit_closure(
                                 .iter()
                                 .filter(move |claim| {
                                     claim.parameter_index == argument.source_parameter_index
+                                        && (argument.path.is_empty() || claim.path == argument.path)
                                 })
                                 .map(move |_| {
                                     u32::try_from(argument_index).map_err(|_| {
@@ -3896,10 +3910,21 @@ fn lower_unit_structural_types(
             );
         }
         active.push(identity.to_owned());
-        for field in &plan.fields {
-            if let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type
-            {
-                collect(plans, type_identity, active, selected)?;
+        match &plan.shape {
+            CheckedUnitStructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                        &field.field_type
+                    {
+                        collect(plans, type_identity, active, selected)?;
+                    }
+                }
+            }
+            CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                ..
+            } => {
+                collect(plans, element_type_identity, active, selected)?;
             }
         }
         active.pop();
@@ -3948,11 +3973,10 @@ fn lower_unit_structural_types(
             .iter()
             .find(|plan| plan.identity == identity)
             .expect("selected structural type was validated above");
-        let mut field_identities = BTreeSet::new();
-        let fields = plan
-            .fields
-            .iter()
-            .map(|field| {
+        let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::Record { fields } => {
+                let mut field_identities = BTreeSet::new();
+                let fields = fields.iter().map(|field| {
                 if field.identity.is_empty() || !field_identities.insert(field.identity.as_str()) {
                     return Err(LoweringError::Unsupported(
                         "Unit structural type contains an empty or duplicate field identity",
@@ -3977,12 +4001,21 @@ fn lower_unit_structural_types(
                     relevance: field.relevance,
                     field_type,
                 })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+                }).collect::<Result<Vec<_>, LoweringError>>()?;
+                StructuralTypeShape::Record { fields }
+            }
+            CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                length,
+            } => StructuralTypeShape::FixedArray {
+                element: lookup_type_id(&type_ids, element_type_identity)?,
+                length: *length,
+            },
+        };
         declarations.push(StructuralTypeDeclaration {
             id: lookup_type_id(&type_ids, &identity)?,
             identity,
-            shape: StructuralTypeShape::Record { fields },
+            shape,
         });
     }
     Ok((declarations, type_ids))
@@ -4359,7 +4392,8 @@ fn validate_transfer_shape(
                 "Unit structural argument has an invalid caller parameter index",
             ))?;
         if argument.type_identity != target.type_identity
-            || source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+            || (argument.path.is_empty()
+                && source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
         {
             return unsupported("Unit structural argument type identity is inconsistent");
         }
@@ -4398,7 +4432,21 @@ fn lower_structural_arguments(
                 ))?;
             Ok(StructuralArgument {
                 place: parameter.place,
+                path: lower_structural_path(&argument.path),
             })
+        })
+        .collect()
+}
+
+fn lower_structural_path(path: &[CheckedUnitStructuralPathSegment]) -> Vec<StructuralPathSegment> {
+    path.iter()
+        .map(|segment| match segment {
+            CheckedUnitStructuralPathSegment::Field(identity) => {
+                StructuralPathSegment::Field(identity.clone())
+            }
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                StructuralPathSegment::FixedIndex(*index)
+            }
         })
         .collect()
 }
@@ -9122,35 +9170,39 @@ mod tests {
         let entry_claim = |machine, state| psi_checked_trees::CheckedUnitEntryClaimPlan {
             claim_identity: unit_claim(machine, state),
             parameter_index: 0,
-            field_path: Vec::new(),
+            path: Vec::new(),
             carry: CarryPolicy::STRICT,
         };
         checked.facts.flow.terminal_unit_effects = psi_checked_trees::CheckedUnitEffectPlans {
             structural_types: vec![
                 psi_checked_trees::CheckedUnitStructuralTypePlan {
                     identity: "example::Acknowledgement".to_owned(),
-                    fields: vec![
-                        psi_checked_trees::CheckedUnitStructuralFieldPlan {
-                            identity: "sequence".to_owned(),
-                            relevance: psi_terminal::BindingRelevance::Relevant,
-                            field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
-                        },
-                        psi_checked_trees::CheckedUnitStructuralFieldPlan {
-                            identity: "proof".to_owned(),
-                            relevance: psi_terminal::BindingRelevance::Erased,
-                            field_type: CheckedUnitStructuralFieldType::Erased {
-                                type_identity: "named(name(example::Evidence))".to_owned(),
+                    shape: CheckedUnitStructuralTypeShape::Record {
+                        fields: vec![
+                            psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                                identity: "sequence".to_owned(),
+                                relevance: psi_terminal::BindingRelevance::Relevant,
+                                field_type: CheckedUnitStructuralFieldType::Scalar(
+                                    PrimitiveType::U64,
+                                ),
                             },
-                        },
-                    ],
+                            psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                                identity: "proof".to_owned(),
+                                relevance: psi_terminal::BindingRelevance::Erased,
+                                field_type: CheckedUnitStructuralFieldType::Erased {
+                                    type_identity: "named(name(example::Evidence))".to_owned(),
+                                },
+                            },
+                        ],
+                    },
                 },
                 psi_checked_trees::CheckedUnitStructuralTypePlan {
                     identity: "example::Helper".to_owned(),
-                    fields: Vec::new(),
+                    shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
                 },
                 psi_checked_trees::CheckedUnitStructuralTypePlan {
                     identity: "example::Root".to_owned(),
-                    fields: Vec::new(),
+                    shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
                 },
             ],
             structural_domains: vec![psi_checked_trees::CheckedUnitStructuralDomainPlan {
@@ -9203,6 +9255,7 @@ mod tests {
                                 psi_checked_trees::CheckedUnitStructuralArgumentPlan {
                                     source_parameter_index: 0,
                                     type_identity: "example::Acknowledgement".to_owned(),
+                                    path: Vec::new(),
                                 },
                             ],
                             claim_transfers: vec![
@@ -9251,6 +9304,7 @@ mod tests {
                                 psi_checked_trees::CheckedUnitStructuralArgumentPlan {
                                     source_parameter_index: 0,
                                     type_identity: "example::Acknowledgement".to_owned(),
+                                    path: Vec::new(),
                                 },
                             ],
                             completion_receipts: vec![
@@ -10357,7 +10411,9 @@ mod tests {
             .iter()
             .find(|declaration| declaration.identity == "example::Acknowledgement")
             .expect("acknowledgement structural type");
-        let StructuralTypeShape::Record { fields } = &acknowledgement.shape;
+        let StructuralTypeShape::Record { fields } = &acknowledgement.shape else {
+            panic!("acknowledgement is a record")
+        };
         assert_eq!(fields.len(), 2);
         assert_eq!(fields[1].relevance, psi_terminal::BindingRelevance::Erased);
         assert!(matches!(
@@ -10445,30 +10501,34 @@ mod tests {
             .structural_types
             .push(psi_checked_trees::CheckedUnitStructuralTypePlan {
                 identity: "example::Token".to_owned(),
-                fields: Vec::new(),
+                shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
             });
         let acknowledgement = plans
             .structural_types
             .iter_mut()
             .find(|shape| shape.identity == "example::Acknowledgement")
             .expect("acknowledgement shape");
-        acknowledgement.fields[0].identity = "#7".to_owned();
-        acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut acknowledgement.shape else {
+            panic!("acknowledgement is a record")
+        };
+        fields[0].identity = "#7".to_owned();
+        fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
             type_identity: "example::Token".to_owned(),
         };
         for machine in &mut plans.machines {
-            machine.entry_claims[0].field_path = vec!["#7".to_owned()];
+            machine.entry_claims[0].path =
+                vec![CheckedUnitStructuralPathSegment::Field("#7".to_owned())];
         }
 
         let lowered = lower_machine(&checked, "example::Root::enter")
             .expect("record-field custody should cross the complete Unit closure");
         assert_eq!(
-            lowered.semantic_module.machines[0].entry_claims[0].field_path,
-            ["#7"]
+            lowered.semantic_module.machines[0].entry_claims[0].path,
+            [StructuralPathSegment::Field("#7".to_owned())]
         );
         assert_eq!(
-            lowered.semantic_module.machines[1].entry_claims[0].field_path,
-            ["#7"]
+            lowered.semantic_module.machines[1].entry_claims[0].path,
+            [StructuralPathSegment::Field("#7".to_owned())]
         );
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
             .expect("aggregate custody must have a canonical terminal encoding");
@@ -10485,17 +10545,19 @@ mod tests {
         plans.structural_types.extend([
             psi_checked_trees::CheckedUnitStructuralTypePlan {
                 identity: "example::Pocket".to_owned(),
-                fields: vec![psi_checked_trees::CheckedUnitStructuralFieldPlan {
-                    identity: "#9".to_owned(),
-                    relevance: psi_terminal::BindingRelevance::Relevant,
-                    field_type: CheckedUnitStructuralFieldType::Structural {
-                        type_identity: "example::Token".to_owned(),
-                    },
-                }],
+                shape: CheckedUnitStructuralTypeShape::Record {
+                    fields: vec![psi_checked_trees::CheckedUnitStructuralFieldPlan {
+                        identity: "#9".to_owned(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: CheckedUnitStructuralFieldType::Structural {
+                            type_identity: "example::Token".to_owned(),
+                        },
+                    }],
+                },
             },
             psi_checked_trees::CheckedUnitStructuralTypePlan {
                 identity: "example::Token".to_owned(),
-                fields: Vec::new(),
+                shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
             },
         ]);
         let acknowledgement = plans
@@ -10503,8 +10565,11 @@ mod tests {
             .iter_mut()
             .find(|shape| shape.identity == "example::Acknowledgement")
             .expect("acknowledgement shape");
-        acknowledgement.fields[0].identity = "#7".to_owned();
-        acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut acknowledgement.shape else {
+            panic!("acknowledgement is a record")
+        };
+        fields[0].identity = "#7".to_owned();
+        fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
             type_identity: "example::Pocket".to_owned(),
         };
         for boundary in &mut plans.boundary_machines {
@@ -10512,7 +10577,10 @@ mod tests {
         }
         for machine in &mut plans.machines {
             machine.structural_parameters[0].multiplicity = Multiplicity::Affine;
-            machine.entry_claims[0].field_path = vec!["#7".to_owned(), "#9".to_owned()];
+            machine.entry_claims[0].path = vec![
+                CheckedUnitStructuralPathSegment::Field("#7".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("#9".to_owned()),
+            ];
         }
 
         let lowered = lower_machine(&checked, "example::Root::enter")
@@ -10523,7 +10591,13 @@ mod tests {
                 StructuralMultiplicity::Affine
             );
             assert_eq!(machine.entry_claims.len(), 1);
-            assert_eq!(machine.entry_claims[0].field_path, ["#7", "#9"]);
+            assert_eq!(
+                machine.entry_claims[0].path,
+                [
+                    StructuralPathSegment::Field("#7".to_owned()),
+                    StructuralPathSegment::Field("#9".to_owned()),
+                ]
+            );
         }
         let acknowledgement = lowered
             .semantic_module
@@ -10531,7 +10605,9 @@ mod tests {
             .iter()
             .find(|shape| shape.identity == "example::Acknowledgement")
             .expect("lowered acknowledgement shape");
-        let StructuralTypeShape::Record { fields } = &acknowledgement.shape;
+        let StructuralTypeShape::Record { fields } = &acknowledgement.shape else {
+            panic!("acknowledgement is a record")
+        };
         assert!(matches!(
             &fields[0].field_type,
             StructuralFieldType::Structural(structural_type)
@@ -10549,18 +10625,21 @@ mod tests {
             .structural_types
             .push(psi_checked_trees::CheckedUnitStructuralTypePlan {
                 identity: "example::Token".to_owned(),
-                fields: Vec::new(),
+                shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
             });
         let acknowledgement = plans
             .structural_types
             .iter_mut()
             .find(|shape| shape.identity == "example::Acknowledgement")
             .expect("acknowledgement shape");
-        acknowledgement.fields[0].identity = "#7".to_owned();
-        acknowledgement.fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut acknowledgement.shape else {
+            panic!("acknowledgement is a record")
+        };
+        fields[0].identity = "#7".to_owned();
+        fields[0].field_type = CheckedUnitStructuralFieldType::Structural {
             type_identity: "example::Token".to_owned(),
         };
-        acknowledgement.fields.insert(
+        fields.insert(
             1,
             psi_checked_trees::CheckedUnitStructuralFieldPlan {
                 identity: "#9".to_owned(),
@@ -10575,10 +10654,11 @@ mod tests {
         }
         for machine in &mut plans.machines {
             machine.structural_parameters[0].multiplicity = Multiplicity::Affine;
-            machine.entry_claims[0].field_path = vec!["#7".to_owned()];
+            machine.entry_claims[0].path =
+                vec![CheckedUnitStructuralPathSegment::Field("#7".to_owned())];
             let mut sibling = machine.entry_claims[0].clone();
             sibling.claim_identity = unit_claim_at(machine.machine, machine.state, 1);
-            sibling.field_path = vec!["#9".to_owned()];
+            sibling.path = vec![CheckedUnitStructuralPathSegment::Field("#9".to_owned())];
             machine.entry_claims.push(sibling);
         }
         let root = plans.machines[0].machine;
@@ -10616,9 +10696,15 @@ mod tests {
             );
             assert_eq!(machine.entry_claims.len(), 2);
             assert_eq!(machine.entry_claims[0].claim, claim_id(1));
-            assert_eq!(machine.entry_claims[0].field_path, ["#7"]);
+            assert_eq!(
+                machine.entry_claims[0].path,
+                [StructuralPathSegment::Field("#7".to_owned())]
+            );
             assert_eq!(machine.entry_claims[1].claim, claim_id(2));
-            assert_eq!(machine.entry_claims[1].field_path, ["#9"]);
+            assert_eq!(
+                machine.entry_claims[1].path,
+                [StructuralPathSegment::Field("#9".to_owned())]
+            );
         }
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
             .expect("multi-field custody must have a canonical terminal encoding");

@@ -10,9 +10,9 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -152,6 +152,10 @@ pub struct TerminalTargetStructuralParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetStructuralArgument {
     pub place: PlaceId,
+    /// Exact source-relative semantic projection. The current in-module Unit
+    /// realization copies only whole roots, but retaining this path prevents a
+    /// projected transfer from being silently reinterpreted downstream.
+    pub path: Vec<StructuralPathSegment>,
     pub structural_type: StructuralTypeId,
     pub shape: ValueShape,
     pub source: ValuePlacement,
@@ -177,7 +181,7 @@ pub enum TerminalTargetUnitOperation {
         boundary: BoundaryMachineId,
         provider_execution: TerminalProviderExecutionBinding,
         realization: TerminalMetadataOnlyPortRealization,
-        argument_places: Vec<PlaceId>,
+        arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
     },
     Return {

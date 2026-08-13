@@ -16,8 +16,9 @@ use psi_core::{
     ProfileDecisionId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
 use psi_terminal::{
-    CompletionReceipt, SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, TerminalPsiIdentity, VocabularyMarker,
+    CompletionReceipt, SemanticFingerprint, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, TerminalPsiIdentity, VocabularyMarker,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
@@ -27,7 +28,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 6;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 7;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -485,11 +486,11 @@ pub fn encode_terminal_installation_record(
         );
         push_u32(
             &mut bytes,
-            u32::try_from(settlement.argument_places.len())
+            u32::try_from(settlement.arguments.len())
                 .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?,
         );
-        for place in &settlement.argument_places {
-            push_u64(&mut bytes, place.get());
+        for argument in &settlement.arguments {
+            encode_structural_argument(&mut bytes, argument)?;
         }
         push_u32(
             &mut bytes,
@@ -502,6 +503,41 @@ pub fn encode_terminal_installation_record(
         }
     }
     Ok(bytes)
+}
+
+fn encode_structural_argument(
+    bytes: &mut Vec<u8>,
+    argument: &StructuralArgument,
+) -> Result<(), TerminalInstallationError> {
+    push_u64(bytes, argument.place.get());
+    push_u32(
+        bytes,
+        u32::try_from(argument.path.len())
+            .map_err(|_| TerminalInstallationError::TooManySettlementArgumentPathSegments)?,
+    );
+    for segment in &argument.path {
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                if identity.is_empty() {
+                    return Err(TerminalInstallationError::InvalidSettlementArgumentField);
+                }
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                push_u32(
+                    bytes,
+                    u32::try_from(identity.len())
+                        .map_err(|_| TerminalInstallationError::SettlementArgumentFieldTooLong)?,
+                );
+                bytes.extend_from_slice(identity.as_bytes());
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                bytes.push(2);
+                bytes.extend_from_slice(&[0; 3]);
+                push_u64(bytes, *index);
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn decode_terminal_installation_record(
@@ -728,15 +764,12 @@ pub fn decode_terminal_installation_record(
             .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
         let argument_count = usize::try_from(reader.u32()?)
             .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?;
-        if argument_count > reader.remaining() / 8 {
+        if argument_count > reader.remaining() / 12 {
             return Err(TerminalInstallationError::UnexpectedEnd);
         }
-        let mut argument_places = Vec::with_capacity(argument_count);
+        let mut arguments = Vec::with_capacity(argument_count);
         for _ in 0..argument_count {
-            argument_places.push(
-                PlaceId::new(reader.u64()?)
-                    .ok_or(TerminalInstallationError::ZeroSettlementIdentity("PlaceId"))?,
-            );
+            arguments.push(decode_structural_argument(&mut reader)?);
         }
         let claim_count = usize::try_from(reader.u32()?)
             .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?;
@@ -758,7 +791,7 @@ pub fn decode_terminal_installation_record(
                 boundary,
                 provider_execution,
                 realization,
-                argument_places,
+                arguments,
                 completion_receipts,
                 operation_ordinal,
                 code_offset,
@@ -806,6 +839,45 @@ pub fn decode_terminal_installation_record(
         return Err(TerminalInstallationError::NonCanonicalEncoding);
     }
     Ok(record)
+}
+
+fn decode_structural_argument(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralArgument, TerminalInstallationError> {
+    let place = PlaceId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroSettlementIdentity("PlaceId"))?;
+    let path_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManySettlementArgumentPathSegments)?;
+    if path_count > reader.remaining() / 8 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut path = Vec::with_capacity(path_count);
+    for _ in 0..path_count {
+        let tag = reader.u8()?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        path.push(match tag {
+            1 => {
+                let identity_len = usize::try_from(reader.u32()?)
+                    .map_err(|_| TerminalInstallationError::SettlementArgumentFieldTooLong)?;
+                let identity = std::str::from_utf8(reader.take(identity_len)?)
+                    .map_err(|_| TerminalInstallationError::InvalidSettlementArgumentField)?
+                    .to_owned();
+                if identity.is_empty() {
+                    return Err(TerminalInstallationError::InvalidSettlementArgumentField);
+                }
+                StructuralPathSegment::Field(identity)
+            }
+            2 => StructuralPathSegment::FixedIndex(reader.u64()?),
+            _ => {
+                return Err(TerminalInstallationError::InvalidSettlementArgumentPathTag(
+                    tag,
+                ));
+            }
+        });
+    }
+    Ok(StructuralArgument { place, path })
 }
 
 pub fn validate_terminal_installation_record(
@@ -1165,6 +1237,29 @@ fn validate_record_shape(
                 operation: installed.settlement.psi_operation,
             });
         }
+        if installed.settlement.arguments.iter().any(|argument| {
+            argument.path.iter().any(
+                |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
+            )
+        }) {
+            return Err(TerminalInstallationError::InvalidSettlementArgumentField);
+        }
+        if installed
+            .settlement
+            .completion_receipts
+            .iter()
+            .any(|receipt| {
+                usize::try_from(receipt.argument_index)
+                    .map_or(true, |index| index >= installed.settlement.arguments.len())
+            })
+        {
+            return Err(
+                TerminalInstallationError::InvalidCompletionReceiptArgumentIndex {
+                    machine: installed.machine,
+                    operation: installed.settlement.psi_operation,
+                },
+            );
+        }
         let realization = installed.settlement.realization;
         let matching_effects = record
             .port_effects
@@ -1290,7 +1385,9 @@ fn encode_trivial_affine_local_type(
     bytes: &mut Vec<u8>,
     declaration: &psi_terminal::StructuralTypeDeclaration,
 ) -> Result<(), TerminalInstallationError> {
-    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape;
+    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
+    };
     if !fields.is_empty() {
         return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
     }
@@ -1794,6 +1891,8 @@ pub enum TerminalInstallationError {
     TooManyPortEffects,
     TooManyBoundarySettlements,
     TooManySettlementArguments,
+    TooManySettlementArgumentPathSegments,
+    SettlementArgumentFieldTooLong,
     TooManyCompletionReceipts,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
@@ -1815,6 +1914,8 @@ pub enum TerminalInstallationError {
     InvalidFuelSiteTag(u8),
     ZeroPortEffectIdentity(&'static str),
     ZeroSettlementIdentity(&'static str),
+    InvalidSettlementArgumentPathTag(u8),
+    InvalidSettlementArgumentField,
     ZeroProviderExecutionEvidence,
     NoInstalledFunctions,
     NonCanonicalInstalledFunctions,
@@ -1848,6 +1949,10 @@ pub enum TerminalInstallationError {
         operation: OperationId,
     },
     InvalidBoundarySettlementOffset {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    InvalidCompletionReceiptArgumentIndex {
         machine: MachineId,
         operation: OperationId,
     },
