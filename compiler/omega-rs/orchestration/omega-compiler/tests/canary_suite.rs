@@ -18678,21 +18678,14 @@ fn runtime_min_call_result_arithmetic_exit_canary_runs() {
 #[test]
 fn runtime_direct_boolean_conjunction_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_direct_boolean_conjunction_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-direct-bool-conjunction-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime direct boolean conjunction canary should compile");
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime direct boolean conjunction canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime direct boolean conjunction canary should run");
 
@@ -18704,7 +18697,7 @@ fn runtime_direct_boolean_conjunction_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19824,20 +19817,12 @@ fn runtime_tuple_transition_exit_canary_runs() {
 #[test]
 fn runtime_room_use_reentry_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_room_use_reentry_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-runtime-room-reentry-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime room use reentry canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime room use reentry canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime room use reentry canary should run");
 
@@ -19849,28 +19834,20 @@ fn runtime_room_use_reentry_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_enemy_clear_reentry_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_enemy_clear_reentry_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-enemy-reentry-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime enemy clear reentry canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime enemy clear reentry canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime enemy clear reentry canary should run");
 
@@ -19882,7 +19859,7 @@ fn runtime_enemy_clear_reentry_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -19951,22 +19928,14 @@ fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
 #[test]
 fn runtime_multi_room_reentry_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_multi_room_reentry_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-multi-room-reentry-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("runtime multi-room reentry canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime multi-room reentry canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime multi-room reentry canary should run");
 
@@ -19978,7 +19947,7 @@ fn runtime_multi_room_reentry_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
