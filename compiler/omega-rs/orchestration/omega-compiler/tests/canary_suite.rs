@@ -18396,8 +18396,7 @@ fn const_fold_cast_signedness_canary_runs() {
 #[test]
 fn runtime_copy_then_read_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_copy_then_read_exit");
-    let scratch =
-        std::env::temp_dir().join(format!("omega-copy-then-read-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("omega-copy-then-read-{}", std::process::id()));
     compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
         .expect("copy-then-read canary should compile");
 
