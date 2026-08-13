@@ -18301,17 +18301,11 @@ fn f32_transition_arg_rounding_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-f32-transition-arg-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32 transition-arg canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32 transition-arg canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32 transition-arg canary should run");
     assert_eq!(
@@ -18321,7 +18315,7 @@ fn f32_transition_arg_rounding_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -18342,17 +18336,11 @@ fn f32_field_store_rounding_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-f32-field-store-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32 field store canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32 field store canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32 field store canary should run");
     assert_eq!(
@@ -18362,7 +18350,7 @@ fn f32_field_store_rounding_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -18385,19 +18373,12 @@ fn const_fold_cast_signedness_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-cast-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("const-fold cast canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("const-fold cast canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("const-fold cast canary should run");
 
@@ -18409,26 +18390,18 @@ fn const_fold_cast_signedness_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_copy_then_read_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_copy_then_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-copy-then-read-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("copy-then-read canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("copy-then-read canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("copy-then-read canary should run");
 
@@ -18440,7 +18413,7 @@ fn runtime_copy_then_read_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
