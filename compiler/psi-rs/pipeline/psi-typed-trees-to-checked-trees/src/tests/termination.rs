@@ -5744,6 +5744,14 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         self.recursive_attached_cells()
     }
 
+    machine Main::return_attached_bucket(&mut self) -> &mut Bucket {
+        &mut self.bucket
+    }
+
+    machine Main::recursive_attached_bucket(&mut self) -> &mut Bucket {
+        self.recursive_attached_bucket()
+    }
+
     machine return_after_indexed_statement<'cells, 'result>(
         cells: &'cells mut [u64; 2],
         result: &'result mut u64
@@ -6196,6 +6204,37 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         &mut self.result
     }
 
+    machine Main::return_after_attached_projected_slice_view_indexed_statement(
+        &mut self
+    ) -> &mut u64 {
+        write_argument(
+            &mut self.return_attached_bucket().cells.as_mut_slice()[
+                identity_index(write_index(&mut self.index_write))
+            ]
+        );
+        &mut self.result
+    }
+
+    machine Main::return_after_deep_attached_projected_slice_view_indexed_statement(
+        &mut self
+    ) -> &mut u64 {
+        write_argument(
+            &mut self.return_attached_bucket().cells.as_mut_slice()[
+                identity_index(identity_index(make_index()))
+            ]
+        );
+        &mut self.result
+    }
+
+    machine Main::return_after_recursive_attached_projected_slice_view_indexed_statement(
+        &mut self
+    ) -> &mut u64 {
+        write_argument(
+            &mut self.recursive_attached_bucket().cells.as_mut_slice()[make_index()]
+        );
+        &mut self.result
+    }
+
     machine return_after_deep_alias_indexed_statement<'cells, 'result>(
         cells: &'cells mut [u64; 2],
         result: &'result mut u64
@@ -6540,6 +6579,26 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         alias = 3;
     }
 
+    machine Main::attached_projected_slice_view_indexed_statement_result(&mut self) {
+        let alias: &mut u64 =
+            self.return_after_attached_projected_slice_view_indexed_statement();
+        alias = 3;
+    }
+
+    machine Main::deep_attached_projected_slice_view_indexed_statement_result(&mut self) {
+        let alias: &mut u64 =
+            self.return_after_deep_attached_projected_slice_view_indexed_statement();
+        alias = 3;
+    }
+
+    machine Main::recursive_attached_projected_slice_view_indexed_statement_result(
+        &mut self
+    ) {
+        let alias: &mut u64 =
+            self.return_after_recursive_attached_projected_slice_view_indexed_statement();
+        alias = 3;
+    }
+
     machine Main::deep_alias_indexed_statement_result(&mut self) {
         let alias: &mut u64 = return_after_deep_alias_indexed_statement(
             &mut self.cells,
@@ -6624,6 +6683,10 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             vec!["self.cells", "self.index_write", "self.result"],
         ),
         (
+            "Main::attached_projected_slice_view_indexed_statement_result",
+            vec!["self.bucket.cells", "self.index_write", "self.result"],
+        ),
+        (
             "Main::projected_helper_indexed_statement_result",
             vec!["self.bucket.cells", "self.index_write", "self.result"],
         ),
@@ -6699,6 +6762,8 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         "Main::recursive_attached_indexed_statement_result",
         "Main::deep_attached_slice_view_indexed_statement_result",
         "Main::recursive_attached_slice_view_indexed_statement_result",
+        "Main::deep_attached_projected_slice_view_indexed_statement_result",
+        "Main::recursive_attached_projected_slice_view_indexed_statement_result",
         "Main::recursive_projected_helper_statement_result",
         "Main::deep_projected_helper_slice_view_indexed_statement_result",
         "Main::recursive_projected_helper_slice_view_indexed_statement_result",
