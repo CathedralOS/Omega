@@ -8473,19 +8473,13 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
 #[test]
 fn runtime_mandelbrot_render_exit_canary_runs() {
     let canary = pass_canary("text/runtime_mandelbrot_render_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-mandelbrot-render-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mandelbrot render canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("mandelbrot render canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("mandelbrot render canary should run");
 
@@ -8497,7 +8491,7 @@ fn runtime_mandelbrot_render_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
