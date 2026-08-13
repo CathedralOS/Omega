@@ -17517,8 +17517,7 @@ fn unsigned_min_max_operand_position_canary_runs() {
         outcome.exit_code
     );
 
-    let scratch =
-        std::env::temp_dir().join(format!("omega-minmax-operand-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("omega-minmax-operand-{}", std::process::id()));
     compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
         .expect("operand-position min/max canary should compile");
 
@@ -17874,8 +17873,7 @@ fn runtime_indexed_element_copy_write_canary_runs() {
         outcome.exit_code
     );
 
-    let scratch =
-        std::env::temp_dir().join(format!("omega-idx-elem-write-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("omega-idx-elem-write-{}", std::process::id()));
     compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
         .expect("indexed element write canary should compile");
 
@@ -17913,8 +17911,7 @@ fn suffix_landed_operand_position_canary_runs() {
         outcome.exit_code
     );
 
-    let scratch =
-        std::env::temp_dir().join(format!("omega-suffix-landed-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("omega-suffix-landed-{}", std::process::id()));
     compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
         .expect("suffix-landed canary should compile");
 
