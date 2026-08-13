@@ -3,7 +3,10 @@ use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::{StructuralFieldType, StructuralMultiplicity, StructuralTypeShape, Terminator};
+use psi_terminal::{
+    OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
+    StructuralTypeShape, Terminator,
+};
 use psi_terminal_codec::{decode_module, encode_module};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
@@ -19,6 +22,19 @@ const SOURCE: &str = r#"
 const SCALAR_SOURCE: &str = r#"
     data Token { flag: bool; tag: u8; delta: i16; payload: u64; address: addr; }
     machine Token::drop(&mut self) {}
+
+    data Root {}
+    machine Root::enter(token: Token) {}
+"#;
+
+const EXECUTABLE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token { flag: bool; }
+    machine Token::drop(&mut self) {
+        Helper::touch();
+    }
 
     data Root {}
     machine Root::enter(token: Token) {}
@@ -164,5 +180,81 @@ fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
         decode_module(&bytes).expect("semantic module decodes"),
         lowered.semantic_module,
         "the primitive field and nominal cleanup identity are canonical artifact data"
+    );
+}
+
+#[test]
+fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
+    let tokens = Lexer::new(EXECUTABLE_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("one-call nominal cleanup lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator else {
+        panic!("expected executable nominal cleanup return")
+    };
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .expect("cleanup target");
+    let [call] = target.blocks[0].operations.as_slice() else {
+        panic!("cleanup target must contain exactly one call")
+    };
+    assert_eq!(call.result, OperationResult::Unit);
+    let OperationKind::CallUnit {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = &call.kind
+    else {
+        panic!("cleanup operation must be an ordinary Unit call")
+    };
+    assert!(structural_arguments.is_empty());
+    assert!(claim_transfers.is_empty());
+    assert!(requirement_obligations.is_empty());
+    assert!(crash_continuations.is_empty());
+    let helper = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == *callee)
+        .expect("cleanup helper");
+    assert_ne!(helper.id, target.id);
+    assert_ne!(helper.id, entry.id);
+    assert!(helper.structural_parameters.is_empty());
+    assert!(helper.blocks[0].operations.is_empty());
+    assert!(matches!(
+        &helper.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } if trivial_affine_discards.is_empty()
+    ));
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts exact executable nominal cleanup closure");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(
+        decode_module(&bytes).expect("semantic module decodes"),
+        lowered.semantic_module,
+        "the three-machine cleanup closure is canonical artifact data"
     );
 }

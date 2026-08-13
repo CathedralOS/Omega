@@ -159,6 +159,26 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
 }
 
 #[test]
+fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
+    let module = executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("executable nominal cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("executable nominal cleanup has an exact fixed bound");
+
+    assert_eq!(
+        certificate.ceiling_units(),
+        4,
+        "root edge + drop call + helper edge + drop edge"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
     let local_type = structural_type_id(900);
     let first = place_id(900);
@@ -901,6 +921,123 @@ fn unit_fixture() -> TerminalModule {
             },
         }],
     }
+}
+
+fn executable_nominal_affine_fixture() -> TerminalModule {
+    let empty_contract = |raw| MachineContract {
+        id: contract_id(raw),
+        crash_routes: Vec::new(),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+    };
+    let token_type = structural_type_id(900);
+    let helper_type = structural_type_id(901);
+    let source = place_id(900);
+    let mut module = unit_fixture();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: token_type,
+            identity: "test::Token".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    identity: "payload".into(),
+                    id: psi_core::StructuralFieldId::new(900).unwrap(),
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: helper_type,
+            identity: "test::Helper".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ];
+    let caller = &mut module.machines[0];
+    caller.structural_parameters = vec![StructuralParameterDeclaration {
+        place: source,
+        position: 0,
+        is_self: false,
+        structural_type: token_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+    }];
+    caller.structural_places = vec![StructuralPlaceDeclaration {
+        id: source,
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    caller.blocks[0].terminator = Terminator::ReturnUnitNominalAffine {
+        edge: edge_id(900),
+        cleanup: NominalAffineCleanup {
+            place: source,
+            structural_type: token_type,
+            cleanup_machine: machine_id(901),
+        },
+    };
+    module.machines.push(TerminalMachine {
+        id: machine_id(901),
+        attachment: Some(token_type),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(901),
+        blocks: vec![Block {
+            id: block_id(901),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(901),
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: machine_id(902),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(901),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(901),
+    });
+    module.machines.push(TerminalMachine {
+        id: machine_id(902),
+        attachment: Some(helper_type),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(902),
+        blocks: vec![Block {
+            id: block_id(902),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(902),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(902),
+    });
+    module
 }
 
 fn unit_effect_fixture() -> TerminalModule {

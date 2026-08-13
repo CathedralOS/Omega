@@ -27,6 +27,65 @@ fn exact_empty_nominal_affine_cleanup_validates() {
 }
 
 #[test]
+fn exact_one_call_nominal_affine_cleanup_validates_and_verifies() {
+    let module = executable_nominal_affine_module();
+    validate_module(&module).expect("exact one-call nominal cleanup should validate");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("exact one-call nominal cleanup requires no proof evidence");
+}
+
+#[test]
+fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
+    let mut recursive_target = executable_nominal_affine_module();
+    let cleanup_id = recursive_target.machines[1].id;
+    let OperationKind::CallUnit { callee, .. } =
+        &mut recursive_target.machines[1].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *callee = cleanup_id;
+    assert!(matches!(
+        validate_module(&recursive_target),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut nonempty_helper = executable_nominal_affine_module();
+    nonempty_helper.machines[2].blocks[0]
+        .operations
+        .push(Operation {
+            id: operation_id(2),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: machine_id(3),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    assert!(matches!(
+        validate_module(&nonempty_helper),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut extra_machine = executable_nominal_affine_module();
+    let mut fourth = extra_machine.machines[2].clone();
+    fourth.id = machine_id(4);
+    fourth.entry = block_id(4);
+    fourth.blocks[0].id = block_id(4);
+    fourth.contract.id = contract_id(4);
+    extra_machine.machines.push(fourth);
+    assert!(matches!(
+        validate_module(&extra_machine),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
 fn exact_one_primitive_field_nominal_affine_cleanup_validates() {
     let mut module = nominal_affine_module();
     module.structural_types[0].shape = StructuralTypeShape::Record {
@@ -2105,6 +2164,52 @@ fn nominal_affine_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         machines: vec![caller, cleanup],
     }
+}
+
+fn executable_nominal_affine_module() -> TerminalModule {
+    let mut module = nominal_affine_module();
+    let helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "Helper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(3),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(TerminalMachine {
+        id: machine_id(3),
+        attachment: Some(helper_type.id),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(3),
+        blocks: vec![Block {
+            id: block_id(3),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(3),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(3)),
+    });
+    module
 }
 
 fn structural_parameter(place: PlaceId) -> StructuralParameterDeclaration {

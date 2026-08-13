@@ -32,6 +32,57 @@ fn accepts_reserved_cleanup_shape() {
 }
 
 #[test]
+fn accepts_exact_one_call_executable_cleanup_shape() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Wrapper { value: i32; }
+        machine Wrapper::drop(&mut self) { Helper::touch(); }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("exact one-call cleanup shape should check");
+}
+
+#[test]
+fn executable_cleanup_rejects_more_than_one_call_or_nonempty_helper() {
+    rejects(
+        r#"
+            data Helper {}
+            machine Helper::touch() {}
+            data Wrapper { value: i32; }
+            machine Wrapper::drop(&mut self) {
+                Helper::touch();
+                Helper::touch();
+            }
+        "#,
+        "outside the executable cleanup slice",
+    );
+    rejects(
+        r#"
+            data Leaf {}
+            machine Leaf::finish() {}
+            data Helper {}
+            machine Helper::touch() { Leaf::finish(); }
+            data Wrapper { value: i32; }
+            machine Wrapper::drop(&mut self) { Helper::touch(); }
+        "#,
+        "outside the executable cleanup slice",
+    );
+    rejects(
+        r#"
+            data Helper {}
+            machine Helper::touch(value: u8) {}
+            data Wrapper { value: i32; }
+            machine Wrapper::drop(&mut self) { Helper::touch(1u8); }
+        "#,
+        "outside the executable cleanup slice",
+    );
+}
+
+#[test]
 fn accepts_cleanup_for_generic_attached_data() {
     let source = r#"
         data Wrapper<T> { value: T; }
