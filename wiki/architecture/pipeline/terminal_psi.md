@@ -200,7 +200,7 @@ The bounded nominal-cleanup slice accepts one root-only, one-state Unit machine
 with one or two claim-free, unqualified affine parameters whose records are
 empty or contain only relevant Terminal-supported Boolean/integer fields, plus
 their exact attached `T::drop(&mut self)` machines. One cleanup may be empty or
-contain up to two source-ordered ordinary zero-argument calls to mutually
+contain up to three source-ordered ordinary zero-argument calls to mutually
 distinct exact-empty attached helpers. Two cleanups run in reverse parameter
 declaration order; both bodies may use that executable form, including a shared
 cleanup target or helper. Repeated use of the same cleanup machine remains legal
@@ -214,7 +214,7 @@ machine, object, image, and installation artifacts. Empty drops emit no native
 call; an executable body emits a call owned by the exact edge/action ordinal
 before teardown, with source-ordered operation-owned helper calls. Wider lists,
 nested/erased receivers,
-three-or-more-call bodies, claims, qualifications, locals, and non-root edges
+four-or-more-call bodies, claims, qualifications, locals, and non-root edges
 remain fenced.
 
 An unconditional jump and each ordered conditional successor may carry an
