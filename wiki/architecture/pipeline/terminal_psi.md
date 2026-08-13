@@ -199,16 +199,18 @@ post-effect locals remain fenced.
 The bounded nominal-cleanup slice accepts one root-only, one-state Unit machine
 with exactly one claim-free, unqualified affine parameter whose record is empty
 or contains only relevant Terminal-supported Boolean/integer fields, plus its
-exact attached `T::drop(&mut self)` machine. The body is empty or exactly one
-ordinary zero-argument call to a distinct exact-empty attached helper. The
+exact attached `T::drop(&mut self)` machine. The body is empty or contains up
+to two source-ordered ordinary zero-argument calls to mutually distinct
+exact-empty attached helpers. The
 return names the whole place, type, and cleanup-machine identity. Verification
-reconstructs the exact two- or three-machine closure; interpretation retains
-the receiver and charges the caller edge, cleanup call, helper edge, and cleanup
-edge in semantic order. Fixed fuel composes the same closure. Omega erases an
+reconstructs the exact two-, three-, or four-machine closure; interpretation
+retains the receiver and charges the caller edge, each cleanup call and helper
+edge in source order, then the cleanup edge. Fixed fuel composes the same
+closure. Omega erases an
 empty receiver or assigns a nonempty one its ordinary ABI home, emits an
 edge-owned native cleanup call before teardown, and preserves the helper's
-operation-owned call separately through all five object, image, and
-installation paths. Nested/erased receivers, wider executable bodies, multiple
+operation-owned calls separately through all five object, image, and
+installation paths. Nested/erased receivers, three-or-more-call bodies, multiple
 ordered cleanup actions, claims, qualifications, locals, and non-root edges
 remain fenced.
 
