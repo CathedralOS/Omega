@@ -15853,22 +15853,14 @@ fn no_payload_case_variant_after_payload_dispatch_exit_canary_runs() {
     // Was a native miscompile (bare-variant arg materialized as a place-copy,
     // not a tag write -> slot held ZII 0 -> only ordinal-0 matched -> exit 71).
     let canary = pass_canary("control_flow/no_payload_case_variant_after_payload_dispatch_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-no-payload-variant-dispatch-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("no_payload_case_variant_after_payload_dispatch canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("no_payload_case_variant_after_payload_dispatch canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("no_payload_case_variant_after_payload_dispatch canary should run");
 
@@ -15880,7 +15872,7 @@ fn no_payload_case_variant_after_payload_dispatch_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15889,22 +15881,14 @@ fn transition_arg_local_from_embedded_call_exit_canary_runs() {
     // argument, must copy the local's slot -- not fold+re-materialize the call
     // in the target state (whose scratch is unreachable). Was native exit 73.
     let canary = pass_canary("calls/transition_arg_local_from_embedded_call_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-transition-arg-embedded-call-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("transition_arg_local_from_embedded_call canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("transition_arg_local_from_embedded_call canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("transition_arg_local_from_embedded_call canary should run");
 
@@ -15916,7 +15900,7 @@ fn transition_arg_local_from_embedded_call_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15926,22 +15910,14 @@ fn value_call_embedded_in_binary_exit_canary_runs() {
     // embedded call's scratch result slot (12). Was a slot-name collision that
     // made the guard read the scratch -> native exit 71.
     let canary = pass_canary("calls/value_call_embedded_in_binary_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-value-call-embedded-binary-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("value_call_embedded_in_binary canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value_call_embedded_in_binary canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("value_call_embedded_in_binary canary should run");
 
@@ -15953,7 +15929,7 @@ fn value_call_embedded_in_binary_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -15963,22 +15939,14 @@ fn sequential_self_field_rmw_exit_canary_runs() {
     // to 5. Guards against the stale-static-fold regression (the read folding
     // to the ZII entry value, emitting a constant store of 1 every call).
     let canary = pass_canary("calls/sequential_self_field_rmw_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-sequential-self-field-rmw-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("sequential_self_field_rmw canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sequential_self_field_rmw canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("sequential_self_field_rmw canary should run");
 
@@ -15990,7 +15958,7 @@ fn sequential_self_field_rmw_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
