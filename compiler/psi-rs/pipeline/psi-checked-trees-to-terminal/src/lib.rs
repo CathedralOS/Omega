@@ -2323,13 +2323,6 @@ fn lower_structural_unit_control_machine(
                     "structural Unit conditional must select one entry Boolean scalar guard input",
                 );
             }
-            CheckedStructuralUnitControlTerminatorPlan::Jump { .. }
-                if !state.scalar_parameters.is_empty() =>
-            {
-                return unsupported(
-                    "structural Unit unconditional scalar successor control is outside this slice",
-                );
-            }
             _ => {}
         }
     }
@@ -2420,12 +2413,13 @@ fn lower_structural_unit_control_machine(
             CheckedStructuralUnitControlTerminatorPlan::Jump {
                 target_state,
                 transfers,
+                scalar_arguments,
                 trivial_affine_discard_parameter_positions,
                 ..
             } => vec![(
                 target_state,
                 transfers.as_slice(),
-                &[] as &[psi_checked_trees::CheckedStructuralScalarArgumentPlan],
+                scalar_arguments.as_slice(),
                 trivial_affine_discard_parameter_positions.as_slice(),
             )],
             CheckedStructuralUnitControlTerminatorPlan::Conditional {
@@ -2619,6 +2613,7 @@ fn lower_structural_unit_control_machine(
             CheckedStructuralUnitControlTerminatorPlan::Jump {
                 statement_ordinal,
                 target_state,
+                scalar_arguments,
                 trivial_affine_discard_parameter_positions,
                 ..
             } => {
@@ -2635,7 +2630,24 @@ fn lower_structural_unit_control_machine(
                         .ok_or(LoweringError::Unsupported(
                             "structural Unit jump target has no terminal block",
                         ))?,
-                    arguments: Vec::new(),
+                    arguments: scalar_arguments
+                        .iter()
+                        .map(|argument| {
+                            state_scalar_parameters[index]
+                                .get(
+                                    usize::try_from(argument.source_scalar_parameter_index)
+                                        .map_err(|_| {
+                                            LoweringError::Unsupported(
+                                                "structural Unit scalar successor source exceeds usize",
+                                            )
+                                        })?,
+                                )
+                                .map(|parameter| parameter.id)
+                                .ok_or(LoweringError::Unsupported(
+                                    "structural Unit scalar successor names an unknown source",
+                                ))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
                     trivial_affine_discards: lower_discards(
                         trivial_affine_discard_parameter_positions,
                     )?,
@@ -8901,7 +8913,12 @@ mod tests {
                         psi_checked_trees::CheckedStructuralUnitControlStatePlan {
                             state: entry,
                             structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
-                            scalar_parameters: Vec::new(),
+                            scalar_parameters: vec![
+                                psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                                    source_position: 2,
+                                    primitive_type: PrimitiveType::I32,
+                                },
+                            ],
                             terminator: CheckedStructuralUnitControlTerminatorPlan::Jump {
                                 statement_ordinal: 0,
                                 target_state: leaf,
@@ -8911,13 +8928,26 @@ mod tests {
                                         target_parameter_index: 0,
                                     },
                                 ],
+                                scalar_arguments: vec![
+                                    psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                                        argument_ordinal: 1,
+                                        source_scalar_parameter_index: 0,
+                                        target_scalar_parameter_index: 0,
+                                        primitive_type: PrimitiveType::I32,
+                                    },
+                                ],
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
                         },
                         psi_checked_trees::CheckedStructuralUnitControlStatePlan {
                             state: leaf,
                             structural_parameters: vec![affine_parameter(0)],
-                            scalar_parameters: Vec::new(),
+                            scalar_parameters: vec![
+                                psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                                    source_position: 1,
+                                    primitive_type: PrimitiveType::I32,
+                                },
+                            ],
                             terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
@@ -9142,7 +9172,13 @@ mod tests {
             panic!("structural control slice lowers one attached machine")
         };
         assert_eq!(machine.structural_parameters.len(), 2);
-        assert!(machine.parameters.is_empty());
+        assert!(matches!(
+            machine.parameters.as_slice(),
+            [ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(1)
+        ));
         assert_eq!(machine.blocks.len(), 2);
         assert!(
             machine
@@ -9158,8 +9194,15 @@ mod tests {
                 trivial_affine_discards,
                 ..
             } if *target == block_id(2)
-                && arguments.is_empty()
+                && arguments == &[value_id(1)]
                 && trivial_affine_discards == &[place_id(1)]
+        ));
+        assert!(matches!(
+            machine.blocks[1].parameters.as_slice(),
+            [ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(2)
         ));
         assert!(matches!(
             &machine.blocks[1].terminator,
@@ -9168,6 +9211,12 @@ mod tests {
                 ..
             } if trivial_affine_discards == &[place_id(2)]
         ));
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("structural jump scalar binding and cleanup should verify independently");
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
             .expect("structural control slice should encode canonically");
         assert_eq!(
@@ -9335,6 +9384,27 @@ mod tests {
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
                 "structural Unit jump transfer and cleanup do not partition its exact frontier"
+            ))
+        ));
+
+        install_structural_unit_control_fixture(&mut checked);
+        let CheckedStructuralUnitControlTerminatorPlan::Jump {
+            scalar_arguments, ..
+        } = &mut checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0]
+            .states[0]
+            .terminator
+        else {
+            unreachable!()
+        };
+        scalar_arguments[0].source_scalar_parameter_index = 1;
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural Unit scalar successor map changes its checked signature"
             ))
         ));
 

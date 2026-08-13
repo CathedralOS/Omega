@@ -160,31 +160,33 @@ fn partial_affine_parameter_moves_fail_closed() {
 
 #[test]
 fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
-    let checked = checked(
+    let supported = checked(
         r#"
         data Token { value: i32; }
         data Root {}
 
-        machine Root::route(first: Token, second: Token)
+        machine Root::route(first: Token, second: Token, value: i32)
         {
-            transition { _ -> next(second) }
-            state next(second: Token) {}
+            transition { _ -> next(second, value) }
+            state next(second: Token, value: i32) {}
         }
         "#,
     );
-    let machine = checked
+    let machine = supported
         .machines()
         .iter()
         .find(|machine| machine.name.as_str().ends_with("route"))
         .expect("route machine")
         .symbol;
-    let plan = checked
+    let plan = supported
         .facts
         .flow
         .terminal_structural_unit_controls
         .for_machine(machine)
         .expect("the exact structural Unit graph should compose");
     assert_eq!(plan.states.len(), 2);
+    assert_eq!(plan.states[0].scalar_parameters.len(), 1);
+    assert_eq!(plan.states[1].scalar_parameters.len(), 1);
     let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
         transfers,
         trivial_affine_discard_parameter_positions,
@@ -196,6 +198,21 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     assert_eq!(transfers.len(), 1);
     assert_eq!(transfers[0].source_parameter_index, 1);
     assert_eq!(transfers[0].target_parameter_index, 0);
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
+        scalar_arguments,
+        ..
+    } = &plan.states[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(scalar_arguments.len(), 1);
+    assert_eq!(scalar_arguments[0].argument_ordinal, 1);
+    assert_eq!(scalar_arguments[0].source_scalar_parameter_index, 0);
+    assert_eq!(scalar_arguments[0].target_scalar_parameter_index, 0);
+    assert_eq!(
+        scalar_arguments[0].primitive_type,
+        psi_checked_trees::types::PrimitiveType::I32
+    );
     assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
     let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
         trivial_affine_discard_parameter_positions,
@@ -204,6 +221,34 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
         panic!("leaf state should return Unit")
     };
     assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
+
+    let rejected = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::route(first: Token, second: Token, value: i32)
+        {
+            transition { _ -> next(second, value == 1) }
+            state next(second: Token, matches: bool) {}
+        }
+        "#,
+    );
+    let machine = rejected
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("route"))
+        .expect("route machine")
+        .symbol;
+    assert!(
+        rejected
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .for_machine(machine)
+            .is_none(),
+        "computed scalar jump arguments remain outside the direct-input slice"
+    );
 }
 
 #[test]

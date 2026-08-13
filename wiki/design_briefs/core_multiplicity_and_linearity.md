@@ -189,10 +189,11 @@ requires transfers plus reverse-order cleanup to partition every source
 frontier; stale types, positions, cleanup, joins, cycles, and reordered custody
 reject. One narrow conditional producer now selects two ordered successors from
 a retained Boolean scalar input and independently reconstructs each arm's
-whole-parameter transfer/cleanup partition. Each arm may forward direct scalar
-inputs into typed successor parameters; terminal edge semantics materialize
-those arguments before cleanup. Computed guards or successor values and wider
-conditional graphs remain fenced. The complete `EdgeCleanupPlan`, contextual
+whole-parameter transfer/cleanup partition. Unconditional jumps and conditional
+arms may forward direct scalar inputs into typed successor parameters; terminal
+edge semantics materialize those arguments before cleanup. Computed guards or
+successor values and wider conditional graphs remain fenced. The complete
+`EdgeCleanupPlan`, contextual
 cleanup contracts, repeated-cycle composition, and the retained whole-edge
 conservation witness remain CML4 work.
 

@@ -571,19 +571,16 @@ fn build_structural_unit_control_machine(
                     .iter()
                     .position(|candidate| candidate.symbol == path.symbol)?;
                 let (target_parameters, target_scalar_parameters) = &signatures[target_index];
-                if !source_scalar_parameters.is_empty() || !target_scalar_parameters.is_empty() {
-                    return None;
-                }
                 let arguments = program.statement_table.expression_handles(*arguments);
-                if arguments.len() != target_parameters.len() {
+                if arguments.len() != target_parameters.len() + target_scalar_parameters.len() {
                     return None;
                 }
                 let mut transferred_sources = BTreeSet::new();
-                let transfers = arguments
+                let transfers = target_parameters
                     .iter()
-                    .zip(target_parameters)
                     .enumerate()
-                    .map(|(target_index, (argument, target))| {
+                    .map(|(target_index, target)| {
+                        let argument = arguments.get(target.position as usize)?;
                         let place = super::canonical_place_from_expression_in_state(
                             program,
                             state.symbol,
@@ -612,6 +609,48 @@ fn build_structural_unit_control_machine(
                         Some(CheckedStructuralControlTransferPlan {
                             source_parameter_index: u32::try_from(source_index).ok()?,
                             target_parameter_index: u32::try_from(target_index).ok()?,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let scalar_arguments = target_scalar_parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(target_index, target)| {
+                        let argument_ordinal = target.source_position;
+                        let expression = facts.values.scalar_expressions.expression_at(
+                            state.symbol,
+                            0,
+                            CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
+                        )?;
+                        let source_index = match expression {
+                            CheckedScalarExpression::Boolean(expression)
+                                if target.primitive_type == PrimitiveType::Bool =>
+                            {
+                                let psi_checked_trees::CheckedBooleanExpression::Parameter {
+                                    position,
+                                } = expression.as_ref()
+                                else {
+                                    return None;
+                                };
+                                *position
+                            }
+                            CheckedScalarExpression::Parameter {
+                                position,
+                                primitive_type,
+                            } if *primitive_type == target.primitive_type => *position,
+                            _ => return None,
+                        };
+                        if source_scalar_parameters
+                            .get(source_index)
+                            .is_none_or(|source| source.primitive_type != target.primitive_type)
+                        {
+                            return None;
+                        }
+                        Some(CheckedStructuralScalarArgumentPlan {
+                            argument_ordinal,
+                            source_scalar_parameter_index: u32::try_from(source_index).ok()?,
+                            target_scalar_parameter_index: u32::try_from(target_index).ok()?,
+                            primitive_type: target.primitive_type,
                         })
                     })
                     .collect::<Option<Vec<_>>>()?;
@@ -645,6 +684,7 @@ fn build_structural_unit_control_machine(
                     statement_ordinal: 0,
                     target_state: path.symbol,
                     transfers,
+                    scalar_arguments,
                     trivial_affine_discard_parameter_positions: cleanup
                         .trivial_affine_discard_parameter_positions
                         .clone(),

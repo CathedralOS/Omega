@@ -188,7 +188,8 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
 /// This deliberately supports only claim-free affine, Unit-returning attached
 /// graphs whose states return naturally, unconditionally transfer whole
 /// parameters, or select two independent whole-parameter successors from one
-/// retained Boolean scalar input while forwarding direct scalar inputs.
+/// retained Boolean scalar input. Ordinary successor edges may also forward
+/// direct primitive scalar inputs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralUnitControlPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
@@ -228,6 +229,7 @@ pub enum CheckedStructuralUnitControlTerminatorPlan {
         statement_ordinal: u32,
         target_state: SymbolHandle,
         transfers: Vec<CheckedStructuralControlTransferPlan>,
+        scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
         trivial_affine_discard_parameter_positions: Vec<u32>,
     },
     Conditional {
