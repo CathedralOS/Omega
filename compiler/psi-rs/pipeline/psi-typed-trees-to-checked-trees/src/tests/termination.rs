@@ -4197,12 +4197,17 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
 #[test]
 fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
     let source = r#"
+    data Bucket {
+        cells: [u64; 2];
+    }
+
     data Main {
         value: u64;
         other_value: u64;
         result: u64;
         cells: [u64; 2];
         matrix: [[u64; 2]; 2];
+        bucket: Bucket;
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -4228,6 +4233,14 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 
     machine recursive_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         recursive_cells(cells)
+    }
+
+    machine return_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        bucket
+    }
+
+    machine recursive_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        recursive_bucket(bucket)
     }
 
     machine Main::return_attached_cells(&mut self) -> &mut [u64; 2] {
@@ -4273,6 +4286,35 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
     ) -> &mut [u64; 2] {
         recursive_cells(cells)[make_index()] = 1;
         cells
+    }
+
+    machine return_after_projected_helper_index_target<'bucket, 'result, 'value>(
+        bucket: &'bucket mut Bucket,
+        result: &'result mut u64,
+        value: &'value mut u64
+    ) -> &'result mut u64 {
+        return_bucket(bucket).cells[
+            identity_index(write_index(value))
+        ] = 1;
+        result
+    }
+
+    machine return_after_deep_projected_helper_index_target<'bucket, 'result>(
+        bucket: &'bucket mut Bucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        return_bucket(bucket).cells[
+            identity_index(identity_index(make_index()))
+        ] = 1;
+        result
+    }
+
+    machine return_after_recursive_projected_helper_index_target<'bucket, 'result>(
+        bucket: &'bucket mut Bucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        recursive_bucket(bucket).cells[make_index()] = 1;
+        result
     }
 
     machine Main::return_after_attached_helper_index_target(
@@ -4366,6 +4408,31 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias[0] = 2;
     }
 
+    machine Main::projected_helper_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_projected_helper_index_target(
+            &mut self.bucket,
+            &mut self.result,
+            &mut self.value
+        );
+        alias = 2;
+    }
+
+    machine Main::deep_projected_helper_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_deep_projected_helper_index_target(
+            &mut self.bucket,
+            &mut self.result
+        );
+        alias = 2;
+    }
+
+    machine Main::recursive_projected_helper_index_target_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_projected_helper_index_target(
+            &mut self.bucket,
+            &mut self.result
+        );
+        alias = 2;
+    }
+
     machine Main::attached_helper_index_target_result(&mut self) {
         let alias: &mut u64 = self.return_after_attached_helper_index_target();
         alias = 2;
@@ -4441,6 +4508,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::projected_helper_index_target_result",
+            vec!["self.bucket.cells", "self.result", "self.value"],
+        ),
+        (
             "Main::attached_helper_index_target_result",
             vec!["self.cells", "self.result", "self.value"],
         ),
@@ -4479,6 +4550,8 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::binding_reborrow_index_target_result",
         "Main::recursive_index_target_result",
         "Main::recursive_helper_index_target_result",
+        "Main::deep_projected_helper_index_target_result",
+        "Main::recursive_projected_helper_index_target_result",
         "Main::recursive_attached_index_target_result",
         "Main::deep_repeated_index_target_result",
     ] {
