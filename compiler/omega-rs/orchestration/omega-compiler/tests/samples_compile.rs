@@ -34,9 +34,8 @@
 //!  * `rendering_samples_compile_from_authored_program_entry_bindings` — the
 //!    migrated rendering cohort has the same exact hosted-root guarantees.
 //!  * `collection_samples_compile_from_authored_program_entry_bindings` — the
-//!    eleven deployable collection samples have the same guarantees; two
-//!    recursive slice-value fixtures remain unrooted with documented lowering
-//!    gaps.
+//!    complete collection cohort has the same guarantees, including recursive
+//!    slice-value folds with cast terminals.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -113,6 +112,7 @@ const EXPLICIT_ENTRY_GAME_SAMPLES: &[&str] = &[
 ];
 const EXPLICIT_ENTRY_TEXT_SAMPLES: &[&str] = &[
     "caesar_cipher",
+    "fletcher_checksum",
     "format_number",
     "luhn_checksum",
     "parse_int",
@@ -147,6 +147,8 @@ const EXPLICIT_ENTRY_COLLECTION_SAMPLES: &[&str] = &[
     "inventory_system",
     "matrix_multiply",
     "slice_maximum",
+    "slice_accum_probe",
+    "subslice_sum",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -877,14 +879,14 @@ fn samples_with_documented_exit_run_correctly() {
     }
 
     assert!(
-        checked > 0,
-        "expected at least one selected sample with a documented `Expected exit:` annotation"
-    );
-    assert!(
         failures.is_empty(),
         "{} samples ran with the wrong exit (a runtime miscompile that still \
          compiles):\n{}",
         failures.len(),
         failures.join("\n")
+    );
+    assert!(
+        checked > 0,
+        "expected at least one selected sample with a documented `Expected exit:` annotation"
     );
 }

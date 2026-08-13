@@ -6,7 +6,7 @@ use omega_target_operations::SelectedInstructionKind;
 use psi_arena::Arena;
 
 /// Every dispatch-loop edge that carries a `CallResultReturn` must have a
-/// SELECTED return-write (integer/copy/binary) at its clone-terminal state --
+/// SELECTED return-write (integer/copy/binary/conversion) at its clone-terminal state --
 /// otherwise the caller's result slot silently keeps its prior/ZII value (the
 /// exact silent-wrong class the return-write matrix has been closing: field
 /// bindings, binary terminals (integer AND float), transition args). A
@@ -158,6 +158,20 @@ fn instruction_write_target(kind: &SelectedInstructionKind) -> Option<(bool, usi
             Some(target_offset) => (target.region, target_offset, *byte_size),
             None => return None,
         },
+        SelectedInstructionKind::WritePlaceConvert {
+            target,
+            target_byte_size,
+            ..
+        } => match target.const_offset() {
+            Some(target_offset) => (target.region, target_offset, *target_byte_size),
+            None => return None,
+        },
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region,
+            target_offset,
+            target_byte_size,
+            ..
+        } => (*target_region, *target_offset, *target_byte_size),
         _ => return None,
     };
     Some((

@@ -1,0 +1,37 @@
+// A value call to a looping machine must convert its terminal accumulator into
+// the caller's result slot before returning from the dispatched callee.
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Counter {}
+
+data Main {
+    console: Console;
+    values: [i32; 5];
+    counter: Counter;
+}
+
+machine Counter::count(&mut self, values: &[i32], acc: u8 in Wrapping) -> i32 {
+    transition values.len > 0 {
+        true -> count(values[1..], acc + 1)
+        false -> (acc as i32)
+    }
+}
+
+machine Main::main(&mut self) {
+    let view: &[i32] = self.values.as_slice();
+    let count: i32 = self.counter.count(view, 0);
+    transition count == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
