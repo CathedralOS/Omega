@@ -893,7 +893,7 @@ fn build_structural_unit_control_machine(
             )
         })
         .count()
-        > 1
+        > 2
     {
         return None;
     }

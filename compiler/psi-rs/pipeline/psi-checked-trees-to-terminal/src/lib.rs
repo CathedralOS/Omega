@@ -2283,10 +2283,10 @@ fn lower_structural_unit_control_machine(
             )
         })
         .count()
-        > 1
+        > 2
     {
         return unsupported(
-            "structural Unit control supports at most one checked conditional state",
+            "structural Unit control supports at most two checked conditional states",
         );
     }
     for state in &plan.states {
@@ -9120,6 +9120,90 @@ mod tests {
         );
     }
 
+    fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
+        install_structural_unit_conditional_fixture(checked);
+        let plan = &mut checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0];
+        let nested_state = plan.states[1].state;
+        let affine_parameter = |position| psi_checked_trees::CheckedUnitStructuralParameterPlan {
+            position,
+            is_self: false,
+            type_identity: "example::Acknowledgement".to_owned(),
+            multiplicity: Multiplicity::Affine,
+            qualifications: Vec::new(),
+        };
+        let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_true, .. } =
+            &mut plan.states[0].terminator
+        else {
+            unreachable!()
+        };
+        when_true.scalar_arguments = vec![
+            psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                argument_ordinal: 1,
+                source_scalar_parameter_index: 0,
+                target_scalar_parameter_index: 0,
+                primitive_type: PrimitiveType::Bool,
+            },
+            psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                argument_ordinal: 2,
+                source_scalar_parameter_index: 1,
+                target_scalar_parameter_index: 1,
+                primitive_type: PrimitiveType::I32,
+            },
+        ];
+        let nested_true = SymbolHandle::from_arena_index(14);
+        let nested_false = SymbolHandle::from_arena_index(15);
+        plan.states[1].scalar_parameters = vec![
+            psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 1,
+                primitive_type: PrimitiveType::Bool,
+            },
+            psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 2,
+                primitive_type: PrimitiveType::I32,
+            },
+        ];
+        let nested_successor = |statement_ordinal, target_state| {
+            psi_checked_trees::CheckedStructuralControlSuccessorPlan {
+                statement_ordinal,
+                target_state,
+                transfers: vec![psi_checked_trees::CheckedStructuralControlTransferPlan {
+                    source_parameter_index: 0,
+                    target_parameter_index: 0,
+                }],
+                scalar_arguments: vec![psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                    argument_ordinal: 1,
+                    source_scalar_parameter_index: 1,
+                    target_scalar_parameter_index: 0,
+                    primitive_type: PrimitiveType::I32,
+                }],
+                trivial_affine_discard_parameter_positions: Vec::new(),
+            }
+        };
+        plan.states[1].terminator = CheckedStructuralUnitControlTerminatorPlan::Conditional {
+            guard_scalar_parameter_index: 0,
+            when_true: nested_successor(0, nested_true),
+            when_false: nested_successor(1, nested_false),
+        };
+        let leaf = |state| psi_checked_trees::CheckedStructuralUnitControlStatePlan {
+            state,
+            structural_parameters: vec![affine_parameter(0)],
+            scalar_parameters: vec![psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 1,
+                primitive_type: PrimitiveType::I32,
+            }],
+            terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                trivial_affine_discard_parameter_positions: vec![0],
+            },
+        };
+        plan.states.push(leaf(nested_true));
+        plan.states.push(leaf(nested_false));
+        assert_eq!(plan.states[1].state, nested_state);
+    }
+
     fn install_structural_scalar_return_fixture(checked: &mut CheckedTrees) {
         let root = SymbolHandle::from_arena_index(1);
         let entry = SymbolHandle::from_arena_index(11);
@@ -9514,13 +9598,107 @@ mod tests {
             .terminal_structural_unit_controls
             .machines[0]
             .states[2]
+            .terminator = second_conditional.clone();
+        checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .machines[0]
+            .states[3]
             .terminator = second_conditional;
         assert!(matches!(
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
-                "structural Unit control supports at most one checked conditional state"
+                "structural Unit control supports at most two checked conditional states"
             ))
         ));
+    }
+
+    #[test]
+    fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_unit_two_conditional_fixture(&mut checked);
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("two checked structural conditionals should lower");
+        let [machine] = lowered.semantic_module.machines.as_slice() else {
+            panic!("two-decision structural tree lowers one attached machine")
+        };
+        assert_eq!(machine.blocks.len(), 5);
+        assert!(matches!(
+            &machine.blocks[0].terminator,
+            Terminator::Conditional {
+                condition,
+                when_true: SuccessorEdge {
+                    target: true_target,
+                    arguments: true_arguments,
+                    trivial_affine_discards: true_discards,
+                    ..
+                },
+                when_false: SuccessorEdge {
+                    target: false_target,
+                    arguments: false_arguments,
+                    trivial_affine_discards: false_discards,
+                    ..
+                },
+            } if *condition == value_id(1)
+                && *true_target == block_id(2)
+                && true_arguments == &[value_id(1), value_id(2)]
+                && true_discards == &[place_id(2)]
+                && *false_target == block_id(3)
+                && false_arguments == &[value_id(2)]
+                && false_discards == &[place_id(1)]
+        ));
+        assert!(matches!(
+            machine.blocks[1].parameters.as_slice(),
+            [
+                ValueDeclaration {
+                    id: guard,
+                    scalar_type: ScalarType::Boolean,
+                },
+                ValueDeclaration {
+                    id: value,
+                    scalar_type: ScalarType::Integer(_),
+                },
+            ] if *guard == value_id(3) && *value == value_id(4)
+        ));
+        assert!(matches!(
+            &machine.blocks[1].terminator,
+            Terminator::Conditional {
+                condition,
+                when_true: SuccessorEdge {
+                    target: true_target,
+                    arguments: true_arguments,
+                    trivial_affine_discards: true_discards,
+                    ..
+                },
+                when_false: SuccessorEdge {
+                    target: false_target,
+                    arguments: false_arguments,
+                    trivial_affine_discards: false_discards,
+                    ..
+                },
+            } if *condition == value_id(3)
+                && *true_target == block_id(4)
+                && true_arguments == &[value_id(4)]
+                && true_discards.is_empty()
+                && *false_target == block_id(5)
+                && false_arguments == &[value_id(4)]
+                && false_discards.is_empty()
+        ));
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("two-decision structural maps should verify independently");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("two-decision structural tree should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("two-decision structural tree should decode canonically"),
+            lowered.semantic_module
+        );
     }
 
     #[test]
