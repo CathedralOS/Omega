@@ -1327,7 +1327,8 @@ fn is_branch_free_structural_integer_expression(
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
         }
-        CheckedScalarExpression::Boolean(_) => false,
+        CheckedScalarExpression::StructuralParameterField { .. }
+        | CheckedScalarExpression::Boolean(_) => false,
     }
 }
 

@@ -159,6 +159,14 @@ pub enum CheckedScalarExpression {
         position: usize,
         primitive_type: psi_typed_trees::types::PrimitiveType,
     },
+    /// Nonempty path to a relevant primitive field below one structural entry
+    /// parameter. This form is retained only for structural crash predicates;
+    /// ordinary scalar execution plans reject it.
+    StructuralParameterField {
+        parameter_position: u32,
+        path: Vec<String>,
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+    },
     IntegerLiteral {
         literal: psi_numerics::literals::IntegerLiteral,
     },

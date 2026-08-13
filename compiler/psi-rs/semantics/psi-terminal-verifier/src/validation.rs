@@ -3292,6 +3292,86 @@ fn validate_boolean_field_terms(
                     });
                 }
             }
+            ScalarTerm::IntegerField {
+                root,
+                path,
+                scalar_type,
+            } => {
+                let mut structural_type = machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *root)
+                    .map(|parameter| parameter.structural_type);
+                let mut valid = !path.is_empty();
+                for (index, segment) in path.iter().enumerate() {
+                    let Some(current_type) = structural_type else {
+                        valid = false;
+                        break;
+                    };
+                    let is_last = index + 1 == path.len();
+                    match segment {
+                        CanonicalStructuralPathSegment::Field(field_id) => {
+                            let field = module
+                                .structural_types
+                                .iter()
+                                .find(|declaration| declaration.id == current_type)
+                                .and_then(|declaration| match &declaration.shape {
+                                    StructuralTypeShape::Record { fields } => {
+                                        fields.iter().find(|candidate| candidate.id == *field_id)
+                                    }
+                                    StructuralTypeShape::FixedArray { .. } => None,
+                                });
+                            let Some(field) = field.filter(|field| !field.relevance.is_erased())
+                            else {
+                                valid = false;
+                                break;
+                            };
+                            match (&field.field_type, is_last) {
+                                (StructuralFieldType::Structural(next), false) => {
+                                    structural_type = Some(*next);
+                                }
+                                (
+                                    StructuralFieldType::Scalar(ScalarType::Integer(actual)),
+                                    true,
+                                ) if actual == scalar_type => {
+                                    structural_type = None;
+                                }
+                                _ => {
+                                    valid = false;
+                                    break;
+                                }
+                            }
+                        }
+                        CanonicalStructuralPathSegment::FixedIndex(fixed_index) => {
+                            let element = module
+                                .structural_types
+                                .iter()
+                                .find(|declaration| declaration.id == current_type)
+                                .and_then(|declaration| match declaration.shape {
+                                    StructuralTypeShape::FixedArray { element, length }
+                                        if *fixed_index < length =>
+                                    {
+                                        Some(element)
+                                    }
+                                    _ => None,
+                                });
+                            let Some(element) = element.filter(|_| !is_last) else {
+                                valid = false;
+                                break;
+                            };
+                            structural_type = Some(element);
+                        }
+                    }
+                }
+                if !valid {
+                    return Err(ModuleError::InvalidIntegerFieldTerm {
+                        machine: machine.id,
+                        root: *root,
+                        path: path.clone(),
+                        scalar_type: *scalar_type,
+                    });
+                }
+            }
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }
@@ -4006,7 +4086,10 @@ fn validate_term_scope(
         | ScalarTerm::IntegerExactCast { operand, .. } => {
             validate_term_scope(operand, allowed, contract, clause)?;
         }
-        ScalarTerm::BooleanField { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        ScalarTerm::BooleanField { .. }
+        | ScalarTerm::IntegerField { .. }
+        | ScalarTerm::Boolean(_)
+        | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
 }
@@ -5530,7 +5613,7 @@ fn proposition_contains_content(proposition: &Proposition) -> bool {
 fn proposition_boolean_field_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
     fn collect_term(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
         match term {
-            ScalarTerm::BooleanField { root, .. } => {
+            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
                 roots.insert(*root);
             }
             ScalarTerm::BooleanNot { operand }
@@ -6131,6 +6214,12 @@ pub enum ModuleError {
         machine: MachineId,
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
+    },
+    InvalidIntegerFieldTerm {
+        machine: MachineId,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: psi_core::IntegerType,
     },
     NonCanonicalCrashRoutes(MachineId),
     EmptyCrashRouteBucket {

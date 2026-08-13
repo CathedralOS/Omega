@@ -8617,6 +8617,9 @@ fn lower_checked_scalar_expression(
             position: *position,
             scalar_type: terminal_scalar_type(*primitive_type)?,
         }),
+        CheckedScalarExpression::StructuralParameterField { .. } => unsupported(
+            "structural parameter fields are retained only inside structural crash predicates",
+        ),
         CheckedScalarExpression::IntegerLiteral { literal } => {
             let scalar_type = integer_landing_scalar_type(literal)?;
             Ok(LoweredDirectExpression::IntegerLiteral {
@@ -10125,6 +10128,7 @@ fn lower_structural_crash_route_buckets(
     fn lower_member_term(
         parameter_position: u32,
         path: &[String],
+        expected: ScalarType,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<ScalarTerm, LoweringError> {
@@ -10162,18 +10166,20 @@ fn lower_structural_crash_route_buckets(
                 (StructuralFieldType::Structural(next), false) => {
                     structural_type = *next;
                 }
-                (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {}
+                (StructuralFieldType::Scalar(actual), true) if *actual == expected => {}
                 _ => {
                     return unsupported(
-                        "structural crash route path does not end at a Boolean field",
+                        "structural crash route path does not end at the retained scalar type",
                     );
                 }
             }
         }
-        Ok(ScalarTerm::boolean_field_path(
-            parameter.place,
-            terminal_path,
-        ))
+        Ok(match expected {
+            ScalarType::Boolean => ScalarTerm::boolean_field_path(parameter.place, terminal_path),
+            ScalarType::Integer(integer_type) => {
+                ScalarTerm::integer_field_path(parameter.place, terminal_path, integer_type)
+            }
+        })
     }
 
     fn lower_term(
@@ -10181,12 +10187,59 @@ fn lower_structural_crash_route_buckets(
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<ScalarTerm, LoweringError> {
+        fn lower_integer_term(
+            expression: &CheckedScalarExpression,
+            parameters: &[StructuralParameterDeclaration],
+            structural_types: &[StructuralTypeDeclaration],
+        ) -> Result<ScalarTerm, LoweringError> {
+            match expression {
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position,
+                    path,
+                    primitive_type,
+                } => {
+                    let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                    else {
+                        return unsupported(
+                            "structural crash integer member has a non-integer type",
+                        );
+                    };
+                    lower_member_term(
+                        *parameter_position,
+                        path,
+                        ScalarType::Integer(integer_type),
+                        parameters,
+                        structural_types,
+                    )
+                }
+                CheckedScalarExpression::IntegerLiteral { literal } => {
+                    let scalar_type = integer_landing_scalar_type(literal)?;
+                    let ScalarType::Integer(integer_type) = scalar_type else {
+                        return unsupported(
+                            "structural crash integer literal is not fixed-integer",
+                        );
+                    };
+                    ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
+                        .map_err(LoweringError::InvalidCrashPredicate)
+                }
+                _ => unsupported(
+                    "structural crash integer predicate contains an unsupported operand",
+                ),
+            }
+        }
+
         match expression {
             CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
-            } => lower_member_term(*parameter_position, path, parameters, structural_types),
+            } => lower_member_term(
+                *parameter_position,
+                path,
+                ScalarType::Boolean,
+                parameters,
+                structural_types,
+            ),
             CheckedBooleanExpression::Not(operand) => {
                 ScalarTerm::boolean_not(lower_term(operand, parameters, structural_types)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
@@ -10196,9 +10249,27 @@ fn lower_structural_crash_route_buckets(
                 lower_term(right, parameters, structural_types)?,
             )
             .map_err(LoweringError::InvalidCrashPredicate),
+            CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+                let left = lower_integer_term(left, parameters, structural_types)?;
+                let right = lower_integer_term(right, parameters, structural_types)?;
+                let ScalarType::Integer(integer_type) = left.scalar_type() else {
+                    return unsupported("structural crash comparison operand is not an integer");
+                };
+                match kind {
+                    CheckedIntegerComparisonKind::Equal => {
+                        ScalarTerm::integer_equal(integer_type, left, right)
+                    }
+                    CheckedIntegerComparisonKind::LessThan => {
+                        ScalarTerm::integer_less_than(integer_type, left, right)
+                    }
+                    CheckedIntegerComparisonKind::LessOrEqual => {
+                        ScalarTerm::integer_less_or_equal(integer_type, left, right)
+                    }
+                }
+                .map_err(LoweringError::InvalidCrashPredicate)
+            }
             CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
-            | CheckedBooleanExpression::IntegerComparison { .. }
             | CheckedBooleanExpression::And { .. }
             | CheckedBooleanExpression::Or { .. } => {
                 unsupported("structural crash route contains an unsupported Boolean term")
@@ -10212,10 +10283,32 @@ fn lower_structural_crash_route_buckets(
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<Proposition, LoweringError> {
         if let CheckedBooleanExpression::And { left, right } = expression {
-            return Ok(Proposition::Conjunction(vec![
+            let conjuncts = vec![
                 lower_proposition(left, parameters, structural_types)?,
                 lower_proposition(right, parameters, structural_types)?,
-            ]));
+            ];
+            let mut keyed = conjuncts
+                .into_iter()
+                .map(|conjunct| {
+                    psi_terminal_codec::canonical_proposition_order_key(&conjunct)
+                        .map(|key| (key, conjunct))
+                        .map_err(|_| {
+                            LoweringError::Unsupported(
+                                "structural crash conjunction is not canonically encodable",
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            keyed.sort_by(|left, right| left.0.cmp(&right.0));
+            keyed.dedup_by(|left, right| left.0 == right.0);
+            if keyed.len() != 2 {
+                return unsupported(
+                    "structural crash conjunction must retain two distinct predicates",
+                );
+            }
+            return Ok(Proposition::Conjunction(
+                keyed.into_iter().map(|(_, conjunct)| conjunct).collect(),
+            ));
         }
         if matches!(expression, CheckedBooleanExpression::Or { .. }) {
             return unsupported(
@@ -10254,6 +10347,7 @@ fn lower_structural_crash_route_buckets(
                                 lower_member_term(
                                     parameter_position,
                                     &path,
+                                    ScalarType::Boolean,
                                     parameters,
                                     structural_types,
                                 )?,
@@ -10287,7 +10381,8 @@ fn substitute_structural_crash_route_roots(
         substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) -> Result<(), LoweringError> {
         match term {
-            ScalarTerm::BooleanField { root, path } => {
+            ScalarTerm::BooleanField { root, path }
+            | ScalarTerm::IntegerField { root, path, .. } => {
                 let Some((replacement, prefix)) = substitutions.get(root) else {
                     return Ok(());
                 };
@@ -10300,7 +10395,10 @@ fn substitute_structural_crash_route_roots(
                 }
             }
             ScalarTerm::BooleanNot { operand } => substitute_term(operand, substitutions)?,
-            ScalarTerm::BooleanEqual { left, right } => {
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. } => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
@@ -10319,7 +10417,7 @@ fn substitute_structural_crash_route_roots(
                 substitute_term(right, substitutions)?;
             }
             Proposition::Conjunction(conjuncts) => {
-                for conjunct in conjuncts {
+                for conjunct in conjuncts.iter_mut() {
                     substitute_proposition(conjunct, substitutions)?;
                 }
             }

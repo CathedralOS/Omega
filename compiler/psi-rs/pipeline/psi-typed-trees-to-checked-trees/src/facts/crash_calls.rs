@@ -388,7 +388,8 @@ fn substitute_checked_scalar_expression(
             (crate::values::scalar_expression_type(&substituted) == Some(*primitive_type))
                 .then_some(substituted)?
         }
-        CheckedScalarExpression::Local { .. } => return None,
+        CheckedScalarExpression::Local { .. }
+        | CheckedScalarExpression::StructuralParameterField { .. } => return None,
         CheckedScalarExpression::IntegerLiteral { literal } => {
             CheckedScalarExpression::IntegerLiteral {
                 literal: literal.clone(),

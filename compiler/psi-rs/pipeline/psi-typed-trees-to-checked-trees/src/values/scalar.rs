@@ -362,34 +362,60 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             }
         }
 
-        fn path_ends_in_boolean(
+        fn path_primitive_type(
             program: &TypedTrees,
             parameters: &[StateParameter],
             parameter_position: u32,
             path: &[String],
-        ) -> bool {
+        ) -> Option<PrimitiveType> {
             let Some(parameter) = usize::try_from(parameter_position)
                 .ok()
                 .and_then(|position| parameters.get(position))
             else {
-                return false;
+                return None;
             };
-            let Some(leaf) = path
+            let leaf = path
                 .iter()
                 .try_fold(parameter.type_reference, |receiver, field| {
                     field_type(program, receiver, field)
-                })
+                })?;
+            program.primitive_type_reference(leaf)
+        }
+
+        fn lower_structural_integer_expression(
+            program: &TypedTrees,
+            parameters: &[StateParameter],
+            expression: ExpressionHandle,
+        ) -> Option<CheckedScalarExpression> {
+            let mut path = Vec::new();
+            if let Some(parameter_position) =
+                structural_parameter_field_path(program, parameters, expression, &mut path)
+                && !path.is_empty()
+                && let Some(primitive_type) =
+                    path_primitive_type(program, parameters, parameter_position, &path)
+                && is_integer(primitive_type)
+            {
+                return Some(CheckedScalarExpression::StructuralParameterField {
+                    parameter_position,
+                    path,
+                    primitive_type,
+                });
+            }
+            let ExpressionNode::Integer(literal) = program.expression_table.expression(expression)
             else {
-                return false;
+                return None;
             };
-            program.primitive_type_reference(leaf) == Some(PrimitiveType::Bool)
+            Some(CheckedScalarExpression::IntegerLiteral {
+                literal: literal.clone(),
+            })
         }
 
         let mut path = Vec::new();
         if let Some(parameter_position) =
             structural_parameter_field_path(program, parameters, expression, &mut path)
             && !path.is_empty()
-            && path_ends_in_boolean(program, parameters, parameter_position, &path)
+            && path_primitive_type(program, parameters, parameter_position, &path)
+                == Some(PrimitiveType::Bool)
         {
             return Some(CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
@@ -415,9 +441,57 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             ExpressionNode::Binary(binary)
                 if matches!(
                     binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                    BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                        | BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
                 ) && operator_is_builtin(operators, expression) =>
             {
+                let integer_operands = (|| {
+                    let left =
+                        lower_structural_integer_expression(program, parameters, binary.left)?;
+                    let right =
+                        lower_structural_integer_expression(program, parameters, binary.right)?;
+                    let left_type = scalar_expression_type(&left)?;
+                    (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
+                        .then_some((left, right))
+                })();
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) || integer_operands.is_some()
+                {
+                    let (mut left, mut right) = integer_operands?;
+                    let (kind, negated) = match binary.operator {
+                        BinaryOperator::Equal => (CheckedIntegerComparisonKind::Equal, false),
+                        BinaryOperator::NotEqual => (CheckedIntegerComparisonKind::Equal, true),
+                        BinaryOperator::Less => (CheckedIntegerComparisonKind::LessThan, false),
+                        BinaryOperator::LessOrEqual => {
+                            (CheckedIntegerComparisonKind::LessOrEqual, false)
+                        }
+                        BinaryOperator::Greater => {
+                            std::mem::swap(&mut left, &mut right);
+                            (CheckedIntegerComparisonKind::LessThan, false)
+                        }
+                        BinaryOperator::GreaterOrEqual => {
+                            std::mem::swap(&mut left, &mut right);
+                            (CheckedIntegerComparisonKind::LessOrEqual, false)
+                        }
+                        _ => return None,
+                    };
+                    let comparison = CheckedBooleanExpression::IntegerComparison {
+                        kind,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    };
+                    return Some(if negated {
+                        CheckedBooleanExpression::Not(Box::new(comparison))
+                    } else {
+                        comparison
+                    });
+                }
                 let equality = CheckedBooleanExpression::Equal {
                     left: Box::new(lower_structural_boolean_expression(
                         program,
@@ -1101,6 +1175,7 @@ pub(crate) fn scalar_expression_type(
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::Local { primitive_type, .. }
+        | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
         | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
         | CheckedScalarExpression::IntegerWiden { primitive_type, .. }

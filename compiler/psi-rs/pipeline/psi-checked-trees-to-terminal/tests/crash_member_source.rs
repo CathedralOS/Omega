@@ -1,4 +1,7 @@
-use psi_core::{CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId};
+use psi_core::{
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, Proposition, ScalarTerm,
+    StructuralFieldId,
+};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -115,6 +118,23 @@ const COMPOSED_MEMBER_SOURCE: &str = r#"
         envelope.pair.left.active == !envelope.pair.right.active && envelope.pair.armed
     {
         Helper::inspect(envelope.pair);
+    }
+"#;
+
+const INTEGER_MEMBER_SOURCE: &str = r#"
+    data Metrics { current: u64; limit: u64; }
+    data Helper {}
+    machine Helper::inspect(metrics: Metrics)
+    crashes Abort
+        metrics.limit <= metrics.current && metrics.current != metrics.limit
+    {}
+
+    data Root {}
+    machine Root::enter(metrics: Metrics)
+    crashes Abort
+        metrics.limit <= metrics.current && metrics.current != metrics.limit
+    {
+        Helper::inspect(metrics);
     }
 "#;
 
@@ -641,7 +661,14 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
     let Proposition::Conjunction(conjuncts) = predicate.proposition() else {
         unreachable!()
     };
-    let Proposition::Equal(_, ScalarTerm::BooleanField { path: armed, .. }) = &conjuncts[1] else {
+    let Some(Proposition::Equal(_, ScalarTerm::BooleanField { path: armed, .. })) =
+        conjuncts.iter().find(|conjunct| {
+            matches!(
+                conjunct,
+                Proposition::Equal(_, ScalarTerm::BooleanField { .. })
+            )
+        })
+    else {
         unreachable!()
     };
     let armed = armed.clone();
@@ -649,7 +676,14 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
     let Proposition::Conjunction(conjuncts) = &mut proposition else {
         unreachable!()
     };
-    let Proposition::Equal(_, ScalarTerm::BooleanEqual { left, .. }) = &mut conjuncts[0] else {
+    let Some(Proposition::Equal(_, ScalarTerm::BooleanEqual { left, .. })) =
+        conjuncts.iter_mut().find(|conjunct| {
+            matches!(
+                conjunct,
+                Proposition::Equal(_, ScalarTerm::BooleanEqual { .. })
+            )
+        })
+    else {
         unreachable!()
     };
     let ScalarTerm::BooleanField { path, .. } = left.as_mut() else {
@@ -664,6 +698,208 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected composed-member validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn integer_member_comparisons_rebase_and_validate_exact_leaf_types_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    fn paths(
+        proposition: &Proposition,
+    ) -> (
+        &[CanonicalStructuralPathSegment],
+        &[CanonicalStructuralPathSegment],
+        &[CanonicalStructuralPathSegment],
+        IntegerType,
+    ) {
+        let Proposition::Conjunction(conjuncts) = proposition else {
+            panic!("integer member route is one conjunction")
+        };
+        let [nonzero, ordered] = conjuncts.as_slice() else {
+            panic!("integer route retains ordering then inequality")
+        };
+        let Proposition::Equal(
+            ScalarTerm::Boolean(true),
+            ScalarTerm::IntegerLessOrEqual {
+                scalar_type,
+                left,
+                right,
+            },
+        ) = ordered
+        else {
+            panic!("first conjunct retains the ordered member comparison")
+        };
+        let ScalarTerm::IntegerField {
+            path: limit_path,
+            scalar_type: limit_type,
+            ..
+        } = left.as_ref()
+        else {
+            panic!("ordered left operand is the limit member")
+        };
+        let ScalarTerm::IntegerField {
+            path: current_path,
+            scalar_type: current_type,
+            ..
+        } = right.as_ref()
+        else {
+            panic!("ordered right operand is the current member")
+        };
+        assert_eq!(limit_type, scalar_type);
+        assert_eq!(current_type, scalar_type);
+
+        let Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::BooleanNot { operand }) =
+            nonzero
+        else {
+            panic!("second conjunct retains integer inequality as negated equality")
+        };
+        let ScalarTerm::IntegerEqual { left, right, .. } = operand.as_ref() else {
+            panic!("inequality retains one integer equality term")
+        };
+        let ScalarTerm::IntegerField {
+            path: nonzero_path, ..
+        } = left.as_ref()
+        else {
+            panic!("inequality left operand is the current member")
+        };
+        assert!(matches!(right.as_ref(), ScalarTerm::IntegerField { .. }));
+        (limit_path, current_path, nonzero_path, *scalar_type)
+    }
+
+    let tokens = Lexer::new(INTEGER_MEMBER_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("integer member crash comparisons lower");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one integer member route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one integer member route")
+    };
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("integer member route survives the projected call")
+    };
+    assert_eq!(continuation, root_route);
+
+    let (root_limit, root_current, root_nonzero, integer_type) = paths(root_route.proposition());
+    let (helper_limit, helper_current, helper_nonzero, helper_type) =
+        paths(helper_route.proposition());
+    assert_eq!(
+        integer_type,
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+    );
+    assert_eq!(integer_type, helper_type);
+    assert_eq!(root_limit, helper_limit);
+    assert_eq!(root_current, helper_current);
+    assert_eq!(root_nonzero, helper_nonzero);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently checks every integer member path and leaf type");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("integer member route has an acyclic fixed-fuel certificate");
+    assert_eq!(fixed.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let argument = TerminalStructuralValue {
+        opaque_identity: 19,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("integer member contract remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut mistyped = lowered.semantic_module.clone();
+    let CrashRouteGuard::Predicate(predicate) =
+        &mut mistyped.machines[1].contract.crash_routes[0].alternatives[0]
+    else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Conjunction(conjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(Proposition::Equal(
+        _,
+        ScalarTerm::IntegerLessOrEqual {
+            scalar_type,
+            left,
+            right,
+        },
+    )) = conjuncts.iter_mut().find(|conjunct| {
+        matches!(
+            conjunct,
+            Proposition::Equal(_, ScalarTerm::IntegerLessOrEqual { .. })
+        )
+    })
+    else {
+        unreachable!()
+    };
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    *scalar_type = u32_type;
+    for operand in [left, right] {
+        let ScalarTerm::IntegerField { scalar_type, .. } = operand.as_mut() else {
+            unreachable!()
+        };
+        *scalar_type = u32_type;
+    }
+    *predicate = CrashPredicateTerm::new(proposition);
+    let invalid_result = psi_terminal_verifier::validate_module(&mistyped);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected integer-member validation result: {invalid_result:?}"
     );
 }
 
