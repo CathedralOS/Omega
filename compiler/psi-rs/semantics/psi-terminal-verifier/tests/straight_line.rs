@@ -2448,7 +2448,9 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     ));
 
     let mut nonempty = module;
-    let StructuralTypeShape::Record { fields } = &mut nonempty.structural_types[1].shape;
+    let StructuralTypeShape::Record { fields } = &mut nonempty.structural_types[1].shape else {
+        panic!("expected record shape")
+    };
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).unwrap(),
         identity: "marker".into(),
@@ -2905,7 +2907,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         entry_claims: vec![psi_terminal::EntryClaim {
             claim,
             input: input_root,
-            field_path: Vec::new(),
+            path: Vec::new(),
         }],
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),

@@ -179,16 +179,24 @@ Remaining:
   on each accepted carrier. Unsupported claims, cleanup, calls, topology, or
   computation fail closed rather than falling back to source trees.
 
+  Literal fixed-array custody now retains complete dense sibling claims, typed
+  index paths, boundary-only projected arguments, exact receipts, interpreter
+  effects, and recursive Omega layout/ABI placement through all five target
+  plans. Boundary provider-settlement paths survive emitted machine records and
+  canonical installation. Dynamic/nested indexing, projected ordinary calls,
+  content-bearing splits, and durable internal-Unit-call custody rows remain
+  later work.
+
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including one additional claim-free
   affine parameter and one established empty-record affine local discarded in
-  canonical reverse order with no emitted cleanup code. Next add indexed
-  aggregates, wider affine-local scopes, nominal/partial-value cleanup,
+  canonical reverse order with no emitted cleanup code. Next add wider
+  affine-local scopes, nominal/partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,
-  projections, and incomplete evidence remain fenced until their entire slice
-  is verifier-owned.
+  wider projections, and incomplete evidence remain fenced until their entire
+  slice is verifier-owned.
   Ranked tail-recursive call graphs remain rejected until tail position and
   ranking evidence are terminal and verifier-owned. Retire checked/source-tree
   consumers with each slice; nothing below terminal Psi may depend on

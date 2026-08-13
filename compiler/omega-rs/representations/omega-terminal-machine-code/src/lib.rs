@@ -13,8 +13,9 @@ use psi_core::{
     ServiceId,
 };
 use psi_terminal::{
-    CompletionReceipt, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
+    CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,7 +110,10 @@ pub struct TerminalBoundarySettlementRecord {
     pub boundary: BoundaryMachineId,
     pub provider_execution: TerminalProviderExecutionRecord,
     pub realization: TerminalMetadataOnlyPortRealization,
-    pub argument_places: Vec<PlaceId>,
+    /// Exact typed Psi custody arguments, including structural projections.
+    /// These are provider-settlement evidence and do not describe an internal
+    /// Unit-call ABI.
+    pub arguments: Vec<StructuralArgument>,
     pub completion_receipts: Vec<CompletionReceipt>,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.

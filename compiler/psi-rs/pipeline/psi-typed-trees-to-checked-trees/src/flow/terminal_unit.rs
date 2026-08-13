@@ -15,7 +15,8 @@ use psi_checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
 };
 use psi_language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
@@ -266,7 +267,10 @@ fn build_structural_return_machine(
             }
             let type_identity = shapes.add_type(local.type_reference, &binders, &[])?;
             let shape = shapes.types.get(&type_identity)?;
-            if !shape.fields.is_empty() {
+            if !matches!(
+                &shape.shape,
+                CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+            ) {
                 return None;
             }
             Some(CheckedTrivialAffineStructuralLocalPlan {
@@ -326,7 +330,7 @@ fn build_structural_return_machine(
         return None;
     };
     if entry_claim.parameter_index != 0
-        || !entry_claim.field_path.is_empty()
+        || !entry_claim.path.is_empty()
         || entry_claim.carry != CarryPolicy::STRICT
     {
         return None;
@@ -1520,6 +1524,7 @@ fn build_call_operation(
         return None;
     }
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
+    let boundary = target_machine.supply_mode.is_boundary_declaration();
     let structural_arguments = structural_call_arguments(
         program,
         machine,
@@ -1529,8 +1534,9 @@ fn build_call_operation(
         target_state,
         &call_site,
         call.receiver_symbol,
+        call.statement_index,
+        boundary,
     )?;
-    let boundary = target_machine.supply_mode.is_boundary_declaration();
     if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }
@@ -1581,27 +1587,57 @@ fn structural_call_arguments(
     target_state: &psi_typed_trees::state::State,
     call_site: &crate::CallSite<'_>,
     receiver_symbol: SymbolHandle,
+    statement_index: usize,
+    allow_fixed_index_projection: bool,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
     let explicit_arguments = crate::call_site_argument_expressions(program, call_site);
+    let explicit_self = explicit_arguments.len()
+        > target_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
     let mut explicit_index = 0usize;
     let mut output = Vec::new();
 
     for target in target_parameters {
-        let source_symbol = if target.is_self {
+        let place = if target.is_self {
             if is_reference(program, target.type_reference) {
                 continue;
             }
-            receiver_symbol
+            if explicit_self {
+                let expression = *explicit_arguments.get(explicit_index)?;
+                explicit_index += 1;
+                crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    expression,
+                )?
+            } else {
+                crate::flow::owned_method_receiver_place(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    receiver_symbol,
+                )
+                .or_else(|| crate::flow::canonical_place_from_symbol(receiver_symbol))?
+            }
         } else {
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;
-            crate::lookup::expression_root_symbol(
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                caller_state.symbol,
+                statement_index,
                 expression,
-                &program.expression_table,
-                caller_machine.symbol,
             )?
+        };
+        let psi_facts::PlaceRoot::Symbol(source_symbol) = place.root else {
+            return None;
         };
         let source_parameter = source_parameters.iter().find(|parameter| {
             parameter_root_symbol(caller_machine.symbol, parameter) == source_symbol
@@ -1622,11 +1658,49 @@ fn structural_call_arguments(
         } else {
             base_type_identity(program, target.type_reference, &[])?
         };
-        if source_identity != target_identity {
+        let path = match place.segments.as_slice() {
+            [] => Vec::new(),
+            [psi_facts::PlaceSegment::FixedIndex { index }]
+                if allow_fixed_index_projection
+                    && caller_parameters
+                        .get(source_index)?
+                        .qualifications
+                        .is_empty() =>
+            {
+                let mut source_type = source_parameter.type_reference;
+                loop {
+                    match program.type_reference_table.type_reference(source_type) {
+                        TypeReferenceNode::Constrained { base_type, .. }
+                        | TypeReferenceNode::Reference {
+                            referee: base_type, ..
+                        } => source_type = *base_type,
+                        _ => break,
+                    }
+                }
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(source_type)
+                else {
+                    return None;
+                };
+                if *index >= *length
+                    || base_type_identity(program, *element_type, &[])? != target_identity
+                {
+                    return None;
+                }
+                vec![CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).ok()?,
+                )]
+            }
+            _ => return None,
+        };
+        if path.is_empty() && source_identity != target_identity {
             return None;
         }
         output.push(CheckedUnitStructuralArgumentPlan {
             source_parameter_index: u32::try_from(source_index).ok()?,
+            path,
             type_identity: target_identity,
         });
     }
@@ -1671,7 +1745,10 @@ fn call_claim_transfers(
     for (argument_index, argument) in arguments.iter().enumerate() {
         let entries = entry_claims
             .iter()
-            .filter(|entry| entry.parameter_index == argument.source_parameter_index)
+            .filter(|entry| {
+                entry.parameter_index == argument.source_parameter_index
+                    && (argument.path.is_empty() || entry.path == argument.path)
+            })
             .collect::<Vec<_>>();
         if entries.is_empty() {
             if caller_parameters
@@ -1897,6 +1974,39 @@ fn entry_claims(
             }
             return None;
         }
+        let mut source_type = source.type_reference;
+        loop {
+            match program.type_reference_table.type_reference(source_type) {
+                TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::Reference {
+                    referee: base_type, ..
+                } => source_type = *base_type,
+                _ => break,
+            }
+        }
+        if let TypeReferenceNode::FixedArray {
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+            ..
+        } = program.type_reference_table.type_reference(source_type)
+        {
+            let indices = matching
+                .iter()
+                .map(|event| {
+                    let [psi_facts::PlaceSegment::FixedIndex { index }] =
+                        facts.flow.ownership.segments.span_or_empty(event.segments)
+                    else {
+                        return None;
+                    };
+                    Some(*index)
+                })
+                .collect::<Option<BTreeSet<_>>>()?;
+            if matching.len() != *length
+                || indices != (0..*length).collect::<BTreeSet<_>>()
+                || !parameter.qualifications.is_empty()
+            {
+                return None;
+            }
+        }
         for event in matching {
             if event.claim_identity == PermissionClaimIdentity::Unknown {
                 return None;
@@ -1912,7 +2022,7 @@ fn entry_claims(
                 [policy] => policy.effective,
                 _ => return None,
             };
-            let field_path = facts
+            let path = facts
                 .flow
                 .ownership
                 .segments
@@ -1921,22 +2031,25 @@ fn entry_claims(
                 .map(|segment| match segment {
                     psi_facts::PlaceSegment::Field { symbol } => {
                         terminal_field_identity(program, *symbol)
+                            .map(CheckedUnitStructuralPathSegment::Field)
                     }
+                    psi_facts::PlaceSegment::FixedIndex { index } => u64::try_from(*index)
+                        .ok()
+                        .map(CheckedUnitStructuralPathSegment::FixedIndex),
                     psi_facts::PlaceSegment::Case { .. }
-                    | psi_facts::PlaceSegment::FixedIndex { .. }
                     | psi_facts::PlaceSegment::Index { .. } => None,
                 })
                 .collect::<Option<Vec<_>>>()?;
             output.push(CheckedUnitEntryClaimPlan {
                 claim_identity: event.claim_identity,
                 parameter_index: u32::try_from(parameter_index).ok()?,
-                field_path,
+                path,
                 carry,
             });
         }
     }
     output.sort_by(|left, right| {
-        (left.parameter_index, &left.field_path).cmp(&(right.parameter_index, &right.field_path))
+        (left.parameter_index, &left.path).cmp(&(right.parameter_index, &right.path))
     });
     (output.len() == events.len()).then_some(output)
 }
@@ -2277,7 +2390,12 @@ fn base_type_identity(
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..
             } => type_reference = *referee,
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::FixedArray {
+                length: psi_typed_trees::types::FixedArrayLength::Literal(_),
+                ..
+            } => {
                 return Some(
                     program
                         .normalized_type_identity_with_binders(type_reference, binders)
@@ -2398,6 +2516,47 @@ impl<'program> ShapeCollector<'program> {
             .normalized_type_identity_with_binders(type_reference, binders)
             .into_string();
         if self.types.contains_key(&identity) {
+            return Some(identity);
+        }
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } = self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            if *length == 0
+                || !substitutions.is_empty()
+                || !matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(*element_type),
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                )
+                || crate::checks::type_multiplicity(self.program, *element_type)
+                    != Multiplicity::Linear
+                || !self.in_progress.insert(identity.clone())
+            {
+                return None;
+            }
+            let Some(element_type_identity) = self.add_type(*element_type, binders, substitutions)
+            else {
+                self.in_progress.remove(&identity);
+                return None;
+            };
+            let length = u64::try_from(*length).ok()?;
+            self.types.insert(
+                identity.clone(),
+                CheckedUnitStructuralTypePlan {
+                    identity: identity.clone(),
+                    shape: CheckedUnitStructuralTypeShape::FixedArray {
+                        element_type_identity,
+                        length,
+                    },
+                },
+            );
+            self.in_progress.remove(&identity);
             return Some(identity);
         }
         let (data_symbol, arguments) = match self
@@ -2525,7 +2684,7 @@ impl<'program> ShapeCollector<'program> {
             identity.clone(),
             CheckedUnitStructuralTypePlan {
                 identity: identity.clone(),
-                fields,
+                shape: CheckedUnitStructuralTypeShape::Record { fields },
             },
         );
         self.in_progress.remove(&identity);
@@ -2543,11 +2702,21 @@ impl<'program> ShapeCollector<'program> {
                 let Some(plan) = self.types.get(&identity) else {
                     continue;
                 };
-                for field in &plan.fields {
-                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                        &field.field_type
-                    {
-                        retained.insert(type_identity.clone());
+                match &plan.shape {
+                    CheckedUnitStructuralTypeShape::Record { fields } => {
+                        for field in fields {
+                            if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                                &field.field_type
+                            {
+                                retained.insert(type_identity.clone());
+                            }
+                        }
+                    }
+                    CheckedUnitStructuralTypeShape::FixedArray {
+                        element_type_identity,
+                        ..
+                    } => {
+                        retained.insert(element_type_identity.clone());
                     }
                 }
             }

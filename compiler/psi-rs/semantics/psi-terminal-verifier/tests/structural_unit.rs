@@ -97,15 +97,17 @@ fn unit_call_checks_structural_type_qualification_and_transfer_shape() {
 #[test]
 fn unit_call_requires_exact_aggregate_claim_path() {
     let mut module = hard_root_module();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("expected record shape")
+    };
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).expect("field identity"),
         identity: "#7".into(),
         relevance: psi_terminal::BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(structural_type_id(2)),
     });
-    module.machines[0].entry_claims[0].field_path = vec!["#7".into()];
-    module.machines[1].entry_claims[0].field_path = vec!["#7".into()];
+    module.machines[0].entry_claims[0].path = vec!["#7".into()];
+    module.machines[1].entry_claims[0].path = vec!["#7".into()];
     validate_module(&module).expect("matching aggregate custody paths validate");
 
     let mut abandoned = module.clone();
@@ -119,7 +121,7 @@ fn unit_call_requires_exact_aggregate_claim_path() {
         }
     );
 
-    module.machines[1].entry_claims[0].field_path.clear();
+    module.machines[1].entry_claims[0].path.clear();
     assert_eq!(
         validate_module(&module).unwrap_err(),
         ModuleError::UnitCallClaimPresenceMismatch {
@@ -137,14 +139,18 @@ fn nested_record_claim_path_is_walked_and_matched_exactly() {
         identity: "Token".into(),
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("expected record shape")
+    };
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).expect("field identity"),
         identity: "#7".into(),
         relevance: psi_terminal::BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(structural_type_id(2)),
     });
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        panic!("expected record shape")
+    };
     fields.push(StructuralFieldDeclaration {
         id: psi_core::StructuralFieldId::new(1).expect("field identity"),
         identity: "#9".into(),
@@ -155,21 +161,19 @@ fn nested_record_claim_path_is_walked_and_matched_exactly() {
         StructuralMultiplicity::Affine;
     for machine in &mut module.machines {
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims[0].field_path = vec!["#7".into(), "#9".into()];
+        machine.entry_claims[0].path = vec!["#7".into(), "#9".into()];
     }
     validate_module(&module).expect("a complete nested record path should validate");
 
     let mut unknown_inner = module.clone();
-    unknown_inner.machines[0].entry_claims[0].field_path[1] = "#8".into();
+    unknown_inner.machines[0].entry_claims[0].path[1] = "#8".into();
     assert_eq!(
         validate_module(&unknown_inner).unwrap_err(),
         ModuleError::InvalidEntryClaimFieldPath(claim_id(1))
     );
 
     let mut truncated_at_call = module.clone();
-    truncated_at_call.machines[1].entry_claims[0]
-        .field_path
-        .pop();
+    truncated_at_call.machines[1].entry_claims[0].path.pop();
     assert_eq!(
         validate_module(&truncated_at_call).unwrap_err(),
         ModuleError::UnitCallClaimPresenceMismatch {
@@ -184,12 +188,12 @@ fn nested_record_claim_path_is_walked_and_matched_exactly() {
         EntryClaim {
             claim: claim_id(1),
             input,
-            field_path: vec!["#7".into()],
+            path: vec!["#7".into()],
         },
         EntryClaim {
             claim: claim_id(2),
             input,
-            field_path: vec!["#7".into(), "#9".into()],
+            path: vec!["#7".into(), "#9".into()],
         },
     ];
     assert_eq!(
@@ -204,7 +208,9 @@ fn nested_record_claim_path_is_walked_and_matched_exactly() {
 #[test]
 fn unit_call_transfers_complete_canonical_sibling_claim_set() {
     let mut module = hard_root_module();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("expected record shape")
+    };
     fields.extend([
         StructuralFieldDeclaration {
             id: psi_core::StructuralFieldId::new(1).expect("field identity"),
@@ -223,11 +229,11 @@ fn unit_call_transfers_complete_canonical_sibling_claim_set() {
         StructuralMultiplicity::Affine;
     for machine in &mut module.machines {
         machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims[0].field_path = vec!["#7".into()];
+        machine.entry_claims[0].path = vec!["#7".into()];
         machine.entry_claims.push(EntryClaim {
             claim: claim_id(2),
             input: machine.structural_parameters[0].place,
-            field_path: vec!["#9".into()],
+            path: vec!["#9".into()],
         });
     }
     unit_call_mut(&mut module).push(ClaimTransfer {
@@ -252,8 +258,8 @@ fn unit_call_transfers_complete_canonical_sibling_claim_set() {
     );
 
     let mut noncanonical = module;
-    noncanonical.machines[0].entry_claims[0].field_path = vec!["#9".into()];
-    noncanonical.machines[0].entry_claims[1].field_path = vec!["#7".into()];
+    noncanonical.machines[0].entry_claims[0].path = vec!["#9".into()];
+    noncanonical.machines[0].entry_claims[1].path = vec!["#7".into()];
     assert_eq!(
         validate_module(&noncanonical).unwrap_err(),
         ModuleError::NonCanonicalEntryClaimOrder(machine_id(1))
@@ -562,7 +568,10 @@ fn claims_are_linear_across_unit_operations_and_return() {
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCallUnit {
             boundary: boundary_id(1),
-            structural_arguments: vec![StructuralArgument { place: place_id(1) }],
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(1),
+                path: Vec::new(),
+            }],
             completion_receipts: vec![CompletionReceipt {
                 claim: claim_id(1),
                 argument_index: 0,
@@ -870,7 +879,7 @@ fn scalar_return_requires_exact_affine_discards() {
     claim_bearing.machines[0].entry_claims.push(EntryClaim {
         claim: claim_id(1),
         input: place_id(2),
-        field_path: Vec::new(),
+        path: Vec::new(),
     });
     assert_eq!(
         validate_module(&claim_bearing).unwrap_err(),
@@ -955,7 +964,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     claim_bearing.machines[0].entry_claims.push(EntryClaim {
         claim: claim_id(1),
         input: place_id(4),
-        field_path: Vec::new(),
+        path: Vec::new(),
     });
     assert_eq!(
         validate_module(&claim_bearing).unwrap_err(),
@@ -1088,7 +1097,10 @@ fn affine_structural_arguments_transfer_at_most_once() {
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCallUnit {
             boundary: boundary_id(1),
-            structural_arguments: vec![StructuralArgument { place: place_id(1) }],
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(1),
+                path: Vec::new(),
+            }],
             completion_receipts: Vec::new(),
             requirement_obligations: Vec::new(),
         },
@@ -1178,7 +1190,10 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             callee: machine_id(2),
-            structural_arguments: vec![StructuralArgument { place: place_id(2) }],
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(2),
+                path: Vec::new(),
+            }],
             claim_transfers: vec![ClaimTransfer {
                 claim: claim_id(1),
                 argument_index: 0,
@@ -1282,7 +1297,7 @@ fn hard_root_module() -> TerminalModule {
         entry_claims: vec![EntryClaim {
             claim: claim_id(1),
             input: place_id(1),
-            field_path: Vec::new(),
+            path: Vec::new(),
         }],
         published_service_ceiling: vec![port_io.id],
         content_entry_claims: Vec::new(),
@@ -1297,7 +1312,10 @@ fn hard_root_module() -> TerminalModule {
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     callee: machine_id(2),
-                    structural_arguments: vec![StructuralArgument { place: place_id(1) }],
+                    structural_arguments: vec![StructuralArgument {
+                        place: place_id(1),
+                        path: Vec::new(),
+                    }],
                     claim_transfers: vec![ClaimTransfer {
                         claim: claim_id(1),
                         argument_index: 0,
@@ -1324,7 +1342,7 @@ fn hard_root_module() -> TerminalModule {
         entry_claims: vec![EntryClaim {
             claim: claim_id(1),
             input: place_id(2),
-            field_path: Vec::new(),
+            path: Vec::new(),
         }],
         published_service_ceiling: vec![port_io.id],
         content_entry_claims: Vec::new(),
@@ -1349,7 +1367,10 @@ fn hard_root_module() -> TerminalModule {
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCallUnit {
                         boundary: boundary.id,
-                        structural_arguments: vec![StructuralArgument { place: place_id(2) }],
+                        structural_arguments: vec![StructuralArgument {
+                            place: place_id(2),
+                            path: Vec::new(),
+                        }],
                         completion_receipts: vec![CompletionReceipt {
                             claim: claim_id(1),
                             argument_index: 0,

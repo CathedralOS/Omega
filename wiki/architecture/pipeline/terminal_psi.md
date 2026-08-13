@@ -126,15 +126,17 @@ relevance/type rows. Omega skips erased rows before ABI classification, so the
 terminal artifact preserves semantic identity without assigning proof evidence
 an offset or transfer.
 
-An entry claim may name either its complete structural parameter or a stable
-record-field path below it. Each path segment uses the structural field's exact
-canonical identity: `#<id>` for an authored numbered field and its spelling for
-an unnumbered field. A projected claim is linear even when its containing
-aggregate is affine. Paths traverse only relevant structural fields; case,
-index, scalar, erased, unknown, duplicate, overlapping ancestor/descendant, and
-noncanonical rows reject. Direct Unit calls require the caller and callee to
+An entry claim may name its complete structural parameter or a typed path below
+it. Record segments use the field's exact canonical identity: `#<id>` for an
+authored numbered field and its spelling for an unnumbered field. Literal array
+segments carry their canonical zero-based index and resolve only through a
+nonempty literal-length fixed-array shape. A projected claim is linear even
+when its containing aggregate is affine. Paths traverse only relevant
+structural fields or in-range fixed indexes; cases, dynamic indexes, scalar or
+erased leaves, unknown segments, duplicates, overlapping ancestor/descendant
+rows, and noncanonical order reject. Direct Unit calls require the caller and callee to
 agree on the complete ordered claim-path set for each structural argument, and
-content-entry bindings must name that same root and field path. The interpreter
+content-entry bindings must name that same root and typed path. The interpreter
 and verifier transfer those exact claims together; neither treats aggregate
 custody as a Boolean property of the containing parameter.
 
@@ -155,6 +157,17 @@ encoding, direct Unit transfer, interpretation, and boundary settlement. An
 unknown inner field rejects, a caller/callee truncation is a custody-set
 mismatch, and an ancestor claim cannot coexist with one of its descendant
 claims.
+
+The first indexed source slice accepts one nonempty literal fixed array of
+linear structural elements. It requires the complete dense sibling claim set,
+passes one literal element at a time only to a bodyless Unit boundary, and
+retires the aggregate root only after its last sibling receipt commits. The
+interpreter exposes the exact index path to the effect handler; provider
+rejection and sponsor exhaustion consume neither the selected claim nor its
+siblings. Omega retains that path in the emitted provider-settlement record and
+canonical installation bytes. Projected ordinary calls, nested arrays,
+content-qualified elements, dynamic indexes, partial returns, and aggregate
+construction remain fenced.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

@@ -38,6 +38,7 @@ use omega_terminal_machine_code::{
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
 use psi_diagnostics::Diagnostic;
+use psi_terminal::StructuralPathSegment;
 use psi_terminal::TerminalPsiIdentity;
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -523,6 +524,25 @@ pub fn build_terminal_object_artifact(
             }
             if !settlement_operations.insert(settlement.psi_operation) {
                 return Err(TerminalObjectError::DuplicateBoundarySettlementOperation {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
+            if settlement.arguments.iter().any(|argument| {
+                argument.path.iter().any(
+                    |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
+                )
+            }) {
+                return Err(TerminalObjectError::InvalidBoundarySettlementArgumentPath {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
+            if settlement.completion_receipts.iter().any(|receipt| {
+                usize::try_from(receipt.argument_index)
+                    .map_or(true, |index| index >= settlement.arguments.len())
+            }) {
+                return Err(TerminalObjectError::InvalidCompletionReceiptArgumentIndex {
                     machine: function.machine,
                     operation: settlement.psi_operation,
                 });
@@ -2753,6 +2773,14 @@ pub enum TerminalObjectError {
         operation: psi_core::OperationId,
     },
     DuplicateBoundarySettlementOperation {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    InvalidBoundarySettlementArgumentPath {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    InvalidCompletionReceiptArgumentIndex {
         machine: MachineId,
         operation: psi_core::OperationId,
     },

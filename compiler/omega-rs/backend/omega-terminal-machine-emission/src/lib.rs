@@ -598,7 +598,7 @@ fn emit_unit_body(
                 boundary,
                 provider_execution,
                 realization,
-                argument_places,
+                arguments,
                 completion_receipts,
             } => {
                 operation_site = Some(*psi_operation);
@@ -607,7 +607,7 @@ fn emit_unit_body(
                     boundary: *boundary,
                     provider_execution: (*provider_execution).into(),
                     realization: *realization,
-                    argument_places: argument_places.clone(),
+                    arguments: arguments.clone(),
                     completion_receipts: completion_receipts.clone(),
                     operation_ordinal,
                     code_offset: bytes.len(),
@@ -5089,7 +5089,10 @@ mod tests {
     use psi_core::{
         BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
     };
-    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use psi_terminal::{
+        SemanticFingerprint, StructuralArgument, StructuralPathSegment, TerminalPsiIdentity,
+        VocabularyMarker,
+    };
 
     fn emit_machine_code(
         plan: &TerminalTargetOperationPlan,
@@ -5122,6 +5125,13 @@ mod tests {
             port: 0x20,
             value: 0x20,
         };
+        let settlement_arguments = vec![StructuralArgument {
+            place: PlaceId::new(41).expect("custody argument"),
+            path: vec![
+                StructuralPathSegment::Field("#payload".into()),
+                StructuralPathSegment::FixedIndex(3),
+            ],
+        }];
         let plan = TerminalTargetOperationPlan {
             terminal_psi: identity(),
             target,
@@ -5170,7 +5180,7 @@ mod tests {
                                 boundary,
                                 provider_execution,
                                 realization,
-                                argument_places: Vec::new(),
+                                arguments: settlement_arguments.clone(),
                                 completion_receipts: Vec::new(),
                             },
                             TerminalTargetUnitOperation::Return {
@@ -5234,6 +5244,7 @@ mod tests {
             provider_execution.into()
         );
         assert_eq!(leaf.boundary_settlements[0].realization, realization);
+        assert_eq!(leaf.boundary_settlements[0].arguments, settlement_arguments);
         assert_eq!(leaf.port_effects.len(), 1);
         assert_eq!(leaf.port_effects[0].service, realization.service);
         assert_eq!(leaf.fuel_attribution.len(), 3);
@@ -5318,6 +5329,7 @@ mod tests {
             let structural_type = StructuralTypeId::new(1).unwrap();
             let argument = TerminalTargetStructuralArgument {
                 place,
+                path: Vec::new(),
                 structural_type,
                 shape,
                 source: call_plan.parameters[0].clone(),
@@ -5399,6 +5411,7 @@ mod tests {
         let argument =
             |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
                 place,
+                path: Vec::new(),
                 structural_type: ty,
                 shape,
                 source: call_plan.parameters[source].clone(),
@@ -5486,6 +5499,7 @@ mod tests {
         let argument =
             |place: PlaceId, source: usize, destination: usize| TerminalTargetStructuralArgument {
                 place,
+                path: Vec::new(),
                 structural_type: ty,
                 shape,
                 source: call_plan.parameters[source].clone(),
@@ -5604,6 +5618,7 @@ mod tests {
                 .iter()
                 .map(|parameter| TerminalTargetStructuralArgument {
                     place: parameter.place,
+                    path: Vec::new(),
                     structural_type: ty,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
@@ -5692,6 +5707,7 @@ mod tests {
                 };
                 let argument = TerminalTargetStructuralArgument {
                     place,
+                    path: Vec::new(),
                     structural_type: ty,
                     shape,
                     source: call_plan.parameters[0].clone(),

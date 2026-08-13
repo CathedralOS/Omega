@@ -8,8 +8,9 @@ use psi_terminal::{TerminalMachineResult, Terminator};
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralResult,
-    TerminalStructuralValue,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalStructuralResult, TerminalStructuralValue,
 };
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
@@ -89,12 +90,172 @@ const SOURCE: &str = r#"
     machine Main::main(&mut self) {}
 "#;
 
+const INDEXED_CUSTODY_SOURCE: &str = r#"
+    boundary trait PortIo {}
+    data Receipt [linear] { value: u64; }
+
+    boundary machine Receipt::settle(self)
+    reaches PortIo
+    ensures true;
+
+    data Root {}
+    machine Root::enter(receipts: [Receipt; 2])
+    reaches PortIo
+    {
+        Receipt::settle(receipts[0]);
+        Receipt::settle(receipts[1]);
+    }
+"#;
+
+#[derive(Default)]
+struct RejectSecondEffect {
+    accepted: usize,
+}
+
+impl TerminalEffectHandler for RejectSecondEffect {
+    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        if self.accepted == 1 {
+            return Err(TerminalEffectRejection::new(
+                "reject second indexed settlement",
+            ));
+        }
+        self.accepted += 1;
+        Ok(())
+    }
+}
+
 fn checked_source() -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
+}
+
+#[test]
+fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
+    let tokens = Lexer::new(INDEXED_CUSTODY_SOURCE)
+        .tokenize()
+        .expect("tokenize indexed custody");
+    let syntax = parse_syntax_trees(&tokens).expect("parse indexed custody");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve indexed custody");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type indexed custody");
+    let checked = lower_typed_trees(typed).expect("check indexed custody");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("literal fixed-array custody should lower");
+    let module = &lowered.semantic_module;
+    let machine = module.machines.first().expect("one root machine");
+    assert_eq!(machine.entry_claims.len(), 2);
+    assert_eq!(
+        machine.entry_claims[0].path,
+        [psi_terminal::StructuralPathSegment::FixedIndex(0)]
+    );
+    assert_eq!(
+        machine.entry_claims[1].path,
+        [psi_terminal::StructuralPathSegment::FixedIndex(1)]
+    );
+    let [first, second] = machine.blocks[0].operations.as_slice() else {
+        panic!("two indexed settlements")
+    };
+    for (operation, index) in [(first, 0), (second, 1)] {
+        let psi_terminal::OperationKind::BoundaryCallUnit {
+            structural_arguments,
+            completion_receipts,
+            ..
+        } = &operation.kind
+        else {
+            panic!("indexed boundary settlement")
+        };
+        assert_eq!(
+            structural_arguments[0].path,
+            [psi_terminal::StructuralPathSegment::FixedIndex(index)]
+        );
+        assert_eq!(completion_receipts.len(), 1);
+    }
+
+    let semantic = encode_module(module).expect("indexed semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("indexed proof encodes");
+    psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("indexed custody verifies");
+    let mut incomplete = module.clone();
+    incomplete.machines[0].entry_claims.pop();
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&incomplete),
+        Err(
+            psi_terminal_verifier::ModuleError::IncompleteFixedArrayEntryClaims {
+                machine: invalid_machine,
+                place: invalid_place,
+            }
+        ) if invalid_machine == machine.id && invalid_place == machine.structural_parameters[0].place
+    ));
+    let parameter = &machine.structural_parameters[0];
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0x51b1,
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("indexed custody artifact starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    let effects = execution.effects();
+    assert_eq!(effects.len(), 2);
+    for (effect, index) in effects.iter().zip([0, 1]) {
+        let psi_terminal_interpreter::TerminalEffect::BoundaryCallUnit {
+            structural_arguments,
+            completion_receipts,
+            ..
+        } = effect
+        else {
+            panic!("indexed boundary effect")
+        };
+        assert_eq!(
+            structural_arguments[0].path,
+            [psi_terminal::StructuralPathSegment::FixedIndex(index)]
+        );
+        assert_eq!(completion_receipts.len(), 1);
+    }
+
+    let mut rejected_execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 0x51b2,
+            structural_type: parameter.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("indexed custody rejection artifact starts");
+    let mut rejecting = RejectSecondEffect::default();
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert!(matches!(
+        rejected_execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        Err(TerminalInterpretError::EffectRejected { operation, .. })
+            if operation == second.id
+    ));
+    assert_eq!(rejecting.accepted, 1);
+    assert_eq!(rejected_execution.effects().len(), 1);
+    assert_eq!(
+        rejected_execution.live_claim_frontier().collect::<Vec<_>>(),
+        [machine.entry_claims[1].claim]
+    );
 }
 
 #[test]
@@ -130,7 +291,7 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
     assert_eq!(plan.returned_parameter_index, 0);
     assert!(plan.trivial_affine_discards.is_empty());
     assert_eq!(plan.entry_claim.claim_identity, plan.transferred_claim);
-    assert!(plan.entry_claim.field_path.is_empty());
+    assert!(plan.entry_claim.path.is_empty());
 
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::forward")
         .expect("exact whole-root passthrough should lower");
@@ -173,6 +334,7 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
         opaque_identity: 0x5eed,
         structural_type: result.structural_type,
         qualifications: result.qualifications.clone(),
+        path: Vec::new(),
     };
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
@@ -269,12 +431,14 @@ fn structural_return_discards_one_claim_free_affine_parameter_after_materializat
         opaque_identity: 0x5eed,
         structural_type: result.structural_type,
         qualifications: result.qualifications.clone(),
+        path: Vec::new(),
     };
     let scratch_parameter = &machine.structural_parameters[1];
     let scratch = TerminalStructuralValue {
         opaque_identity: 0xcafe,
         structural_type: scratch_parameter.structural_type,
         qualifications: scratch_parameter.qualifications.clone(),
+        path: Vec::new(),
     };
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
@@ -375,6 +539,7 @@ fn structural_return_establishes_and_discards_one_trivial_affine_local() {
         opaque_identity: 0x5eed,
         structural_type: result.structural_type,
         qualifications: result.qualifications.clone(),
+        path: Vec::new(),
     };
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(

@@ -42,9 +42,9 @@ use psi_terminal::{
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralArgument,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
@@ -121,11 +121,12 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         ));
     }
     for declaration in &module.structural_types {
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        if !strictly_increasing(fields.iter().map(|field| field.id)) {
-            return Err(CodecError::NonCanonicalOrder(
-                "structural fields by StructuralFieldId",
-            ));
+        if let StructuralTypeShape::Record { fields } = &declaration.shape {
+            if !strictly_increasing(fields.iter().map(|field| field.id)) {
+                return Err(CodecError::NonCanonicalOrder(
+                    "structural fields by StructuralFieldId",
+                ));
+            }
         }
     }
     if !strictly_increasing(
@@ -433,33 +434,43 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
     )?;
 
     for declaration in &module.structural_types {
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        require_unique_nonempty_identities(
-            fields.iter().map(|field| field.identity.as_str()),
-            "structural field identity",
-        )?;
-        for field in fields {
-            match &field.field_type {
-                StructuralFieldType::Structural(field_type)
-                    if !has_structural_type(module, *field_type) =>
-                {
-                    return malformed("structural field references an unknown structural type");
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                require_unique_nonempty_identities(
+                    fields.iter().map(|field| field.identity.as_str()),
+                    "structural field identity",
+                )?;
+                for field in fields {
+                    match &field.field_type {
+                        StructuralFieldType::Structural(field_type)
+                            if !has_structural_type(module, *field_type) =>
+                        {
+                            return malformed(
+                                "structural field references an unknown structural type",
+                            );
+                        }
+                        StructuralFieldType::Erased { type_identity }
+                            if !field.relevance.is_erased() || type_identity.is_empty() =>
+                        {
+                            return malformed(
+                                "opaque structural field type must have erased relevance and a nonempty type identity",
+                            );
+                        }
+                        StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                            if field.relevance.is_erased() =>
+                        {
+                            return malformed(
+                                "erased structural field must use its opaque semantic type identity",
+                            );
+                        }
+                        _ => {}
+                    }
                 }
-                StructuralFieldType::Erased { type_identity }
-                    if !field.relevance.is_erased() || type_identity.is_empty() =>
-                {
-                    return malformed(
-                        "opaque structural field type must have erased relevance and a nonempty type identity",
-                    );
+            }
+            StructuralTypeShape::FixedArray { element, .. } => {
+                if !has_structural_type(module, *element) {
+                    return malformed("fixed array references an unknown structural element type");
                 }
-                StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
-                    if field.relevance.is_erased() =>
-                {
-                    return malformed(
-                        "erased structural field must use its opaque semantic type identity",
-                    );
-                }
-                _ => {}
             }
         }
     }
@@ -545,7 +556,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
                 return malformed("entry claim cannot bind an unrestricted parameter");
             }
-            validate_entry_claim_field_path(module, parameter.structural_type, &claim.field_path)?;
+            validate_structural_path(module, parameter.structural_type, &claim.path)?;
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             validate_operation_foundation(module, machine, operation)?;
@@ -554,35 +565,53 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
     Ok(())
 }
 
-fn validate_entry_claim_field_path(
+fn validate_structural_path(
     module: &TerminalModule,
     mut structural_type: StructuralTypeId,
-    field_path: &[String],
-) -> Result<(), CodecError> {
-    for identity in field_path {
-        if identity.is_empty() {
-            return malformed("entry claim field identity cannot be empty");
-        }
+    path: &[StructuralPathSegment],
+) -> Result<StructuralTypeId, CodecError> {
+    for segment in path {
         let Some(declaration) = module
             .structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
         else {
-            return malformed("entry claim has an unknown structural type");
+            return malformed("structural path has an unknown structural type");
         };
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        let Some(field) = fields.iter().find(|field| field.identity == *identity) else {
-            return malformed("entry claim has an unknown structural field");
+        structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                if identity.is_empty() {
+                    return malformed("structural path field identity cannot be empty");
+                }
+                let Some(field) = fields.iter().find(|field| field.identity == *identity) else {
+                    return malformed("structural path has an unknown structural field");
+                };
+                if field.relevance.is_erased() {
+                    return malformed("structural path cannot select an erased structural field");
+                }
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return malformed("structural path must retain structural custody");
+                };
+                next
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) => {
+                if index >= length {
+                    return malformed("structural path fixed index is out of bounds");
+                }
+                *element
+            }
+            (StructuralPathSegment::Field(_), StructuralTypeShape::FixedArray { .. }) => {
+                return malformed("structural path field requires a record type");
+            }
+            (StructuralPathSegment::FixedIndex(_), StructuralTypeShape::Record { .. }) => {
+                return malformed("structural path fixed index requires a fixed-array type");
+            }
         };
-        if field.relevance.is_erased() {
-            return malformed("entry claim cannot bind an erased structural field");
-        }
-        let StructuralFieldType::Structural(next) = field.field_type else {
-            return malformed("entry claim field path must end in structural custody");
-        };
-        structural_type = next;
     }
-    Ok(())
+    Ok(structural_type)
 }
 
 fn validate_structural_parameters(
@@ -646,6 +675,7 @@ fn validate_operation_foundation(
                 return malformed("unit call has the wrong callee result or structural arity");
             }
             validate_structural_arguments(
+                module,
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
@@ -678,6 +708,7 @@ fn validate_operation_foundation(
                 return malformed("boundary Unit call has the wrong structural arity");
             }
             validate_structural_arguments(
+                module,
                 machine,
                 structural_arguments,
                 &boundary.structural_parameters,
@@ -722,8 +753,10 @@ fn validate_operation_foundation(
             else {
                 return malformed("trivial affine local has an unknown structural type");
             };
-            let StructuralTypeShape::Record { fields } = &declaration.shape;
-            if !fields.is_empty() {
+            if !matches!(
+                &declaration.shape,
+                StructuralTypeShape::Record { fields } if fields.is_empty()
+            ) {
                 return malformed("trivial affine local must have an empty record type");
             }
         }
@@ -742,6 +775,7 @@ fn validate_operation_foundation(
 }
 
 fn validate_structural_arguments(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     arguments: &[StructuralArgument],
     expected: &[StructuralParameterDeclaration],
@@ -754,7 +788,8 @@ fn validate_structural_arguments(
         else {
             return malformed("structural argument references an unknown parameter place");
         };
-        if actual.structural_type != expected.structural_type {
+        let actual_type = validate_structural_path(module, actual.structural_type, &argument.path)?;
+        if actual_type != expected.structural_type {
             return malformed("structural argument has the wrong concrete type");
         }
     }
@@ -777,8 +812,10 @@ fn validate_claim_indices(
         else {
             return malformed("claim action references an unknown entry claim");
         };
-        if entry_claim.input != argument.place {
-            return malformed("claim action does not match its structural argument place");
+        if entry_claim.input != argument.place
+            || (!argument.path.is_empty() && entry_claim.path != argument.path)
+        {
+            return malformed("claim action does not match its structural argument path");
         }
     }
     Ok(())
@@ -809,10 +846,16 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             .iter()
             .find(|declaration| declaration.id == id)
             .expect("structural field targets were validated before graph traversal");
-        let StructuralTypeShape::Record { fields } = &declaration.shape;
-        for field in fields {
-            if let StructuralFieldType::Structural(target) = &field.field_type {
-                visit(module, *target, active, complete)?;
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if let StructuralFieldType::Structural(target) = &field.field_type {
+                        visit(module, *target, active, complete)?;
+                    }
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => {
+                visit(module, *element, active, complete)?;
             }
         }
         active.remove(&id);
@@ -1175,6 +1218,11 @@ fn encode_structural_type(
                 }
             }
         }
+        StructuralTypeShape::FixedArray { element, length } => {
+            writer.u8(2);
+            writer.id(*element);
+            writer.u64(*length);
+        }
     }
     Ok(())
 }
@@ -1340,10 +1388,7 @@ fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), 
     for claim in &machine.entry_claims {
         writer.id(claim.claim);
         writer.id(claim.input);
-        writer.len("entry claim field path", claim.field_path.len())?;
-        for field in &claim.field_path {
-            writer.string("entry claim field", field)?;
-        }
+        encode_structural_path(writer, "entry claim path", &claim.path)?;
     }
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     writer.len("content entry claims", machine.content_entry_claims.len())?;
@@ -1872,6 +1917,28 @@ fn encode_structural_arguments(
     writer.len("structural arguments", arguments.len())?;
     for argument in arguments {
         writer.id(argument.place);
+        encode_structural_path(writer, "structural argument path", &argument.path)?;
+    }
+    Ok(())
+}
+
+fn encode_structural_path(
+    writer: &mut Writer,
+    label: &'static str,
+    path: &[StructuralPathSegment],
+) -> Result<(), CodecError> {
+    writer.len(label, path.len())?;
+    for segment in path {
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                writer.u8(1);
+                writer.string("structural path field", identity)?;
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                writer.u8(2);
+                writer.u64(*index);
+            }
+        }
     }
     Ok(())
 }
@@ -2528,6 +2595,10 @@ fn decode_structural_type(
                 })
             })?,
         },
+        2 => StructuralTypeShape::FixedArray {
+            element: reader.id("StructuralTypeId")?,
+            length: reader.u64()?,
+        },
         tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
     };
     Ok(StructuralTypeDeclaration {
@@ -2717,7 +2788,7 @@ fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError
         Ok(EntryClaim {
             claim: reader.id("ClaimId")?,
             input: reader.id("PlaceId")?,
-            field_path: decode_counted(reader, |reader| reader.string("entry claim field"))?,
+            path: decode_structural_path(reader)?,
         })
     })?;
     let published_service_ceiling = decode_ids(reader, "ServiceId")?;
@@ -3148,7 +3219,20 @@ fn decode_structural_arguments(
     decode_counted(reader, |reader| {
         Ok(StructuralArgument {
             place: reader.id("PlaceId")?,
+            path: decode_structural_path(reader)?,
         })
+    })
+}
+
+fn decode_structural_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathSegment>, CodecError> {
+    decode_counted(reader, |reader| match reader.u8()? {
+        1 => Ok(StructuralPathSegment::Field(
+            reader.string("structural path field")?,
+        )),
+        2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
+        tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
 }
 

@@ -187,11 +187,19 @@ fn terminal_summary(
     for declaration in &module.structural_types {
         writeln!(
             output,
-            "type id=type:{} identity={} fields={}",
+            "type id=type:{} identity={} shape={}",
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
-                psi_terminal::StructuralTypeShape::Record { fields } => fields.len(),
+                psi_terminal::StructuralTypeShape::Record { fields } => {
+                    format!("record(fields={})", fields.len())
+                }
+                psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
+                    format!(
+                        "fixed_array(element=type:{},length={length})",
+                        element.get()
+                    )
+                }
             }
         )
         .expect("writing to a String cannot fail");
