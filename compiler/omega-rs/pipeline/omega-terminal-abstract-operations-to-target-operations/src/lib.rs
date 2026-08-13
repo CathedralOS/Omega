@@ -2030,18 +2030,84 @@ fn lower_unit_function(
                                     operation_offset: 0,
                                 },
                             ]
-                        || !matches!(cleanup_function.operations.as_slice(),
-                            [TerminalAbstractOperation::ReturnUnit {
-                                trivial_affine_discards,
-                                residual_affine_discards,
-                                nominal_affine_cleanup: None,
-                                ..
-                            }] if trivial_affine_discards.is_empty()
-                                && residual_affine_discards.is_empty())
                     {
                         return Err(LoweringError::UnsupportedOperationInUnitFunction(
                             function.machine,
                         ));
+                    }
+                    let helper = match cleanup_function.operations.as_slice() {
+                        [
+                            TerminalAbstractOperation::ReturnUnit {
+                                trivial_affine_discards,
+                                residual_affine_discards,
+                                nominal_affine_cleanup: None,
+                                ..
+                            },
+                        ] if trivial_affine_discards.is_empty()
+                            && residual_affine_discards.is_empty() =>
+                        {
+                            None
+                        }
+                        [
+                            TerminalAbstractOperation::CallUnit {
+                                callee,
+                                structural_arguments,
+                                claim_transfers,
+                                ..
+                            },
+                            TerminalAbstractOperation::ReturnUnit {
+                                trivial_affine_discards,
+                                residual_affine_discards,
+                                nominal_affine_cleanup: None,
+                                ..
+                            },
+                        ] if structural_arguments.is_empty()
+                            && claim_transfers.is_empty()
+                            && trivial_affine_discards.is_empty()
+                            && residual_affine_discards.is_empty() =>
+                        {
+                            Some(*callee)
+                        }
+                        _ => {
+                            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                                function.machine,
+                            ));
+                        }
+                    };
+                    if let Some(helper) = helper {
+                        let Some(helper_function) = functions.get(&helper).copied() else {
+                            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                                function.machine,
+                            ));
+                        };
+                        if helper == cleanup.cleanup_machine
+                            || helper_function.attachment.is_none_or(|attachment| {
+                                structural_types.get(&attachment).is_none_or(|declaration| {
+                                    !matches!(
+                                        &declaration.shape,
+                                        psi_terminal::StructuralTypeShape::Record { fields }
+                                            if fields.is_empty()
+                                    )
+                                })
+                            })
+                            || helper_function.result != TerminalAbstractFunctionResult::Unit
+                            || !helper_function.parameters.is_empty()
+                            || !helper_function.structural_parameters.is_empty()
+                            || !helper_function.entry_claims.is_empty()
+                            || !helper_function.published_service_ceiling.is_empty()
+                            || !matches!(helper_function.operations.as_slice(),
+                                [TerminalAbstractOperation::ReturnUnit {
+                                    trivial_affine_discards,
+                                    residual_affine_discards,
+                                    nominal_affine_cleanup: None,
+                                    ..
+                                }] if trivial_affine_discards.is_empty()
+                                    && residual_affine_discards.is_empty())
+                        {
+                            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                                function.machine,
+                            ));
+                        }
                     }
                 }
                 operations.push(TerminalTargetUnitOperation::Return {

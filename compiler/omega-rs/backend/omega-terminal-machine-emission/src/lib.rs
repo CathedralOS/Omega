@@ -27,7 +27,7 @@ use omega_terminal_machine_code::{
     TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
     TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
-use omega_terminal_target_operations::MachineRegister;
+use omega_terminal_target_operations::{MachineRegister, TerminalCallSiteOwner};
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
 
 pub fn emit_machine_code(
@@ -47,7 +47,7 @@ pub fn emit_machine_code(
         functions: plan
             .functions
             .iter()
-            .map(|function| emit_function(function, plan.target))
+            .map(|function| emit_function(function, plan.target, &plan.functions))
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
@@ -55,6 +55,7 @@ pub fn emit_machine_code(
 fn emit_function(
     function: &TerminalAssignedFunction,
     target: NativeTarget,
+    functions: &[TerminalAssignedFunction],
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
@@ -71,7 +72,7 @@ fn emit_function(
     let mut scalar_control_flow = TerminalScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
         TerminalAssignedOperation::UnitBody(body) => {
-            let emitted = emit_unit_body(body, target)?;
+            let emitted = emit_unit_body(body, target, functions)?;
             internal_calls = emitted.internal_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             fuel_attribution = emitted.fuel_attribution;
@@ -510,6 +511,7 @@ struct Aarch64UnitParameterHome {
 fn emit_unit_body(
     body: &TerminalAssignedUnitBody,
     target: NativeTarget,
+    functions: &[TerminalAssignedFunction],
 ) -> Result<UnitEmission, EmissionError> {
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
@@ -616,7 +618,7 @@ fn emit_unit_body(
                 let argument_intervals = match target.architecture {
                     Architecture::X86_64 => emit_x86_64_unit_call(
                         &mut bytes,
-                        *psi_operation,
+                        TerminalCallSiteOwner::Operation(*psi_operation),
                         *callee,
                         copies,
                         target,
@@ -625,7 +627,7 @@ fn emit_unit_body(
                     )?,
                     Architecture::Aarch64 => emit_aarch64_unit_call(
                         &mut bytes,
-                        *psi_operation,
+                        TerminalCallSiteOwner::Operation(*psi_operation),
                         *callee,
                         copies,
                         &aarch64_homes,
@@ -633,7 +635,7 @@ fn emit_unit_body(
                     )?,
                 };
                 internal_unit_calls.push(TerminalInternalUnitCallRecord {
-                    psi_operation: *psi_operation,
+                    owner: TerminalCallSiteOwner::Operation(*psi_operation),
                     target: *callee,
                     arguments: copies
                         .iter()
@@ -792,6 +794,43 @@ fn emit_unit_body(
                     return Err(EmissionError::UnsupportedAggregatePlacement);
                 }
                 edge_site = Some(*psi_edge);
+                if let Some(cleanup) = nominal_affine_cleanup {
+                    if executable_nominal_cleanup(cleanup, functions)? {
+                        let owner = TerminalCallSiteOwner::Edge(*psi_edge);
+                        match target.architecture {
+                            Architecture::X86_64 => {
+                                emit_x86_64_unit_call(
+                                    &mut bytes,
+                                    owner,
+                                    cleanup.cleanup_machine,
+                                    &[],
+                                    target,
+                                    &x86_homes,
+                                    &mut internal_calls,
+                                )?;
+                            }
+                            Architecture::Aarch64 => {
+                                emit_aarch64_unit_call(
+                                    &mut bytes,
+                                    owner,
+                                    cleanup.cleanup_machine,
+                                    &[],
+                                    &aarch64_homes,
+                                    &mut internal_calls,
+                                )?;
+                            }
+                        }
+                        internal_unit_calls.push(TerminalInternalUnitCallRecord {
+                            owner,
+                            target: cleanup.cleanup_machine,
+                            arguments: Vec::new(),
+                            claim_transfers: Vec::new(),
+                            operation_ordinal,
+                            code_offset,
+                            byte_count: bytes.len() - code_offset,
+                        });
+                    }
+                }
                 match target.architecture {
                     Architecture::X86_64 => {
                         if x86_frame_bytes != 0 {
@@ -905,7 +944,7 @@ fn emit_unit_body(
 
 fn emit_x86_64_unit_call(
     bytes: &mut Vec<u8>,
-    psi_operation: psi_core::OperationId,
+    owner: TerminalCallSiteOwner,
     callee: MachineId,
     copies: &[TerminalAssignedAggregateCopy],
     target: NativeTarget,
@@ -967,7 +1006,7 @@ fn emit_x86_64_unit_call(
         release = Some((release_offset, bytes.len() - release_offset));
     }
     internal_calls.push(TerminalInternalCallRelocation {
-        psi_operation,
+        owner,
         target: callee,
         unit_stack: Some(TerminalUnitCallStackEvidence {
             outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
@@ -980,7 +1019,7 @@ fn emit_x86_64_unit_call(
 
 fn emit_aarch64_unit_call(
     bytes: &mut Vec<u8>,
-    psi_operation: psi_core::OperationId,
+    owner: TerminalCallSiteOwner,
     callee: MachineId,
     copies: &[TerminalAssignedAggregateCopy],
     homes: &[Aarch64UnitParameterHome],
@@ -1033,7 +1072,7 @@ fn emit_aarch64_unit_call(
         append_aarch64_instructions(bytes, instructions);
     }
     internal_calls.push(TerminalInternalCallRelocation {
-        psi_operation,
+        owner,
         target: callee,
         unit_stack: Some(TerminalUnitCallStackEvidence {
             outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
@@ -1063,6 +1102,79 @@ fn stack_adjustment_pair(
             release_byte_count,
         }),
         _ => unreachable!("nonzero stack adjustment must retain both encoded operations"),
+    }
+}
+
+fn executable_nominal_cleanup(
+    cleanup: &psi_terminal::NominalAffineCleanup,
+    functions: &[TerminalAssignedFunction],
+) -> Result<bool, EmissionError> {
+    let invalid = || EmissionError::InvalidNominalCleanupTarget(cleanup.cleanup_machine);
+    let cleanup_function = functions
+        .iter()
+        .find(|function| function.machine == cleanup.cleanup_machine)
+        .ok_or_else(invalid)?;
+    let TerminalAssignedOperation::UnitBody(cleanup_body) = &cleanup_function.operation else {
+        return Err(invalid());
+    };
+    if cleanup_function.attachment != Some(cleanup.structural_type)
+        || !cleanup_body.parameters.is_empty()
+    {
+        return Err(invalid());
+    }
+    match cleanup_body.operations.as_slice() {
+        [
+            TerminalAssignedUnitOperation::Return {
+                trivial_affine_discards,
+                residual_affine_discards,
+                nominal_affine_cleanup: None,
+                ..
+            },
+        ] if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => Ok(false),
+        [
+            TerminalAssignedUnitOperation::Call {
+                callee,
+                copies,
+                claim_transfers,
+                ..
+            },
+            TerminalAssignedUnitOperation::Return {
+                trivial_affine_discards,
+                residual_affine_discards,
+                nominal_affine_cleanup: None,
+                ..
+            },
+        ] if copies.is_empty()
+            && claim_transfers.is_empty()
+            && trivial_affine_discards.is_empty()
+            && residual_affine_discards.is_empty() =>
+        {
+            let helper = functions
+                .iter()
+                .find(|function| function.machine == *callee)
+                .ok_or_else(invalid)?;
+            let TerminalAssignedOperation::UnitBody(helper_body) = &helper.operation else {
+                return Err(invalid());
+            };
+            if helper.machine == cleanup.cleanup_machine
+                || helper.attachment.is_none()
+                || !helper_body.parameters.is_empty()
+                || !matches!(
+                    helper_body.operations.as_slice(),
+                    [TerminalAssignedUnitOperation::Return {
+                        trivial_affine_discards,
+                        residual_affine_discards,
+                        nominal_affine_cleanup: None,
+                        ..
+                    }] if trivial_affine_discards.is_empty()
+                        && residual_affine_discards.is_empty()
+                )
+            {
+                return Err(invalid());
+            }
+            Ok(true)
+        }
+        _ => Err(invalid()),
     }
 }
 
@@ -3194,7 +3306,7 @@ fn emit_x86_64_call(
         release = Some((release_offset, bytes.len() - release_offset));
     }
     relocations.push(TerminalInternalCallRelocation {
-        psi_operation,
+        owner: TerminalCallSiteOwner::Operation(psi_operation),
         target: callee,
         unit_stack: None,
         scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -4869,7 +4981,7 @@ fn emit_aarch64_call(
     let release_offset = instructions.len() * 4;
     emit_aarch64_adjust_sp(instructions, call_stack_bytes, true)?;
     relocations.push(TerminalInternalCallRelocation {
-        psi_operation,
+        owner: TerminalCallSiteOwner::Operation(psi_operation),
         target: callee,
         unit_stack: None,
         scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -5427,6 +5539,7 @@ pub enum EmissionError {
     CallOutsideDirectReturnExpression,
     ScalarStackInstructionEncodingInvalid,
     EntryFunctionMissing(MachineId),
+    InvalidNominalCleanupTarget(MachineId),
 }
 
 impl std::fmt::Display for EmissionError {
@@ -5457,8 +5570,8 @@ mod tests {
         BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
     };
     use psi_terminal::{
-        SemanticFingerprint, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
-        TerminalPsiIdentity, VocabularyMarker,
+        NominalAffineCleanup, SemanticFingerprint, StructuralArgument, StructuralMultiplicity,
+        StructuralPathSegment, TerminalPsiIdentity, VocabularyMarker,
     };
 
     fn emit_machine_code(
@@ -5466,6 +5579,253 @@ mod tests {
     ) -> Result<TerminalMachineCodePlan, EmissionError> {
         let assigned = assign_registers(plan).expect("test target operations must assign");
         super::emit_machine_code(&assigned)
+    }
+
+    fn executable_nominal_cleanup_plan(
+        target: NativeTarget,
+    ) -> (
+        TerminalTargetOperationPlan,
+        EdgeId,
+        OperationId,
+        MachineId,
+        MachineId,
+    ) {
+        let receiver_shape = ValueShape::integer(8, 8);
+        let root_call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![receiver_shape],
+                result: None,
+            },
+        )
+        .expect("one-field receiver ABI");
+        let empty_call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature::default(),
+        )
+        .expect("empty Unit ABI");
+        let root = MachineId::new(1).expect("root");
+        let cleanup_machine = MachineId::new(2).expect("cleanup");
+        let helper = MachineId::new(3).expect("helper");
+        let receiver_place = PlaceId::new(1).expect("receiver place");
+        let receiver_type = StructuralTypeId::new(1).expect("receiver type");
+        let helper_type = StructuralTypeId::new(2).expect("helper type");
+        let root_return = EdgeId::new(1).expect("root return");
+        let cleanup_call = OperationId::new(1).expect("cleanup helper call");
+        let cleanup_return = EdgeId::new(2).expect("cleanup return");
+        let helper_return = EdgeId::new(3).expect("helper return");
+        let cleanup = NominalAffineCleanup {
+            place: receiver_place,
+            structural_type: receiver_type,
+            cleanup_machine,
+        };
+        let root_parameter = TerminalTargetStructuralParameter {
+            place: receiver_place,
+            structural_type: receiver_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            shape: receiver_shape,
+            placement: root_call_plan.parameters[0].clone(),
+        };
+        (
+            TerminalTargetOperationPlan {
+                terminal_psi: identity(),
+                target,
+                entry: root,
+                functions: vec![
+                    TerminalTargetFunction {
+                        machine: root,
+                        attachment: None,
+                        provenance: TerminalPsiProvenance {
+                            operations: Vec::new(),
+                            edges: vec![root_return],
+                        },
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan: root_call_plan,
+                            parameters: vec![root_parameter],
+                            operations: vec![TerminalTargetUnitOperation::Return {
+                                psi_edge: root_return,
+                                trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: Some(cleanup),
+                            }],
+                        }),
+                    },
+                    TerminalTargetFunction {
+                        machine: cleanup_machine,
+                        attachment: Some(receiver_type),
+                        provenance: TerminalPsiProvenance {
+                            operations: vec![cleanup_call],
+                            edges: vec![cleanup_return],
+                        },
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan: empty_call_plan.clone(),
+                            parameters: Vec::new(),
+                            operations: vec![
+                                TerminalTargetUnitOperation::Call {
+                                    psi_operation: cleanup_call,
+                                    callee: helper,
+                                    arguments: Vec::new(),
+                                    claim_transfers: Vec::new(),
+                                },
+                                TerminalTargetUnitOperation::Return {
+                                    psi_edge: cleanup_return,
+                                    trivial_affine_discards: Vec::new(),
+                                    residual_affine_discards: Vec::new(),
+                                    nominal_affine_cleanup: None,
+                                },
+                            ],
+                        }),
+                    },
+                    TerminalTargetFunction {
+                        machine: helper,
+                        attachment: Some(helper_type),
+                        provenance: TerminalPsiProvenance {
+                            operations: Vec::new(),
+                            edges: vec![helper_return],
+                        },
+                        operation: TerminalTargetOperation::UnitBody(TerminalTargetUnitBody {
+                            call_plan: empty_call_plan,
+                            parameters: Vec::new(),
+                            operations: vec![TerminalTargetUnitOperation::Return {
+                                psi_edge: helper_return,
+                                trivial_affine_discards: Vec::new(),
+                                residual_affine_discards: Vec::new(),
+                                nominal_affine_cleanup: None,
+                            }],
+                        }),
+                    },
+                ],
+            },
+            root_return,
+            cleanup_call,
+            cleanup_machine,
+            helper,
+        )
+    }
+
+    #[test]
+    fn x86_executable_nominal_cleanup_call_is_edge_owned_and_precedes_epilogue() {
+        let target = NativeTarget::linux_x64();
+        let (plan, root_return, cleanup_call, cleanup_machine, helper) =
+            executable_nominal_cleanup_plan(target);
+        let emitted = emit_machine_code(&plan).expect("x86 executable nominal cleanup emits");
+        let root = &emitted.functions[0];
+        let [relocation] = root.internal_calls.as_slice() else {
+            panic!("root has exactly one executable cleanup call")
+        };
+        assert_eq!(relocation.owner, TerminalCallSiteOwner::Edge(root_return));
+        assert_eq!(relocation.target, cleanup_machine);
+        assert_eq!(root.bytes[relocation.offset - 1], 0xe8);
+        assert_eq!(
+            &root.bytes[relocation.offset..relocation.offset + 4],
+            &[0; 4]
+        );
+        let [custody] = root.internal_unit_calls.as_slice() else {
+            panic!("root retains exactly one cleanup-call custody row")
+        };
+        assert_eq!(custody.owner, relocation.owner);
+        assert_eq!(custody.target, cleanup_machine);
+        assert!(custody.arguments.is_empty());
+        assert!(custody.claim_transfers.is_empty());
+        let cleanup = root.unit_affine_cleanup.as_ref().expect("cleanup ledger");
+        assert_eq!(cleanup.psi_edge, root_return);
+        assert!(cleanup.code_offset <= relocation.offset - 1);
+        assert!(relocation.offset + 4 < cleanup.code_offset + cleanup.byte_count);
+        let frame = root
+            .unit_stack
+            .expect("one-field receiver has a frame")
+            .frame
+            .expect("x86 receiver home frame");
+        assert!(relocation.offset + 4 < frame.release_offset);
+        assert_eq!(root.bytes.last(), Some(&0xc3));
+
+        let drop = &emitted.functions[1];
+        assert_eq!(
+            drop.internal_calls[0].owner,
+            TerminalCallSiteOwner::Operation(cleanup_call)
+        );
+        assert_eq!(drop.internal_calls[0].target, helper);
+    }
+
+    #[test]
+    fn aarch64_executable_nominal_cleanup_call_is_edge_owned_and_precedes_link_restore() {
+        let target = NativeTarget::linux_arm64();
+        let (plan, root_return, cleanup_call, cleanup_machine, helper) =
+            executable_nominal_cleanup_plan(target);
+        let emitted = emit_machine_code(&plan).expect("AArch64 executable nominal cleanup emits");
+        let root = &emitted.functions[0];
+        let [relocation] = root.internal_calls.as_slice() else {
+            panic!("root has exactly one executable cleanup call")
+        };
+        assert_eq!(relocation.owner, TerminalCallSiteOwner::Edge(root_return));
+        assert_eq!(relocation.target, cleanup_machine);
+        assert_eq!(
+            &root.bytes[relocation.offset..relocation.offset + 4],
+            &0x9400_0000_u32.to_le_bytes()
+        );
+        let [custody] = root.internal_unit_calls.as_slice() else {
+            panic!("root retains exactly one cleanup-call custody row")
+        };
+        assert_eq!(custody.owner, relocation.owner);
+        assert_eq!(custody.target, cleanup_machine);
+        assert!(custody.arguments.is_empty());
+        assert!(custody.claim_transfers.is_empty());
+        let stack = root.unit_stack.expect("AArch64 Unit stack evidence");
+        let link = stack
+            .aarch64_return_link
+            .expect("AArch64 link preservation");
+        assert!(relocation.offset + 4 <= link.load_offset);
+        let cleanup = root.unit_affine_cleanup.as_ref().expect("cleanup ledger");
+        assert!(cleanup.code_offset <= relocation.offset);
+        assert!(link.load_offset < cleanup.code_offset + cleanup.byte_count);
+        assert_eq!(
+            root.bytes.last_chunk::<4>(),
+            Some(&0xd65f_03c0_u32.to_le_bytes())
+        );
+
+        let drop = &emitted.functions[1];
+        assert_eq!(
+            drop.internal_calls[0].owner,
+            TerminalCallSiteOwner::Operation(cleanup_call)
+        );
+        assert_eq!(drop.internal_calls[0].target, helper);
+    }
+
+    #[test]
+    fn nominal_cleanup_emission_preserves_empty_erasure_and_rejects_an_unapproved_two_op_body() {
+        let target = NativeTarget::linux_x64();
+        let (mut empty, _, _, _, _) = executable_nominal_cleanup_plan(target);
+        let TerminalTargetOperation::UnitBody(cleanup_body) = &mut empty.functions[1].operation
+        else {
+            panic!("cleanup remains a Unit body")
+        };
+        cleanup_body.operations.remove(0);
+        let emitted = emit_machine_code(&empty).expect("empty cleanup remains erasable");
+        assert!(emitted.functions[0].internal_calls.is_empty());
+        assert!(emitted.functions[0].internal_unit_calls.is_empty());
+        assert!(
+            emitted.functions[0]
+                .unit_affine_cleanup
+                .as_ref()
+                .is_some_and(|cleanup| cleanup.nominal_cleanup.is_some())
+        );
+
+        let (mut forged, _, cleanup_call, cleanup_machine, _) =
+            executable_nominal_cleanup_plan(target);
+        let TerminalTargetOperation::UnitBody(cleanup_body) = &mut forged.functions[1].operation
+        else {
+            panic!("cleanup remains a Unit body")
+        };
+        cleanup_body.operations[0] = TerminalTargetUnitOperation::PortWrite {
+            psi_operation: cleanup_call,
+            service: ServiceId::new(1).expect("service"),
+            port: 0x20,
+            value: 0x20,
+        };
+        assert_eq!(
+            emit_machine_code(&forged),
+            Err(EmissionError::InvalidNominalCleanupTarget(cleanup_machine))
+        );
     }
 
     #[test]
@@ -6562,7 +6922,13 @@ mod tests {
                 caller
                     .internal_calls
                     .iter()
-                    .map(|relocation| relocation.psi_operation.get())
+                    .map(|relocation| {
+                        relocation
+                            .owner
+                            .operation()
+                            .expect("ordinary scalar call owner")
+                            .get()
+                    })
                     .collect::<Vec<_>>(),
                 [1, 2, 3]
             );
@@ -7864,7 +8230,10 @@ mod tests {
             assert!(caller.scalar_stack.is_some());
             assert_eq!(caller.internal_calls.len(), 1);
             let relocation = caller.internal_calls[0];
-            assert_eq!(relocation.psi_operation, call_operation);
+            assert_eq!(
+                relocation.owner,
+                TerminalCallSiteOwner::Operation(call_operation)
+            );
             assert_eq!(relocation.target, callee);
             let call_stack = relocation
                 .scalar_stack

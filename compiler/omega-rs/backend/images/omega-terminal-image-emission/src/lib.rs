@@ -35,7 +35,7 @@ use omega_terminal_machine_code::{
     TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
     TerminalUnitStackEvidence,
 };
-use omega_terminal_target_operations::TerminalPsiProvenance;
+use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalPsiProvenance};
 use psi_core::MachineId;
 use psi_diagnostics::Diagnostic;
 use psi_terminal::StructuralPathSegment;
@@ -157,7 +157,7 @@ impl TerminalObjectFunction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalObjectUnitCallStack {
-    pub psi_operation: psi_core::OperationId,
+    pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
     pub text_offset: usize,
     pub active_frame_bytes: u32,
@@ -277,6 +277,11 @@ pub fn build_terminal_object_artifact(
         .iter()
         .map(|function| (function.machine, function.attachment))
         .collect::<std::collections::BTreeMap<_, _>>();
+    let machine_functions = plan
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<std::collections::BTreeMap<_, _>>();
     for function in &plan.functions {
         if let Some(previous) = previous
             && previous >= function.machine
@@ -347,18 +352,24 @@ pub fn build_terminal_object_artifact(
             );
         }
         let mut validated_call_stacks = Vec::new();
-        let mut call_operations = std::collections::BTreeSet::new();
+        let mut call_owners = std::collections::BTreeSet::new();
         for call in &function.internal_calls {
-            if !function.provenance.operations.contains(&call.psi_operation) {
+            let owner_in_provenance = match call.owner {
+                TerminalCallSiteOwner::Operation(operation) => {
+                    function.provenance.operations.contains(&operation)
+                }
+                TerminalCallSiteOwner::Edge(edge) => function.provenance.edges.contains(&edge),
+            };
+            if !owner_in_provenance {
                 return Err(TerminalObjectError::InternalCallOperationNotInProvenance {
                     caller: function.machine,
-                    operation: call.psi_operation,
+                    owner: call.owner,
                 });
             }
-            if !call_operations.insert(call.psi_operation) {
+            if !call_owners.insert(call.owner) {
                 return Err(TerminalObjectError::DuplicateInternalCallOperation {
                     caller: function.machine,
-                    operation: call.psi_operation,
+                    owner: call.owner,
                 });
             }
             match (function.unit_stack, call.unit_stack) {
@@ -383,13 +394,13 @@ pub fn build_terminal_object_artifact(
                 (Some(_), None) => {
                     return Err(TerminalObjectError::MissingUnitCallStackEvidence {
                         caller: function.machine,
-                        operation: call.psi_operation,
+                        owner: call.owner,
                     });
                 }
                 (None, Some(_)) => {
                     return Err(TerminalObjectError::UnexpectedUnitCallStackEvidence {
                         caller: function.machine,
-                        operation: call.psi_operation,
+                        owner: call.owner,
                     });
                 }
                 (None, None) => {}
@@ -397,15 +408,27 @@ pub fn build_terminal_object_artifact(
             match (function.scalar_stack.as_ref(), call.scalar_stack) {
                 (Some(_), Some(_)) => {}
                 (Some(_), None) => {
+                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
+                        return Err(TerminalObjectError::UntypedScalarInternalCall {
+                            machine: function.machine,
+                            offset: call.offset,
+                        });
+                    };
                     return Err(TerminalObjectError::MissingScalarCallStackEvidence {
                         caller: function.machine,
-                        operation: call.psi_operation,
+                        operation,
                     });
                 }
                 (None, Some(_)) => {
+                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
+                        return Err(TerminalObjectError::UntypedScalarInternalCall {
+                            machine: function.machine,
+                            offset: call.offset,
+                        });
+                    };
                     return Err(TerminalObjectError::UnexpectedScalarCallStackEvidence {
                         caller: function.machine,
-                        operation: call.psi_operation,
+                        operation,
                     });
                 }
                 (None, None) => {}
@@ -426,12 +449,12 @@ pub fn build_terminal_object_artifact(
             .internal_calls
             .iter()
             .filter(|call| call.unit_stack.is_some())
-            .map(|call| (call.psi_operation, call.target))
+            .map(|call| (call.owner, call.target))
             .collect::<std::collections::BTreeSet<_>>();
         let custody_identities = function
             .internal_unit_calls
             .iter()
-            .map(|call| (call.psi_operation, call.target))
+            .map(|call| (call.owner, call.target))
             .collect::<std::collections::BTreeSet<_>>();
         if custody_identities.len() != function.internal_unit_calls.len()
             || custody_identities != relocation_identities
@@ -441,9 +464,10 @@ pub fn build_terminal_object_artifact(
             ));
         }
         for custody in &function.internal_unit_calls {
-            let Some(call_stack) = validated_call_stacks.iter().find(|call| {
-                call.psi_operation == custody.psi_operation && call.target == custody.target
-            }) else {
+            let Some(call_stack) = validated_call_stacks
+                .iter()
+                .find(|call| call.owner == custody.owner && call.target == custody.target)
+            else {
                 return Err(TerminalObjectError::InvalidInternalUnitCallEvidence(
                     function.machine,
                 ));
@@ -473,6 +497,7 @@ pub fn build_terminal_object_artifact(
                 &function.unit_parameter_homes,
                 &function.internal_unit_calls,
                 &attachments,
+                &machine_functions,
                 cleanup,
             )?,
             (None, None) => {}
@@ -797,11 +822,20 @@ pub fn build_terminal_object_artifact(
                 .text_offset
                 .checked_add(call.offset)
                 .ok_or(TerminalObjectError::TextSizeOverflow)?;
-            relocations.push_record(RelocationRecord {
-                origin: RelocationOrigin::SemanticOperation {
+            let origin = match call.owner {
+                TerminalCallSiteOwner::Operation(operation) => {
+                    RelocationOrigin::SemanticOperation {
+                        function_symbol_handle: emitted.symbol,
+                        operation_identity: operation.get(),
+                    }
+                }
+                TerminalCallSiteOwner::Edge(edge) => RelocationOrigin::SemanticEdge {
                     function_symbol_handle: emitted.symbol,
-                    operation_identity: call.psi_operation.get(),
+                    edge_identity: edge.get(),
                 },
+            };
+            relocations.push_record(RelocationRecord {
+                origin,
                 section: SectionKind::Text,
                 offset,
                 byte_width,
@@ -834,6 +868,10 @@ fn validate_unit_affine_cleanup(
     parameter_homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
     internal_unit_calls: &[omega_terminal_machine_code::TerminalInternalUnitCallRecord],
     attachments: &std::collections::BTreeMap<MachineId, Option<psi_core::StructuralTypeId>>,
+    functions: &std::collections::BTreeMap<
+        MachineId,
+        &omega_terminal_machine_code::TerminalMachineCodeFunction,
+    >,
     cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
@@ -906,6 +944,44 @@ fn validate_unit_affine_cleanup(
             cleanup.residual_discards.as_slice(),
         ) {
             (Some(nominal), []) => {
+                let cleanup_function = functions.get(&nominal.cleanup_machine).copied();
+                let cleanup_body_is_exact = cleanup_function.is_some_and(|function| {
+                    function.attachment == Some(nominal.structural_type)
+                        && function.unit_stack.is_some()
+                        && function.scalar_stack.is_none()
+                        && function.unit_parameters.is_empty()
+                        && function.unit_parameter_homes.is_empty()
+                        && function
+                            .unit_affine_cleanup
+                            .as_ref()
+                            .is_some_and(|return_cleanup| {
+                                return_cleanup.locals.is_empty()
+                                    && return_cleanup.discards.is_empty()
+                                    && return_cleanup.residual_discards.is_empty()
+                                    && return_cleanup.nominal_cleanup.is_none()
+                            })
+                        && match function.internal_unit_calls.as_slice() {
+                            [] => true,
+                            [call] => {
+                                matches!(call.owner, TerminalCallSiteOwner::Operation(_))
+                                    && call.arguments.is_empty()
+                                    && call.claim_transfers.is_empty()
+                            }
+                            _ => false,
+                        }
+                });
+                let cleanup_is_executable = cleanup_function
+                    .is_some_and(|function| !function.internal_unit_calls.is_empty());
+                let matching_edge_calls = internal_unit_calls
+                    .iter()
+                    .filter(|call| {
+                        call.owner == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
+                            && call.target == nominal.cleanup_machine
+                            && call.arguments.is_empty()
+                            && call.claim_transfers.is_empty()
+                            && call.code_offset == cleanup.code_offset
+                    })
+                    .count();
                 !cleanup.locals.is_empty()
                     || !cleanup.discards.is_empty()
                     || parameter_homes.len() != 1
@@ -920,6 +996,8 @@ fn validate_unit_affine_cleanup(
                         && parameter_homes[0].source.locations.is_empty())
                     || attachments.get(&nominal.cleanup_machine)
                         != Some(&Some(nominal.structural_type))
+                    || !cleanup_body_is_exact
+                    || matching_edge_calls != usize::from(cleanup_is_executable)
             }
             (None, []) => suffix != expected_parameter_suffix,
             (None, [residual]) => {
@@ -1196,7 +1274,7 @@ fn validate_internal_unit_call_custody(
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidInternalUnitCallEvidence(machine);
     let Some(relocation) = relocations.iter().find(|relocation| {
-        relocation.psi_operation == custody.psi_operation
+        relocation.owner == custody.owner
             && relocation.target == custody.target
             && relocation.unit_stack.is_some()
     }) else {
@@ -1216,25 +1294,60 @@ fn validate_internal_unit_call_custody(
         .checked_sub(linkage_bytes)
         .ok_or_else(invalid)?;
     if custody.arguments.is_empty() && custody.claim_transfers.is_empty() {
+        let owner_valid = match custody.owner {
+            TerminalCallSiteOwner::Operation(operation) => {
+                provenance.operations.contains(&operation)
+                    && fuel
+                        .iter()
+                        .filter(|attribution| {
+                            attribution.site == TerminalNativeFuelSite::Operation(operation)
+                                && attribution.operation_ordinal == custody.operation_ordinal
+                                && attribution.code_offset == custody.code_offset
+                                && attribution.byte_count == custody.byte_count
+                        })
+                        .count()
+                        == 1
+            }
+            TerminalCallSiteOwner::Edge(edge) => {
+                let Some(cleanup) = affine_cleanup else {
+                    return Err(invalid());
+                };
+                let Some(nominal) = cleanup.nominal_cleanup else {
+                    return Err(invalid());
+                };
+                let cleanup_end = cleanup
+                    .code_offset
+                    .checked_add(cleanup.byte_count)
+                    .ok_or_else(invalid)?;
+                provenance.edges.contains(&edge)
+                    && cleanup.psi_edge == edge
+                    && nominal.cleanup_machine == custody.target
+                    && cleanup.code_offset == custody.code_offset
+                    && end <= cleanup_end
+                    && fuel
+                        .iter()
+                        .filter(|attribution| {
+                            attribution.site == TerminalNativeFuelSite::Edge(edge)
+                                && attribution.operation_ordinal == custody.operation_ordinal
+                                && attribution.code_offset == cleanup.code_offset
+                                && attribution.byte_count == cleanup.byte_count
+                        })
+                        .count()
+                        == 1
+            }
+        };
         if custody.byte_count == 0
             || custody.code_offset > relocation.offset
             || relocation_end > end
-            || !provenance.operations.contains(&custody.psi_operation)
-            || fuel
-                .iter()
-                .filter(|attribution| {
-                    attribution.site == TerminalNativeFuelSite::Operation(custody.psi_operation)
-                        && attribution.operation_ordinal == custody.operation_ordinal
-                        && attribution.code_offset == custody.code_offset
-                        && attribution.byte_count == custody.byte_count
-                })
-                .count()
-                != 1
+            || !owner_valid
         {
             return Err(invalid());
         }
         return Ok(());
     }
+    let TerminalCallSiteOwner::Operation(operation) = custody.owner else {
+        return Err(invalid());
+    };
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &omega_calling_conventions::CallSignature {
@@ -1305,11 +1418,11 @@ fn validate_internal_unit_call_custody(
     if custody.byte_count == 0
         || custody.code_offset > relocation.offset
         || relocation_end > end
-        || !provenance.operations.contains(&custody.psi_operation)
+        || !provenance.operations.contains(&operation)
         || fuel
             .iter()
             .filter(|attribution| {
-                attribution.site == TerminalNativeFuelSite::Operation(custody.psi_operation)
+                attribution.site == TerminalNativeFuelSite::Operation(operation)
                     && attribution.operation_ordinal == custody.operation_ordinal
                     && attribution.code_offset == custody.code_offset
                     && attribution.byte_count == custody.byte_count
@@ -1609,7 +1722,7 @@ fn validate_unit_function_stack(
             if frame.allocation_offset != 0 {
                 return Err(TerminalObjectError::InvalidUnitStackEncoding {
                     machine,
-                    operation: None,
+                    owner: None,
                     offset: frame.allocation_offset,
                 });
             }
@@ -1631,7 +1744,7 @@ fn validate_unit_function_stack(
             {
                 return Err(TerminalObjectError::InvalidUnitStackEncoding {
                     machine,
-                    operation: None,
+                    owner: None,
                     offset: bytes.len().saturating_sub(1),
                 });
             }
@@ -1775,10 +1888,16 @@ fn validate_scalar_stack(
                     let call = call_sites.remove(&offset).ok_or(
                         TerminalObjectError::UntypedScalarInternalCall { machine, offset },
                     )?;
+                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
+                        return Err(TerminalObjectError::UntypedScalarInternalCall {
+                            machine,
+                            offset,
+                        });
+                    };
                     let call_evidence = call.scalar_stack.ok_or(
                         TerminalObjectError::MissingScalarCallStackEvidence {
                             caller: machine,
-                            operation: call.psi_operation,
+                            operation,
                         },
                     )?;
                     let validated = validate_scalar_call_stack(
@@ -1876,10 +1995,16 @@ fn validate_scalar_stack(
                     let call = call_sites.remove(&offset).ok_or(
                         TerminalObjectError::UntypedScalarInternalCall { machine, offset },
                     )?;
+                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
+                        return Err(TerminalObjectError::UntypedScalarInternalCall {
+                            machine,
+                            offset,
+                        });
+                    };
                     let call_evidence = call.scalar_stack.ok_or(
                         TerminalObjectError::MissingScalarCallStackEvidence {
                             caller: machine,
-                            operation: call.psi_operation,
+                            operation,
                         },
                     )?;
                     let validated = validate_scalar_call_stack(
@@ -1925,7 +2050,7 @@ fn validate_scalar_stack(
     if let Some((_, call)) = call_sites.first_key_value() {
         return Err(TerminalObjectError::InvalidInternalCallSite {
             caller: machine,
-            operation: call.psi_operation,
+            owner: call.owner,
             offset: call.offset,
         });
     }
@@ -2059,7 +2184,7 @@ fn validate_top_level_two_return_scalar_stack(
     if let Some((&offset, call)) = call_sites.first_key_value() {
         return Err(TerminalObjectError::InvalidInternalCallSite {
             caller: machine,
-            operation: call.psi_operation,
+            owner: call.owner,
             offset,
         });
     }
@@ -2200,17 +2325,23 @@ fn replay_scalar_conditional_region(
                     let call = call_sites.remove(&offset).ok_or(
                         TerminalObjectError::UntypedScalarInternalCall { machine, offset },
                     )?;
+                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
+                        return Err(TerminalObjectError::UntypedScalarInternalCall {
+                            machine,
+                            offset,
+                        });
+                    };
                     if !allow_calls {
                         return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
                             machine,
-                            operation: call.psi_operation,
+                            operation,
                             offset,
                         });
                     }
                     let call_evidence = call.scalar_stack.ok_or(
                         TerminalObjectError::MissingScalarCallStackEvidence {
                             caller: machine,
-                            operation: call.psi_operation,
+                            operation,
                         },
                     )?;
                     let validated = validate_scalar_call_stack(
@@ -2300,17 +2431,23 @@ fn replay_scalar_conditional_region(
                     let call = call_sites.remove(&offset).ok_or(
                         TerminalObjectError::UntypedScalarInternalCall { machine, offset },
                     )?;
+                    let TerminalCallSiteOwner::Operation(operation) = call.owner else {
+                        return Err(TerminalObjectError::UntypedScalarInternalCall {
+                            machine,
+                            offset,
+                        });
+                    };
                     if !allow_calls {
                         return Err(TerminalObjectError::ScalarConditionalCallOutsideArm {
                             machine,
-                            operation: call.psi_operation,
+                            operation,
                             offset,
                         });
                     }
                     let call_evidence = call.scalar_stack.ok_or(
                         TerminalObjectError::MissingScalarCallStackEvidence {
                             caller: machine,
-                            operation: call.psi_operation,
+                            operation,
                         },
                     )?;
                     let validated = validate_scalar_call_stack(
@@ -2362,18 +2499,29 @@ fn validate_scalar_call_stack(
     function: &TerminalScalarStackEvidence,
     replay_depth: u32,
 ) -> Result<TerminalObjectScalarCallStack, TerminalObjectError> {
-    let operation = relocation.psi_operation;
+    let TerminalCallSiteOwner::Operation(operation) = relocation.owner else {
+        return Err(TerminalObjectError::UntypedScalarInternalCall {
+            machine: caller,
+            offset: relocation.offset,
+        });
+    };
     let (call_start, call_end) = match architecture {
         Architecture::X86_64 => (relocation.offset - 1, relocation.offset + 4),
         Architecture::Aarch64 => (relocation.offset, relocation.offset + 4),
     };
     if let Some(outbound) = call.outbound {
-        validate_stack_adjustment_pair(architecture, caller, Some(operation), bytes, outbound)
-            .map_err(|_| TerminalObjectError::InvalidScalarCallStackEvidence {
-                caller,
-                operation,
-                offset: outbound.allocation_offset,
-            })?;
+        validate_stack_adjustment_pair(
+            architecture,
+            caller,
+            Some(TerminalCallSiteOwner::Operation(operation)),
+            bytes,
+            outbound,
+        )
+        .map_err(|_| TerminalObjectError::InvalidScalarCallStackEvidence {
+            caller,
+            operation,
+            offset: outbound.allocation_offset,
+        })?;
         let allocation = function
             .mutations
             .iter()
@@ -2629,10 +2777,10 @@ fn validate_unit_call_stack(
     call: TerminalUnitCallStackEvidence,
 ) -> Result<TerminalObjectUnitCallStack, TerminalObjectError> {
     validate_internal_call_site(architecture, caller, bytes, relocation)?;
-    let operation = relocation.psi_operation;
+    let owner = relocation.owner;
     let outbound_bytes = match call.outbound {
         Some(outbound) => {
-            validate_stack_adjustment_pair(architecture, caller, Some(operation), bytes, outbound)?;
+            validate_stack_adjustment_pair(architecture, caller, Some(owner), bytes, outbound)?;
             outbound.byte_size
         }
         None => 0,
@@ -2646,13 +2794,13 @@ fn validate_unit_call_stack(
         Architecture::Aarch64 => (relocation.offset, relocation.offset.saturating_add(4), 0),
     };
     if architecture == Architecture::X86_64 && call.outbound.is_none() {
-        return Err(TerminalObjectError::MissingX86UnitCallStackAdjustment { caller, operation });
+        return Err(TerminalObjectError::MissingX86UnitCallStackAdjustment { caller, owner });
     }
     if let Some(outbound) = call.outbound {
         let allocation_end = outbound
             .allocation_offset
             .checked_add(outbound.allocation_byte_count)
-            .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, operation })?;
+            .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
         let frame_release = function_evidence.frame.map(|frame| frame.release_offset);
         if allocation_end > call_start
             || outbound.release_offset != call_end
@@ -2665,27 +2813,27 @@ fn validate_unit_call_stack(
         {
             return Err(TerminalObjectError::InvalidUnitStackEncoding {
                 machine: caller,
-                operation: Some(operation),
+                owner: Some(owner),
                 offset: outbound.allocation_offset,
             });
         }
     }
     let transient_bytes = outbound_bytes
         .checked_add(linkage_bytes)
-        .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, operation })?;
+        .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
     let caller_live_bytes = function
         .frame_bytes
         .checked_add(transient_bytes)
-        .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, operation })?;
+        .ok_or(TerminalObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
     if !caller_live_bytes.is_multiple_of(function.stack_alignment) {
         return Err(TerminalObjectError::MisalignedUnitCalleeEntry {
             caller,
-            operation,
+            owner,
             caller_live_bytes,
         });
     }
     Ok(TerminalObjectUnitCallStack {
-        psi_operation: operation,
+        owner,
         target: relocation.target,
         text_offset: relocation.offset,
         active_frame_bytes: function.frame_bytes,
@@ -2697,14 +2845,14 @@ fn validate_unit_call_stack(
 fn validate_stack_adjustment_pair(
     architecture: Architecture,
     machine: MachineId,
-    operation: Option<psi_core::OperationId>,
+    owner: Option<TerminalCallSiteOwner>,
     bytes: &[u8],
     pair: TerminalStackAdjustmentPair,
 ) -> Result<(), TerminalObjectError> {
     if pair.allocation_offset >= pair.release_offset {
         return Err(TerminalObjectError::InvalidUnitStackEncoding {
             machine,
-            operation,
+            owner,
             offset: pair.allocation_offset,
         });
     }
@@ -2717,7 +2865,7 @@ fn validate_stack_adjustment_pair(
             if pair.byte_size > 0xfff {
                 return Err(TerminalObjectError::InvalidUnitStackEncoding {
                     machine,
-                    operation,
+                    owner,
                     offset: pair.allocation_offset,
                 });
             }
@@ -2742,7 +2890,7 @@ fn validate_stack_adjustment_pair(
     {
         return Err(TerminalObjectError::InvalidUnitStackEncoding {
             machine,
-            operation,
+            owner,
             offset: pair.allocation_offset,
         });
     }
@@ -2856,7 +3004,7 @@ fn validate_complete_unit_stack_evidence(
     if let Some((offset, _)) = claimed.into_iter().next() {
         return Err(TerminalObjectError::InvalidUnitStackEncoding {
             machine,
-            operation: None,
+            owner: None,
             offset,
         });
     }
@@ -3012,7 +3160,7 @@ fn derive_terminal_stack_peak(
         let composed = caller_live.checked_add(callee_peak).ok_or(
             TerminalObjectError::TerminalStackCompositionOverflow {
                 caller: machine,
-                operation: call.psi_operation,
+                owner: call.owner,
             },
         )?;
         peak = peak.max(composed);
@@ -3029,7 +3177,7 @@ fn derive_terminal_stack_peak(
         let composed = caller_live.checked_add(callee_peak).ok_or(
             TerminalObjectError::TerminalStackCompositionOverflow {
                 caller: machine,
-                operation: call.psi_operation,
+                owner: TerminalCallSiteOwner::Operation(call.psi_operation),
             },
         )?;
         peak = peak.max(composed);
@@ -3060,7 +3208,7 @@ fn validate_internal_call_site(
     if !valid {
         return Err(TerminalObjectError::InvalidInternalCallSite {
             caller,
-            operation: call.psi_operation,
+            owner: call.owner,
             offset: call.offset,
         });
     }
@@ -3290,26 +3438,26 @@ pub enum TerminalObjectError {
     },
     InvalidInternalCallSite {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
         offset: usize,
     },
     InvalidInternalUnitCallEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),
     InternalCallOperationNotInProvenance {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     DuplicateInternalCallOperation {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     MissingUnitCallStackEvidence {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     UnexpectedUnitCallStackEvidence {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     MissingScalarCallStackEvidence {
         caller: MachineId,
@@ -3380,11 +3528,11 @@ pub enum TerminalObjectError {
     },
     UnitCallStackArithmeticOverflow {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     InvalidUnitStackEncoding {
         machine: MachineId,
-        operation: Option<psi_core::OperationId>,
+        owner: Option<TerminalCallSiteOwner>,
         offset: usize,
     },
     InvalidUnitInstructionEncoding {
@@ -3402,12 +3550,12 @@ pub enum TerminalObjectError {
     },
     MisalignedUnitCalleeEntry {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
         caller_live_bytes: u32,
     },
     MissingX86UnitCallStackAdjustment {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     MissingAarch64UnitReturnLink {
         caller: MachineId,
@@ -3417,7 +3565,7 @@ pub enum TerminalObjectError {
     TerminalStackCycle(MachineId),
     TerminalStackCompositionOverflow {
         caller: MachineId,
-        operation: psi_core::OperationId,
+        owner: TerminalCallSiteOwner,
     },
     PortEffectOutsideFunction {
         machine: MachineId,

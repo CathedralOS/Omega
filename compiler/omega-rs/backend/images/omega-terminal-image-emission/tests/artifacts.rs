@@ -17,14 +17,21 @@ use omega_terminal_machine_code::{
     TerminalPortEffectRecord, TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
     TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalUnitCallStackEvidence, TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
-    TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
     TerminalProviderPlanIdentity, TerminalPsiProvenance,
 };
-use psi_core::{BoundaryMachineId, EdgeId, MachineId, OperationId, ProfileDecisionId, ServiceId};
-use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_core::{
+    BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId, ServiceId,
+    StructuralTypeId,
+};
+use psi_terminal::{
+    NominalAffineCleanup, SemanticFingerprint, StructuralMultiplicity, TerminalPsiIdentity,
+    VocabularyMarker,
+};
 
 #[test]
 fn object_artifact_owns_canonical_function_spans_and_psi_provenance() {
@@ -78,7 +85,7 @@ fn object_artifact_owns_canonical_function_spans_and_psi_provenance() {
     let container = emit_terminal_object_container(&artifact);
     assert_eq!(container.terminal_psi, plan.terminal_psi);
     assert_eq!(&container.output.bytes[..8], b"OMGOBJ\0\0");
-    assert_eq!(&container.output.bytes[8..12], &5_u32.to_le_bytes());
+    assert_eq!(&container.output.bytes[8..12], &6_u32.to_le_bytes());
     assert_eq!(container.output.text_bytes, 12);
     assert_eq!(container.output.data_bytes, 0);
     assert_eq!(container.output.bss_bytes, 0);
@@ -119,8 +126,10 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     account_x86_unit_call(&mut plan);
     let full_width_operation = operation_id(u64::from(u32::MAX) + 1);
     plan.functions[1].provenance.operations[0] = full_width_operation;
-    plan.functions[1].internal_calls[0].psi_operation = full_width_operation;
-    plan.functions[1].internal_unit_calls[0].psi_operation = full_width_operation;
+    plan.functions[1].internal_calls[0].owner =
+        omega_terminal_target_operations::TerminalCallSiteOwner::Operation(full_width_operation);
+    plan.functions[1].internal_unit_calls[0].owner =
+        omega_terminal_target_operations::TerminalCallSiteOwner::Operation(full_width_operation);
     if let TerminalNativeFuelSite::Operation(operation) =
         &mut plan.functions[1].fuel_attribution[0].site
     {
@@ -216,7 +225,9 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
         build_terminal_object_artifact(&invalid_site),
         Err(TerminalObjectError::InvalidInternalCallSite {
             caller: machine_id(2),
-            operation: operation_id(2),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(2)
+            ),
             offset: 1,
         })
     );
@@ -242,7 +253,9 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
         build_terminal_object_artifact(&missing_provenance),
         Err(TerminalObjectError::InternalCallOperationNotInProvenance {
             caller: machine_id(2),
-            operation: operation_id(2),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(2)
+            ),
         })
     );
 
@@ -251,7 +264,9 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
     duplicate_operation.functions[1]
         .internal_calls
         .push(TerminalInternalCallRelocation {
-            psi_operation: operation_id(2),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(2),
+            ),
             target: machine_id(1),
             unit_stack: None,
             scalar_stack: None,
@@ -261,7 +276,9 @@ fn object_boundary_rejects_unproved_internal_call_relocations() {
         build_terminal_object_artifact(&duplicate_operation),
         Err(TerminalObjectError::DuplicateInternalCallOperation {
             caller: machine_id(2),
-            operation: operation_id(2),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(2)
+            ),
         })
     );
 }
@@ -279,7 +296,9 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         build_terminal_object_artifact(&missing_call),
         Err(TerminalObjectError::MissingUnitCallStackEvidence {
             caller: machine_id(2),
-            operation: operation_id(2),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(2)
+            ),
         })
     );
 
@@ -291,7 +310,9 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         build_terminal_object_artifact(&removed_allocation),
         Err(TerminalObjectError::InvalidUnitStackEncoding {
             machine: machine_id(2),
-            operation: Some(operation_id(2)),
+            owner: Some(
+                omega_terminal_target_operations::TerminalCallSiteOwner::Operation(operation_id(2))
+            ),
             offset: 0,
         })
     );
@@ -309,7 +330,9 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         build_terminal_object_artifact(&missing_adjustment),
         Err(TerminalObjectError::MissingX86UnitCallStackAdjustment {
             caller: machine_id(2),
-            operation: operation_id(2),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(2)
+            ),
         })
     );
 
@@ -374,6 +397,81 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
             machine: machine_id(2),
             offset: 8,
         })
+    );
+}
+
+#[test]
+fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
+    let plan = edge_owned_cleanup_plan();
+    let cleanup_edge = edge_id(3);
+    let artifact = build_terminal_object_artifact(&plan).expect("edge-owned cleanup artifact");
+    let caller = artifact
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("caller function");
+    assert_eq!(caller.unit_call_stacks.len(), 1);
+    assert_eq!(
+        caller.unit_call_stacks[0].owner,
+        TerminalCallSiteOwner::Edge(cleanup_edge)
+    );
+    assert_eq!(caller.unit_call_stacks[0].target, machine_id(1));
+    assert_eq!(caller.unit_call_stacks[0].caller_live_bytes, 16);
+    assert_eq!(
+        derive_terminal_stack_demand(&artifact, machine_id(3))
+            .expect("edge cleanup stack closure")
+            .ceiling_bytes(),
+        32
+    );
+    let relocation = artifact
+        .relocations()
+        .records()
+        .map(|(_, relocation)| relocation)
+        .find(|relocation| {
+            matches!(
+                relocation.origin,
+                RelocationOrigin::SemanticEdge { edge_identity, .. }
+                    if edge_identity == cleanup_edge.get()
+            )
+        })
+        .expect("edge relocation");
+    assert!(matches!(
+        relocation.origin,
+        RelocationOrigin::SemanticEdge { edge_identity, .. }
+            if edge_identity == cleanup_edge.get()
+    ));
+
+    let image = emit_terminal_executable_image(&artifact, 3).expect("cleanup image");
+    let installation =
+        build_terminal_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+            .expect("cleanup installation");
+    let installed = installation
+        .internal_unit_calls()
+        .iter()
+        .find(|call| call.machine == machine_id(3))
+        .expect("installed cleanup call");
+    assert_eq!(
+        installed.custody.owner,
+        TerminalCallSiteOwner::Edge(cleanup_edge)
+    );
+    assert!(installed.custody.arguments.is_empty());
+    assert!(installed.custody.claim_transfers.is_empty());
+    let encoded = encode_terminal_installation_record(&installation).expect("encoded cleanup");
+    assert_eq!(
+        decode_terminal_installation_record(&encoded),
+        Ok(installation.clone())
+    );
+    validate_terminal_installation_record(&installation, &image)
+        .expect("installed cleanup binding");
+
+    let mut missing_call = plan;
+    missing_call.functions[2].internal_calls.clear();
+    missing_call.functions[2].internal_unit_calls.clear();
+    assert_eq!(
+        build_terminal_object_artifact(&missing_call),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        ))
     );
 }
 
@@ -652,7 +750,8 @@ fn scalar_direct_calls_compose_pending_temporaries_and_fail_closed() {
         cycle.functions[0] = cycle.functions[1].clone();
         cycle.functions[0].machine = machine_id(1);
         cycle.functions[0].provenance.operations = vec![operation_id(1)];
-        cycle.functions[0].internal_calls[0].psi_operation = operation_id(1);
+        cycle.functions[0].internal_calls[0].owner =
+            omega_terminal_target_operations::TerminalCallSiteOwner::Operation(operation_id(1));
         cycle.functions[0].internal_calls[0].target = machine_id(2);
         let artifact = build_terminal_object_artifact(&cycle).expect("typed scalar call cycle");
         assert_eq!(
@@ -788,7 +887,9 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
     call_claim.functions[0]
         .internal_calls
         .push(TerminalInternalCallRelocation {
-            psi_operation: operation_id(1),
+            owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                operation_id(1),
+            ),
             target: machine_id(1),
             unit_stack: None,
             scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -1217,7 +1318,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "98f867f259100d9f14708b078f75347f046afa7bbaca63b39674e3782ab9863b"
+        "1bec6b49de50bcb3bdcc368ea595514cfd2ad593f6f6d7b19fa307e84b14fe27"
     );
 
     let mut changed_plan = plan;
@@ -1240,10 +1341,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&14_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&15_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(14))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(15))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -1506,7 +1607,9 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: vec![TerminalInternalCallRelocation {
-                    psi_operation: operation_id(2),
+                    owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                        operation_id(2),
+                    ),
                     target: machine_id(1),
                     unit_stack: None,
                     scalar_stack: None,
@@ -1718,7 +1821,9 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
                 stack_alignment: 16,
             });
             caller.internal_calls = vec![TerminalInternalCallRelocation {
-                psi_operation: operation_id(2),
+                owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                    operation_id(2),
+                ),
                 target: machine_id(1),
                 unit_stack: None,
                 scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -1768,7 +1873,9 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
                 stack_alignment: 16,
             });
             caller.internal_calls = vec![TerminalInternalCallRelocation {
-                psi_operation: operation_id(2),
+                owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                    operation_id(2),
+                ),
                 target: machine_id(1),
                 unit_stack: None,
                 scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -1845,7 +1952,9 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
             });
             caller.internal_calls = vec![
                 TerminalInternalCallRelocation {
-                    psi_operation: operation_id(2),
+                    owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                        operation_id(2),
+                    ),
                     target: machine_id(1),
                     unit_stack: None,
                     scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -1855,7 +1964,9 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
                     offset: 12,
                 },
                 TerminalInternalCallRelocation {
-                    psi_operation: operation_id(3),
+                    owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                        operation_id(3),
+                    ),
                     target: machine_id(1),
                     unit_stack: None,
                     scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -1933,7 +2044,9 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
             });
             caller.internal_calls = vec![
                 TerminalInternalCallRelocation {
-                    psi_operation: operation_id(2),
+                    owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                        operation_id(2),
+                    ),
                     target: machine_id(1),
                     unit_stack: None,
                     scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -1953,7 +2066,9 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
                     offset: 16,
                 },
                 TerminalInternalCallRelocation {
-                    psi_operation: operation_id(3),
+                    owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
+                        operation_id(3),
+                    ),
                     target: machine_id(1),
                     unit_stack: None,
                     scalar_stack: Some(TerminalScalarCallStackEvidence {
@@ -2094,7 +2209,7 @@ fn account_x86_unit_call(plan: &mut TerminalMachineCodePlan) {
         }),
     });
     caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
-        psi_operation: caller.internal_calls[0].psi_operation,
+        owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -2105,7 +2220,12 @@ fn account_x86_unit_call(plan: &mut TerminalMachineCodePlan) {
     caller.fuel_attribution = vec![
         TerminalNativeFuelAttribution {
             schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: TerminalNativeFuelSite::Operation(caller.internal_calls[0].psi_operation),
+            site: TerminalNativeFuelSite::Operation(
+                caller.internal_calls[0]
+                    .owner
+                    .operation()
+                    .expect("ordinary call owner"),
+            ),
             units: 1,
             operation_ordinal: 0,
             code_offset: 0,
@@ -2185,7 +2305,7 @@ fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
     caller.internal_calls[0].offset = 8;
     caller.internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence { outbound: None });
     caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
-        psi_operation: caller.internal_calls[0].psi_operation,
+        owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -2196,7 +2316,12 @@ fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
     caller.fuel_attribution = vec![
         TerminalNativeFuelAttribution {
             schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: TerminalNativeFuelSite::Operation(caller.internal_calls[0].psi_operation),
+            site: TerminalNativeFuelSite::Operation(
+                caller.internal_calls[0]
+                    .owner
+                    .operation()
+                    .expect("ordinary call owner"),
+            ),
             units: 1,
             operation_ordinal: 0,
             code_offset: 8,
@@ -2223,6 +2348,201 @@ fn insert_aarch64_word(bytes: &mut Vec<u8>, offset: usize, word: u32) {
 
 fn integer_return(value: u8) -> Vec<u8> {
     vec![0xb8, value, 0, 0, 0, 0xc3]
+}
+
+fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
+    let structural_type = StructuralTypeId::new(1).expect("type");
+    let place = PlaceId::new(1).expect("place");
+    let empty_shape = ValueShape::integer(0, 1);
+    let empty_placement = ValuePlacement {
+        shape: empty_shape,
+        locations: Vec::new(),
+    };
+    let unit_stack = Some(TerminalUnitStackEvidence {
+        frame: None,
+        aarch64_return_link: None,
+        stack_alignment: 16,
+    });
+    let empty_return = |edge| TerminalUnitAffineCleanupRecord {
+        psi_edge: edge,
+        locals: Vec::new(),
+        discards: Vec::new(),
+        residual_discards: Vec::new(),
+        nominal_cleanup: None,
+        code_offset: 13,
+        byte_count: 1,
+    };
+    let x86_empty_call_bytes = vec![
+        0x48, 0x83, 0xec, 0x08, 0xe8, 0, 0, 0, 0, 0x48, 0x83, 0xc4, 0x08, 0xc3,
+    ];
+    let stack_pair = TerminalStackAdjustmentPair {
+        byte_size: 8,
+        allocation_offset: 0,
+        allocation_byte_count: 4,
+        release_offset: 9,
+        release_byte_count: 4,
+    };
+    let operation_call = |operation, target| TerminalInternalCallRelocation {
+        owner: TerminalCallSiteOwner::Operation(operation),
+        target,
+        unit_stack: Some(TerminalUnitCallStackEvidence {
+            outbound: Some(stack_pair),
+        }),
+        scalar_stack: None,
+        offset: 5,
+    };
+    let operation_custody = |operation, target| TerminalInternalUnitCallRecord {
+        owner: TerminalCallSiteOwner::Operation(operation),
+        target,
+        arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        operation_ordinal: 0,
+        code_offset: 0,
+        byte_count: 13,
+    };
+    TerminalMachineCodePlan {
+        terminal_psi: identity(),
+        target: NativeTarget::linux_x64(),
+        entry: machine_id(3),
+        functions: vec![
+            TerminalMachineCodeFunction {
+                machine: machine_id(1),
+                attachment: Some(structural_type),
+                provenance: TerminalPsiProvenance {
+                    operations: vec![operation_id(1)],
+                    edges: vec![edge_id(1)],
+                },
+                bytes: x86_empty_call_bytes.clone(),
+                unit_stack,
+                unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: vec![operation_call(operation_id(1), machine_id(2))],
+                internal_unit_calls: vec![operation_custody(operation_id(1), machine_id(2))],
+                unit_affine_cleanup: Some(empty_return(edge_id(1))),
+                fuel_attribution: vec![
+                    TerminalNativeFuelAttribution {
+                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        site: TerminalNativeFuelSite::Operation(operation_id(1)),
+                        units: 1,
+                        operation_ordinal: 0,
+                        code_offset: 0,
+                        byte_count: 13,
+                    },
+                    TerminalNativeFuelAttribution {
+                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        site: TerminalNativeFuelSite::Edge(edge_id(1)),
+                        units: 1,
+                        operation_ordinal: 1,
+                        code_offset: 13,
+                        byte_count: 1,
+                    },
+                ],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                structural_return: None,
+            },
+            TerminalMachineCodeFunction {
+                machine: machine_id(2),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge_id(2)],
+                },
+                bytes: vec![0xc3],
+                unit_stack,
+                unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: Some(TerminalUnitAffineCleanupRecord {
+                    code_offset: 0,
+                    byte_count: 1,
+                    ..empty_return(edge_id(2))
+                }),
+                fuel_attribution: vec![TerminalNativeFuelAttribution {
+                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                    site: TerminalNativeFuelSite::Edge(edge_id(2)),
+                    units: 1,
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 1,
+                }],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                structural_return: None,
+            },
+            TerminalMachineCodeFunction {
+                machine: machine_id(3),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge_id(3)],
+                },
+                bytes: x86_empty_call_bytes,
+                unit_stack,
+                unit_parameter_homes: vec![TerminalUnitParameterHomeRecord {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    shape: empty_shape,
+                    source: empty_placement.clone(),
+                    byte_offset: 0,
+                    indirect: false,
+                }],
+                unit_parameters: vec![TerminalUnitParameterRecord {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    shape: empty_shape,
+                }],
+                scalar_stack: None,
+                internal_calls: vec![TerminalInternalCallRelocation {
+                    owner: TerminalCallSiteOwner::Edge(edge_id(3)),
+                    target: machine_id(1),
+                    unit_stack: Some(TerminalUnitCallStackEvidence {
+                        outbound: Some(stack_pair),
+                    }),
+                    scalar_stack: None,
+                    offset: 5,
+                }],
+                internal_unit_calls: vec![TerminalInternalUnitCallRecord {
+                    owner: TerminalCallSiteOwner::Edge(edge_id(3)),
+                    target: machine_id(1),
+                    arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 13,
+                }],
+                unit_affine_cleanup: Some(TerminalUnitAffineCleanupRecord {
+                    psi_edge: edge_id(3),
+                    locals: Vec::new(),
+                    discards: Vec::new(),
+                    residual_discards: Vec::new(),
+                    nominal_cleanup: Some(NominalAffineCleanup {
+                        place,
+                        structural_type,
+                        cleanup_machine: machine_id(1),
+                    }),
+                    code_offset: 0,
+                    byte_count: 14,
+                }),
+                fuel_attribution: vec![TerminalNativeFuelAttribution {
+                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                    site: TerminalNativeFuelSite::Edge(edge_id(3)),
+                    units: 1,
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 14,
+                }],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                structural_return: None,
+            },
+        ],
+    }
 }
 
 fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {
@@ -2273,3 +2593,4 @@ fn identity() -> TerminalPsiIdentity {
         program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
     }
 }
+use omega_calling_conventions::{ValuePlacement, ValueShape};

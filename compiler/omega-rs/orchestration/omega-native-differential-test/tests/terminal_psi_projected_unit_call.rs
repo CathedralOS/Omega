@@ -3,11 +3,13 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
     TerminalInstallationError, build_terminal_installation_record, build_terminal_object_artifact,
-    decode_terminal_installation_record, emit_terminal_executable_image,
-    encode_terminal_installation_record, validate_terminal_installation_record,
+    decode_terminal_installation_record, derive_terminal_stack_demand,
+    emit_terminal_executable_image, encode_terminal_installation_record,
+    validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
+use omega_terminal_target_operations::TerminalCallSiteOwner;
 use omega_terminal_target_operations::TerminalTargetOperation;
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::lower_machine;
@@ -59,7 +61,9 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
 
 const NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
-    machine Token::drop(&mut self) {}
+    data CleanupHelper {}
+    machine CleanupHelper::run() {}
+    machine Token::drop(&mut self) { CleanupHelper::run(); }
     data Root {}
     machine Root::enter(token: Token) {}
 "#;
@@ -433,7 +437,7 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
 }
 
 #[test]
-fn wide_flat_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() {
+fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
     let plan = nominal_affine_plan();
     let caller_machine = plan.entry;
     let caller = plan
@@ -514,6 +518,26 @@ fn wide_flat_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() 
         assert!(emitted_cleanup.discards.is_empty());
         assert!(emitted_cleanup.residual_discards.is_empty());
         assert_eq!(emitted_cleanup.nominal_cleanup, Some(cleanup));
+        let cleanup_call = emitted
+            .internal_unit_calls
+            .iter()
+            .find(|call| call.owner == TerminalCallSiteOwner::Edge(emitted_cleanup.psi_edge))
+            .expect("cleanup edge owns one native Unit call");
+        assert_eq!(cleanup_call.target, cleanup.cleanup_machine);
+        assert!(cleanup_call.arguments.is_empty());
+        assert!(cleanup_call.claim_transfers.is_empty());
+        let relocation = emitted
+            .internal_calls
+            .iter()
+            .find(|call| call.owner == cleanup_call.owner)
+            .expect("cleanup call retains a relocation");
+        assert_eq!(relocation.target, cleanup.cleanup_machine);
+        assert!(relocation.unit_stack.is_some());
+        assert!(emitted_cleanup.code_offset <= cleanup_call.code_offset);
+        assert!(
+            cleanup_call.code_offset + cleanup_call.byte_count
+                <= emitted_cleanup.code_offset + emitted_cleanup.byte_count
+        );
         assert_eq!(
             machine
                 .functions
@@ -522,39 +546,6 @@ fn wide_flat_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() 
                 .unwrap()
                 .attachment,
             Some(cleanup.structural_type)
-        );
-
-        let mut trivial_assigned = assigned.clone();
-        let trivial_caller = trivial_assigned
-            .functions
-            .iter_mut()
-            .find(|function| function.machine == caller_machine)
-            .unwrap();
-        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
-            &mut trivial_caller.operation
-        else {
-            panic!("caller remains Unit")
-        };
-        let omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
-            trivial_affine_discards,
-            nominal_affine_cleanup,
-            ..
-        } = body.operations.last_mut().unwrap()
-        else {
-            panic!("caller ends in Unit return")
-        };
-        *trivial_affine_discards = vec![cleanup.place];
-        *nominal_affine_cleanup = None;
-        let trivial_machine = emit_machine_code(&trivial_assigned).unwrap();
-        assert_eq!(
-            emitted.bytes,
-            trivial_machine
-                .functions
-                .iter()
-                .find(|function| function.machine == caller_machine)
-                .unwrap()
-                .bytes,
-            "the empty cleanup body adds no native instruction bytes"
         );
 
         let mut forged_place = machine.clone();
@@ -581,6 +572,22 @@ fn wide_flat_nominal_affine_cleanup_is_zero_code_and_installed_on_all_targets() 
         assert!(build_terminal_object_artifact(&forged_target).is_err());
 
         let object = build_terminal_object_artifact(&machine).unwrap();
+        let expected_stack_bytes = match target {
+            target
+                if target == NativeTarget::windows_x64() || target == NativeTarget::uefi_x64() =>
+            {
+                112
+            }
+            target if target == NativeTarget::linux_x64() => 80,
+            _ => 48,
+        };
+        assert_eq!(
+            derive_terminal_stack_demand(&object, caller_machine)
+                .expect("executable cleanup stack closure")
+                .ceiling_bytes(),
+            expected_stack_bytes,
+            "the wide receiver and both nested calls compose exactly for {target:?}"
+        );
         let image = emit_terminal_executable_image(&object, 3).unwrap();
         let installation =
             build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
