@@ -257,6 +257,17 @@ pub enum TerminalTargetOperation {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
     },
+    /// One bounded short-circuit Boolean tree with exactly two decisions and
+    /// three value-return leaves, all executing the same complete structural
+    /// cleanup stream. Each leaf retains its own terminal-Psi return edge in
+    /// `control`; there is deliberately no synthetic shared cleanup edge.
+    BooleanControlWithCleanup {
+        control: TerminalTargetBooleanControl,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+    },
     /// Return one exact whole-root structural parameter through the selected
     /// native ABI while retaining its zero-runtime custody metadata.
     ReturnStructuralParameter {

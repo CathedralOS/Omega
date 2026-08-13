@@ -814,6 +814,11 @@ fn build_structural_scalar_return_machine(
         scalar_parameters.len(),
         binding_count,
     );
+    let return_is_one_short_circuit_boolean = is_single_top_level_short_circuit_boolean_return(
+        return_expression,
+        scalar_parameters.len(),
+        binding_count,
+    );
     if !is_structural_scalar_return_expression(
         return_expression,
         scalar_parameters.len(),
@@ -837,7 +842,7 @@ fn build_structural_scalar_return_machine(
     if has_nominal_cleanup
         && (structural_parameters.len() != whole_discards.len()
             || !bindings_are_branch_free
-            || !return_is_branch_free)
+            || !(return_is_branch_free || return_is_one_short_circuit_boolean))
     {
         return None;
     }
@@ -857,6 +862,9 @@ fn build_structural_scalar_return_machine(
         }
         Vec::new()
     };
+    if return_is_one_short_circuit_boolean && !caller_requirements.is_empty() {
+        return None;
+    }
     let cleanup_actions = whole_discards
         .iter()
         .map(|(_, position)| {
@@ -1091,6 +1099,28 @@ fn checked_boolean_contains_short_circuit(
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. } => false,
+    }
+}
+
+fn is_single_top_level_short_circuit_boolean_return(
+    expression: &CheckedScalarExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    let CheckedScalarExpression::Boolean(expression) = expression else {
+        return false;
+    };
+    match expression.as_ref() {
+        psi_checked_trees::CheckedBooleanExpression::And { left, right }
+        | psi_checked_trees::CheckedBooleanExpression::Or { left, right } => {
+            is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
+                && is_branch_free_structural_boolean_expression(
+                    right,
+                    scalar_parameters,
+                    available_locals,
+                )
+        }
+        _ => false,
     }
 }
 

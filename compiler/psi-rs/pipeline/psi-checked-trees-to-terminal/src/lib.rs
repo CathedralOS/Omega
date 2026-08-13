@@ -3247,39 +3247,133 @@ fn lower_nominal_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
+    let nominal_short_circuit_return = matches!(
+        &expression,
+        LoweredDirectExpression::Boolean { expression }
+            if is_one_top_level_structural_boolean_decision(
+                expression,
+                scalar_parameter_count,
+                plan.bindings.len(),
+            )
+    );
+    if nominal_short_circuit_return
+        && (!plan.caller_requirements.is_empty()
+            || cleanup_actions.iter().any(|action| {
+                matches!(
+                    action,
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        if cleanup.cleanup_receiver.is_some()
+                            || !cleanup.requirement_obligations.is_empty()
+                )
+            }))
+    {
+        return unsupported("nominal scalar Boolean decision cleanup is not proof-free");
+    }
     if !is_branch_free_structural_scalar_expression(
         &expression,
         scalar_parameter_count,
         plan.bindings.len(),
-    ) {
-        return unsupported("nominal scalar return expression is not branch-free");
+    ) && !nominal_short_circuit_return
+    {
+        return unsupported(
+            "nominal scalar return expression is not branch-free or one top-level Boolean decision",
+        );
     }
     if expression.scalar_type() != result_type {
         return unsupported("nominal scalar return value does not match its checked result type");
     }
-    validate_direct_parameter_types(
-        &expression,
-        &scalar_values
-            .iter()
-            .map(|value| value.scalar_type)
-            .collect::<Vec<_>>(),
-    )?;
-    let value = emit_direct_expression(
-        &expression,
-        &scalar_values,
-        &mut next_value,
-        &mut operations,
-    );
+    let first_unused_edge = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| block.terminator.edges())
+        .map(|edge| edge.get())
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return edge identity space is exhausted",
+        ))?;
+    let first_unused_block = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .map(|block| block.id.get())
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return block identity space is exhausted",
+        ))?;
     let entry = &mut lowered.semantic_module.machines[entry_index];
-    let [block] = entry.blocks.as_mut_slice() else {
+    let [synthetic_block] = entry.blocks.as_slice() else {
         return unsupported("nominal scalar return entry control is not a single block");
     };
-    block.operations = operations.operations;
-    block.terminator = Terminator::Return {
-        edge,
-        value,
-        cleanup_actions,
+    if synthetic_block.terminator.edge() != edge {
+        return unsupported("nominal scalar return synthetic edge drifted");
+    }
+    let parameter_types = scalar_values
+        .iter()
+        .map(|value| value.scalar_type)
+        .collect::<Vec<_>>();
+    validate_direct_parameter_types(&expression, &parameter_types)?;
+    let blocks = if nominal_short_circuit_return {
+        let LoweredDirectExpression::Boolean { expression } = &expression else {
+            unreachable!("the bounded nominal decision is Boolean")
+        };
+        let entry_operation_count = operations.operations.len();
+        let decision = lower_boolean_value_decision(expression);
+        let mut next_edge = first_unused_edge;
+        let (mut root, mut children) = emit_inlined_boolean_value_blocks(
+            &decision,
+            &scalar_values,
+            Vec::new(),
+            LoweredBooleanDecisionExit::Return,
+            entry.entry,
+            block_id(first_unused_block),
+            &mut next_value,
+            &mut next_edge,
+            &mut operations,
+        );
+        let mut entry_operations = operations.operations[..entry_operation_count].to_vec();
+        entry_operations.extend(root.operations);
+        root.operations = entry_operations;
+        let mut blocks = Vec::with_capacity(1_usize.checked_add(children.len()).ok_or(
+            LoweringError::Unsupported("nominal scalar return block count exceeds usize"),
+        )?);
+        blocks.push(root);
+        blocks.append(&mut children);
+        for block in &mut blocks {
+            if let Terminator::Return {
+                cleanup_actions: leaf_cleanup,
+                ..
+            } = &mut block.terminator
+            {
+                *leaf_cleanup = cleanup_actions.clone();
+            }
+        }
+        blocks
+    } else {
+        let value = emit_direct_expression(
+            &expression,
+            &scalar_values,
+            &mut next_value,
+            &mut operations,
+        );
+        vec![Block {
+            id: entry.entry,
+            parameters: Vec::new(),
+            operations: operations.operations,
+            terminator: Terminator::Return {
+                edge,
+                value,
+                cleanup_actions,
+            },
+        }]
     };
+    entry.blocks = blocks;
     entry.parameters = scalar_parameters;
     entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
         id: value_id(next_value),
@@ -3460,6 +3554,20 @@ fn is_branch_free_structural_boolean_expression(
             false
         }
     }
+}
+
+fn is_one_top_level_structural_boolean_decision(
+    expression: &LoweredBooleanReturnExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    let (left, right) = match expression {
+        LoweredBooleanReturnExpression::And { left, right }
+        | LoweredBooleanReturnExpression::Or { left, right } => (left, right),
+        _ => return false,
+    };
+    is_branch_free_structural_boolean_expression(left, scalar_parameters, available_locals)
+        && is_branch_free_structural_boolean_expression(right, scalar_parameters, available_locals)
 }
 
 fn lower_structural_unit_control_machine(
