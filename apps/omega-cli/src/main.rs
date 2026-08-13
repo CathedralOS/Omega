@@ -471,9 +471,11 @@ fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
         .map(|declaration| declaration.identity.as_str())
 }
 
-/// Compile every sample `main.omg` under `<samples_root>` into its own `build/` directory,
-/// fanned across the machine's cores (each sample owns a distinct build dir, so
-/// the parallel compiles never collide). Prints a summary and exits.
+/// Compile every sample `main.omg` under `<samples_root>` into its own `build/` directory
+/// for the exact host target, fanned across the machine's cores (each sample
+/// owns a distinct build dir, so the parallel compiles never collide). Samples
+/// without an authored host `ProgramEntry` are reported as failures; production
+/// refresh never invents a legacy entry adapter. Prints a summary and exits.
 fn refresh_samples(samples_root: &std::path::Path) -> ! {
     let mut mains = Vec::new();
     if let Err(error) = collect_sample_mains(samples_root, &mut mains) {
@@ -507,7 +509,9 @@ fn refresh_samples(samples_root: &std::path::Path) -> ! {
                     match compile(CompileOptions {
                         root_path: main_path.clone(),
                         build_dir: Some(build_dir),
-                        target_name: None,
+                        target_name: Some(
+                            omega_target::TargetProfile::host().target_name().to_owned(),
+                        ),
                         write_output: true,
                     }) {
                         Ok(_) => {
