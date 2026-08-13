@@ -286,6 +286,28 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 ) -> Option<CheckedBooleanExpression> {
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
+    if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+        && member.case_variant.is_none()
+        && let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+        && let Some(parameter_position) = parameters
+            .iter()
+            .position(|parameter| path.symbol.is_valid() && parameter.symbol == path.symbol)
+        && program.data_definitions().iter().any(|data| {
+            program.data_members(data).iter().any(|candidate| {
+                let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                    return false;
+                };
+                field.symbol == member.member_symbol
+                    && program.primitive_type_reference(field.type_reference)
+                        == Some(PrimitiveType::Bool)
+            })
+        })
+    {
+        return Some(CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: u32::try_from(parameter_position).ok()?,
+            field: member.member.as_str().to_owned(),
+        });
+    }
     let parameter_types = parameters
         .iter()
         .map(|parameter| program.primitive_type_reference(parameter.type_reference))
@@ -1072,6 +1094,7 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::Local { .. }
+        | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IntegerComparison { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {

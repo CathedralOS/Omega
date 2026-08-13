@@ -1625,7 +1625,7 @@ fn validate_machine(
         .iter()
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
-    validate_crash_frontiers(machine, &context, &requires_values)?;
+    validate_crash_frontiers(module, machine, &context, &requires_values)?;
     let mut ensures_values = requires_values.clone();
     if let Some(result) = machine.result.scalar() {
         ensures_values.insert(result.id);
@@ -2438,6 +2438,7 @@ fn substitute_crash_routes(
 }
 
 fn validate_crash_frontiers(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     context: &PropositionContext,
     contract_values: &BTreeSet<ValueId>,
@@ -2485,6 +2486,7 @@ fn validate_crash_frontiers(
             context
                 .validate(predicate.proposition())
                 .map_err(ModuleError::MalformedProposition)?;
+            validate_boolean_field_terms(module, machine, predicate.proposition())?;
             validate_contract_scope(
                 predicate.proposition(),
                 contract_values,
@@ -2516,6 +2518,7 @@ fn validate_crash_frontiers(
             context
                 .validate(predicate.proposition())
                 .map_err(ModuleError::MalformedProposition)?;
+            validate_boolean_field_terms(module, machine, predicate.proposition())?;
         }
         let covered = machine
             .contract
@@ -2540,6 +2543,116 @@ fn validate_crash_frontiers(
         {
             return Err(ModuleError::NonCanonicalCrashFrontier(block.id));
         }
+    }
+    Ok(())
+}
+
+fn validate_boolean_field_terms(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    proposition: &Proposition,
+) -> Result<(), ModuleError> {
+    fn validate_term(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        term: &ScalarTerm,
+    ) -> Result<(), ModuleError> {
+        match term {
+            ScalarTerm::BooleanField { root, field } => {
+                let valid = machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *root)
+                    .and_then(|parameter| {
+                        module
+                            .structural_types
+                            .iter()
+                            .find(|declaration| declaration.id == parameter.structural_type)
+                    })
+                    .and_then(|declaration| match &declaration.shape {
+                        StructuralTypeShape::Record { fields } => {
+                            fields.iter().find(|candidate| candidate.id == *field)
+                        }
+                        StructuralTypeShape::FixedArray { .. } => None,
+                    })
+                    .is_some_and(|field| {
+                        !field.relevance.is_erased()
+                            && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                    });
+                if !valid {
+                    return Err(ModuleError::InvalidBooleanFieldTerm {
+                        machine: machine.id,
+                        root: *root,
+                        field: *field,
+                    });
+                }
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => {
+                validate_term(module, machine, operand)?;
+            }
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                validate_term(module, machine, left)?;
+                validate_term(module, machine, right)?;
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                validate_term(module, machine, value)?;
+                validate_term(module, machine, count)?;
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+        Ok(())
+    }
+
+    match proposition {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            validate_term(module, machine, left)?;
+            validate_term(module, machine, right)?;
+        }
+        Proposition::Conjunction(conjuncts) => {
+            for conjunct in conjuncts {
+                validate_boolean_field_terms(module, machine, conjunct)?;
+            }
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            validate_boolean_field_terms(module, machine, premise)?;
+            validate_boolean_field_terms(module, machine, conclusion)?;
+        }
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => {}
     }
     Ok(())
 }
@@ -3188,7 +3301,7 @@ fn validate_term_scope(
         | ScalarTerm::IntegerExactCast { operand, .. } => {
             validate_term_scope(operand, allowed, contract, clause)?;
         }
-        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        ScalarTerm::BooleanField { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
 }
@@ -4950,6 +5063,11 @@ pub enum ModuleError {
         contract: ContractId,
         clause: ContractClauseKind,
         value: ValueId,
+    },
+    InvalidBooleanFieldTerm {
+        machine: MachineId,
+        root: PlaceId,
+        field: psi_core::StructuralFieldId,
     },
     NonCanonicalCrashRoutes(MachineId),
     EmptyCrashRouteBucket {

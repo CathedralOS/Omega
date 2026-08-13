@@ -219,6 +219,11 @@ pub enum CheckedBooleanExpression {
     Local {
         position: usize,
     },
+    /// Direct relevant Boolean field below one structural entry parameter.
+    StructuralParameterField {
+        parameter_position: u32,
+        field: String,
+    },
     Not(Box<CheckedBooleanExpression>),
     Equal {
         left: Box<CheckedBooleanExpression>,

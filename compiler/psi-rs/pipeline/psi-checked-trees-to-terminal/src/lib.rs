@@ -3545,12 +3545,46 @@ fn lower_attached_unit_closure(
                             .map(|claim| claim.parameter_index)
                             .collect::<Vec<_>>(),
                     )?;
+                    let terminal_arguments =
+                        lower_structural_arguments(structural_arguments, parameters)?;
+                    let target_parameters = lowered_machine_parameters
+                        .iter()
+                        .find_map(|(symbol, parameters)| {
+                            (*symbol == *target_machine).then_some(parameters)
+                        })
+                        .expect("every closure target has lowered parameters");
+                    let mut crash_continuations = if let Some(target_contract) =
+                        checked.facts.contract_plans.for_machine(*target_machine)
+                    {
+                        lower_structural_crash_route_buckets(
+                            target_contract.crash.published(),
+                            target_parameters,
+                            &structural_types,
+                        )?
+                    } else {
+                        Vec::new()
+                    };
+                    if !crash_continuations.is_empty()
+                        && terminal_arguments
+                            .iter()
+                            .any(|argument| !argument.path.is_empty())
+                    {
+                        return unsupported(
+                            "projected structural calls cannot yet carry member crash predicates",
+                        );
+                    }
+                    let substitutions = target_parameters
+                        .iter()
+                        .zip(&terminal_arguments)
+                        .map(|(parameter, argument)| (parameter.place, argument.place))
+                        .collect::<BTreeMap<_, _>>();
+                    substitute_structural_crash_route_roots(
+                        &mut crash_continuations,
+                        &substitutions,
+                    );
                     OperationKind::CallUnit {
                         callee: lookup_machine_id(&machine_ids, *target_machine)?,
-                        structural_arguments: lower_structural_arguments(
-                            structural_arguments,
-                            parameters,
-                        )?,
+                        structural_arguments: terminal_arguments,
                         claim_transfers: claim_transfers
                             .iter()
                             .map(|transfer| {
@@ -3564,7 +3598,7 @@ fn lower_attached_unit_closure(
                             })
                             .collect::<Result<Vec<_>, LoweringError>>()?,
                         requirement_obligations: Vec::new(),
-                        crash_continuations: Vec::new(),
+                        crash_continuations,
                     }
                 }
                 CheckedUnitEffectOperationPlan::BoundaryCallUnit {
@@ -3710,6 +3744,16 @@ fn lower_attached_unit_closure(
             .collect::<Result<Vec<_>, _>>()?;
         let block = block_id(allocate_dense(&mut next_block)?);
         let edge = edge_id(allocate_dense(&mut next_edge)?);
+        let crash_routes =
+            if let Some(contract_plan) = checked.facts.contract_plans.for_machine(plan.machine) {
+                lower_structural_crash_route_buckets(
+                    contract_plan.crash.published(),
+                    parameters,
+                    &structural_types,
+                )?
+            } else {
+                Vec::new()
+            };
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -3749,7 +3793,7 @@ fn lower_attached_unit_closure(
             }],
             contract: MachineContract {
                 id: contract_id(terminal_machine.get()),
-                crash_routes: Vec::new(),
+                crash_routes,
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },
@@ -5528,6 +5572,11 @@ fn lower_checked_boolean_expression(
         CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {
             position: *position,
         },
+        CheckedBooleanExpression::StructuralParameterField { .. } => {
+            return unsupported(
+                "structural field predicates are not executable scalar expressions",
+            );
+        }
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(lower_checked_boolean_expression(operand)?),
         },
@@ -6898,6 +6947,122 @@ fn lower_checked_crash_route_buckets(
         .collect()
 }
 
+fn lower_structural_crash_route_buckets(
+    buckets: &[psi_checked_trees::CrashRouteBucket],
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<Vec<psi_terminal::CrashRouteBucket>, LoweringError> {
+    buckets
+        .iter()
+        .map(|bucket| {
+            let mut alternatives = bucket
+                .alternative_guards()
+                .iter()
+                .map(|guard| match guard {
+                    psi_checked_trees::CrashRouteGuard::Truth => {
+                        Ok(psi_terminal::CrashRouteGuard::Truth)
+                    }
+                    psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                        let (parameter_position, field) = match predicate.scalar_expression() {
+                            Some(CheckedBooleanExpression::StructuralParameterField {
+                                parameter_position,
+                                field,
+                            }) => (*parameter_position, field.as_str()),
+                            None => match predicate.expression() {
+                                Some(psi_checked_trees::CrashPredicateExpression::Member {
+                                    receiver,
+                                    member,
+                                }) => match receiver.as_ref() {
+                                    psi_checked_trees::CrashPredicateExpression::Parameter(
+                                        position,
+                                    ) => (*position, member.as_str()),
+                                    _ => return unsupported(
+                                        "structural crash member receiver is not a direct parameter",
+                                    ),
+                                },
+                                _ => return unsupported(
+                                    "structural crash route is not one direct Boolean member projection",
+                                ),
+                            },
+                            Some(_) => return unsupported(
+                                "structural crash route is not one direct Boolean member projection",
+                            ),
+                        };
+                        let parameter = parameters
+                            .iter()
+                            .find(|parameter| parameter.position == parameter_position)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural crash route names a non-structural parameter",
+                            ))?;
+                        let declaration = structural_types
+                            .iter()
+                            .find(|declaration| declaration.id == parameter.structural_type)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural crash route parameter type is absent",
+                            ))?;
+                        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                            return unsupported(
+                                "structural crash route receiver is not a record",
+                            );
+                        };
+                        let field = fields
+                            .iter()
+                            .find(|candidate| candidate.identity == field)
+                            .filter(|field| {
+                                !field.relevance.is_erased()
+                                    && field.field_type
+                                        == StructuralFieldType::Scalar(ScalarType::Boolean)
+                            })
+                            .ok_or(LoweringError::Unsupported(
+                                "structural crash route field is absent, erased, or non-Boolean",
+                            ))?;
+                        Ok(psi_terminal::CrashRouteGuard::Predicate(
+                            psi_terminal::CrashPredicateTerm::new(Proposition::Equal(
+                                ScalarTerm::boolean(true),
+                                ScalarTerm::boolean_field(parameter.place, field.id),
+                            )),
+                        ))
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            alternatives.sort();
+            alternatives.dedup();
+            Ok(psi_terminal::CrashRouteBucket {
+                cause: match bucket.cause() {
+                    psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+                    psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+                },
+                alternatives,
+            })
+        })
+        .collect()
+}
+
+fn substitute_structural_crash_route_roots(
+    buckets: &mut [psi_terminal::CrashRouteBucket],
+    substitutions: &BTreeMap<PlaceId, PlaceId>,
+) {
+    fn substitute_term(term: &mut ScalarTerm, substitutions: &BTreeMap<PlaceId, PlaceId>) {
+        if let ScalarTerm::BooleanField { root, .. } = term {
+            *root = substitutions.get(root).copied().unwrap_or(*root);
+        }
+    }
+    for bucket in buckets {
+        for alternative in &mut bucket.alternatives {
+            let psi_terminal::CrashRouteGuard::Predicate(predicate) = alternative else {
+                continue;
+            };
+            let Proposition::Equal(left, right) = predicate.proposition() else {
+                continue;
+            };
+            let (mut left, mut right) = (left.clone(), right.clone());
+            substitute_term(&mut left, substitutions);
+            substitute_term(&mut right, substitutions);
+            *predicate = psi_terminal::CrashPredicateTerm::new(Proposition::Equal(left, right));
+        }
+    }
+}
+
 fn lower_checked_crash_predicates(
     predicates: &[CheckedBooleanExpression],
     values: &[ValueDeclaration],
@@ -6955,6 +7120,11 @@ fn checked_boolean_scalar_term(
                 return unsupported("crash predicate Boolean value has a non-Boolean type");
             }
             ScalarTerm::value(value.id, value.scalar_type)
+        }
+        CheckedBooleanExpression::StructuralParameterField { .. } => {
+            return unsupported(
+                "structural crash predicates require structural signature lowering",
+            );
         }
         CheckedBooleanExpression::Not(operand) => {
             ScalarTerm::boolean_not(checked_boolean_scalar_term(operand, values)?)

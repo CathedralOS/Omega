@@ -347,6 +347,7 @@ fn substitute_checked_boolean_expression(
         // after composing a private body summary; it cannot be rebound by the
         // outer call and therefore deliberately loses portable structure.
         CheckedBooleanExpression::Local { .. } => return None,
+        CheckedBooleanExpression::StructuralParameterField { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments)?,
         )),

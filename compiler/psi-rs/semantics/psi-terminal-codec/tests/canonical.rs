@@ -38,7 +38,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "369b7c98689bb6aef66d0eb26020288f8b2bc13f1fdd806a82398be9d32a12bf"
+        "bd696afc4109e7ad0ae68fcb0c5990f3c00d934b4b34734c22c05a841d8f6195"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -346,7 +346,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 5_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 6_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
