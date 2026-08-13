@@ -42204,7 +42204,12 @@ fn pass_canaries_compile() {
         selected_count += 1;
         let canary = pass_canary(canary_name);
 
-        if let Err(diagnostics) = compile_legacy_backend_canary_without_output(&canary) {
+        let result = if ROOTED_BACKEND_PASS_CANARIES.contains(&canary_name) {
+            compile_rooted_backend_canary_without_output(&canary)
+        } else {
+            compile_legacy_backend_canary_without_output(&canary)
+        };
+        if let Err(diagnostics) = result {
             failures.push(format!(
                 "{}:\n{}",
                 canary.display(),
@@ -45963,6 +45968,51 @@ fn compile_legacy_backend_canary_without_output(
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
+
+fn compile_rooted_backend_canary_without_output(
+    canary_dir: &Path,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    // Migrated runtime/backend fixtures must select their authored target root.
+    // Deliberately do not pass the legacy entry override: a missing or drifted
+    // ProgramEntry row must fail instead of being masked by `Main::main`.
+    let build_dir = unique_no_output_build_dir();
+    let result = production_compile(CompileOptions {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(native_hosted_target().into()),
+        write_output: false,
+    });
+    let result = result.and_then(|report| {
+        if build_dir.join("06_state_graph.html").is_file() {
+            Ok(report)
+        } else {
+            Err(vec![Diagnostic::error(
+                "rooted backend canary stopped before state-graph lowering",
+            )])
+        }
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    result
+}
+
+// These runtime/layout fixtures are deployable on every hosted target. Their
+// authored build roots are part of the canary: the pass umbrella must exercise
+// production entry selection and may not substitute the legacy entry seam.
+const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "layouts/runtime_plan_laid_value_field_exit",
+    "layouts/runtime_plan_laid_compact_bits_exit",
+    "layouts/runtime_plan_laid_integer_at_projection_exit",
+    "layouts/runtime_plan_laid_integer_at_proved_write_exit",
+    "layouts/runtime_plan_laid_integer_at_total_write_exit",
+    "layouts/runtime_plan_laid_value_by_value_param_exit",
+    "layouts/runtime_plan_laid_record_view_exit",
+    "layouts/runtime_plan_laid_fixed_array_view_exit",
+    "layouts/runtime_plan_laid_fixed_array_mutable_write_exit",
+    "layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit",
+    "layouts/runtime_plan_laid_nested_record_mutable_write_exit",
+    "layouts/runtime_plan_laid_record_array_mutable_write_exit",
+    "layouts/runtime_plan_laid_record_mutable_write_exit",
+];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
     compile_to_checked(&canary_dir.join("main.omg"), None).map(|_| ())
