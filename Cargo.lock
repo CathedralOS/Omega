@@ -776,6 +776,7 @@ dependencies = [
  "omega-terminal-abstract-operations-to-target-operations",
  "omega-terminal-assigned-target-operations",
  "omega-terminal-image-emission",
+ "omega-terminal-machine-code",
  "omega-terminal-machine-emission",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",

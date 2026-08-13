@@ -12,7 +12,8 @@ use omega_terminal_abstract_operations::{
 };
 use psi_core::{BlockId, MachineId, ScalarType, StructuralPlaceKind};
 use psi_terminal::{
-    OperationKind, StructuralMultiplicity, StructuralResultDeclaration, TerminalMachine, Terminator,
+    OperationKind, OperationResult, StructuralMultiplicity, StructuralResultDeclaration,
+    TerminalMachine, Terminator,
 };
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -52,7 +53,7 @@ fn lower_decoded_verified_module(
     let functions = module
         .machines
         .iter()
-        .map(lower_machine)
+        .map(|machine| lower_machine(machine, &module.structural_types))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalAbstractOperationPlan {
         terminal_psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
@@ -63,9 +64,12 @@ fn lower_decoded_verified_module(
     })
 }
 
-fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, LoweringError> {
+fn lower_machine(
+    machine: &TerminalMachine,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+) -> Result<TerminalAbstractFunction, LoweringError> {
     if let Some(result) = machine.result.structural() {
-        return lower_structural_machine(machine, result);
+        return lower_structural_machine(machine, result, structural_types);
     }
     let result = machine.result.scalar();
     let blocks = machine
@@ -101,6 +105,12 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
         });
         for operation in &block.operations {
             match operation.kind.clone() {
+                OperationKind::EstablishTrivialAffineLocal { .. } => {
+                    return Err(LoweringError::UnsupportedStructuralReturn {
+                        machine: machine.id,
+                        edge: block.terminator.edge(),
+                    });
+                }
                 OperationKind::CallUnit {
                     callee,
                     structural_arguments,
@@ -699,6 +709,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
 fn lower_structural_machine(
     machine: &TerminalMachine,
     result: &StructuralResultDeclaration,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
 ) -> Result<TerminalAbstractFunction, LoweringError> {
     let unsupported = || LoweringError::UnsupportedStructuralResult(machine.id);
     let Some(parameter) = machine.structural_parameters.first() else {
@@ -733,6 +744,45 @@ fn lower_structural_machine(
                 .ok_or_else(unsupported)
         })
         .transpose()?;
+    let trivial_affine_locals = block
+        .operations
+        .iter()
+        .map(|operation| {
+            let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind else {
+                return Err(unsupported());
+            };
+            if operation.result != OperationResult::Unit {
+                return Err(unsupported());
+            }
+            let declaration = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == destination)
+                .cloned()
+                .ok_or_else(unsupported)?;
+            let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } = declaration.kind
+            else {
+                return Err(unsupported());
+            };
+            let local_type = structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+                .cloned()
+                .ok_or_else(unsupported)?;
+            if !matches!(
+                local_type.shape,
+                psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+            ) {
+                return Err(unsupported());
+            }
+            Ok((operation.id, declaration, local_type))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if trivial_affine_locals.len() > 1 {
+        return Err(unsupported());
+    }
     let Terminator::ReturnStructural {
         edge,
         source,
@@ -759,13 +809,15 @@ fn lower_structural_machine(
         || entry_claim.input != parameter.place
         || !entry_claim.field_path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
-        || trivial_affine_discards.as_slice()
-            != discarded
-                .map(|discarded| std::slice::from_ref(&discarded.place))
-                .unwrap_or_default()
+        || trivial_affine_discards
+            != &trivial_affine_locals
+                .iter()
+                .rev()
+                .map(|(_, local, _)| local.id)
+                .chain(discarded.iter().map(|discarded| discarded.place))
+                .collect::<Vec<_>>()
         || block.id != machine.entry
         || !block.parameters.is_empty()
-        || !block.operations.is_empty()
         || !machine.published_service_ceiling.is_empty()
         || !machine.contract.crash_routes.is_empty()
         || !machine.contract.requires.is_empty()
@@ -789,7 +841,21 @@ fn lower_structural_machine(
                 }
             )
         })
-        || machine.structural_places.len() != machine.structural_parameters.len() + 1
+        || trivial_affine_locals
+            .iter()
+            .enumerate()
+            .any(|(index, (_, local, local_type))| {
+                !matches!(
+                    local.kind,
+                    StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal,
+                        structural_type
+                    } if usize::try_from(declaration_ordinal) == Ok(index)
+                        && structural_type == local_type.id
+                )
+            })
+        || machine.structural_places.len()
+            != machine.structural_parameters.len() + trivial_affine_locals.len() + 1
     {
         return Err(unsupported());
     }
@@ -811,6 +877,7 @@ fn lower_structural_machine(
             psi_edge: *edge,
             source: *source,
             returned_claims: returned_claims.clone(),
+            trivial_affine_locals,
             trivial_affine_discards: trivial_affine_discards.clone(),
         }],
     })

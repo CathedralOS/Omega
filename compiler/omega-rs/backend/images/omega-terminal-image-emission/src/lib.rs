@@ -309,6 +309,7 @@ pub fn build_terminal_object_artifact(
                 function.machine,
                 &function.provenance,
                 &function.bytes,
+                &function.fuel_attribution,
                 returned,
             )?;
             if function.unit_stack.is_some()
@@ -708,6 +709,7 @@ fn validate_structural_return_record(
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
     bytes: &[u8],
+    fuel_attribution: &[TerminalNativeFuelAttribution],
     returned: &TerminalStructuralReturnRecord,
 ) -> Result<(), TerminalObjectError> {
     let architecture = target.architecture;
@@ -733,8 +735,36 @@ fn validate_structural_return_record(
     if returned.code_offset != 0
         || end != bytes.len()
         || returned.byte_count == 0
+        || fuel_attribution.len() != returned.trivial_affine_locals.len() + 1
+        || returned
+            .trivial_affine_locals
+            .iter()
+            .enumerate()
+            .any(|(ordinal, (operation, _, _))| {
+                fuel_attribution.get(ordinal).is_none_or(|attribution| {
+                    attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
+                        || attribution.site != TerminalNativeFuelSite::Operation(*operation)
+                        || attribution.units != 1
+                        || attribution.operation_ordinal != ordinal
+                        || attribution.code_offset != 0
+                        || attribution.byte_count != 0
+                })
+            })
+        || fuel_attribution.last().is_none_or(|attribution| {
+            attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
+                || attribution.site != TerminalNativeFuelSite::Edge(returned.psi_edge)
+                || attribution.units != 1
+                || attribution.operation_ordinal != returned.trivial_affine_locals.len()
+                || attribution.code_offset != 0
+                || attribution.byte_count != returned.byte_count
+        })
         || provenance.edges.as_slice() != [returned.psi_edge]
-        || !provenance.operations.is_empty()
+        || provenance.operations
+            != returned
+                .trivial_affine_locals
+                .iter()
+                .map(|(operation, _, _)| *operation)
+                .collect::<Vec<_>>()
         || returned.source.structural_type != returned.result.structural_type
         || returned.source.multiplicity != returned.result.multiplicity
         || returned.source.qualifications != returned.result.qualifications
@@ -754,13 +784,38 @@ fn validate_structural_return_record(
         || returned.parameters.iter().skip(1).any(|parameter| {
             parameter.place == returned.source.place || parameter.place == returned.result.place
         })
+        || returned.trivial_affine_locals.len() > 1
+        || returned.trivial_affine_locals.iter().enumerate().any(|(index, (_, local, local_type))| {
+            !matches!(
+                local.kind,
+                psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    structural_type
+                } if usize::try_from(declaration_ordinal) == Ok(index)
+                    && structural_type == local_type.id
+            ) || local.id == returned.source.place
+                || local.id == returned.result.place
+                || returned.parameters.iter().any(|parameter| parameter.place == local.id)
+                || local_type.identity.is_empty()
+                || !matches!(
+                    local_type.shape,
+                    psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                )
+        })
         || returned.trivial_affine_discards
             != returned
-                .parameters
+                .trivial_affine_locals
                 .iter()
-                .skip(1)
                 .rev()
-                .map(|parameter| parameter.place)
+                .map(|(_, local, _)| local.id)
+                .chain(
+                    returned
+                        .parameters
+                        .iter()
+                        .skip(1)
+                        .rev()
+                        .map(|parameter| parameter.place),
+                )
                 .collect::<Vec<_>>()
         || returned
             .parameters

@@ -162,9 +162,10 @@ the list from state-exit permission events in reverse parameter declaration
 order. Terminal verification independently reconstructs the exact live affine
 frontier, and rejects missing, extra, reordered, unknown, or claim-bearing
 discards. Interpretation charges the return edge before removing those places,
-so sponsor exhaustion cannot perform cleanup early. This is only trivial
-parameter disposal: affine locals, nominal cleanup machines, partial values,
-and the whole-edge conservation witness remain outside the slice. An
+so sponsor exhaustion cannot perform cleanup early. Structural-result returns
+add one narrower local form below; general affine locals, nominal cleanup
+machines, partial values, and the whole-edge conservation witness remain
+outside this Unit/control slice. An
 unconditional jump and each ordered conditional successor may carry an
 independent canonical reverse-declaration subset of the same eligible
 parameters. Verification removes exactly those places from the corresponding
@@ -348,15 +349,19 @@ commits; canonical encoding and fixed-fuel derivation cover the same edge.
 The exact checked-source slice accepts one attached, one-state passthrough of a
 whole linear parameter with matching qualifications and one whole-root claim.
 It may additionally carry one claim-free affine structural parameter, whose
-place is discarded after result materialization in canonical reverse order;
-locals, authored contracts, projections, and wider cleanup/control shapes fail
-closed.
+place is discarded after result materialization in canonical reverse order. It
+may also establish one immutable, unqualified empty-record affine local before
+the return. Terminal Psi declares that local without a source handle, charges
+its explicit establishment operation, and cleans it before the optional affine
+parameter. Nominal cleanup, nonempty/partial locals, authored contracts,
+projections, multiple locals, and wider cleanup/control shapes fail closed.
 Omega realizes that exact slice through its target calling policy when the value
 has one direct eight-byte integer fragment. The source and result placements,
-typed declarations, Psi edge, claim set, and exact affine cleanup survive target
-assignment, machine emission, object/image construction, and canonical
-installation. Claim identity and trivial cleanup are zero-runtime semantic
-metadata rather than extra ABI words or instructions. Wider or
+typed local establishment, Psi edge, claim set, exact affine cleanup, and fuel
+attribution survive target assignment, machine emission, object/image
+construction, and canonical installation. The local is not an ABI parameter;
+claim identity and trivial cleanup are zero-runtime semantic metadata rather
+than extra ABI words or cleanup instructions. Wider or
 indirect values, projections, structural calls, and broader control remain
 fenced before partial lowering.
 

@@ -128,6 +128,89 @@ fn structural_return_is_one_normal_edge_unit() {
 }
 
 #[test]
+fn trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
+    let structural_type = structural_type_id(900);
+    let local_type = structural_type_id(901);
+    let source = place_id(900);
+    let result_place = place_id(901);
+    let local = place_id(902);
+    let claim = claim_id(1);
+    let mut module = unit_fixture();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::Resource".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+        StructuralTypeDeclaration {
+            id: local_type,
+            identity: "test::EmptyScratch".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ];
+    let machine = &mut module.machines[0];
+    machine.structural_parameters = vec![StructuralParameterDeclaration {
+        place: source,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    }];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: source,
+            kind: psi_core::StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: result_place,
+            kind: psi_core::StructuralPlaceKind::Result,
+        },
+        StructuralPlaceDeclaration {
+            id: local,
+            kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type: local_type,
+            },
+        },
+    ];
+    machine.entry_claims = vec![EntryClaim {
+        claim,
+        input: source,
+        field_path: Vec::new(),
+    }];
+    machine.blocks[0].operations = vec![Operation {
+        id: operation_id(900),
+        result: OperationResult::Unit,
+        kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(900),
+        source,
+        returned_claims: vec![claim],
+        trivial_affine_discards: vec![local],
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("structural return with trivial local verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
+    assert_eq!(certificate.ceiling_units(), 2);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn semantic_mutation_invalidates_the_old_certificate_without_changing_cost() {
     let (module, proof) = fixture();
     let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();

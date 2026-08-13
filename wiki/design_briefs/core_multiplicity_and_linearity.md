@@ -186,11 +186,16 @@ transitions, and wrappers; ambiguous or bodyless targets fail closed.
 
 Platform-entry writes, dispatch/state-call arguments, and synthesized
 continuations obey the same event and provenance rules. Affine exits run in
-reverse declaration order. Checked facts retain the first per-edge cleanup
-subset for ordinary named transitions: each exact source-state/statement/target
-row names the whole, claim-free affine parameter positions discarded on that
-arm after subtracting checked transfers. Locals, projections, nominal cleanup,
-and any otherwise incomplete shape publish no partial row. A first terminal
+reverse declaration order. One root-only structural-result slice admits a
+single immutable, unqualified empty-record affine local: checked facts retain
+its declaration ordinal and type identity, terminal Psi explicitly establishes
+it, and the return cleanup orders it before any affine parameter. This does not
+generalize local cleanup to control edges, nominal drop, or partial values.
+Checked facts retain the first per-edge cleanup subset for ordinary named
+transitions: each exact source-state/statement/target row names the whole,
+claim-free affine parameter positions discarded on that arm after subtracting
+checked transfers. Other locals, projections, nominal cleanup, and any
+otherwise incomplete shape publish no partial row. A first terminal
 consumer composes those rows with exact source-handle-free state signatures and
 whole-parameter transfer maps for attached, multi-state Unit machines. It
 accepts only unconditional, acyclic, single-predecessor custody lineages and

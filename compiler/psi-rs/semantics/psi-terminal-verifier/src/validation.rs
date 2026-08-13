@@ -445,6 +445,67 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             &domains,
             StructuralSignatureOwner::Machine(machine.id),
         )?;
+        let trivial_affine_locals = machine
+            .structural_places
+            .iter()
+            .filter_map(|place| match place.kind {
+                StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    structural_type,
+                } => Some((place.id, declaration_ordinal, structural_type)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if trivial_affine_locals.len() > 1
+            || trivial_affine_locals
+                .first()
+                .is_some_and(|(_, declaration_ordinal, _)| *declaration_ordinal != 0)
+        {
+            return Err(ModuleError::NonCanonicalTrivialAffineLocals(machine.id));
+        }
+        for (place, _, structural_type) in &trivial_affine_locals {
+            let Some(declaration) = types.get(structural_type) else {
+                return Err(ModuleError::UnknownStructuralType(*structural_type));
+            };
+            let StructuralTypeShape::Record { fields } = &declaration.shape;
+            if !fields.is_empty() {
+                return Err(
+                    ModuleError::TrivialAffineLocalDeclarationRequiresEmptyRecord {
+                        machine: machine.id,
+                        place: *place,
+                    },
+                );
+            }
+        }
+        if !trivial_affine_locals.is_empty() {
+            let establishments = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| match operation.kind {
+                    OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            if machine.blocks.len() != 1
+                || !matches!(
+                    machine.blocks[0].terminator,
+                    Terminator::ReturnStructural { .. }
+                )
+                || establishments.len() != trivial_affine_locals.len()
+                || trivial_affine_locals.iter().any(|(place, _, _)| {
+                    establishments
+                        .iter()
+                        .filter(|destination| **destination == *place)
+                        .count()
+                        != 1
+                })
+            {
+                return Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(
+                    machine.id,
+                ));
+            }
+        }
         match &machine.result {
             TerminalMachineResult::Unit => {
                 if let Some(place) = machine
@@ -923,6 +984,7 @@ struct IdRegistry {
 enum StructuralRootKey {
     Parameter(u32),
     Result,
+    TrivialAffineLocal(u32),
 }
 
 fn validate_machine(
@@ -955,6 +1017,10 @@ fn validate_machine(
                 StructuralRootKey::Parameter(position)
             }
             psi_core::StructuralPlaceKind::Result => StructuralRootKey::Result,
+            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                ..
+            } => StructuralRootKey::TrivialAffineLocal(declaration_ordinal),
         };
         if !structural_roots.insert(root) {
             return Err(ModuleError::DuplicateStructuralPlaceRoot {
@@ -996,6 +1062,7 @@ fn validate_machine(
                 OperationKind::CallUnit { .. }
                     | OperationKind::BoundaryCallUnit { .. }
                     | OperationKind::PortWrite { .. }
+                    | OperationKind::EstablishTrivialAffineLocal { .. }
             ) {
                 if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
                     return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
@@ -1028,7 +1095,8 @@ fn validate_machine(
             match operation.kind.clone() {
                 OperationKind::CallUnit { .. }
                 | OperationKind::BoundaryCallUnit { .. }
-                | OperationKind::PortWrite { .. } => {
+                | OperationKind::PortWrite { .. }
+                | OperationKind::EstablishTrivialAffineLocal { .. } => {
                     unreachable!("structural/effect operations were validated above")
                 }
                 OperationKind::Call {
@@ -1672,6 +1740,41 @@ fn validate_unit_operation_static(
                 return Err(ModuleError::OperationServiceOutsidePublishedCeiling {
                     operation: operation.id,
                     service: *service,
+                });
+            }
+        }
+        OperationKind::EstablishTrivialAffineLocal { destination } => {
+            let Some(place) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *destination)
+            else {
+                return Err(ModuleError::UnknownTrivialAffineLocal {
+                    operation: operation.id,
+                    place: *destination,
+                });
+            };
+            let StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } = place.kind
+            else {
+                return Err(ModuleError::UnknownTrivialAffineLocal {
+                    operation: operation.id,
+                    place: *destination,
+                });
+            };
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+            else {
+                return Err(ModuleError::UnknownStructuralType(structural_type));
+            };
+            let StructuralTypeShape::Record { fields } = &declaration.shape;
+            if !fields.is_empty() {
+                return Err(ModuleError::TrivialAffineLocalRequiresEmptyRecord {
+                    operation: operation.id,
+                    place: *destination,
                 });
             }
         }
@@ -2622,6 +2725,11 @@ fn validate_partition_source_places(
                 StructuralRootKey::Parameter(position)
             }
             StructuralPlaceKind::Result => StructuralRootKey::Result,
+            StructuralPlaceKind::TrivialAffineLocal { .. } => {
+                return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
+                    place.id,
+                ));
+            }
         };
         if !roots.insert(root) {
             return Err(ModuleError::DuplicateContentPartitionSourceRoot(place.kind));
@@ -3005,6 +3113,18 @@ fn validate_structural_frontier(
             .expect("topological order contains known blocks");
         let mut frontier = frontier;
         for operation in &block.operations {
+            if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind {
+                if frontier
+                    .owned_places
+                    .insert(destination, StructuralMultiplicity::Affine)
+                    .is_some()
+                {
+                    return Err(ModuleError::TrivialAffineLocalAlreadyLive {
+                        operation: operation.id,
+                        place: destination,
+                    });
+                }
+            }
             let claims = match &operation.kind {
                 OperationKind::CallUnit {
                     claim_transfers, ..
@@ -3246,24 +3366,45 @@ fn expected_trivial_affine_discards(
     machine: &TerminalMachine,
     frontier: &StructuralOwnershipFrontier,
 ) -> Vec<PlaceId> {
-    machine
-        .structural_parameters
+    let mut output = machine
+        .structural_places
         .iter()
-        .rev()
-        .filter_map(|parameter| {
-            (parameter.multiplicity == StructuralMultiplicity::Affine
-                && frontier.owned_places.contains_key(&parameter.place)
-                && !frontier
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(parameter.place))
-                && !machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place))
-            .then_some(parameter.place)
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                ..
+            } if frontier.owned_places.contains_key(&place.id) => {
+                Some((declaration_ordinal, place.id))
+            }
+            _ => None,
         })
-        .collect()
+        .collect::<Vec<_>>();
+    output.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    let mut output = output
+        .into_iter()
+        .map(|(_, place)| place)
+        .collect::<Vec<_>>();
+    output.extend(
+        machine
+            .structural_parameters
+            .iter()
+            .rev()
+            .filter_map(|parameter| {
+                (parameter.multiplicity == StructuralMultiplicity::Affine
+                    && frontier.owned_places.contains_key(&parameter.place)
+                    && !frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(parameter.place))
+                    && !machine
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == parameter.place))
+                .then_some(parameter.place)
+            })
+            .collect::<Vec<_>>(),
+    );
+    output
 }
 
 fn apply_edge_trivial_affine_discards(
@@ -3968,7 +4109,8 @@ fn validate_operation_operands(
         OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::BoundaryCallUnit { .. }
-        | OperationKind::PortWrite { .. } => None,
+        | OperationKind::PortWrite { .. }
+        | OperationKind::EstablishTrivialAffineLocal { .. } => None,
     }) else {
         return Ok(());
     };
@@ -4313,6 +4455,24 @@ pub enum ModuleError {
         machine: MachineId,
         place: PlaceId,
     },
+    UnknownTrivialAffineLocal {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    TrivialAffineLocalRequiresEmptyRecord {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    TrivialAffineLocalDeclarationRequiresEmptyRecord {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    TrivialAffineLocalEstablishmentMismatch(MachineId),
+    NonCanonicalTrivialAffineLocals(MachineId),
+    TrivialAffineLocalAlreadyLive {
+        operation: OperationId,
+        place: PlaceId,
+    },
     StructuralResultMustBeOwned(MachineId),
     StructuralResultPlaceMismatch {
         machine: MachineId,
@@ -4510,6 +4670,7 @@ pub enum ModuleError {
         machine: MachineId,
         kind: psi_core::StructuralPlaceKind,
     },
+    ContentPartitionSourceLocalUnsupported(PlaceId),
     UnitMachineHasResultStructuralPlace {
         machine: MachineId,
         place: PlaceId,

@@ -13,8 +13,8 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    StructuralArgument, StructuralParameterDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalPsiIdentity,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -344,6 +344,13 @@ pub enum TerminalAbstractOperation {
         psi_edge: EdgeId,
         source: PlaceId,
         returned_claims: Vec<ClaimId>,
+        /// Exact typed no-ABI local declarations established before this
+        /// return. They remain distinct from caller-supplied parameters.
+        trivial_affine_locals: Vec<(
+            OperationId,
+            StructuralPlaceDeclaration,
+            StructuralTypeDeclaration,
+        )>,
         trivial_affine_discards: Vec<PlaceId>,
     },
     /// A verified no-successor terminal. The audit-only site guard and frontier

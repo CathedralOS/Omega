@@ -15,7 +15,8 @@ use psi_core::{
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm,
-    StructuralParameterDeclaration, StructuralResultDeclaration, TerminalPsiIdentity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +47,11 @@ pub enum TerminalAssignedOperation {
         result_placement: ValuePlacement,
         psi_edge: EdgeId,
         returned_claims: Vec<ClaimId>,
+        trivial_affine_locals: Vec<(
+            OperationId,
+            StructuralPlaceDeclaration,
+            StructuralTypeDeclaration,
+        )>,
         trivial_affine_discards: Vec<PlaceId>,
     },
     Crash {

@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        3
+        4
     }
 }
 
@@ -543,6 +543,11 @@ pub struct CompletionReceipt {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Establish one whole, claim-free affine empty-record local. This is a
+    /// semantic ownership event, not an ABI input or a target storage choice.
+    EstablishTrivialAffineLocal {
+        destination: PlaceId,
+    },
     /// Invoke one in-module machine with positional scalar arguments. Each
     /// callee `requires` clause has the obligation identity at the same index;
     /// successful return binds the operation result. `crash_continuations`

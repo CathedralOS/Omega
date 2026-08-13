@@ -1612,9 +1612,25 @@ fn lower_structural_return_machine(
     };
     let discarded_plan = plan.structural_parameters.get(1);
     let expected_discards: &[u32] = if discarded_plan.is_some() { &[1] } else { &[] };
+    let expected_local_discards = plan
+        .trivial_affine_locals
+        .iter()
+        .rev()
+        .map(|local| local.declaration_ordinal)
+        .collect::<Vec<_>>();
     if plan.returned_parameter_index != 0
         || !matches!(plan.structural_parameters.len(), 1 | 2)
         || plan.trivial_affine_discards.as_slice() != expected_discards
+        || plan.trivial_affine_locals.len() > 1
+        || plan.trivial_affine_local_discard_ordinals != expected_local_discards
+        || plan
+            .trivial_affine_locals
+            .iter()
+            .enumerate()
+            .any(|(index, local)| {
+                u32::try_from(index).ok() != Some(local.declaration_ordinal)
+                    || local.type_identity.is_empty()
+            })
         || returned_plan.multiplicity != Multiplicity::Linear
         || returned_plan.is_self
         || discarded_plan.is_some_and(|discarded| {
@@ -1674,6 +1690,25 @@ fn lower_structural_return_machine(
     if result_qualifications.len() != plan.result.qualifications.len() {
         return unsupported("structural result repeats a qualification");
     }
+    let local_places = plan
+        .trivial_affine_locals
+        .iter()
+        .map(|local| {
+            let place = place_id(allocate_dense(&mut next_place)?);
+            let structural_type = lookup_type_id(&type_ids, &local.type_identity)?;
+            let Some(declaration) = structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+            else {
+                return unsupported("trivial affine local has no structural type declaration");
+            };
+            let StructuralTypeShape::Record { fields } = &declaration.shape;
+            if !fields.is_empty() {
+                return unsupported("trivial affine local is not an empty record");
+            }
+            Ok((local.declaration_ordinal, structural_type, place))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
 
     let identity_facts = checked
         .facts
@@ -1736,8 +1771,22 @@ fn lower_structural_return_machine(
             },
         );
     }
+    for (declaration_ordinal, structural_type, place) in &local_places {
+        expected_places.insert(
+            *place,
+            StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: *declaration_ordinal,
+                structural_type: *structural_type,
+            },
+        );
+    }
     let input_place = input.place;
-    let terminal_discards = discarded.iter().map(|value| value.place).collect();
+    let terminal_discards = local_places
+        .iter()
+        .rev()
+        .map(|(_, _, place)| *place)
+        .chain(discarded.iter().map(|value| value.place))
+        .collect();
 
     let terminal_machine = machine_id(1);
     let machine = TerminalMachine {
@@ -1768,7 +1817,19 @@ fn lower_structural_return_machine(
         blocks: vec![Block {
             id: block_id(1),
             parameters: Vec::new(),
-            operations: Vec::new(),
+            operations: local_places
+                .iter()
+                .enumerate()
+                .map(|(index, (_, _, destination))| {
+                    Ok(Operation {
+                        id: operation_id(dense_identity(index)?),
+                        result: psi_terminal::OperationResult::Unit,
+                        kind: OperationKind::EstablishTrivialAffineLocal {
+                            destination: *destination,
+                        },
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
             terminator: Terminator::ReturnStructural {
                 edge: edge_id(1),
                 source: input_place,

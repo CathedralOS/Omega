@@ -279,6 +279,7 @@ fn reconstruct_machine_semantics(
         }
         for operation in &block.operations {
             match operation.kind.clone() {
+                OperationKind::EstablishTrivialAffineLocal { .. } => {}
                 OperationKind::CallUnit {
                     callee,
                     structural_arguments,

@@ -1362,6 +1362,7 @@ fn lower_structural_return_function(
             psi_edge,
             source: returned_source,
             returned_claims,
+            trivial_affine_locals,
             trivial_affine_discards,
         },
     ] = function.operations.as_slice()
@@ -1380,7 +1381,7 @@ fn lower_structural_return_function(
             .any(|(index, parameter)| {
                 parameter.is_self || usize::try_from(parameter.position) != Ok(index)
             })
-        || trivial_affine_discards.len() + 1 != function.structural_parameters.len()
+        || trivial_affine_locals.len() > 1
         || !entry_claim.field_path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
     {
@@ -1399,19 +1400,54 @@ fn lower_structural_return_function(
     {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }
-    if let [cleanup_place] = trivial_affine_discards.as_slice() {
-        let Some(cleanup) = function
+    let expected_cleanup = trivial_affine_locals
+        .iter()
+        .rev()
+        .map(|(_, local, _)| local.id)
+        .chain(
+            function
+                .structural_parameters
+                .iter()
+                .skip(1)
+                .rev()
+                .map(|parameter| parameter.place),
+        )
+        .collect::<Vec<_>>();
+    if trivial_affine_discards != &expected_cleanup
+        || trivial_affine_locals
+            .iter()
+            .enumerate()
+            .any(|(index, (_, local, local_type))| {
+            let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+            } = local.kind
+            else {
+                return true;
+            };
+            usize::try_from(declaration_ordinal) != Ok(index)
+                || local.id == source.place
+                || local.id == result.place
+                || function
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == local.id)
+                || structural_types.get(&structural_type).is_none_or(|declaration| {
+                    *declaration != local_type
+                        || declaration.identity.is_empty()
+                        || !matches!(
+                        declaration.shape,
+                        psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                    )
+                })
+        })
+        || function
             .structural_parameters
             .iter()
-            .find(|parameter| parameter.place == *cleanup_place)
-        else {
-            return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
-        };
-        if cleanup.multiplicity != psi_terminal::StructuralMultiplicity::Affine
-            || source.place == cleanup.place
-        {
-            return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
-        }
+            .skip(1)
+            .any(|cleanup| cleanup.multiplicity != psi_terminal::StructuralMultiplicity::Affine)
+    {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -1456,7 +1492,10 @@ fn lower_structural_return_function(
     Ok(TerminalTargetFunction {
         machine: function.machine,
         provenance: TerminalPsiProvenance {
-            operations: Vec::new(),
+            operations: trivial_affine_locals
+                .iter()
+                .map(|(operation, _, _)| *operation)
+                .collect(),
             edges: vec![*psi_edge],
         },
         operation: TerminalTargetOperation::ReturnStructuralParameter {
@@ -1469,6 +1508,7 @@ fn lower_structural_return_function(
             result_placement: result_placement.clone(),
             psi_edge: *psi_edge,
             returned_claims: returned_claims.clone(),
+            trivial_affine_locals: trivial_affine_locals.clone(),
             trivial_affine_discards: trivial_affine_discards.clone(),
         },
     })

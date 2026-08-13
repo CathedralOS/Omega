@@ -127,6 +127,7 @@ fn assign_function(
             result_placement,
             psi_edge,
             returned_claims,
+            trivial_affine_locals,
             trivial_affine_discards,
         } => {
             let source_index = 0;
@@ -152,28 +153,46 @@ fn assign_function(
                 || call_plan.parameters.get(source_index) != Some(source_placement)
                 || call_plan.result.as_ref() != Some(result_placement)
                 || source.place == result.place
-                || trivial_affine_discards.len() + 1 != parameters.len()
+                || trivial_affine_discards.len() + 1
+                    != parameters.len() + trivial_affine_locals.len()
                 || parameters.iter().enumerate().any(|(index, parameter)| {
                     usize::try_from(parameter.position) != Ok(index) || parameter.is_self
                 })
                 || parameters.iter().skip(1).any(|parameter| {
                     parameter.place == source.place || parameter.place == result.place
                 })
-                || trivial_affine_discards
+                || trivial_affine_locals.len() > 1
+                || trivial_affine_locals
                     .iter()
                     .enumerate()
-                    .any(|(index, place)| {
-                        parameters
-                            .iter()
-                            .skip(1)
-                            .rev()
-                            .nth(index)
-                            .is_none_or(|parameter| {
-                                parameter.place != *place
-                                    || parameter.multiplicity
-                                        != psi_terminal::StructuralMultiplicity::Affine
-                            })
-                    })
+                    .any(|(index, (_, local, local_type))| {
+                    !matches!(
+                        local.kind,
+                        psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                            declaration_ordinal,
+                            structural_type
+                        } if usize::try_from(declaration_ordinal) == Ok(index)
+                            && structural_type == local_type.id
+                    ) || local.id == source.place
+                        || local.id == result.place
+                        || parameters.iter().any(|parameter| parameter.place == local.id)
+                        || local_type.identity.is_empty()
+                        || !matches!(
+                            local_type.shape,
+                            psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                        )
+                })
+                || trivial_affine_discards
+                    != &trivial_affine_locals
+                        .iter()
+                        .rev()
+                        .map(|(_, local, _)| local.id)
+                        .chain(parameters.iter().skip(1).rev().map(|parameter| parameter.place))
+                        .collect::<Vec<_>>()
+                || parameters
+                    .iter()
+                    .skip(1)
+                    .any(|parameter| parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine)
             {
                 return Err(AssignmentError::UnsupportedStructuralPlacement(
                     source.place,
@@ -193,6 +212,7 @@ fn assign_function(
                 result_placement: result_placement.clone(),
                 psi_edge: *psi_edge,
                 returned_claims: returned_claims.clone(),
+                trivial_affine_locals: trivial_affine_locals.clone(),
                 trivial_affine_discards: trivial_affine_discards.clone(),
             }
         }

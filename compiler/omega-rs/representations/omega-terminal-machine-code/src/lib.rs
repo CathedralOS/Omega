@@ -13,8 +13,8 @@ use psi_core::{
     ServiceId,
 };
 use psi_terminal::{
-    CompletionReceipt, StructuralParameterDeclaration, StructuralResultDeclaration,
-    TerminalPsiIdentity,
+    CompletionReceipt, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +74,13 @@ pub struct TerminalStructuralReturnRecord {
     pub source_placement: ValuePlacement,
     pub result_placement: ValuePlacement,
     pub returned_claims: Vec<ClaimId>,
+    /// Typed no-ABI local declarations. These never receive a placement and
+    /// therefore cannot silently become runtime inputs.
+    pub trivial_affine_locals: Vec<(
+        OperationId,
+        StructuralPlaceDeclaration,
+        StructuralTypeDeclaration,
+    )>,
     /// Exact verifier-owned reverse-declaration no-code cleanup order.
     pub trivial_affine_discards: Vec<PlaceId>,
     pub code_offset: usize,
