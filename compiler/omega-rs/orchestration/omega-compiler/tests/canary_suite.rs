@@ -16235,22 +16235,14 @@ fn equatable_string_not_equals_exit_canary_runs() {
     // miscompile: the whole initializer write silently vanished and the ZII
     // false took the bad arm) flips the exit code.
     let canary = pass_canary("traits/equatable_string_not_equals_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-equatable-string-not-equals-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("equatable string not-equals canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("equatable string not-equals canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("equatable string not-equals canary should run");
 
@@ -16262,7 +16254,7 @@ fn equatable_string_not_equals_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16273,22 +16265,14 @@ fn equatable_string_equality_guard_exit_canary_runs() {
     // place compare cannot encode), the scalar clause stays a place compare.
     // Equal contents take the `true` arm (exit 70).
     let canary = pass_canary("traits/equatable_string_equality_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-equatable-string-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("equatable string guard canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("equatable string guard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("equatable string guard canary should run");
 
@@ -16300,7 +16284,7 @@ fn equatable_string_equality_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
