@@ -161,6 +161,47 @@ pub fn materialize_typed_owned_layout_into(
     materialize_aggregate_layout_into(layout, &schemas, &values, destination)
 }
 
+/// Evaluates an effect-free, zero-argument source machine to obtain an owned
+/// typed value, then materializes it through the selected layout. The compiler
+/// owns both the evaluation boundary and type-directed byte derivation.
+pub fn evaluate_and_materialize_typed_owned_layout_into(
+    typed: &TypedTrees,
+    value_machine: &str,
+    schema_data: &str,
+    layout: &LayoutPlanReport,
+    byte_order: ByteOrder,
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == value_machine)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!("no machine named `{value_machine}` exists"))
+        })?;
+    let states = typed.machine_states(machine);
+    let [entry] = states else {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned value machine `{value_machine}` must have one state"
+        )));
+    };
+    if !typed.state_parameters(entry).is_empty() {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned value machine `{value_machine}` must take no arguments"
+        )));
+    }
+    BuildTimeAdmissionPlan::infer(typed)
+        .require_common_floor(typed, machine)
+        .map_err(MaterializationDiagnostic)?;
+    let value = psi_checked_interpreter::evaluate_build_time_machine(typed, value_machine, vec![])
+        .map_err(|reason| {
+            MaterializationDiagnostic(format!(
+                "build-time evaluation of typed owned value `{value_machine}` failed: {reason}"
+            ))
+        })?;
+    materialize_typed_owned_layout_into(typed, schema_data, layout, &value, byte_order, destination)
+}
+
 pub(crate) fn schema_fields(
     typed: &TypedTrees,
     schema_data: &str,

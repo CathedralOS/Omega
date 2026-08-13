@@ -121,7 +121,10 @@ The same normalized geometry may feed different compiler-owned consumers:
   and arrays of supported primitives. Psi retains the semantic value and shape;
   the Omega realization seam supplies target byte order. Schema/type mismatch,
   duplicate or missing fields, out-of-range scalars, erased/sum/generic/reference
-  shapes, and unsupported recursion reject before destination mutation; or
+  shapes, and unsupported recursion reject before destination mutation. An
+  admitted zero-argument source machine may supply that structured value through
+  Psi's checked interpreter, so source construction reaches the same writer
+  without exposing physical field bytes; or
 - a materializer that resolves symbolic data/entry identities into an artifact
   or post-load structure.
 
