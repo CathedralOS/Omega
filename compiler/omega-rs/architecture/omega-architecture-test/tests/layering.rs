@@ -609,6 +609,9 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
         root.join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
+    let production_manifest = manifest
+        .split_once("[dev-dependencies]")
+        .map_or(manifest.as_str(), |(dependencies, _)| dependencies);
 
     assert_eq!(
         source.matches("pub fn lower_machine(").count(),
@@ -616,7 +619,7 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
         "the first terminal-Psi executable slice must expose one fail-closed machine entry; evidence translators may remain independently testable"
     );
     assert!(
-        !manifest.contains("psi-typed-trees"),
+        !production_manifest.contains("psi-typed-trees"),
         "terminal-Psi production must consume checked carriers without a typed-tree dependency"
     );
     assert!(

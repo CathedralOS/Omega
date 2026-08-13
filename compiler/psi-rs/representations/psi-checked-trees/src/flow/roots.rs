@@ -147,6 +147,8 @@ pub struct FlowFacts {
     /// Exact attached scalar-return plan for a claim-free affine structural
     /// entry frontier.
     pub terminal_structural_scalar_returns: super::CheckedStructuralScalarReturnPlans,
+    /// Exact one-parameter whole-root structural result transfers.
+    pub terminal_structural_returns: super::CheckedStructuralReturnPlans,
 }
 
 impl FlowFacts {
@@ -174,6 +176,7 @@ impl FlowFacts {
             terminal_structural_unit_controls: super::CheckedStructuralUnitControlPlans::default(),
             terminal_structural_scalar_returns: super::CheckedStructuralScalarReturnPlans::default(
             ),
+            terminal_structural_returns: super::CheckedStructuralReturnPlans::default(),
         }
     }
 }
