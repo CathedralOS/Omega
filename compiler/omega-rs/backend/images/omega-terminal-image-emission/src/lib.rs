@@ -964,10 +964,9 @@ fn validate_unit_affine_cleanup(
 fn bounded_nominal_receiver_shape(shape: omega_calling_conventions::ValueShape) -> bool {
     shape == omega_calling_conventions::ValueShape::integer(0, 1)
         || shape.class == omega_calling_conventions::ValueClass::Integer
-            && matches!(
-                (shape.byte_size, shape.alignment),
-                (1, 1) | (2, 1 | 2) | (4, 2 | 4) | (8, 4 | 8) | (16, 8)
-            )
+            && shape.byte_size != 0
+            && matches!(shape.alignment, 1 | 2 | 4 | 8)
+            && shape.byte_size % shape.alignment == 0
 }
 
 fn validate_structural_return_record(
