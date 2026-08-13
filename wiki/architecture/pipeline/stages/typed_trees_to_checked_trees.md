@@ -220,8 +220,8 @@ Current ownership is:
   Terminal returned places, stable local mutable aliases, and direct alias
   rebind replacements may contain one or more indexes whose non-rebinding call
   trees are independently complete through depth two. The first index fixes
-  the coarse collection origin; later indexes are absorbing, all call writes
-  publish, and only the rebound name moves while prior reborrows retain their
+  the coarse collection origin; later indexes are absorbing, every index frame
+  publishes, and only the rebound name moves while prior reborrows retain their
   origins. Deeper, binding-reborrow, recursive, or opaque index forms remain
   fences.
   For an

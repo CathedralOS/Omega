@@ -3682,7 +3682,9 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
     let source = r#"
     data Main {
         value: u64;
+        other_value: u64;
         cells: [u64; 2];
+        matrix: [[u64; 2]; 2];
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -3737,6 +3739,20 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         &mut cells[recursive_index()]
     }
 
+    machine return_repeated_call_index<'matrix, 'first, 'second>(
+        matrix: &'matrix mut [[u64; 2]; 2],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'matrix mut u64 {
+        &mut matrix[write_index(first)][write_index(second)]
+    }
+
+    machine return_deep_repeated_call_index(
+        matrix: &mut [[u64; 2]; 2]
+    ) -> &mut u64 {
+        &mut matrix[identity_index(identity_index(make_index()))][make_index()]
+    }
+
     machine Main::local_index_result(&mut self) {
         let alias: &mut u64 = return_local_index(&mut self.cells);
         alias = 1;
@@ -3771,6 +3787,20 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
 
     machine Main::recursive_call_index_result(&mut self) {
         let alias: &mut u64 = return_recursive_call_index(&mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::repeated_call_index_result(&mut self) {
+        let alias: &mut u64 = return_repeated_call_index(
+            &mut self.matrix,
+            &mut self.value,
+            &mut self.other_value
+        );
+        alias = 1;
+    }
+
+    machine Main::deep_repeated_call_index_result(&mut self) {
+        let alias: &mut u64 = return_deep_repeated_call_index(&mut self.matrix);
         alias = 1;
     }
     "#;
@@ -3811,6 +3841,10 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::nested_write_call_index_result",
             vec!["self.cells", "self.value"],
         ),
+        (
+            "Main::repeated_call_index_result",
+            vec!["self.matrix", "self.other_value", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -3838,6 +3872,7 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
 
     for name in [
         "Main::deep_call_index_result",
+        "Main::deep_repeated_call_index_result",
         "Main::recursive_call_index_result",
     ] {
         let machine = typed
