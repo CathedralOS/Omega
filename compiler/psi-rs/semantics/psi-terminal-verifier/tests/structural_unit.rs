@@ -1762,6 +1762,81 @@ fn projected_unit_calls_reject_contracts_over_the_projected_parameter() {
 }
 
 #[test]
+fn projected_unit_call_crash_routes_prepend_the_canonical_argument_field_path() {
+    let mut module = partial_affine_field_module();
+    let flag = psi_core::StructuralFieldId::new(4).expect("field identity");
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: flag,
+        identity: "should_abort".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    let callee_route = CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(place_id(2), flag),
+            ),
+        ))],
+    };
+    let right = psi_core::StructuralFieldId::new(3).expect("field identity");
+    let caller_route = CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field_path(place_id(1), vec![right, flag]),
+            ),
+        ))],
+    };
+    module.machines[0].contract.crash_routes = vec![caller_route.clone()];
+    module.machines[1].contract.crash_routes = vec![callee_route];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![caller_route];
+    validate_module(&module).expect("projected member route rebases through the right field");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("projected member route needs no producer-authored proof");
+
+    let left = psi_core::StructuralFieldId::new(1).expect("field identity");
+    let redirected = CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field_path(place_id(1), vec![left, flag]),
+            ),
+        ))],
+    };
+    module.machines[0].contract.crash_routes = vec![redirected.clone()];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![redirected];
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
 fn direct_field_partial_affine_return_validates_and_verifies() {
     let module = partial_affine_field_module();
     let Terminator::ReturnUnitPartialAffine {

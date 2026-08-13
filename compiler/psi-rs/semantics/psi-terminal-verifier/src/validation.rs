@@ -4,8 +4,8 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
-    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
-    StructuralTypeId, ValueId, content_conservation_fingerprint,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId, content_conservation_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -17,7 +17,9 @@ use psi_terminal::{
     Terminator,
 };
 
-use crate::verification::{substitute_proposition_places, substitute_proposition_values};
+use crate::verification::{
+    substitute_proposition_structural_places, substitute_proposition_values,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {
@@ -1962,6 +1964,7 @@ fn validate_unit_operation_static(
                 operation.id,
             )?;
             validate_unit_call_crash_continuations(
+                module,
                 machine,
                 callee,
                 structural_arguments,
@@ -2824,18 +2827,45 @@ fn claim_input(
 }
 
 fn validate_unit_call_crash_continuations(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     callee: &TerminalMachine,
     arguments: &[StructuralArgument],
     continuations: &[CrashRouteBucket],
     operation: OperationId,
 ) -> Result<(), ModuleError> {
+    let boolean_roots = callee
+        .contract
+        .crash_routes
+        .iter()
+        .flat_map(|bucket| &bucket.alternatives)
+        .filter_map(|guard| match guard {
+            CrashRouteGuard::Truth => None,
+            CrashRouteGuard::Predicate(predicate) => Some(predicate.proposition()),
+        })
+        .flat_map(proposition_boolean_field_roots)
+        .collect::<BTreeSet<_>>();
     let substitutions = callee
         .structural_parameters
         .iter()
         .zip(arguments)
-        .map(|(parameter, argument)| (parameter.place, argument.place))
-        .collect::<BTreeMap<_, _>>();
+        .map(|(parameter, argument)| {
+            let prefix = structural_argument_field_prefix(module, caller, argument);
+            if prefix.is_none() && boolean_roots.contains(&parameter.place) {
+                return Err(
+                    ModuleError::ProjectedUnitCallContractUsesStructuralParameter {
+                        operation,
+                        callee: callee.id,
+                        place: parameter.place,
+                    },
+                );
+            }
+            Ok((
+                parameter.place,
+                (argument.place, prefix.unwrap_or_default()),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
     let expected = substitute_crash_route_places(&callee.contract.crash_routes, &substitutions);
     if continuations != expected {
         return Err(ModuleError::CallCrashContinuationsMismatch {
@@ -2864,7 +2894,7 @@ fn validate_unit_call_crash_continuations(
 
 fn substitute_crash_route_places(
     routes: &[CrashRouteBucket],
-    substitutions: &BTreeMap<PlaceId, PlaceId>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
 ) -> Vec<CrashRouteBucket> {
     routes
         .iter()
@@ -2874,11 +2904,12 @@ fn substitute_crash_route_places(
                 .iter()
                 .map(|guard| match guard {
                     CrashRouteGuard::Truth => CrashRouteGuard::Truth,
-                    CrashRouteGuard::Predicate(predicate) => {
-                        CrashRouteGuard::Predicate(CrashPredicateTerm::new(
-                            substitute_proposition_places(predicate.proposition(), substitutions),
-                        ))
-                    }
+                    CrashRouteGuard::Predicate(predicate) => CrashRouteGuard::Predicate(
+                        CrashPredicateTerm::new(substitute_proposition_structural_places(
+                            predicate.proposition(),
+                            substitutions,
+                        )),
+                    ),
                 })
                 .collect::<Vec<_>>();
             alternatives.sort();
@@ -2892,6 +2923,40 @@ fn substitute_crash_route_places(
             }
         })
         .collect()
+}
+
+fn structural_argument_field_prefix(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> Option<Vec<StructuralFieldId>> {
+    let mut structural_type = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)?
+        .structural_type;
+    let mut prefix = Vec::with_capacity(argument.path.len());
+    for segment in &argument.path {
+        let StructuralPathSegment::Field(identity) = segment else {
+            return None;
+        };
+        let field = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .and_then(|declaration| match &declaration.shape {
+                StructuralTypeShape::Record { fields } => fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased()),
+                StructuralTypeShape::FixedArray { .. } => None,
+            })?;
+        let StructuralFieldType::Structural(next) = field.field_type else {
+            return None;
+        };
+        prefix.push(field.id);
+        structural_type = next;
+    }
+    Some(prefix)
 }
 
 fn validate_boundary_requirements(
@@ -5420,6 +5485,84 @@ fn proposition_contains_content(proposition: &Proposition) -> bool {
         | Proposition::LessThan(_, _)
         | Proposition::LessOrEqual(_, _) => false,
     }
+}
+
+fn proposition_boolean_field_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
+    fn collect_term(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
+        match term {
+            ScalarTerm::BooleanField { root, .. } => {
+                roots.insert(*root);
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => collect_term(operand, roots),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                collect_term(left, roots);
+                collect_term(right, roots);
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                collect_term(value, roots);
+                collect_term(count, roots);
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+    }
+
+    fn collect(proposition: &Proposition, roots: &mut BTreeSet<PlaceId>) {
+        match proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                collect_term(left, roots);
+                collect_term(right, roots);
+            }
+            Proposition::Conjunction(conjuncts) => {
+                for conjunct in conjuncts {
+                    collect(conjunct, roots);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect(premise, roots);
+                collect(conclusion, roots);
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::ContentConservation(_) => {}
+        }
+    }
+
+    let mut roots = BTreeSet::new();
+    collect(proposition, &mut roots);
+    roots
 }
 
 fn proposition_content_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
