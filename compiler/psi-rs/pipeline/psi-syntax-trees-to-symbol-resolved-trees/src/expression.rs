@@ -166,6 +166,12 @@ fn lower_expression_node_into_table(
                         right: x,
                     },
                 ));
+                // The subtraction is compiler-generated, but it realizes this
+                // exact authored `abs` occurrence. Retain the token span so
+                // checked operator evidence can be matched after later tables
+                // copy the normalized tree; a zero-span synthetic node would
+                // otherwise force backend shape guessing.
+                expression_table(lowerer).set_source_span(negated, call.target.source_span());
                 let arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 0, x);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 1, negated);

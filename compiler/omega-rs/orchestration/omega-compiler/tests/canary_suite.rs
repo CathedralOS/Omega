@@ -21681,7 +21681,9 @@ fn trapping_float_to_int_cast_traps_aborts() {
         .error
         .expect("the interpreter must trap the out-of-range Trapping cast");
     assert!(
-        reason.contains("float-to-int cast out of range"),
+        reason.contains("float-to-int conversion failed in Trapping domain")
+            && reason.contains("truncated value is out of range")
+            && reason.contains("I32"),
         "expected the cast trap reason, got: {reason}"
     );
 
@@ -37797,7 +37799,6 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     let canary = pass_canary("float/named_provider_classify_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float classify calls should compile to checked trees");
-
     let layouts = omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host())
         .expect("FloatClass layout should build");
     let float_class = layouts
@@ -43636,6 +43637,37 @@ fn exact_float_to_int_proof_canaries() {
             canary.display()
         );
     }
+}
+
+#[test]
+fn generic_float_builtins_retain_exact_provider_evidence() {
+    let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("generic float builtins should compile to checked trees");
+    let uses = checked
+        .facts
+        .operators
+        .named_uses()
+        .filter(|operator_use| {
+            matches!(
+                checked
+                    .typed
+                    .expression_table
+                    .expression(operator_use.expression),
+                psi_typed_trees::expression::ExpressionNode::Call(call)
+                    if matches!(call.target.as_str(), "min" | "max" | "sqrt")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        uses.len() >= 5,
+        "direct and desugared min/max uses must be retained"
+    );
+    assert!(
+        uses.iter()
+            .all(|operator_use| operator_use.provider_plan_identity != 0),
+        "every normalized float builtin must carry its exact selected ProviderPlan"
+    );
 }
 
 #[test]

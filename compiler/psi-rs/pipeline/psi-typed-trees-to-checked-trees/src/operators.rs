@@ -7,7 +7,7 @@ use psi_checked_trees::{
 use psi_language_core::operator_spelling::OperatorSpelling;
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::float_semantics::FloatFormat;
-use psi_symbols::SymbolHandle;
+use psi_symbols::{BuiltinFunction, SymbolHandle};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
@@ -153,7 +153,9 @@ fn collect_expression_operator_use(
             );
         }
         ExpressionNode::Call(call) => {
-            if let Some(named_use) = named_operator_use_fact(program, expression, origin, call) {
+            if let Some(named_use) = named_operator_use_fact(program, expression, origin, call)
+                .or_else(|| builtin_float_operator_use_fact(program, expression, origin, call))
+            {
                 named_uses.append(named_use);
             }
             collect_expression_operator_use(
@@ -235,6 +237,72 @@ fn collect_expression_operator_use(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
+}
+
+/// `min`, `max`, and `sqrt` are the source shorthand for the corresponding
+/// primitive-format boundary requirements. Retain that semantic identity in
+/// Psi exactly as an explicitly named call would. Omega can then attach and
+/// execute the selected ProviderPlan without reconstructing one during
+/// lowering. This also covers compiler-synthesized calls from `abs` and
+/// `clamp`, whose acknowledgement records their generated origin.
+fn builtin_float_operator_use_fact(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    call: &TableCallExpression,
+) -> Option<CheckedNamedOperatorUseFact> {
+    let (_, requirement, arity) = [
+        (BuiltinFunction::Min, "minimum", 2),
+        (BuiltinFunction::Max, "maximum", 2),
+        (BuiltinFunction::Sqrt, "square_root", 1),
+    ]
+    .into_iter()
+    .find(|(function, _, _)| {
+        program.symbols.builtin_function_symbol(*function) == Some(call.target_symbol)
+    })?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != arity {
+        return None;
+    }
+
+    let mut format = None;
+    for argument in arguments {
+        let Some(type_reference) = expression_type_reference_for_origin(program, *argument, origin)
+        else {
+            continue;
+        };
+        let candidate = match program.primitive_type_reference(type_reference) {
+            Some(PrimitiveType::F32) => FloatFormat::BINARY32,
+            Some(PrimitiveType::F64) => FloatFormat::BINARY64,
+            _ => continue,
+        };
+        if format.is_some_and(|format| format != candidate) {
+            return None;
+        }
+        format = Some(candidate);
+    }
+    let format = format?;
+    let namespace = if format == FloatFormat::BINARY32 {
+        "F32"
+    } else if format == FloatFormat::BINARY64 {
+        "F64"
+    } else {
+        return None;
+    };
+    let operator = program.operators().iter().find(|operator| {
+        let path = program.operator_path_members(operator.name);
+        matches!(path, [candidate_namespace, candidate_requirement]
+            if candidate_namespace.as_str() == namespace
+                && candidate_requirement.as_str() == requirement)
+    })?;
+
+    Some(CheckedNamedOperatorUseFact {
+        expression,
+        origin,
+        selected_operator_symbol: operator.symbol,
+        policy_adapter: named_float_policy_adapter(program, call, origin, format),
+        provider_plan_identity: 0,
+    })
 }
 
 /// Retain the selected identity of one unambiguously resolved named operator

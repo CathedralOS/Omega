@@ -64,6 +64,7 @@ const DIRECT_ENTRY_NATIVE_BASIC_SAMPLES: &[&str] = &[
     "number_guess",
     "print_number",
     "print_squares",
+    "temperature_convert",
     "text_greeting",
     "unit_converter",
 ];
@@ -74,7 +75,6 @@ const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "shape_area",
     "shapes_area",
 ];
-const STAGED_AUTHORED_RUNTIME_SAMPLES: &[&str] = &["cli__basics__temperature_convert"];
 
 #[cfg(windows)]
 fn executable_name() -> &'static str {
@@ -193,10 +193,7 @@ fn compile_sample_runtime_entry(
         source.contains(".roots.bind(")
             && source.contains(&format!("{}::ProgramEntry", host_root_owner()))
     });
-    let staged_lowering_gap =
-        STAGED_AUTHORED_RUNTIME_SAMPLES.contains(&sample_name(&options.root_path).as_str());
-
-    if has_authored_entry && !staged_lowering_gap {
+    if has_authored_entry {
         return compile_program(CompileOptions {
             target_name: Some(host_target_name().to_owned()),
             ..options
@@ -433,10 +430,6 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
         );
     }
 
-    // `temperature_convert` also selects its authored entry above, but direct
-    // native lowering of its float assignment remains a separate backend gap.
-    // Its existing staged native rail stays in place until that lowering is
-    // implemented; entry migration must neither mask nor absorb that work.
     for sample in DIRECT_ENTRY_NATIVE_BASIC_SAMPLES {
         let main_path = repo_root()
             .join("samples/cli/basics")
@@ -461,6 +454,49 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
         });
         let _ = fs::remove_dir_all(build_dir);
     }
+}
+
+#[test]
+fn temperature_sample_retains_exact_float_operator_evidence() {
+    let main_path = repo_root().join("samples/cli/basics/temperature_convert/main.omg");
+    let checked = compile_to_checked(&main_path, Some(host_target_name()))
+        .expect("temperature sample should reach checked trees");
+    let uses = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(_, operator_use)| operator_use)
+        .filter(|operator_use| {
+            matches!(
+                operator_use.origin,
+                psi_checked_trees::CheckedValueOrigin::StateStatement {
+                    statement_index: 2,
+                    role: psi_checked_trees::CheckedValueStatementRole::AssignmentValue,
+                    ..
+                }
+            ) && matches!(
+                checked
+                    .typed
+                    .expression_table
+                    .expression(operator_use.expression),
+                psi_typed_trees::expression::ExpressionNode::Binary(binary)
+                    if matches!(binary.operator,
+                        psi_typed_trees::expression::BinaryOperator::Add
+                            | psi_typed_trees::expression::BinaryOperator::Multiply)
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        uses.len(),
+        2,
+        "the nested float assignment must retain its multiply and add"
+    );
+    assert!(
+        uses.iter()
+            .all(|operator_use| operator_use.provider_plan_identity != 0),
+        "both nested operations must retain their exact selected ProviderPlan"
+    );
 }
 
 #[test]

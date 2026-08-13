@@ -217,16 +217,24 @@ fn simplify_expression_with_bindings(
             depth,
         ),
         Expression::Cast(cast) => {
+            let value = simplify_expression_with_bindings(
+                program,
+                machine,
+                &cast.value,
+                bindings,
+                preserve_call_locals,
+                depth,
+                None,
+            );
+            if !cast.form.is_recast()
+                && let Some(target) = program.primitive_type_reference(cast.target_type)
+                && let Some(folded) =
+                    fold_literal_float_to_integer_cast(&value, target, cast.domain)
+            {
+                return folded;
+            }
             Expression::Cast(Box::new(psi_checked_trees::expression::CastExpression {
-                value: simplify_expression_with_bindings(
-                    program,
-                    machine,
-                    &cast.value,
-                    bindings,
-                    preserve_call_locals,
-                    depth,
-                    None,
-                ),
+                value,
                 target_type: cast.target_type.clone(),
                 target_label: cast.target_label.clone(),
                 domain: cast.domain,
@@ -383,6 +391,135 @@ fn simplify_expression_with_bindings(
         }),
         Expression::ZeroValue(_) => expression.clone(),
     }
+}
+
+/// Fold a literal float-to-integer cast after Psi has already admitted its
+/// proof/policy. This consumes the shared executable float semantics and
+/// removes an otherwise anonymous float expression before Omega would need to
+/// select a runtime format for it. Non-literals and trapping failures remain
+/// explicit runtime conversions.
+fn fold_literal_float_to_integer_cast(
+    value: &Expression,
+    target: PrimitiveType,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
+) -> Option<Expression> {
+    if let Some(exact) = exact_anonymous_float_tree(value) {
+        let psi_numerics::bignum::ExactFloat::Finite(exact) = exact else {
+            return None;
+        };
+        let value = exact.truncate_to_integer().to_i64()?;
+        if !integer_value_fits_primitive(value, target) {
+            return None;
+        }
+        return landed_integer_expression(value, target, domain);
+    }
+
+    let Expression::Float(literal) = value else {
+        return None;
+    };
+    let target_format = semantic_integer_format(target)?;
+    let source_format = match literal.landing() {
+        Some(psi_numerics::literals::FloatFormat::F32) => {
+            psi_numerics::float_semantics::FloatFormat::BINARY32
+        }
+        Some(psi_numerics::literals::FloatFormat::F64) | None => {
+            psi_numerics::float_semantics::FloatFormat::BINARY64
+        }
+    };
+    let meaning =
+        psi_numerics::float_semantics::FloatSemantics::from_decimal(source_format, literal.text())?;
+    let value = match domain {
+        psi_numerics::arithmetic::ArithmeticDomain::Exact => {
+            psi_numerics::float_semantics::FloatSemantics::to_integer_exact(&meaning, target_format)
+                .ok()?
+        }
+        psi_numerics::arithmetic::ArithmeticDomain::Saturating => {
+            psi_numerics::float_semantics::FloatSemantics::to_integer_saturating(
+                &meaning,
+                target_format,
+            )
+        }
+        psi_numerics::arithmetic::ArithmeticDomain::Trapping
+        | psi_numerics::arithmetic::ArithmeticDomain::Wrapping => return None,
+    };
+    let value = value.to_i64()?;
+    landed_integer_expression(value, target, domain)
+}
+
+fn landed_integer_expression(
+    value: i64,
+    target: PrimitiveType,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
+) -> Option<Expression> {
+    let landing = IntegerLanding {
+        primitive: target,
+        domain,
+    };
+    let literal = psi_numerics::literals::IntegerLiteral::from_value(value);
+    Some(Expression::Integer(match landing.as_carrier_landing() {
+        Some(carrier) => literal.with_landing(carrier),
+        None => literal,
+    }))
+}
+
+/// Evaluate an anonymous all-literal float tree without choosing a runtime
+/// format. Per the two-phase constant rule, arithmetic remains exact until a
+/// site requests a type; an integer cast requests an integer result and can
+/// therefore truncate the exact rational directly.
+fn exact_anonymous_float_tree(expression: &Expression) -> Option<psi_numerics::bignum::ExactFloat> {
+    use psi_checked_trees::expression::BinaryOperator;
+    use psi_numerics::bignum::ExactFloat;
+
+    match expression {
+        Expression::Float(literal) if literal.landing().is_none() => {
+            ExactFloat::from_decimal_str(literal.text())
+        }
+        Expression::Mutable(inner) => exact_anonymous_float_tree(inner),
+        Expression::Binary(binary) => {
+            let left = exact_anonymous_float_tree(&binary.left)?;
+            let right = exact_anonymous_float_tree(&binary.right)?;
+            Some(match binary.operator {
+                BinaryOperator::Add => left.add(&right),
+                BinaryOperator::Subtract => left.sub(&right),
+                BinaryOperator::Multiply => left.mul(&right),
+                BinaryOperator::Divide => left.div(&right),
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn integer_value_fits_primitive(value: i64, target: PrimitiveType) -> bool {
+    let Some(byte_size) = target.scalar_byte_size() else {
+        return false;
+    };
+    let bits = byte_size * 8;
+    if target.is_signed_integer() {
+        let limit = 1i128 << (bits - 1);
+        i128::from(value) >= -limit && i128::from(value) < limit
+    } else if target.accepts_integer_literal() || target == PrimitiveType::Addr {
+        value >= 0 && (bits == 64 || (value as u64) < (1u64 << bits))
+    } else {
+        false
+    }
+}
+
+fn semantic_integer_format(
+    primitive: PrimitiveType,
+) -> Option<psi_numerics::float_semantics::IntegerFormat> {
+    use psi_numerics::float_semantics::IntegerFormat;
+    Some(match primitive {
+        PrimitiveType::I8 => IntegerFormat::I8,
+        PrimitiveType::I16 => IntegerFormat::I16,
+        PrimitiveType::I32 => IntegerFormat::I32,
+        PrimitiveType::I64 => IntegerFormat::I64,
+        PrimitiveType::U8 => IntegerFormat::U8,
+        PrimitiveType::U16 => IntegerFormat::U16,
+        PrimitiveType::U32 => IntegerFormat::U32,
+        PrimitiveType::U64 | PrimitiveType::Addr => IntegerFormat::U64,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+    })
 }
 
 fn runtime_literal_field_is_retained(
@@ -1390,7 +1527,9 @@ impl Default for HelperTransition {
 
 #[cfg(test)]
 mod tests {
-    use super::{runtime_literal_field_is_retained, simplify_expression};
+    use super::{
+        fold_literal_float_to_integer_cast, runtime_literal_field_is_retained, simplify_expression,
+    };
     use psi_checked_trees::CheckedTrees;
     use psi_checked_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
     use psi_checked_trees::expression::{
@@ -1406,6 +1545,48 @@ mod tests {
     use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
+
+    #[test]
+    fn folds_anonymous_float_tree_at_integer_cast_without_inventing_a_format() {
+        let expression = Expression::Binary(Box::new(BinaryExpression {
+            left: Expression::Float(
+                psi_numerics::literals::FloatLiteral::parse("0.0").expect("valid float"),
+            ),
+            operator: BinaryOperator::Subtract,
+            right: Expression::Float(
+                psi_numerics::literals::FloatLiteral::parse("3.7").expect("valid float"),
+            ),
+        }));
+        let folded = fold_literal_float_to_integer_cast(
+            &expression,
+            psi_checked_trees::types::PrimitiveType::I32,
+            psi_numerics::arithmetic::ArithmeticDomain::Saturating,
+        )
+        .expect("an anonymous constant tree should fold at the integer cast");
+        let Expression::Integer(literal) = folded else {
+            panic!("float-to-integer fold must produce an integer literal");
+        };
+        assert_eq!(literal.value_i64(), Some(-3));
+        assert_eq!(
+            literal.landing().map(|landing| landing.domain),
+            Some(psi_numerics::arithmetic::ArithmeticDomain::Saturating)
+        );
+    }
+
+    #[test]
+    fn leaves_failing_trapping_literal_float_cast_for_runtime_trap_semantics() {
+        let expression = Expression::Float(
+            psi_numerics::literals::FloatLiteral::parse("1e100").expect("valid float"),
+        );
+        assert_eq!(
+            fold_literal_float_to_integer_cast(
+                &expression,
+                psi_checked_trees::types::PrimitiveType::I32,
+                psi_numerics::arithmetic::ArithmeticDomain::Trapping,
+            ),
+            None
+        );
+    }
 
     #[test]
     fn runtime_simplification_omits_erased_case_payload_fields() {

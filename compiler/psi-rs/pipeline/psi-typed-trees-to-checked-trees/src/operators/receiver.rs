@@ -1,5 +1,6 @@
 use psi_checked_trees::CheckedValueOrigin;
-use psi_symbols::SymbolHandle;
+use psi_numerics::literals::FloatFormat;
+use psi_symbols::{BuiltinFunction, SymbolHandle};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -74,6 +75,36 @@ fn expression_type_reference_in_state(
         ExpressionNode::Call(call) => {
             psi_typed_trees::operator::resolve_named_expression_call(program, call)
                 .map(|operator| operator.return_type)
+                .or_else(|| {
+                    [
+                        BuiltinFunction::Min,
+                        BuiltinFunction::Max,
+                        BuiltinFunction::Sqrt,
+                    ]
+                    .into_iter()
+                    .any(|function| {
+                        program.symbols.builtin_function_symbol(function)
+                            == Some(call.target_symbol)
+                    })
+                    .then(|| {
+                        program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .find_map(|argument| {
+                                expression_type_reference_in_state(
+                                    program,
+                                    state_symbol,
+                                    statement_index,
+                                    *argument,
+                                )
+                            })
+                    })
+                    .flatten()
+                    .or_else(|| {
+                        contextual_type_reference_in_state(program, state_symbol, statement_index)
+                    })
+                })
         }
         ExpressionNode::Binary(binary) => {
             expression_type_reference_in_state(program, state_symbol, statement_index, binary.left)
@@ -85,17 +116,69 @@ fn expression_type_reference_in_state(
                         binary.right,
                     )
                 })
+                .or_else(|| {
+                    contextual_type_reference_in_state(program, state_symbol, statement_index)
+                })
         }
+        ExpressionNode::Float(literal) => literal
+            .landing()
+            .and_then(|format| float_type_reference(program, format))
+            .or_else(|| {
+                contextual_type_reference_in_state(program, state_symbol, statement_index).filter(
+                    |type_reference| {
+                        program
+                            .primitive_type_reference(*type_reference)
+                            .is_some_and(|primitive| primitive.accepts_float_literal())
+                    },
+                )
+            }),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::Unary(_) => None,
     }
+}
+
+/// Recover the declared landing type of a context-typed expression. Anonymous
+/// float literals and compiler-synthesized `min`/`max` trees deliberately do
+/// not invent standalone type references; their assignment/local declaration
+/// is the checker-owned source of truth.
+fn contextual_type_reference_in_state(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+) -> Option<TypeReferenceHandle> {
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    match program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    {
+        psi_typed_trees::statement::StatementNode::Assignment(assignment) => {
+            expression_type_reference_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                assignment.target,
+            )
+        }
+        psi_typed_trees::statement::StatementNode::LocalData(local) => Some(local.type_reference),
+        _ => None,
+    }
+}
+
+fn float_type_reference(program: &TypedTrees, format: FloatFormat) -> Option<TypeReferenceHandle> {
+    let primitive = match format {
+        FloatFormat::F32 => psi_typed_trees::types::PrimitiveType::F32,
+        FloatFormat::F64 => psi_typed_trees::types::PrimitiveType::F64,
+    };
+    (1..=program.type_reference_table.type_reference_count())
+        .map(|index| TypeReferenceHandle::from_arena_index(index as u32))
+        .find(|type_reference| program.primitive_type_reference(*type_reference) == Some(primitive))
 }
 
 fn symbol_type_reference_in_state(

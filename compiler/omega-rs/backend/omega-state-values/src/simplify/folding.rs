@@ -51,7 +51,7 @@ impl IntegerLanding {
     /// The foundation-layer landing this fold ran at (CR2: fold results are
     /// STAMPED so the fact rides the literal through every later clone,
     /// splice, and table insertion -- the two-phase law's phase-B carrier).
-    fn as_carrier_landing(self) -> Option<psi_numerics::literals::IntegerLanding> {
+    pub(super) fn as_carrier_landing(self) -> Option<psi_numerics::literals::IntegerLanding> {
         use psi_numerics::literals::LandedIntegerType;
         let landed_type = match self.primitive {
             PrimitiveType::I8 => LandedIntegerType::I8,
