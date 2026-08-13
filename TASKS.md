@@ -266,9 +266,11 @@ Remaining:
   through all five targets. The bounded Boolean form retains two decisions and
   three distinct return edges; every leaf owns the same complete cleanup
   stream, and native artifacts retain three edge-specific cleanup intervals.
-  Contextual short-circuit locals, nested or repeated decisions, calls, effects,
-  nested nominal ownership, and wider scalar bodies remain to be added as
-  complete vertical slices.
+  One final top-level short-circuit Boolean local returned directly is inlined
+  into the same three proof-bearing cleanup leaves. Converging or repeated
+  contextual short-circuit locals, nested decisions, calls, effects, nested
+  nominal ownership, and wider scalar bodies remain to be added as complete
+  vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
