@@ -13343,16 +13343,11 @@ fn runtime_gcd_euclid_exit_canary_runs() {
     // The iterative Euclidean GCD: `(a,b) = (b, a%b)` until b==0. gcd(1071,462)=21.
     // A two-variable loop with a runtime modulo; self-checks the result -> exit 70.
     let canary = pass_canary("arithmetic/runtime_gcd_euclid_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("gcd euclid canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("gcd euclid canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("gcd euclid canary should run");
     assert_eq!(
@@ -13362,7 +13357,7 @@ fn runtime_gcd_euclid_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13370,16 +13365,11 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
     // A reverse-Polish stack evaluator (a stack VM): push numbers, pop-pop-op-push for
     // operators, over a token array. Evaluates `3 4 + 5 *` to 35 -> exit 70.
     let canary = pass_canary("collections/runtime_rpn_evaluator_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-rpn-eval-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("rpn evaluator canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-rpn-eval-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("rpn evaluator canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("rpn evaluator canary should run");
     assert_eq!(
@@ -13389,7 +13379,7 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
