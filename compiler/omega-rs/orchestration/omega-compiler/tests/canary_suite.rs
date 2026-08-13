@@ -10967,22 +10967,15 @@ fn runtime_captured_local_remutated_field_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_pointee_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-pointee-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier pointee guard canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier pointee guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier pointee guard canary should run");
 
@@ -10995,7 +10988,7 @@ fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 owned `[u8; N] in Utf8` carrier field reached THROUGH a slice pointer:
@@ -11004,22 +10997,15 @@ fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_slice_field_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-slice-field-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier slice field write canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier slice field write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier slice field write canary should run");
 
@@ -11032,7 +11018,7 @@ fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 owned `[u8; N] in Utf8` carrier through HOST OUTPUT, native: build a carrier
@@ -11042,22 +11028,15 @@ fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
 #[test]
 fn runtime_bounded_carrier_write_line_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_write_line_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-write-line-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded carrier write_line canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bounded carrier write_line canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bounded carrier write_line canary should run");
 
@@ -11074,7 +11053,7 @@ fn runtime_bounded_carrier_write_line_exit_canary_runs() {
         "expected the carrier `write_line` to print the materialized content `Room A1`",
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 builder over NESTED-field carriers, CROSS-STATE: `self.line.text = "Room " +
