@@ -140,7 +140,8 @@ Owners:
   materializes compiler-sized aggregate fields through whole `At` extents, and
   the typed source-owned bridge derives complete fixed record/array bytes from
   exact typed schemas while Omega supplies target byte order; erased fields stay
-  semantic but add no bytes or initialization work. An admitted
+  semantic but add no bytes or initialization work, including relevant nested
+  records whose complete runtime shape is erased. An admitted
   zero-argument source machine may supply the value through Psi's checked
   interpreter. Both paths zero padding and reject incomplete, mismatched,
   overlapping, fragmented, unsupported, or out-of-bounds values before

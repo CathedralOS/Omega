@@ -705,7 +705,9 @@ out-of-bounds fields before changing the destination. This is the normalized
 writer primitive. The current typed source-owned bridge derives complete bytes
 for recursively fixed records and arrays in the supported checked-shape subset,
 including erased fields that remain semantically required but contribute no
-storage. It rejects malformed nested values atomically. Runtime establishment
+storage. This omission is recursive: a relevant nested record with only erased
+runtime content receives no physical field entry, but its exact semantic value
+is still required. It rejects malformed nested values atomically. Runtime establishment
 beyond that fixed subset remains source-materialization work; sum placement
 waits for its settled vocabulary.
 
