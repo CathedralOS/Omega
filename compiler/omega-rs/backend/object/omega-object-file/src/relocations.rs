@@ -99,6 +99,13 @@ pub enum RelocationOrigin {
         function_symbol_handle: ObjectSymbolHandle,
         operation_identity: u64,
     },
+    /// A source-independent semantic control/ownership edge that directly
+    /// owns the relocation. Edge identity is a namespace distinct from
+    /// `SemanticOperation`, even when their raw integers happen to match.
+    SemanticEdge {
+        function_symbol_handle: ObjectSymbolHandle,
+        edge_identity: u64,
+    },
     Materialization {
         object_symbol_handle: ObjectSymbolHandle,
     },
@@ -115,6 +122,10 @@ impl RelocationOrigin {
                 function_symbol_handle,
                 ..
             } => function_symbol_handle,
+            Self::SemanticEdge {
+                function_symbol_handle,
+                ..
+            } => function_symbol_handle,
             Self::Materialization {
                 object_symbol_handle,
             } => object_symbol_handle,
@@ -127,7 +138,9 @@ impl RelocationOrigin {
                 selected_instruction_index,
                 ..
             } => Some(selected_instruction_index),
-            Self::SemanticOperation { .. } | Self::Materialization { .. } => None,
+            Self::SemanticOperation { .. }
+            | Self::SemanticEdge { .. }
+            | Self::Materialization { .. } => None,
         }
     }
 
@@ -136,7 +149,18 @@ impl RelocationOrigin {
             Self::SemanticOperation {
                 operation_identity, ..
             } => Some(operation_identity),
-            Self::Instruction { .. } | Self::Materialization { .. } => None,
+            Self::Instruction { .. } | Self::SemanticEdge { .. } | Self::Materialization { .. } => {
+                None
+            }
+        }
+    }
+
+    pub const fn semantic_edge_identity(self) -> Option<u64> {
+        match self {
+            Self::SemanticEdge { edge_identity, .. } => Some(edge_identity),
+            Self::Instruction { .. }
+            | Self::SemanticOperation { .. }
+            | Self::Materialization { .. } => None,
         }
     }
 }
@@ -152,9 +176,9 @@ pub enum RelocationKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::{RelocationPlan, RelocationRecord, RelocationRecordSet};
+    use crate::{RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet};
     use omega_target::NativeTarget;
-    use psi_arena::Arena;
+    use psi_arena::{Arena, Handle};
 
     #[test]
     fn relocation_record_set_constructor_keeps_record_root_explicit() {
@@ -174,5 +198,26 @@ mod tests {
 
         assert_eq!(plan.target, target);
         assert_eq!(plan.record_set, record_set);
+    }
+
+    #[test]
+    fn semantic_operation_and_edge_origins_keep_disjoint_identities() {
+        let function_symbol_handle = Handle::invalid();
+        let operation = RelocationOrigin::SemanticOperation {
+            function_symbol_handle,
+            operation_identity: 7,
+        };
+        let edge = RelocationOrigin::SemanticEdge {
+            function_symbol_handle,
+            edge_identity: 7,
+        };
+
+        assert_eq!(operation.symbol_handle(), function_symbol_handle);
+        assert_eq!(operation.semantic_operation_identity(), Some(7));
+        assert_eq!(operation.semantic_edge_identity(), None);
+        assert_eq!(edge.symbol_handle(), function_symbol_handle);
+        assert_eq!(edge.semantic_operation_identity(), None);
+        assert_eq!(edge.semantic_edge_identity(), Some(7));
+        assert_ne!(operation, edge);
     }
 }

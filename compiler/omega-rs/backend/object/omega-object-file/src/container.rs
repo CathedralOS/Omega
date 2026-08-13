@@ -12,6 +12,8 @@ mod relocations;
 mod sections;
 mod symbols;
 
+const OBJECT_CONTAINER_VERSION: u32 = 6;
+
 pub struct ObjectContainerInput<'a> {
     pub target: NativeTarget,
     pub object: &'a ObjectPlan,
@@ -37,7 +39,7 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
 
     let mut bytes = Vec::new();
     bytes.extend(b"OMGOBJ\0\0");
-    write_u32(&mut bytes, 5);
+    write_u32(&mut bytes, OBJECT_CONTAINER_VERSION);
     write_u32(&mut bytes, architecture_id(input.target.architecture));
     write_u32(&mut bytes, object_format_id(input.target.object_format));
     write_u64(
@@ -68,5 +70,32 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
         bss_bytes,
         symbols: input.object.layout.symbols.len(),
         relocations: input.relocations.record_count(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OBJECT_CONTAINER_VERSION, ObjectContainerInput, emit_omega_object_container};
+    use crate::{ObjectPlan, RelocationPlan};
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn object_container_version_covers_semantic_edge_relocation_origins() {
+        let target = NativeTarget::linux_arm64();
+        let object = ObjectPlan::with_capacity(target, 0, 0);
+        let relocations = RelocationPlan::with_target(target);
+        let output = emit_omega_object_container(ObjectContainerInput {
+            target,
+            object: &object,
+            relocations: &relocations,
+            text_bytes: &[],
+            data_bytes: &[],
+        });
+
+        assert_eq!(&output.bytes[..8], b"OMGOBJ\0\0");
+        assert_eq!(
+            &output.bytes[8..12],
+            &OBJECT_CONTAINER_VERSION.to_le_bytes()
+        );
     }
 }

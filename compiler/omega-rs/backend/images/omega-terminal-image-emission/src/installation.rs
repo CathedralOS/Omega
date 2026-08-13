@@ -10,7 +10,9 @@ use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
     TerminalPortEffectRecord, TerminalProviderExecutionRecord, TerminalStructuralReturnRecord,
 };
-use omega_terminal_target_operations::TerminalMetadataOnlyPortRealization;
+use omega_terminal_target_operations::{
+    TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization,
+};
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
     ProfileDecisionId, ServiceId, StructuralDomainId, StructuralTypeId,
@@ -29,7 +31,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 13;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 14;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -821,7 +823,7 @@ pub fn decode_terminal_installation_record(
     }
     let internal_unit_call_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyInternalUnitCalls)?;
-    if internal_unit_call_count > reader.remaining() / 60 {
+    if internal_unit_call_count > reader.remaining() / 64 {
         return Err(TerminalInstallationError::UnexpectedEnd);
     }
     let mut internal_unit_calls = Vec::with_capacity(internal_unit_call_count);
@@ -1279,6 +1281,38 @@ fn validate_record_shape(
                     cleanup.residual_discards.as_slice(),
                 ) {
                     (Some(nominal), []) => {
+                        let cleanup_function = record
+                            .functions
+                            .iter()
+                            .find(|candidate| candidate.machine == nominal.cleanup_machine);
+                        let cleanup_calls = record
+                            .internal_unit_calls
+                            .iter()
+                            .filter(|call| call.machine == nominal.cleanup_machine)
+                            .collect::<Vec<_>>();
+                        let cleanup_body_is_exact = match cleanup_calls.as_slice() {
+                            [] => true,
+                            [call] => {
+                                matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
+                                    && call.custody.arguments.is_empty()
+                                    && call.custody.claim_transfers.is_empty()
+                            }
+                            _ => false,
+                        };
+                        let cleanup_is_executable = cleanup_calls.len() == 1;
+                        let matching_edge_calls = record
+                            .internal_unit_calls
+                            .iter()
+                            .filter(|call| {
+                                call.machine == function.machine
+                                    && call.custody.owner
+                                        == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
+                                    && call.custody.target == nominal.cleanup_machine
+                                    && call.custody.arguments.is_empty()
+                                    && call.custody.claim_transfers.is_empty()
+                                    && call.custody.code_offset == cleanup.code_offset
+                            })
+                            .count();
                         !cleanup.locals.is_empty()
                             || !cleanup.discards.is_empty()
                             || function.unit_parameter_homes.len() != 1
@@ -1296,6 +1330,21 @@ fn validate_record_shape(
                                 && function.unit_parameter_homes[0].source.locations.is_empty())
                             || attachments.get(&nominal.cleanup_machine)
                                 != Some(&Some(nominal.structural_type))
+                            || !cleanup_body_is_exact
+                            || cleanup_function.is_none_or(|candidate| {
+                                !candidate.unit_body
+                                    || !candidate.unit_parameters.is_empty()
+                                    || !candidate.unit_parameter_homes.is_empty()
+                                    || candidate.unit_affine_cleanup.as_ref().is_none_or(
+                                        |return_cleanup| {
+                                            !return_cleanup.locals.is_empty()
+                                                || !return_cleanup.discards.is_empty()
+                                                || !return_cleanup.residual_discards.is_empty()
+                                                || return_cleanup.nominal_cleanup.is_some()
+                                        },
+                                    )
+                            })
+                            || matching_edge_calls != usize::from(cleanup_is_executable)
                     }
                     (None, []) => parameter_discards != expected_parameter_discards,
                     (None, [residual]) => {
@@ -1522,10 +1571,56 @@ fn validate_record_shape(
             .iter()
             .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
             .collect::<std::collections::BTreeSet<_>>();
+        let owner_valid = match custody.owner {
+            TerminalCallSiteOwner::Operation(operation) => {
+                record.fuel_attribution.iter().any(|attribution| {
+                    attribution.machine == installed.machine
+                        && attribution.attribution.site
+                            == TerminalNativeFuelSite::Operation(operation)
+                        && attribution.attribution.operation_ordinal == custody.operation_ordinal
+                        && attribution.attribution.code_offset == custody.code_offset
+                        && attribution.attribution.byte_count == custody.byte_count
+                })
+            }
+            TerminalCallSiteOwner::Edge(edge) => {
+                custody.arguments.is_empty()
+                    && custody.claim_transfers.is_empty()
+                    && function
+                        .unit_affine_cleanup
+                        .as_ref()
+                        .is_some_and(|cleanup| {
+                            cleanup.psi_edge == edge
+                                && cleanup.nominal_cleanup.is_some_and(|nominal| {
+                                    nominal.cleanup_machine == custody.target
+                                })
+                                && cleanup.code_offset == custody.code_offset
+                                && custody
+                                    .code_offset
+                                    .checked_add(custody.byte_count)
+                                    .is_some_and(|call_end| {
+                                        cleanup
+                                            .code_offset
+                                            .checked_add(cleanup.byte_count)
+                                            .is_some_and(|cleanup_end| call_end <= cleanup_end)
+                                    })
+                                && record.fuel_attribution.iter().any(|attribution| {
+                                    attribution.machine == installed.machine
+                                        && attribution.attribution.site
+                                            == TerminalNativeFuelSite::Edge(edge)
+                                        && attribution.attribution.operation_ordinal
+                                            == custody.operation_ordinal
+                                        && attribution.attribution.code_offset
+                                            == cleanup.code_offset
+                                        && attribution.attribution.byte_count == cleanup.byte_count
+                                })
+                        })
+            }
+        };
         if previous_call.is_some_and(|previous| previous >= key)
             || installed.text_offset != expected_text_offset
             || end > function.byte_count
             || !function_by_machine.contains_key(&custody.target)
+            || !owner_valid
             || plan.parameters.len() != custody.arguments.len()
             || custody.arguments.windows(2).any(|pair| {
                 pair[0]
@@ -1960,7 +2055,18 @@ fn encode_internal_unit_call(
         u64::try_from(installed.text_offset)
             .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
     );
-    push_u64(bytes, custody.psi_operation.get());
+    match custody.owner {
+        TerminalCallSiteOwner::Operation(operation) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, operation.get());
+        }
+        TerminalCallSiteOwner::Edge(edge) => {
+            bytes.push(2);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, edge.get());
+        }
+    }
     push_u64(bytes, custody.target.get());
     push_u64(
         bytes,
@@ -2125,8 +2231,22 @@ fn decode_internal_unit_call(
         MachineId::new(reader.u64()?).ok_or(TerminalInstallationError::ZeroFunctionIdentity)?;
     let text_offset = usize::try_from(reader.u64()?)
         .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
-    let psi_operation = OperationId::new(reader.u64()?)
-        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let owner_tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    let owner_identity = reader.u64()?;
+    let owner = match owner_tag {
+        1 => TerminalCallSiteOwner::Operation(
+            OperationId::new(owner_identity)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+        ),
+        2 => TerminalCallSiteOwner::Edge(
+            EdgeId::new(owner_identity)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+        ),
+        tag => return Err(TerminalInstallationError::InvalidCallSiteOwnerTag(tag)),
+    };
     let target = MachineId::new(reader.u64()?)
         .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
     let operation_ordinal = usize::try_from(reader.u64()?)
@@ -2206,7 +2326,7 @@ fn decode_internal_unit_call(
         machine,
         text_offset,
         custody: omega_terminal_machine_code::TerminalInternalUnitCallRecord {
-            psi_operation,
+            owner,
             target,
             arguments,
             claim_transfers,
@@ -2974,6 +3094,7 @@ pub enum TerminalInstallationError {
     ZeroFuelScheduleIdentity,
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),
+    InvalidCallSiteOwnerTag(u8),
     ZeroPortEffectIdentity(&'static str),
     ZeroSettlementIdentity(&'static str),
     InvalidSettlementArgumentPathTag(u8),

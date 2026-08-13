@@ -1,8 +1,8 @@
 use crate::BackendReportInput;
 use omega_layout::{DataShape, FieldLayout};
 use omega_object_file::{
-    RelocationOrigin, RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name, section_name,
-    symbol_section_name,
+    ObjectPlan, RelocationOrigin, RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name,
+    section_name, symbol_section_name,
 };
 use omega_target::NativeTarget;
 
@@ -182,30 +182,7 @@ fn write_relocation_record(
     backend_plan: &BackendReportInput<'_>,
     relocation: &RelocationRecord,
 ) {
-    let origin = match relocation.origin {
-        RelocationOrigin::Instruction {
-            function_symbol_handle,
-            selected_instruction_index,
-        } => format!(
-            "instruction {} #{}",
-            object_symbol_name(backend_plan.object, function_symbol_handle),
-            selected_instruction_index
-        ),
-        RelocationOrigin::SemanticOperation {
-            function_symbol_handle,
-            operation_identity,
-        } => format!(
-            "semantic operation {} #{}",
-            object_symbol_name(backend_plan.object, function_symbol_handle),
-            operation_identity
-        ),
-        RelocationOrigin::Materialization {
-            object_symbol_handle,
-        } => format!(
-            "materialization {}",
-            object_symbol_name(backend_plan.object, object_symbol_handle)
-        ),
-    };
+    let origin = relocation_origin_label(backend_plan.object, relocation.origin);
     output.push_str(&format!(
         "- {:?} {} {} @{} width {} -> {} addend {}\n",
         relocation.kind,
@@ -216,4 +193,70 @@ fn write_relocation_record(
         object_symbol_name(backend_plan.object, relocation.symbol_handle),
         relocation.addend
     ));
+}
+
+fn relocation_origin_label(object: &ObjectPlan, origin: RelocationOrigin) -> String {
+    match origin {
+        RelocationOrigin::Instruction {
+            function_symbol_handle,
+            selected_instruction_index,
+        } => format!(
+            "instruction {} #{}",
+            object_symbol_name(object, function_symbol_handle),
+            selected_instruction_index
+        ),
+        RelocationOrigin::SemanticOperation {
+            function_symbol_handle,
+            operation_identity,
+        } => format!(
+            "semantic operation {} #{}",
+            object_symbol_name(object, function_symbol_handle),
+            operation_identity
+        ),
+        RelocationOrigin::SemanticEdge {
+            function_symbol_handle,
+            edge_identity,
+        } => format!(
+            "semantic edge {} #{}",
+            object_symbol_name(object, function_symbol_handle),
+            edge_identity
+        ),
+        RelocationOrigin::Materialization {
+            object_symbol_handle,
+        } => format!(
+            "materialization {}",
+            object_symbol_name(object, object_symbol_handle)
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::relocation_origin_label;
+    use omega_object_file::{ObjectPlan, RelocationOrigin, SymbolKind, SymbolPlan, SymbolSection};
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn report_names_semantic_edge_ownership_without_calling_it_an_operation() {
+        let mut object = ObjectPlan::with_capacity(NativeTarget::linux_arm64(), 0, 1);
+        let caller = object.layout.symbols.insert(SymbolPlan {
+            name: "cleanup-caller".to_owned(),
+            section: SymbolSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Function,
+            import_library: String::new(),
+        });
+
+        assert_eq!(
+            relocation_origin_label(
+                &object,
+                RelocationOrigin::SemanticEdge {
+                    function_symbol_handle: caller,
+                    edge_identity: 7,
+                },
+            ),
+            "semantic edge cleanup-caller #7"
+        );
+    }
 }

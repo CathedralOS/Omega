@@ -6,7 +6,8 @@
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
-    TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding, TerminalPsiProvenance,
+    TerminalCallSiteOwner, TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
@@ -235,7 +236,9 @@ pub struct TerminalPortEffectRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalInternalCallRelocation {
-    pub psi_operation: OperationId,
+    /// Exact semantic owner of the encoded call. Cleanup-edge calls retain an
+    /// [`EdgeId`] here instead of borrowing or inventing an operation identity.
+    pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
     /// Exact caller-owned stack live immediately after this Unit-body call
     /// enters its callee. Absent for non-Unit function forms whose full stack
@@ -254,7 +257,8 @@ pub struct TerminalInternalCallRelocation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalInternalUnitCallRecord {
-    pub psi_operation: OperationId,
+    /// Must match the owner of the corresponding relocation exactly.
+    pub owner: TerminalCallSiteOwner,
     pub target: MachineId,
     pub arguments: Vec<TerminalInternalUnitCallArgumentRecord>,
     pub claim_transfers: Vec<ClaimTransfer>,
