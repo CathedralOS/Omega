@@ -13206,17 +13206,11 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
     // (sign-extend), -1 as u8 as i32 == 255 (zero-extend), 200 as i8 as i32 == -56 (truncate +
     // sign-extend). All chained -> exit 70.
     let canary = pass_canary("arithmetic/runtime_cast_sign_zero_extension_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cast sign/zero extension canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cast sign/zero extension canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cast sign/zero extension canary should run");
     assert_eq!(
@@ -13226,7 +13220,7 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13234,16 +13228,11 @@ fn runtime_bitwise_high_ops_exit_canary_runs() {
     // Bitwise ops on u32 above i32::MAX: a=0xF0F0F0F0, b=0x0F0F0F0F. XOR/AND/OR, a shift+mask
     // nibble extract, and NOT-via-XOR all chained -> exit 70.
     let canary = pass_canary("arithmetic/runtime_bitwise_high_ops_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bitwise high ops canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bitwise high ops canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bitwise high ops canary should run");
     assert_eq!(
@@ -13253,7 +13242,7 @@ fn runtime_bitwise_high_ops_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
