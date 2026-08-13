@@ -389,8 +389,8 @@ fn structural_scalar_return_retains_short_circuit_return_cleanup() {
 }
 
 #[test]
-fn structural_scalar_return_carries_a_prefix_into_one_short_circuit_local_continuation() {
-    let checked = checked(
+fn structural_scalar_return_supports_one_short_circuit_local_with_scalar_suffix() {
+    let supported = checked(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -398,28 +398,57 @@ fn structural_scalar_return_carries_a_prefix_into_one_short_circuit_local_contin
         {
             let seed: bool = true;
             let flag: bool = seed && false;
-            !flag
+            let inverted: bool = !flag;
+            inverted
         }
         "#,
     );
-    let machine = checked
+    let machine = supported
         .machines()
         .iter()
         .find(|machine| machine.name.as_str().ends_with("measure"))
         .expect("measure machine")
         .symbol;
-    let plan = checked
+    let plan = supported
         .facts
         .flow
         .terminal_structural_scalar_returns
         .for_machine(machine)
-        .expect("a branch-free prefix dominates one exact short-circuit continuation");
-    assert_eq!(plan.bindings.len(), 2);
+        .expect("branch-free scalar work may surround one exact short-circuit continuation");
+    assert_eq!(plan.bindings.len(), 3);
     assert!(
         plan.bindings
             .iter()
             .all(|binding| binding.primitive_type == psi_typed_trees::types::PrimitiveType::Bool)
     );
-    assert_eq!(plan.return_statement_ordinal, 2);
+    assert_eq!(plan.return_statement_ordinal, 3);
     assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+
+    let rejected = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token) -> bool
+        {
+            let first: bool = true && false;
+            let second: bool = first || true;
+            second
+        }
+        "#,
+    );
+    let machine = rejected
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    assert!(
+        rejected
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine)
+            .is_none(),
+        "multiple short-circuit local stages remain fail-closed"
+    );
 }
