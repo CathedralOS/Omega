@@ -9496,22 +9496,15 @@ stderr:
 #[test]
 fn runtime_nested_const_row_indexed_read_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_const_row_indexed_read_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-nested-const-row-read-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested const-row indexed read canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested const-row indexed read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested const-row indexed read canary should run");
 
@@ -9525,29 +9518,22 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // CONST-element + RUNTIME-leaf struct-field array WRITE, neighbor-validated.
 #[test]
 fn runtime_nested_const_row_struct_field_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_nested_const_row_struct_field_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-nested-const-row-sf-write-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested const-row struct-field write canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested const-row struct-field write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested const-row struct-field write canary should run");
 
@@ -9561,7 +9547,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // 3D RUNTIME-MIDDLE index (`cube[1][b][0]`): const leaf rides the suffix walk
