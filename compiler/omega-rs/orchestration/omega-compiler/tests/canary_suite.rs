@@ -18717,22 +18717,14 @@ fn runtime_direct_boolean_conjunction_exit_canary_runs() {
 #[test]
 fn executable_domain_membership_expression_exit_canary_runs() {
     let canary = pass_canary("domains/executable_domain_membership_expression_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-runtime-domain-membership-expression-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("executable domain membership expression canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("executable domain membership expression canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("executable domain membership expression canary should run");
 
@@ -18744,7 +18736,7 @@ fn executable_domain_membership_expression_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
