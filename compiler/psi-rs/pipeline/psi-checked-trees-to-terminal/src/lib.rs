@@ -1631,8 +1631,8 @@ fn lower_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    if !matches!(expression, LoweredDirectExpression::IntegerLiteral { .. }) {
-        return unsupported("structural scalar return is not one closed integer literal");
+    if !is_closed_integer_expression(&expression) {
+        return unsupported("structural scalar return is not one closed integer expression");
     }
     if expression.scalar_type() != result_type {
         return unsupported(
@@ -1702,7 +1702,7 @@ fn lower_structural_scalar_return_machine(
             ensures: Vec::new(),
         },
     };
-    Ok(LoweredTerminalPsi {
+    let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -1716,7 +1716,26 @@ fn lower_structural_scalar_return_machine(
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,
-    })
+    };
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
+}
+
+fn is_closed_integer_expression(expression: &LoweredDirectExpression) -> bool {
+    match expression {
+        LoweredDirectExpression::IntegerLiteral { .. } => true,
+        LoweredDirectExpression::IntegerBinary { left, right, .. } => {
+            is_closed_integer_expression(left) && is_closed_integer_expression(right)
+        }
+        LoweredDirectExpression::IntegerBitwiseNot { operand, .. }
+        | LoweredDirectExpression::IntegerWiden { operand, .. }
+        | LoweredDirectExpression::IntegerExactCast { operand, .. } => {
+            is_closed_integer_expression(operand)
+        }
+        LoweredDirectExpression::Parameter { .. }
+        | LoweredDirectExpression::Local { .. }
+        | LoweredDirectExpression::Boolean { .. } => false,
+    }
 }
 
 fn lower_structural_unit_control_machine(
@@ -9517,5 +9536,80 @@ mod tests {
             lower_content_identity_reshuffles(&[moved_twice]),
             Err(LoweringError::ContentIdentityFactOwnerMismatch)
         );
+    }
+
+    #[test]
+    fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_scalar_return_fixture(&mut checked);
+        let landed = |value| {
+            psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+                psi_numerics::literals::IntegerLanding {
+                    landed_type: psi_numerics::literals::LandedIntegerType::I32,
+                    domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+                },
+            )
+        };
+        checked.facts.values.scalar_expressions.expressions[0].expression =
+            CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactAdd,
+                primitive_type: PrimitiveType::I32,
+                left: Box::new(CheckedScalarExpression::IntegerLiteral { literal: landed(3) }),
+                right: Box::new(CheckedScalarExpression::IntegerLiteral { literal: landed(4) }),
+            };
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("closed exact expression should lower with reconstructed proof");
+        let operations = &lowered.semantic_module.machines[0].blocks[0].operations;
+        assert!(matches!(
+            operations.as_slice(),
+            [
+                Operation {
+                    kind: OperationKind::IntegerConstant { .. },
+                    ..
+                },
+                Operation {
+                    kind: OperationKind::IntegerConstant { .. },
+                    ..
+                },
+                Operation {
+                    kind: OperationKind::ExactIntegerAdd { .. },
+                    ..
+                }
+            ]
+        ));
+        assert_eq!(lowered.proof_bundle.evidence.len(), 1);
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("the reconstructed exact-operation proof should verify canonically");
+        let module_bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("closed structural expression module should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&module_bytes)
+                .expect("closed structural expression module should decode canonically"),
+            lowered.semantic_module
+        );
+        assert!(matches!(
+            &lowered.semantic_module.machines[0].blocks[0].terminator,
+            Terminator::Return {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+        ));
+
+        checked.facts.values.scalar_expressions.expressions[0].expression =
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::I32,
+            };
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural scalar return is not one closed integer expression"
+            ))
+        ));
     }
 }
