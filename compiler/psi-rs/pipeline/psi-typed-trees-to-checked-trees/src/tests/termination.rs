@@ -4199,7 +4199,9 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
     let source = r#"
     data Main {
         value: u64;
+        other_value: u64;
         cells: [u64; 2];
+        matrix: [[u64; 2]; 2];
     }
 
     machine make_index() -> u64 [0..=1] {
@@ -4252,6 +4254,22 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         cells
     }
 
+    machine return_after_repeated_index_target<'matrix, 'first, 'second>(
+        matrix: &'matrix mut [[u64; 2]; 2],
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'matrix mut [[u64; 2]; 2] {
+        matrix[write_index(first)][write_index(second)] = 1;
+        matrix
+    }
+
+    machine return_after_deep_repeated_index_target(
+        matrix: &mut [[u64; 2]; 2]
+    ) -> &mut [[u64; 2]; 2] {
+        matrix[identity_index(identity_index(make_index()))][make_index()] = 1;
+        matrix
+    }
+
     machine Main::index_target_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_index_target(&mut self.cells);
         alias[0] = 2;
@@ -4281,6 +4299,21 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             return_after_recursive_index_target(&mut self.cells);
         alias[0] = 2;
     }
+
+    machine Main::repeated_index_target_result(&mut self) {
+        let alias: &mut [[u64; 2]; 2] = return_after_repeated_index_target(
+            &mut self.matrix,
+            &mut self.value,
+            &mut self.other_value
+        );
+        alias[0][0] = 2;
+    }
+
+    machine Main::deep_repeated_index_target_result(&mut self) {
+        let alias: &mut [[u64; 2]; 2] =
+            return_after_deep_repeated_index_target(&mut self.matrix);
+        alias[0][0] = 2;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -4296,6 +4329,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         (
             "Main::nested_index_target_result",
             vec!["self.cells", "self.value"],
+        ),
+        (
+            "Main::repeated_index_target_result",
+            vec!["self.matrix", "self.other_value", "self.value"],
         ),
     ] {
         let machine = typed
@@ -4326,6 +4363,7 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::deep_index_target_result",
         "Main::binding_reborrow_index_target_result",
         "Main::recursive_index_target_result",
+        "Main::deep_repeated_index_target_result",
     ] {
         let machine = typed
             .machines()
