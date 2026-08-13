@@ -180,8 +180,9 @@ Remaining:
   computation fail closed rather than falling back to source trees.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
-  native realization and installation. Next add indexed aggregates, affine
-  locals, nominal/partial-value cleanup,
+  native realization and installation, including one additional claim-free
+  affine parameter discarded in canonical reverse order with no emitted code.
+  Next add indexed aggregates, affine locals, nominal/partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,

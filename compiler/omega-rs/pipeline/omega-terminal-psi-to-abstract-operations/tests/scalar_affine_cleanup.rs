@@ -313,6 +313,49 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     };
     trivial_affine_discards.push(extra);
     let semantics = encode_module(&wider_cleanup).expect("wider cleanup return should encode");
+    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("one exact affine cleanup should enter Omega abstract operations");
+    let [function] = plan.functions.as_slice() else {
+        panic!("fixture has one terminal function")
+    };
+    assert_eq!(function.structural_parameters.len(), 2);
+    assert!(matches!(
+        function.operations.as_slice(),
+        [TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        }] if trivial_affine_discards == &[extra]
+    ));
+
+    let second_extra = place_id(4);
+    wider_cleanup.machines[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: second_extra,
+            position: 2,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    wider_cleanup.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: second_extra,
+            kind: StructuralPlaceKind::Parameter {
+                position: 2,
+                is_self: false,
+            },
+        });
+    let Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &mut wider_cleanup.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![second_extra, extra];
+    let semantics = encode_module(&wider_cleanup).expect("two affine cleanups should encode");
     assert!(matches!(
         lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default()),
         Err(ArtifactLoweringError::Lowering(

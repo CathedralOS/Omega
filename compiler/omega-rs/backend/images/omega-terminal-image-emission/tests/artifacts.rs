@@ -1189,7 +1189,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "e66bc8e0a659605051efec707cbab2eee6d5eace293aae709ffcbbb92f584b22"
+        "ba1f0031bca3faf243158c91360010d1df3d22f40abbd1f57258e67daa8ae297"
     );
 
     let mut changed_plan = plan;
@@ -1212,10 +1212,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&5_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&6_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(5))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(6))
     );
 
     let mut wrong_pointer_width = bytes.clone();

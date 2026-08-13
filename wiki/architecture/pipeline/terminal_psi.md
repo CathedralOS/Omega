@@ -346,13 +346,17 @@ at the validated return edge. Interpretation preserves the opaque value,
 qualifications, and claim identities, charging fuel before custody or cleanup
 commits; canonical encoding and fixed-fuel derivation cover the same edge.
 The exact checked-source slice accepts one attached, one-state passthrough of a
-whole linear parameter with matching qualifications and one whole-root claim;
-locals, authored contracts, projections, and wider control shapes fail closed.
+whole linear parameter with matching qualifications and one whole-root claim.
+It may additionally carry one claim-free affine structural parameter, whose
+place is discarded after result materialization in canonical reverse order;
+locals, authored contracts, projections, and wider cleanup/control shapes fail
+closed.
 Omega realizes that exact slice through its target calling policy when the value
 has one direct eight-byte integer fragment. The source and result placements,
-typed declarations, Psi edge, and claim set survive target assignment, machine
-emission, object/image construction, and canonical installation. Claim identity
-is zero-runtime semantic metadata rather than an extra ABI word. Wider or
+typed declarations, Psi edge, claim set, and exact affine cleanup survive target
+assignment, machine emission, object/image construction, and canonical
+installation. Claim identity and trivial cleanup are zero-runtime semantic
+metadata rather than extra ABI words or instructions. Wider or
 indirect values, projections, structural calls, and broader control remain
 fenced before partial lowering.
 

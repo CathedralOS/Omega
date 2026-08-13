@@ -75,6 +75,8 @@ fn emit_function(
             emitted.bytes
         }
         TerminalAssignedOperation::ReturnStructuralParameter {
+            call_plan,
+            parameters,
             source,
             result,
             shape,
@@ -82,7 +84,7 @@ fn emit_function(
             result_placement,
             psi_edge,
             returned_claims,
-            ..
+            trivial_affine_discards,
         } => {
             let bytes = emit_structural_parameter_return(
                 source.place,
@@ -100,12 +102,15 @@ fn emit_function(
             });
             structural_return = Some(TerminalStructuralReturnRecord {
                 psi_edge: *psi_edge,
+                parameters: parameters.clone(),
+                parameter_placements: call_plan.parameters.clone(),
                 source: source.clone(),
                 result: result.clone(),
                 shape: *shape,
                 source_placement: source_placement.clone(),
                 result_placement: result_placement.clone(),
                 returned_claims: returned_claims.clone(),
+                trivial_affine_discards: trivial_affine_discards.clone(),
                 code_offset: 0,
                 byte_count: bytes.len(),
             });

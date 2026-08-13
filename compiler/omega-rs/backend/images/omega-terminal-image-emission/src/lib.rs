@@ -305,7 +305,7 @@ pub fn build_terminal_object_artifact(
         }
         if let Some(returned) = &function.structural_return {
             validate_structural_return_record(
-                plan.target.architecture,
+                plan.target,
                 function.machine,
                 &function.provenance,
                 &function.bytes,
@@ -704,12 +704,26 @@ pub fn build_terminal_object_artifact(
 }
 
 fn validate_structural_return_record(
-    architecture: Architecture,
+    target: NativeTarget,
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
     bytes: &[u8],
     returned: &TerminalStructuralReturnRecord,
 ) -> Result<(), TerminalObjectError> {
+    let architecture = target.architecture;
+    let expected_call_plan = omega_calling_conventions::evaluate_call_plan(
+        omega_calling_conventions::CallingPolicy::native_for_target(target),
+        &omega_calling_conventions::CallSignature {
+            parameters: returned
+                .parameter_placements
+                .iter()
+                .map(|placement| placement.shape)
+                .collect(),
+            result: Some(returned.shape),
+        },
+    )
+    .map_err(|_| TerminalObjectError::InvalidStructuralReturnEvidence(machine))?;
+    let source_index = returned.parameters.first().map(|_| 0);
     let end = returned
         .code_offset
         .checked_add(returned.byte_count)
@@ -728,6 +742,36 @@ fn validate_structural_return_record(
         || returned.shape != returned.result_placement.shape
         || returned.shape.byte_size != 8
         || returned.returned_claims.len() != 1
+        || !(1..=2).contains(&returned.parameters.len())
+        || returned
+            .parameters
+            .iter()
+            .enumerate()
+            .any(|(index, parameter)| {
+                parameter.is_self || usize::try_from(parameter.position) != Ok(index)
+            })
+        || returned.parameters.first() != Some(&returned.source)
+        || returned.parameters.iter().skip(1).any(|parameter| {
+            parameter.place == returned.source.place || parameter.place == returned.result.place
+        })
+        || returned.trivial_affine_discards
+            != returned
+                .parameters
+                .iter()
+                .skip(1)
+                .rev()
+                .map(|parameter| parameter.place)
+                .collect::<Vec<_>>()
+        || returned
+            .parameters
+            .iter()
+            .skip(1)
+            .any(|parameter| parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine)
+        || returned.parameter_placements.len() != returned.parameters.len()
+        || expected_call_plan.parameters != returned.parameter_placements
+        || expected_call_plan.result.as_ref() != Some(&returned.result_placement)
+        || source_index.and_then(|index| returned.parameter_placements.get(index))
+            != Some(&returned.source_placement)
     {
         return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
             machine,

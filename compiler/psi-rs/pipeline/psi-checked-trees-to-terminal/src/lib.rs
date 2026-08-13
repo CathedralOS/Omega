@@ -1605,16 +1605,32 @@ fn lower_structural_return_machine(
     plan: &CheckedStructuralReturnMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let plans = &checked.facts.flow.terminal_structural_returns;
-    if plan.input.multiplicity != Multiplicity::Linear
+    let Some(returned_plan) = plan.structural_parameters.first() else {
+        return unsupported(
+            "structural result plan is not one exact whole-root linear transfer with affine cleanup",
+        );
+    };
+    let discarded_plan = plan.structural_parameters.get(1);
+    let expected_discards: &[u32] = if discarded_plan.is_some() { &[1] } else { &[] };
+    if plan.returned_parameter_index != 0
+        || !matches!(plan.structural_parameters.len(), 1 | 2)
+        || plan.trivial_affine_discards.as_slice() != expected_discards
+        || returned_plan.multiplicity != Multiplicity::Linear
+        || returned_plan.is_self
+        || discarded_plan.is_some_and(|discarded| {
+            discarded.multiplicity != Multiplicity::Affine || discarded.is_self
+        })
         || plan.result.multiplicity != Multiplicity::Linear
         || plan.entry_claim.parameter_index != 0
         || !plan.entry_claim.field_path.is_empty()
         || plan.entry_claim.carry != CarryPolicy::STRICT
         || plan.entry_claim.claim_identity != plan.transferred_claim
-        || plan.input.type_identity != plan.result.type_identity
-        || plan.input.qualifications != plan.result.qualifications
+        || returned_plan.type_identity != plan.result.type_identity
+        || returned_plan.qualifications != plan.result.qualifications
     {
-        return unsupported("structural result plan is not one exact whole-root linear transfer");
+        return unsupported(
+            "structural result plan is not one exact whole-root linear transfer with affine cleanup",
+        );
     }
     let PermissionClaimIdentity::Established {
         machine_symbol,
@@ -1633,14 +1649,16 @@ fn lower_structural_return_machine(
     let (structural_domains, domain_ids) =
         lower_structural_domain_plans(&plans.structural_domains, &type_ids)?;
     let mut next_place = 1_u64;
-    let [input] = lower_unit_parameters(
-        std::slice::from_ref(&plan.input),
+    let parameters = lower_unit_parameters(
+        &plan.structural_parameters,
         &type_ids,
         &domain_ids,
         &mut next_place,
-    )?
-    .try_into()
-    .map_err(|_| LoweringError::Unsupported("structural result plan must have one input"))?;
+    )?;
+    let input = parameters.first().ok_or(LoweringError::Unsupported(
+        "structural result plan has no input",
+    ))?;
+    let discarded = parameters.get(1);
     let result_place = place_id(RESULT_STRUCTURAL_PLACE_ID);
     if input.place == result_place {
         return unsupported("structural result place collides with its input namespace");
@@ -1690,7 +1708,7 @@ fn lower_structural_return_machine(
     {
         return unsupported("structural result claim/content identities do not unify exactly");
     }
-    let expected_places = BTreeMap::from([
+    let content_places = BTreeMap::from([
         (
             input.place,
             StructuralPlaceKind::Parameter {
@@ -1705,16 +1723,28 @@ fn lower_structural_return_machine(
         .iter()
         .map(|place| (place.id, place.kind))
         .collect::<BTreeMap<_, _>>();
-    if actual_places != expected_places {
+    if actual_places != content_places {
         return unsupported("structural result content roots do not match the checked signature");
     }
+    let mut expected_places = content_places;
+    if let Some(discarded) = discarded {
+        expected_places.insert(
+            discarded.place,
+            StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: discarded.is_self,
+            },
+        );
+    }
+    let input_place = input.place;
+    let terminal_discards = discarded.iter().map(|value| value.place).collect();
 
     let terminal_machine = machine_id(1);
     let machine = TerminalMachine {
         id: terminal_machine,
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: Vec::new(),
-        structural_parameters: vec![input.clone()],
+        structural_parameters: parameters,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: result_place,
             structural_type: lookup_type_id(&type_ids, &plan.result.type_identity)?,
@@ -1727,7 +1757,7 @@ fn lower_structural_return_machine(
             .collect(),
         entry_claims: vec![EntryClaim {
             claim,
-            input: input.place,
+            input: input_place,
             field_path: Vec::new(),
         }],
         published_service_ceiling: Vec::new(),
@@ -1741,9 +1771,9 @@ fn lower_structural_return_machine(
             operations: Vec::new(),
             terminator: Terminator::ReturnStructural {
                 edge: edge_id(1),
-                source: input.place,
+                source: input_place,
                 returned_claims: vec![claim],
-                trivial_affine_discards: Vec::new(),
+                trivial_affine_discards: terminal_discards,
             },
         }],
         contract: MachineContract {

@@ -38,6 +38,7 @@ pub enum TerminalAssignedOperation {
     UnitBody(TerminalAssignedUnitBody),
     ReturnStructuralParameter {
         call_plan: CallPlan,
+        parameters: Vec<StructuralParameterDeclaration>,
         source: StructuralParameterDeclaration,
         result: StructuralResultDeclaration,
         shape: ValueShape,
@@ -45,6 +46,7 @@ pub enum TerminalAssignedOperation {
         result_placement: ValuePlacement,
         psi_edge: EdgeId,
         returned_claims: Vec<ClaimId>,
+        trivial_affine_discards: Vec<PlaceId>,
     },
     Crash {
         psi_edge: EdgeId,

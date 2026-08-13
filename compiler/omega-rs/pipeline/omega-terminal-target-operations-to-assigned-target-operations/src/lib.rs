@@ -119,6 +119,7 @@ fn assign_function(
         }
         TerminalTargetOperation::ReturnStructuralParameter {
             call_plan,
+            parameters,
             source,
             result,
             shape,
@@ -126,29 +127,65 @@ fn assign_function(
             result_placement,
             psi_edge,
             returned_claims,
+            trivial_affine_discards,
         } => {
+            let source_index = 0;
+            if parameters.first() != Some(source) {
+                return Err(AssignmentError::UnsupportedStructuralPlacement(
+                    source.place,
+                ));
+            }
             let expected_call_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: vec![*shape],
+                    parameters: call_plan
+                        .parameters
+                        .iter()
+                        .map(|placement| placement.shape)
+                        .collect(),
                     result: Some(*shape),
                 },
             )
             .map_err(|_| AssignmentError::UnsupportedStructuralPlacement(source.place))?;
-            let expected_parameters = [source_placement.clone()];
             if *call_plan != expected_call_plan
-                || call_plan.parameters.as_slice() != expected_parameters
+                || call_plan.parameters.len() != parameters.len()
+                || call_plan.parameters.get(source_index) != Some(source_placement)
                 || call_plan.result.as_ref() != Some(result_placement)
                 || source.place == result.place
+                || trivial_affine_discards.len() + 1 != parameters.len()
+                || parameters.iter().enumerate().any(|(index, parameter)| {
+                    usize::try_from(parameter.position) != Ok(index) || parameter.is_self
+                })
+                || parameters.iter().skip(1).any(|parameter| {
+                    parameter.place == source.place || parameter.place == result.place
+                })
+                || trivial_affine_discards
+                    .iter()
+                    .enumerate()
+                    .any(|(index, place)| {
+                        parameters
+                            .iter()
+                            .skip(1)
+                            .rev()
+                            .nth(index)
+                            .is_none_or(|parameter| {
+                                parameter.place != *place
+                                    || parameter.multiplicity
+                                        != psi_terminal::StructuralMultiplicity::Affine
+                            })
+                    })
             {
                 return Err(AssignmentError::UnsupportedStructuralPlacement(
                     source.place,
                 ));
             }
-            validate_structural_placement(source.place, source_placement, architecture)?;
+            for (parameter, placement) in parameters.iter().zip(&call_plan.parameters) {
+                validate_structural_placement(parameter.place, placement, architecture)?;
+            }
             validate_structural_placement(result.place, result_placement, architecture)?;
             TerminalAssignedOperation::ReturnStructuralParameter {
                 call_plan: call_plan.clone(),
+                parameters: parameters.clone(),
                 source: source.clone(),
                 result: result.clone(),
                 shape: *shape,
@@ -156,6 +193,7 @@ fn assign_function(
                 result_placement: result_placement.clone(),
                 psi_edge: *psi_edge,
                 returned_claims: returned_claims.clone(),
+                trivial_affine_discards: trivial_affine_discards.clone(),
             }
         }
         TerminalTargetOperation::Crash {

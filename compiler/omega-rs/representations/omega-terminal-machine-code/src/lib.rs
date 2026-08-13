@@ -62,12 +62,20 @@ pub struct TerminalMachineCodeFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalStructuralReturnRecord {
     pub psi_edge: EdgeId,
+    /// Complete ordered structural input signature. This binds the returned
+    /// place and every zero-code cleanup place to its exact type/multiplicity.
+    pub parameters: Vec<StructuralParameterDeclaration>,
+    /// Complete ABI input placement list corresponding one-for-one with
+    /// `parameters`, including cleanup-only inputs.
+    pub parameter_placements: Vec<ValuePlacement>,
     pub source: StructuralParameterDeclaration,
     pub result: StructuralResultDeclaration,
     pub shape: ValueShape,
     pub source_placement: ValuePlacement,
     pub result_placement: ValuePlacement,
     pub returned_claims: Vec<ClaimId>,
+    /// Exact verifier-owned reverse-declaration no-code cleanup order.
+    pub trivial_affine_discards: Vec<PlaceId>,
     pub code_offset: usize,
     pub byte_count: usize,
 }

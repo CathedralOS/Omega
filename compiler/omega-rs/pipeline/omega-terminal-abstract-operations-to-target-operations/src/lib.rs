@@ -1348,9 +1348,9 @@ fn lower_structural_return_function(
     target: NativeTarget,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
-    let [source] = function.structural_parameters.as_slice() else {
+    if !(1..=2).contains(&function.structural_parameters.len()) {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
-    };
+    }
     let [entry_claim] = function.entry_claims.as_slice() else {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     };
@@ -1372,29 +1372,62 @@ fn lower_structural_return_function(
         || !function.published_service_ceiling.is_empty()
         || block_entry.block != function.entry
         || block_entry.operation_offset != 0
-        || source.position != 0
-        || source.is_self
-        || source.multiplicity != psi_terminal::StructuralMultiplicity::Linear
         || result.multiplicity != psi_terminal::StructuralMultiplicity::Linear
-        || source.structural_type != result.structural_type
-        || source.qualifications != result.qualifications
-        || source.place == result.place
-        || *returned_source != source.place
-        || entry_claim.input != source.place
+        || function
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .any(|(index, parameter)| {
+                parameter.is_self || usize::try_from(parameter.position) != Ok(index)
+            })
+        || trivial_affine_discards.len() + 1 != function.structural_parameters.len()
         || !entry_claim.field_path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
-        || !trivial_affine_discards.is_empty()
     {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }
+    let source_index = 0;
+    let source = &function.structural_parameters[source_index];
+    if source.place != *returned_source {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    }
+    if source.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+        || source.structural_type != result.structural_type
+        || source.qualifications != result.qualifications
+        || source.place == result.place
+        || entry_claim.input != source.place
+    {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    }
+    if let [cleanup_place] = trivial_affine_discards.as_slice() {
+        let Some(cleanup) = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *cleanup_place)
+        else {
+            return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+        };
+        if cleanup.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+            || source.place == cleanup.place
+        {
+            return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+        }
+    }
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let shape = structural_shape(
-        source.structural_type,
-        structural_types,
-        &mut cache,
-        &mut active,
-    )?;
+    let parameter_shapes = function
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            structural_shape(
+                parameter.structural_type,
+                structural_types,
+                &mut cache,
+                &mut active,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let shape = parameter_shapes[source_index];
     if shape.byte_size != 8 || shape.alignment != 8 {
         return Err(LoweringError::UnsupportedStructuralReturnShape {
             machine: function.machine,
@@ -1404,14 +1437,14 @@ fn lower_structural_return_function(
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![shape],
+            parameters: parameter_shapes,
             result: Some(shape),
         },
     )
     .map_err(LoweringError::AbiPlan)?;
-    let [source_placement] = call_plan.parameters.as_slice() else {
+    let Some(source_placement) = call_plan.parameters.get(source_index) else {
         return Err(LoweringError::AbiParameterCountMismatch {
-            expected: 1,
+            expected: function.structural_parameters.len(),
             actual: call_plan.parameters.len(),
         });
     };
@@ -1428,6 +1461,7 @@ fn lower_structural_return_function(
         },
         operation: TerminalTargetOperation::ReturnStructuralParameter {
             call_plan: call_plan.clone(),
+            parameters: function.structural_parameters.clone(),
             source: source.clone(),
             result: result.clone(),
             shape,
@@ -1435,6 +1469,7 @@ fn lower_structural_return_function(
             result_placement: result_placement.clone(),
             psi_edge: *psi_edge,
             returned_claims: returned_claims.clone(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
         },
     })
 }

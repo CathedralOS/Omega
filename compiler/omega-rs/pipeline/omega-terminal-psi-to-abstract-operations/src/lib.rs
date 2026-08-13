@@ -701,18 +701,38 @@ fn lower_structural_machine(
     result: &StructuralResultDeclaration,
 ) -> Result<TerminalAbstractFunction, LoweringError> {
     let unsupported = || LoweringError::UnsupportedStructuralResult(machine.id);
-    let [parameter] = machine.structural_parameters.as_slice() else {
+    let Some(parameter) = machine.structural_parameters.first() else {
         return Err(unsupported());
     };
+    let discarded = machine.structural_parameters.get(1);
+    if !matches!(machine.structural_parameters.len(), 1 | 2) {
+        return Err(unsupported());
+    }
     let [entry_claim] = machine.entry_claims.as_slice() else {
         return Err(unsupported());
     };
     let [block] = machine.blocks.as_slice() else {
         return Err(unsupported());
     };
-    let [parameter_place, result_place] = machine.structural_places.as_slice() else {
-        return Err(unsupported());
-    };
+    let parameter_place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == parameter.place)
+        .ok_or_else(unsupported)?;
+    let result_place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == result.place)
+        .ok_or_else(unsupported)?;
+    let discarded_place = discarded
+        .map(|discarded| {
+            machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == discarded.place)
+                .ok_or_else(unsupported)
+        })
+        .transpose()?;
     let Terminator::ReturnStructural {
         edge,
         source,
@@ -726,6 +746,11 @@ fn lower_structural_machine(
     if !machine.parameters.is_empty()
         || parameter.position != 0
         || parameter.is_self
+        || discarded.is_some_and(|discarded| {
+            discarded.position != 1
+                || discarded.is_self
+                || discarded.multiplicity != StructuralMultiplicity::Affine
+        })
         || parameter.multiplicity != StructuralMultiplicity::Linear
         || result.multiplicity != StructuralMultiplicity::Linear
         || parameter.structural_type != result.structural_type
@@ -734,7 +759,10 @@ fn lower_structural_machine(
         || entry_claim.input != parameter.place
         || !entry_claim.field_path.is_empty()
         || returned_claims.as_slice() != [entry_claim.claim]
-        || !trivial_affine_discards.is_empty()
+        || trivial_affine_discards.as_slice()
+            != discarded
+                .map(|discarded| std::slice::from_ref(&discarded.place))
+                .unwrap_or_default()
         || block.id != machine.entry
         || !block.parameters.is_empty()
         || !block.operations.is_empty()
@@ -752,6 +780,16 @@ fn lower_structural_machine(
         )
         || result_place.id != result.place
         || result_place.kind != StructuralPlaceKind::Result
+        || discarded_place.is_some_and(|place| {
+            !matches!(
+                place.kind,
+                StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false
+                }
+            )
+        })
+        || machine.structural_places.len() != machine.structural_parameters.len() + 1
     {
         return Err(unsupported());
     }
@@ -761,7 +799,7 @@ fn lower_structural_machine(
         attachment: machine.attachment,
         entry: machine.entry,
         parameters: Vec::new(),
-        structural_parameters: vec![parameter.clone()],
+        structural_parameters: machine.structural_parameters.clone(),
         result: TerminalAbstractFunctionResult::Structural(result.clone()),
         entry_claims: vec![entry_claim.clone()],
         published_service_ceiling: Vec::new(),
