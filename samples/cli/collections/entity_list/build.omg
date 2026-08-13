@@ -1,4 +1,4 @@
-// generic_ring_buffer is deployable on every hosted target.
+// entity_list is deployable on every hosted target.
 
 target windows_x64 {
 }

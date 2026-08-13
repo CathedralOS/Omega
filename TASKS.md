@@ -62,7 +62,8 @@ Remaining:
   entry explicitly. The CLI basics cohort and the five deployable proof
   samples, the eight CLI algorithm samples, the six CLI interpreter samples,
   seven deployable CLI game samples, ten deployable CLI text samples, and ten
-  deployable CLI rendering samples now author all four hosted roots; the two
+  deployable CLI rendering samples, and eleven deployable CLI collection
+  samples now author all four hosted roots; the two
   proof-only samples remain targetless.
   `dungeon_crawler_cli` still has a non-Unit `main` plus an existing Linux
   host-call argument lowering gap and remains in the legacy staging set.
@@ -70,6 +71,10 @@ Remaining:
   return-write, so it remains unrooted and outside the runnable native corpus.
   `bouncing_ball_2d` remains unrooted until mutable floating-point machine-field
   storage and value lowering are implemented.
+  The collection samples `slice_accum_probe` and `subslice_sum` remain unrooted:
+  their recursive slice-value callees reach terminals without a selected
+  integer return-write, so direct lowering correctly rejects rather than
+  silently leaving the caller result zero-initialized.
   Sample refresh names the exact host and never invents an entry;
   the native sample oracle selects authored roots directly and stages only
   unrooted legacy sources. The complete basics cohort, including
