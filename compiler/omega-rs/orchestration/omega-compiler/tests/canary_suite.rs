@@ -18662,19 +18662,13 @@ fn boundary_operator_domain_ensures_flow_to_mutable_operand() {
 #[test]
 fn runtime_min_call_result_arithmetic_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_min_call_result_arithmetic_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-min-call-result-arith-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("min-call-result arithmetic canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("min-call-result arithmetic canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("min-call-result arithmetic canary should run");
     assert_eq!(
@@ -18685,7 +18679,7 @@ fn runtime_min_call_result_arithmetic_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -18697,7 +18691,6 @@ fn runtime_direct_boolean_conjunction_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-
     compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
