@@ -539,6 +539,55 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_fixed_record_array_materializes_through_the_typed_bridge() {
+    let main_path = write_program(
+        "source-owned-fixed-record-array",
+        r#"
+use omega::language::core::layout;
+
+data ArrayLayout { entries: [FieldEntry; 64]; }
+machine ArrayLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 32, size_is_dynamic: false, align: 4 }
+}
+data Pair { low: u16; high: u32; }
+data Samples { pairs: [Pair; 2]; }
+machine make_samples() -> Samples {
+    let pairs: [Pair; 2];
+    pairs[0] = Pair { low: 258, high: 100992003 };
+    pairs[1] = Pair { low: 2055, high: 202050057 };
+    Samples { pairs: pairs }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked =
+        compile_to_checked(&main_path, None).expect("owned fixed-record array should check");
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+        .expect("fixed-record array should have one whole-field placement");
+    let mut bytes = [0xa5; 32];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("source-owned fixed-record array should materialize atomically");
+    assert_eq!(
+        &bytes[8..24],
+        &[2, 1, 0, 0, 3, 4, 5, 6, 7, 8, 0, 0, 9, 10, 11, 12]
+    );
+    assert!(bytes[..8].iter().chain(&bytes[24..]).all(|byte| *byte == 0));
+}
+
+#[test]
 fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
     let main_path = write_program(
         "typed-owned-negative-u64",
