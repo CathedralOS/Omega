@@ -198,11 +198,15 @@ Remaining:
   finite nonempty set of distinct direct fields through source-ordered ordinary
   Unit calls, provided at least one sibling remains. Return disposes every
   residual sibling in reverse declaration order.
+  Alternatively, one ordinary Unit call may move one arbitrary-depth,
+  nonempty all-field path. Return disposes the maximal live sibling subtrees
+  encountered around that path in recursive reverse declaration order; a
+  partially moved ancestor is never discarded whole.
   Checked plans, canonical terminal format, independent verification,
   interpretation/fuel, and all five Omega artifact/install paths preserve the
   exact root, field paths, and leaf types without a runtime bitmap or cleanup
-  bytes. Nested paths, claims/content, contracts, and
-  nominal `drop` remain fenced for partial-record cleanup.
+  bytes. Multiple moves involving a nested path, claims/content, contracts,
+  arrays/cases, and nominal `drop` remain fenced for partial-record cleanup.
 
   The whole-root nominal cleanup slice is complete for a finite nonempty list
   of claim-free, unqualified affine parameters whose records are empty or
@@ -225,7 +229,7 @@ Remaining:
   parameter tail and a finite consecutive prefix of established empty-record
   affine locals. Both clean up in canonical reverse order with no emitted
   cleanup code; register and stack ABI homes survive installation. Next add
-  nested partial-value cleanup,
+  wider partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,
@@ -434,10 +438,11 @@ reach or trust, and private proof improvements do not change public identity.
   materialization and transfer-map commitment. Accepted terminal slices carry
   exact reverse-declaration affine cleanup through Unit/scalar returns and
   bounded acyclic structural control, including short-circuit Boolean stages and
-  one equal-frontier diamond. A finite source-ordered run of distinct
-  direct-field partial-record transfers now preserves and disposes every
-  residual sibling of a finite flat structural record in reverse declaration
-  order through interpretation and all five native artifact paths. One whole
+  one equal-frontier diamond. Partial-record transfer accepts either a finite
+  source-ordered run of distinct direct fields or one arbitrary-depth all-field
+  path. It preserves and disposes every maximal residual sibling subtree in
+  recursive reverse declaration order through interpretation and all five
+  native artifact paths. One whole
   affine parameter whose record is
   empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native
@@ -448,7 +453,7 @@ reach or trust, and private proof improvements do not change public identity.
   interpretation, fuel, and every native artifact path. They may share a
   target, and every action may use the bounded executable body, including a
   shared cleanup target or helper; native calls retain exact edge/action
-  ordinals. Add contextual cleanup-contract checking, nested structural
+  ordinals. Add contextual cleanup-contract checking, wider structural
   partial-value cleanup, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. The accepted slices are not yet a
   general conditional CFG, complete cleanup plan, or conservation witness.
