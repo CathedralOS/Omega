@@ -45,14 +45,14 @@ return may invoke attached `drop` for one or two whole claim-free, unqualified
 affine records that are empty or contain only relevant Boolean or integer
 fields. Two cleanups run in reverse parameter declaration order and may share
 one cleanup machine because the actions own different places. Each body may
-contain up to two source-ordered ordinary zero-argument calls to mutually
+contain up to three source-ordered ordinary zero-argument calls to mutually
 distinct exact-empty attached helpers; different bodies may share helpers. Psi
 preserves each whole receiver and executes
 the complete ordered list. Omega represents all return cleanup as one ordered
 action stream, assigns nonempty receivers their ordinary ABI homes, and emits
 only executable cleanup calls while retaining exact edge/action and helper
 operation custody. Wider lists, nested or erased receivers, and
-three-or-more-call bodies remain pending engineering work under
+four-or-more-call bodies remain pending engineering work under
 the rules below.
 
 A release that waits, suspends, may fail, or promises protocol completion is an
