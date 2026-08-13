@@ -260,7 +260,7 @@ A value may therefore be automatically droppable in one state and require an
 explicit consumer or fact-preserving transfer in another.
 
 The implemented root-return subset currently proves a finite canonical set of
-direct relevant Boolean receiver-field requirements on a `drop` body that is
+direct relevant Boolean receiver-field requirements in either polarity on a `drop` body that is
 empty or contains only the bounded receiver-independent helper calls described
 above, from matching caller facts. For example, `requires self.ready, self.armed` is
 available for automatic cleanup at a Unit return whose caller establishes both
@@ -272,6 +272,11 @@ own caller root. Psi independently replays every exact receiver substitution in
 the proof artifact; none is a native argument or Omega runtime contract. Other
 predicates and bodies that can inspect or change premise-bearing receiver facts
 remain outside this bounded subset.
+
+The bounded source forms are a bare field, a directly negated field, or direct
+equality/inequality with a Boolean literal in either operand order. Psi
+canonicalizes all of them to the exact expected Boolean value; nested negation
+and broader logically equivalent predicates remain outside this slice.
 
 Diagnostics name both the edge and the missing cleanup premise:
 

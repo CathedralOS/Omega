@@ -2443,16 +2443,18 @@ fn valid_nominal_cleanup_requirements(
     else {
         return false;
     };
-    let mut previous_field_bytes = None;
+    let mut previous_key = None;
     for requirement in &target.contract.requires {
-        let Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::BooleanField { root, field }) =
-            requirement
+        let Proposition::Equal(
+            ScalarTerm::Boolean(expected),
+            ScalarTerm::BooleanField { root, field },
+        ) = requirement
         else {
             return false;
         };
-        let field_bytes = field.get().to_le_bytes();
+        let key = (*expected, field.get().to_le_bytes());
         if *root != receiver
-            || previous_field_bytes.is_some_and(|previous| previous >= field_bytes)
+            || previous_key.is_some_and(|previous| previous >= key)
             || !fields.iter().any(|candidate| {
                 candidate.id == *field
                     && !candidate.relevance.is_erased()
@@ -2461,7 +2463,7 @@ fn valid_nominal_cleanup_requirements(
         {
             return false;
         }
-        previous_field_bytes = Some(field_bytes);
+        previous_key = Some(key);
     }
     true
 }

@@ -915,6 +915,70 @@ fn retains_contextual_requirements_with_an_executable_cleanup_body() {
 }
 
 #[test]
+fn canonicalizes_shallow_boolean_cleanup_requirement_spellings() {
+    let checked = checked(
+        r#"
+        data Token { a: bool; b: bool; c: bool; d: bool; e: bool; f: bool; }
+        machine Token::drop(&mut self)
+        requires
+            self.a;
+            !self.b;
+            self.c == true;
+            true == self.d;
+            self.e != true;
+            false != self.f
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires
+            token.a == true;
+            token.b == false;
+            true == token.c;
+            token.d != false;
+            false == token.e;
+            token.f
+        {}
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("both Boolean polarities form one contextual cleanup plan");
+    assert_eq!(
+        plan.cleanups[0]
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![
+            ("a", true),
+            ("b", false),
+            ("c", true),
+            ("d", true),
+            ("e", false),
+            ("f", true),
+        ]
+    );
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![
+            ("a", true),
+            ("b", false),
+            ("c", true),
+            ("d", true),
+            ("e", false),
+            ("f", true),
+        ]
+    );
+}
+
+#[test]
 fn rejects_shared_contextual_target_when_one_root_lacks_its_premise() {
     let diagnostics = contextual_cleanup_diagnostics(
         r#"

@@ -457,6 +457,7 @@ reach or trust, and private proof improvements do not change public identity.
   shared cleanup target or helper; native calls retain exact edge/action
   ordinals. One contextual subset additionally accepts a finite
   canonical set of direct relevant Boolean receiver-field `requires` clauses
+  in either polarity
   across a finite cleanup-root list when the caller's canonical Boolean fact
   set proves every one at the Unit return edge; unrelated supported caller
   facts remain available. Shared cleanup targets retain one target-local proof

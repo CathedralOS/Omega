@@ -1915,7 +1915,7 @@ fn nominal_cleanup_boolean_requirements(
     let requirements = checked_requires
         .into_iter()
         .map(|expression| {
-            direct_true_boolean_field_requirement(
+            direct_boolean_field_requirement(
                 program,
                 cleanup_state.symbol,
                 cleanup_receiver,
@@ -1944,7 +1944,7 @@ fn nominal_cleanup_caller_boolean_requirements(
             source_parameters.iter().enumerate().find_map(
                 |(source_parameter_index, source_parameter)| {
                     let source_parameter_index = u32::try_from(source_parameter_index).ok()?;
-                    direct_true_boolean_field_requirement(
+                    direct_boolean_field_requirement(
                         program,
                         caller_state.symbol,
                         source_parameter,
@@ -2044,25 +2044,51 @@ fn checked_requires_expressions(
     Some(expressions)
 }
 
-fn direct_true_boolean_field_requirement(
+fn direct_boolean_field_requirement(
     program: &TypedTrees,
     state: SymbolHandle,
     root_parameter: &StateParameter,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitNominalAffineCleanupRequirementPlan> {
-    let field_expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(_) => expression,
+    use psi_typed_trees::expression::{BinaryOperator, UnaryOperator};
+
+    let (field_expression, expected) = match program.expression_table.expression(expression) {
+        ExpressionNode::Member(_) => (expression, true),
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            if !matches!(
+                program.expression_table.expression(unary.operand),
+                ExpressionNode::Member(_)
+            ) {
+                return None;
+            }
+            (unary.operand, false)
+        }
         ExpressionNode::Binary(binary)
-            if binary.operator == psi_typed_trees::expression::BinaryOperator::Equal =>
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) =>
         {
-            match (
+            let (field, literal) = match (
                 program.expression_table.expression(binary.left),
                 program.expression_table.expression(binary.right),
             ) {
-                (ExpressionNode::Boolean(true), ExpressionNode::Member(_)) => binary.right,
-                (ExpressionNode::Member(_), ExpressionNode::Boolean(true)) => binary.left,
+                (ExpressionNode::Boolean(literal), ExpressionNode::Member(_)) => {
+                    (binary.right, *literal)
+                }
+                (ExpressionNode::Member(_), ExpressionNode::Boolean(literal)) => {
+                    (binary.left, *literal)
+                }
                 _ => return None,
-            }
+            };
+            (
+                field,
+                if binary.operator == BinaryOperator::Equal {
+                    literal
+                } else {
+                    !literal
+                },
+            )
         }
         _ => return None,
     };
@@ -2085,7 +2111,7 @@ fn direct_true_boolean_field_requirement(
     }
     Some(CheckedUnitNominalAffineCleanupRequirementPlan {
         field_identity: terminal_field_identity(program, *symbol)?,
-        expected: true,
+        expected,
     })
 }
 

@@ -216,8 +216,8 @@ machine, object, image, and installation artifacts. Empty drops emit no native
 call; an executable body emits a call owned by the exact edge/action ordinal
 before teardown, with source-ordered operation-owned helper calls.
 For an empty cleanup body or the bounded receiver-independent helper-call body,
-a finite canonical set of direct
-`requires self.boolean_field` clauses is accepted when the caller's supported
+a finite canonical set of direct Boolean-field clauses in either polarity is
+accepted when the caller's supported
 Boolean fact set contains every corresponding requirement on each owned root.
 Caller-only facts remain in the entry contract. Terminal Psi retains a
 target-local proof-only receiver, shared by actions using the same target, and

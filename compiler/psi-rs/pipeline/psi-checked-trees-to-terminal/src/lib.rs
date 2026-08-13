@@ -3383,11 +3383,6 @@ fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal affine Unit parameter is outside the bounded record shape");
     }
     let checked_contextual_field = |field_identity: &str, expected: bool| {
-        if !expected {
-            return Err(LoweringError::Unsupported(
-                "contextual nominal cleanup Boolean requirement must expect true",
-            ));
-        }
         let CheckedUnitStructuralTypeShape::Record { fields } = &parameter_shape.shape else {
             unreachable!("bounded nominal cleanup receiver is a record")
         };
@@ -3399,7 +3394,7 @@ fn lower_nominal_affine_unit_cleanup_machine(
                     && field.field_type
                         == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Bool)
             })
-            .map(|field| field.identity.clone())
+            .map(|field| (field.identity.clone(), expected))
             .ok_or(LoweringError::Unsupported(
                 "contextual nominal cleanup requirement field is absent, erased, or non-Boolean",
             ))
@@ -3725,50 +3720,54 @@ fn lower_nominal_affine_unit_cleanup_machine(
 
             let mut caller_clauses = contextual_caller_requirements
                 .iter()
-                .map(|field_identity| {
+                .map(|(field_identity, expected)| {
                     let field = terminal_field(field_identity)?;
                     Ok((
+                        *expected,
                         field,
                         Proposition::Equal(
-                            ScalarTerm::boolean(true),
+                            ScalarTerm::boolean(*expected),
                             ScalarTerm::boolean_field(caller_place, field),
                         ),
                     ))
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             // Every proposition in this bounded vocabulary shares the same
-            // tags, Boolean literal, and root. Its canonical codec order is
-            // therefore the little-endian byte order of StructuralFieldId.
-            // Sort after terminal identities exist rather than trusting the
-            // checked declaration-identity order.
-            caller_clauses.sort_by_key(|(field, _)| field.get().to_le_bytes());
+            // tags and root. Its canonical codec order is Boolean polarity,
+            // then the little-endian byte order of StructuralFieldId. Sort
+            // after terminal identities exist rather than trusting checked
+            // declaration-identity order.
+            caller_clauses
+                .sort_by_key(|(expected, field, _)| (*expected, field.get().to_le_bytes()));
             let caller_requires = caller_clauses
                 .iter()
-                .map(|(_, proposition)| proposition.clone())
+                .map(|(_, _, proposition)| proposition.clone())
                 .collect::<Vec<_>>();
 
             let mut target_clauses = contextual_requirements
                 .iter()
-                .map(|field_identity| {
+                .map(|(field_identity, expected)| {
                     let field = terminal_field(field_identity)?;
                     let receiver = receiver.expect(
                         "a nonempty contextual cleanup requirement set has a proof-only receiver",
                     );
                     Ok((
+                        *expected,
                         field,
                         Proposition::Equal(
-                            ScalarTerm::boolean(true),
+                            ScalarTerm::boolean(*expected),
                             ScalarTerm::boolean_field(receiver, field),
                         ),
                     ))
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
-            target_clauses.sort_by_key(|(field, _)| field.get().to_le_bytes());
+            target_clauses
+                .sort_by_key(|(expected, field, _)| (*expected, field.get().to_le_bytes()));
 
             let mut requirement_obligations = Vec::with_capacity(target_clauses.len());
             let mut target_requires = Vec::with_capacity(target_clauses.len());
             let mut evidence = Vec::with_capacity(target_clauses.len());
-            for (obligation_index, (field, target_requirement)) in
+            for (obligation_index, (expected, field, target_requirement)) in
                 target_clauses.into_iter().enumerate()
             {
                 let identity = u64::try_from(obligation_index)
@@ -3779,7 +3778,9 @@ fn lower_nominal_affine_unit_cleanup_machine(
                     ))?;
                 let assumption_index = caller_clauses
                     .iter()
-                    .position(|(caller_field, _)| *caller_field == field)
+                    .position(|(caller_expected, caller_field, _)| {
+                        *caller_expected == expected && *caller_field == field
+                    })
                     .ok_or(LoweringError::Unsupported(
                         "contextual nominal cleanup caller requirement is absent",
                     ))?;
@@ -4104,11 +4105,6 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
 
     let checked_contextual_field =
         |source_parameter_index: u32, field_identity: &str, expected: bool| {
-            if !expected {
-                return Err(LoweringError::Unsupported(
-                    "contextual nominal cleanup Boolean requirement must expect true",
-                ));
-            }
             let parameter = plan
                 .structural_parameters
                 .get(usize::try_from(source_parameter_index).map_err(|_| {
@@ -4136,7 +4132,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                     && field.field_type
                         == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Bool)
             })
-            .map(|field| field.identity.clone())
+            .map(|field| (field.identity.clone(), expected))
             .ok_or(LoweringError::Unsupported(
                 "contextual nominal cleanup requirement field is absent, erased, or non-Boolean",
             ))
@@ -4454,19 +4450,24 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         };
     let mut caller_clauses = contextual_caller_requirements
         .iter()
-        .map(|(root, field_identity)| {
+        .map(|(root, (field_identity, expected))| {
             let (place, _, field) = terminal_field(*root, field_identity)?;
             Ok((
-                (place, field),
+                (*expected, place, field),
                 Proposition::Equal(
-                    ScalarTerm::boolean(true),
+                    ScalarTerm::boolean(*expected),
                     ScalarTerm::boolean_field(place, field),
                 ),
             ))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    caller_clauses
-        .sort_by_key(|((root, field), _)| (root.get().to_le_bytes(), field.get().to_le_bytes()));
+    caller_clauses.sort_by_key(|((expected, root, field), _)| {
+        (
+            *expected,
+            root.get().to_le_bytes(),
+            field.get().to_le_bytes(),
+        )
+    });
     let caller_requires = caller_clauses
         .iter()
         .map(|(_, proposition)| proposition.clone())
@@ -4483,7 +4484,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
     let mut target_contexts = Vec::<(
         psi_symbols::SymbolHandle,
         Option<PlaceId>,
-        Vec<(StructuralFieldId, Proposition)>,
+        Vec<(bool, StructuralFieldId, Proposition)>,
     )>::new();
     for (cleanup, requirements) in nominal
         .cleanups
@@ -4508,21 +4509,22 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
         };
         let mut clauses = requirements
             .iter()
-            .map(|field_identity| {
+            .map(|(field_identity, expected)| {
                 let (_, _, field) = terminal_field(cleanup.source_parameter_index, field_identity)?;
                 let receiver = receiver.expect(
                     "a nonempty contextual cleanup requirement set has a proof-only receiver",
                 );
                 Ok((
+                    *expected,
                     field,
                     Proposition::Equal(
-                        ScalarTerm::boolean(true),
+                        ScalarTerm::boolean(*expected),
                         ScalarTerm::boolean_field(receiver, field),
                     ),
                 ))
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
-        clauses.sort_by_key(|(field, _)| field.get().to_le_bytes());
+        clauses.sort_by_key(|(expected, field, _)| (*expected, field.get().to_le_bytes()));
         target_contexts.push((cleanup.cleanup_machine, receiver, clauses));
     }
     for (target_symbol, _, clauses) in &target_contexts {
@@ -4543,7 +4545,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             ))?;
         target.contract.requires = clauses
             .iter()
-            .map(|(_, proposition)| proposition.clone())
+            .map(|(_, _, proposition)| proposition.clone())
             .collect();
     }
 
@@ -4582,11 +4584,13 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 "ordered nominal cleanup target context is absent",
             ))?;
         let mut requirement_obligations = Vec::with_capacity(target_clauses.len());
-        for (field, _) in target_clauses {
+        for (expected, field, _) in target_clauses {
             let assumption_index = caller_clauses
                 .iter()
-                .position(|((root, caller_field), _)| {
-                    *root == terminal_parameter.place && caller_field == field
+                .position(|((caller_expected, root, caller_field), _)| {
+                    caller_expected == expected
+                        && *root == terminal_parameter.place
+                        && caller_field == field
                 })
                 .ok_or(LoweringError::Unsupported(
                     "contextual nominal cleanup caller requirement is absent",
@@ -4675,7 +4679,7 @@ fn lower_ordered_nominal_affine_unit_cleanup_machine(
             .map(|(_, _, clauses)| {
                 clauses
                     .iter()
-                    .map(|(_, proposition)| proposition.clone())
+                    .map(|(_, _, proposition)| proposition.clone())
                     .collect::<Vec<_>>()
             })
             .ok_or(LoweringError::Unsupported(
