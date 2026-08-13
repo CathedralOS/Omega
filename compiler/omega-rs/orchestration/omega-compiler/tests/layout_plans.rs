@@ -667,6 +667,41 @@ machine Main::main(&mut self) { }
     .expect_err("a wrong nested record identity must reject before mutation");
     assert!(error.0.contains("does not match `Pair`"));
     assert_eq!(unchanged, [0x5a; 32]);
+
+    let late_invalid_scalar = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "pairs".to_owned(),
+            BuildTimeValue::Array(vec![
+                BuildTimeValue::Struct {
+                    type_name: "Pair".to_owned(),
+                    fields: vec![
+                        ("low".to_owned(), BuildTimeValue::Int(258)),
+                        ("high".to_owned(), BuildTimeValue::Int(100992003)),
+                    ],
+                },
+                BuildTimeValue::Struct {
+                    type_name: "Pair".to_owned(),
+                    fields: vec![
+                        ("low".to_owned(), BuildTimeValue::Int(-1)),
+                        ("high".to_owned(), BuildTimeValue::Int(202050057)),
+                    ],
+                },
+            ]),
+        )],
+    };
+    let mut unchanged = [0x5a; 32];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &report,
+        &late_invalid_scalar,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a late invalid nested scalar must reject before destination mutation");
+    assert!(error.0.contains("outside `u16`"));
+    assert_eq!(unchanged, [0x5a; 32]);
 }
 
 #[test]
@@ -848,8 +883,8 @@ data Main { }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .expect("record array with erased fields should check");
+    let checked =
+        compile_to_checked(&main_path, None).expect("record array with erased fields should check");
     let report = compute_layout_plan(&checked.typed, "Whole::plan", "Batch")
         .expect("record array should retain one whole repeated extent");
     let mut bytes = [0xa5; 24];
