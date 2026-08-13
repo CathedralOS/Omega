@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        8
+        9
     }
 }
 
@@ -521,6 +521,16 @@ pub struct NominalAffineCleanup {
     pub cleanup_machine: MachineId,
 }
 
+/// One exact affine cleanup action committed by a terminal ownership edge.
+/// The surrounding vector is the semantic execution order; consumers must not
+/// regroup actions by kind or reconstruct their order from declarations.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalAffineCleanupAction {
+    DiscardRoot(PlaceId),
+    DiscardResidual(StructuralAffineDiscard),
+    InvokeNominal(NominalAffineCleanup),
+}
+
 /// Transfer one caller-local live claim through the structural argument at
 /// `argument_index`. The callee reconstructs its own entry claim from that
 /// parameter; callers cannot author callee-local claim identities.
@@ -807,11 +817,12 @@ pub enum Terminator {
         trivial_affine_discards: Vec<PlaceId>,
         residual_affine_discards: Vec<StructuralAffineDiscard>,
     },
-    /// Finish normally after executing the exact nominal cleanup for one
-    /// whole affine structural parameter.
+    /// Finish normally after executing the exact ordered nominal cleanups for
+    /// whole affine structural parameters. Entries are in reverse parameter
+    /// declaration order.
     ReturnUnitNominalAffine {
         edge: EdgeId,
-        cleanup: NominalAffineCleanup,
+        cleanups: Vec<NominalAffineCleanup>,
     },
     /// Transfer one structural value and its complete live claim set to the
     /// machine result. Fuel is charged before any transfer or cleanup commits.

@@ -2104,7 +2104,7 @@ fn validate_nominal_affine_cleanup_shape(
         .blocks
         .iter()
         .filter_map(|block| match &block.terminator {
-            Terminator::ReturnUnitNominalAffine { cleanup, .. } => Some((block, cleanup)),
+            Terminator::ReturnUnitNominalAffine { cleanups, .. } => Some((block, cleanups)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -2115,11 +2115,8 @@ fn validate_nominal_affine_cleanup_shape(
         machine: machine.id,
         block,
     };
-    let [(block, cleanup)] = nominal_returns.as_slice() else {
+    let [(block, cleanups)] = nominal_returns.as_slice() else {
         return Err(invalid(machine.entry));
-    };
-    let [parameter] = machine.structural_parameters.as_slice() else {
-        return Err(invalid(block.id));
     };
     if machine.result != TerminalMachineResult::Unit
         || module.entry != machine.id
@@ -2128,12 +2125,9 @@ fn validate_nominal_affine_cleanup_shape(
         || !block.parameters.is_empty()
         || !block.operations.is_empty()
         || machine.parameters.len() != 0
-        || machine.structural_places.len() != 1
-        || parameter.place != cleanup.place
-        || parameter.structural_type != cleanup.structural_type
-        || parameter.multiplicity != StructuralMultiplicity::Affine
-        || parameter.is_self
-        || !parameter.qualifications.is_empty()
+        || !(1..=2).contains(&cleanups.len())
+        || machine.structural_parameters.len() != cleanups.len()
+        || machine.structural_places.len() != cleanups.len()
         || !machine.entry_claims.is_empty()
         || !machine.published_service_ceiling.is_empty()
         || !machine.content_entry_claims.is_empty()
@@ -2145,116 +2139,131 @@ fn validate_nominal_affine_cleanup_shape(
     {
         return Err(invalid(block.id));
     }
-    let Some(source_type) = module
-        .structural_types
+    let expected_parameters = machine
+        .structural_parameters
         .iter()
-        .find(|declaration| declaration.id == cleanup.structural_type)
-    else {
-        return Err(invalid(block.id));
-    };
-    if !bounded_nominal_cleanup_receiver_shape(&source_type.shape) {
-        return Err(invalid(block.id));
-    }
-    let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
-        return Err(invalid(block.id));
-    };
-    let [target_block] = target.blocks.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    if target.id == machine.id
-        || target.attachment != Some(cleanup.structural_type)
-        || target.result != TerminalMachineResult::Unit
-        || !target.parameters.is_empty()
-        || !target.structural_parameters.is_empty()
-        || !target.structural_places.is_empty()
-        || !target.entry_claims.is_empty()
-        || !target.published_service_ceiling.is_empty()
-        || !target.content_entry_claims.is_empty()
-        || !target.content_identity_reshuffles.is_empty()
-        || !target.content_partition_compositions.is_empty()
-        || target.entry != target_block.id
-        || !target_block.parameters.is_empty()
-        || !matches!(target_block.terminator, Terminator::ReturnUnit { ref trivial_affine_discards, .. } if trivial_affine_discards.is_empty())
-        || !target.contract.crash_routes.is_empty()
-        || !target.contract.requires.is_empty()
-        || !target.contract.ensures.is_empty()
-    {
-        return Err(invalid(block.id));
-    }
-
-    if target_block.operations.len() > 2
-        || module.machines.len() != target_block.operations.len() + 2
-    {
-        return Err(invalid(block.id));
-    }
+        .rev()
+        .collect::<Vec<_>>();
+    let mut target_ids = BTreeSet::new();
     let mut helper_ids = BTreeSet::new();
-    for operation in &target_block.operations {
-        let OperationKind::CallUnit {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } = &operation.kind
+    for (cleanup, parameter) in cleanups.iter().zip(expected_parameters) {
+        if parameter.place != cleanup.place
+            || parameter.structural_type != cleanup.structural_type
+            || parameter.multiplicity != StructuralMultiplicity::Affine
+            || parameter.is_self
+            || !parameter.qualifications.is_empty()
+        {
+            return Err(invalid(block.id));
+        }
+        let Some(source_type) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == cleanup.structural_type)
         else {
             return Err(invalid(block.id));
         };
-        if operation.result != OperationResult::Unit
-            || *callee == machine.id
-            || *callee == target.id
-            || !helper_ids.insert(*callee)
-            || !structural_arguments.is_empty()
-            || !claim_transfers.is_empty()
-            || !requirement_obligations.is_empty()
-            || !crash_continuations.is_empty()
+        if !bounded_nominal_cleanup_receiver_shape(&source_type.shape) {
+            return Err(invalid(block.id));
+        }
+        let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
+            return Err(invalid(block.id));
+        };
+        target_ids.insert(target.id);
+        let [target_block] = target.blocks.as_slice() else {
+            return Err(invalid(block.id));
+        };
+        if target.id == machine.id
+            || target.attachment != Some(cleanup.structural_type)
+            || target.result != TerminalMachineResult::Unit
+            || !target.parameters.is_empty()
+            || !target.structural_parameters.is_empty()
+            || !target.structural_places.is_empty()
+            || !target.entry_claims.is_empty()
+            || !target.published_service_ceiling.is_empty()
+            || !target.content_entry_claims.is_empty()
+            || !target.content_identity_reshuffles.is_empty()
+            || !target.content_partition_compositions.is_empty()
+            || target.entry != target_block.id
+            || !target_block.parameters.is_empty()
+            || !matches!(target_block.terminator, Terminator::ReturnUnit { ref trivial_affine_discards, .. } if trivial_affine_discards.is_empty())
+            || !target.contract.crash_routes.is_empty()
+            || !target.contract.requires.is_empty()
+            || !target.contract.ensures.is_empty()
+            || (cleanups.len() == 2 && !target_block.operations.is_empty())
         {
             return Err(invalid(block.id));
         }
-        let Some(helper) = machines.get(callee).copied() else {
-            return Err(invalid(block.id));
-        };
-        let Some(helper_attachment) = helper.attachment else {
-            return Err(invalid(block.id));
-        };
-        let helper_attachment_is_empty = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == helper_attachment)
-            .is_some_and(|declaration| {
-                matches!(
-                    &declaration.shape,
-                    StructuralTypeShape::Record { fields } if fields.is_empty()
+        for operation in &target_block.operations {
+            let OperationKind::CallUnit {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } = &operation.kind
+            else {
+                return Err(invalid(block.id));
+            };
+            if operation.result != OperationResult::Unit
+                || *callee == machine.id
+                || *callee == target.id
+                || !helper_ids.insert(*callee)
+                || !structural_arguments.is_empty()
+                || !claim_transfers.is_empty()
+                || !requirement_obligations.is_empty()
+                || !crash_continuations.is_empty()
+            {
+                return Err(invalid(block.id));
+            }
+            let Some(helper) = machines.get(callee).copied() else {
+                return Err(invalid(block.id));
+            };
+            let Some(helper_attachment) = helper.attachment else {
+                return Err(invalid(block.id));
+            };
+            let helper_attachment_is_empty = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == helper_attachment)
+                .is_some_and(|declaration| {
+                    matches!(
+                        &declaration.shape,
+                        StructuralTypeShape::Record { fields } if fields.is_empty()
+                    )
+                });
+            let [helper_block] = helper.blocks.as_slice() else {
+                return Err(invalid(block.id));
+            };
+            if !helper_attachment_is_empty
+                || helper.result != TerminalMachineResult::Unit
+                || !helper.parameters.is_empty()
+                || !helper.structural_parameters.is_empty()
+                || !helper.structural_places.is_empty()
+                || !helper.entry_claims.is_empty()
+                || !helper.published_service_ceiling.is_empty()
+                || !helper.content_entry_claims.is_empty()
+                || !helper.content_identity_reshuffles.is_empty()
+                || !helper.content_partition_compositions.is_empty()
+                || helper.entry != helper_block.id
+                || !helper_block.parameters.is_empty()
+                || !helper_block.operations.is_empty()
+                || !matches!(
+                    helper_block.terminator,
+                    Terminator::ReturnUnit {
+                        ref trivial_affine_discards,
+                        ..
+                    } if trivial_affine_discards.is_empty()
                 )
-            });
-        let [helper_block] = helper.blocks.as_slice() else {
-            return Err(invalid(block.id));
-        };
-        if !helper_attachment_is_empty
-            || helper.result != TerminalMachineResult::Unit
-            || !helper.parameters.is_empty()
-            || !helper.structural_parameters.is_empty()
-            || !helper.structural_places.is_empty()
-            || !helper.entry_claims.is_empty()
-            || !helper.published_service_ceiling.is_empty()
-            || !helper.content_entry_claims.is_empty()
-            || !helper.content_identity_reshuffles.is_empty()
-            || !helper.content_partition_compositions.is_empty()
-            || helper.entry != helper_block.id
-            || !helper_block.parameters.is_empty()
-            || !helper_block.operations.is_empty()
-            || !matches!(
-                helper_block.terminator,
-                Terminator::ReturnUnit {
-                    ref trivial_affine_discards,
-                    ..
-                } if trivial_affine_discards.is_empty()
-            )
-            || !helper.contract.crash_routes.is_empty()
-            || !helper.contract.requires.is_empty()
-            || !helper.contract.ensures.is_empty()
-        {
-            return Err(invalid(block.id));
+                || !helper.contract.crash_routes.is_empty()
+                || !helper.contract.requires.is_empty()
+                || !helper.contract.ensures.is_empty()
+            {
+                return Err(invalid(block.id));
+            }
         }
+    }
+    if module.machines.len() != 1 + target_ids.len() + helper_ids.len() {
+        return Err(invalid(block.id));
     }
     Ok(())
 }
@@ -4079,14 +4088,22 @@ fn validate_structural_frontier(
                     });
                 }
             }
-            Terminator::ReturnUnitNominalAffine { cleanup, .. } => {
-                if frontier
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(cleanup.place))
-                    || frontier.owned_places.remove(&cleanup.place)
-                        != Some(StructuralMultiplicity::Affine)
-                    || !frontier.moved_direct_fields.is_empty()
+            Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
+                for cleanup in cleanups {
+                    if frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(cleanup.place))
+                        || frontier.owned_places.remove(&cleanup.place)
+                            != Some(StructuralMultiplicity::Affine)
+                    {
+                        return Err(ModuleError::InvalidNominalAffineCleanup {
+                            machine: machine.id,
+                            block: block.id,
+                        });
+                    }
+                }
+                if !frontier.moved_direct_fields.is_empty()
                     || !frontier.claims.is_empty()
                     || !frontier.owned_places.is_empty()
                 {

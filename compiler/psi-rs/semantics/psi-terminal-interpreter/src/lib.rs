@@ -13,9 +13,9 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    OperationKind, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachineResult, Terminator,
+    NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult, Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -252,9 +252,9 @@ struct LiveClaim {
 enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
-    NominalCleanup {
-        place: PlaceId,
-        value: TerminalStructuralValue,
+    NominalCleanups {
+        completed: (NominalAffineCleanup, TerminalStructuralValue),
+        remaining: Vec<(NominalAffineCleanup, TerminalStructuralValue)>,
     },
 }
 
@@ -1197,44 +1197,65 @@ impl TerminalExecution {
                 .terminator
                 .clone();
             match &terminator {
-                Terminator::ReturnUnitNominalAffine { cleanup, .. } => {
+                Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
                     let machine = self.machines.get(&self.current_machine).ok_or(
                         TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
                     )?;
                     if machine.result != TerminalMachineResult::Unit
                         || has_live_linear_claims(&self.live_claims)
                         || !self.live_claims.is_empty()
+                        || cleanups.is_empty()
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
-                    let value = self.structural_values.get(&cleanup.place).cloned().ok_or(
-                        TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
-                    )?;
-                    if value.structural_type != cleanup.structural_type
-                        || self.live_affine_frontier
-                            != [StructuralAffineDiscard {
+                    let mut expected_frontier = BTreeSet::new();
+                    let mut cleanup_values = Vec::with_capacity(cleanups.len());
+                    for cleanup in cleanups {
+                        let value = self.structural_values.get(&cleanup.place).cloned().ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
+                        )?;
+                        if value.structural_type != cleanup.structural_type
+                            || !expected_frontier.insert(StructuralAffineDiscard {
                                 place: cleanup.place,
                                 path: Vec::new(),
                                 structural_type: cleanup.structural_type,
-                            }]
-                            .into_iter()
-                            .collect()
+                            })
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        self.machines.get(&cleanup.cleanup_machine).ok_or(
+                            TerminalInterpretError::VerifiedCallTargetMissing(
+                                cleanup.cleanup_machine,
+                            ),
+                        )?;
+                        cleanup_values.push((cleanup.clone(), value));
+                    }
+                    if self.structural_values.len() != cleanup_values.len()
+                        || self.live_affine_frontier != expected_frontier
                     {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
-                    let value = self
-                        .structural_values
-                        .remove(&cleanup.place)
-                        .expect("validated nominal cleanup root remains live through edge charge");
+                    for (cleanup, _) in &cleanup_values {
+                        self.structural_values.remove(&cleanup.place).expect(
+                            "validated nominal cleanup roots remain live through edge charge",
+                        );
+                    }
                     if !self.structural_values.is_empty() {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
-                    let callee = self.machines.get(&cleanup.cleanup_machine).cloned().ok_or(
-                        TerminalInterpretError::VerifiedCallTargetMissing(cleanup.cleanup_machine),
-                    )?;
+                    let (completed, remaining) = cleanup_values
+                        .split_first()
+                        .expect("non-empty nominal cleanup list was validated");
+                    let completed = completed.clone();
+                    let remaining = remaining.to_vec();
+                    let callee = self
+                        .machines
+                        .get(&completed.0.cleanup_machine)
+                        .cloned()
+                        .expect("all nominal cleanup targets were validated before edge charge");
                     self.call_stack.push(SuspendedCall {
                         blocks: std::mem::take(&mut self.blocks),
                         values: std::mem::take(&mut self.values),
@@ -1244,9 +1265,9 @@ impl TerminalExecution {
                         current_machine: self.current_machine,
                         current: self.current,
                         next_operation: self.next_operation,
-                        result: SuspendedCallResult::NominalCleanup {
-                            place: cleanup.place,
-                            value,
+                        result: SuspendedCallResult::NominalCleanups {
+                            completed,
+                            remaining,
                         },
                     });
                     self.blocks = callee.blocks;
@@ -1254,7 +1275,7 @@ impl TerminalExecution {
                     self.structural_values = BTreeMap::new();
                     self.live_affine_frontier = BTreeSet::new();
                     self.live_claims = BTreeMap::new();
-                    self.current_machine = cleanup.cleanup_machine;
+                    self.current_machine = cleanups[0].cleanup_machine;
                     self.current = callee.entry;
                     self.next_operation = 0;
                     continue;
@@ -1514,15 +1535,59 @@ impl TerminalExecution {
                         self.next_operation = caller.next_operation;
                         match result {
                             SuspendedCallResult::Unit => {}
-                            SuspendedCallResult::NominalCleanup { place, value } => {
+                            SuspendedCallResult::NominalCleanups {
+                                completed,
+                                mut remaining,
+                            } => {
                                 if !self.structural_values.is_empty()
                                     || !self.live_affine_frontier.remove(&StructuralAffineDiscard {
-                                        place,
+                                        place: completed.0.place,
                                         path: Vec::new(),
-                                        structural_type: value.structural_type,
+                                        structural_type: completed.1.structural_type,
                                     })
-                                    || !self.live_affine_frontier.is_empty()
                                 {
+                                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                                }
+                                if !remaining.is_empty() {
+                                    let completed = remaining.remove(0);
+                                    let callee = self
+                                        .machines
+                                        .get(&completed.0.cleanup_machine)
+                                        .cloned()
+                                        .ok_or(
+                                            TerminalInterpretError::VerifiedCallTargetMissing(
+                                                completed.0.cleanup_machine,
+                                            ),
+                                        )?;
+                                    self.call_stack.push(SuspendedCall {
+                                        blocks: std::mem::take(&mut self.blocks),
+                                        values: std::mem::take(&mut self.values),
+                                        structural_values: std::mem::take(
+                                            &mut self.structural_values,
+                                        ),
+                                        live_affine_frontier: std::mem::take(
+                                            &mut self.live_affine_frontier,
+                                        ),
+                                        live_claims: std::mem::take(&mut self.live_claims),
+                                        current_machine: self.current_machine,
+                                        current: self.current,
+                                        next_operation: self.next_operation,
+                                        result: SuspendedCallResult::NominalCleanups {
+                                            completed: completed.clone(),
+                                            remaining,
+                                        },
+                                    });
+                                    self.blocks = callee.blocks;
+                                    self.values = BTreeMap::new();
+                                    self.structural_values = BTreeMap::new();
+                                    self.live_affine_frontier = BTreeSet::new();
+                                    self.live_claims = BTreeMap::new();
+                                    self.current_machine = completed.0.cleanup_machine;
+                                    self.current = callee.entry;
+                                    self.next_operation = 0;
+                                    continue;
+                                }
+                                if !self.live_affine_frontier.is_empty() {
                                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                                 }
                                 let result = TerminalExecutionResult::Unit;

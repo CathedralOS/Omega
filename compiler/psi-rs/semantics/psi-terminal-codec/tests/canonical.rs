@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "584aa2ca15e549a32fdea3b0c351c77ffc93aef24cfd455a4ae01c8c16e362f9"
+        "48ffe3a66d27b58483bc17c3166f6ccc3fac4a4569fa9765a1a22c532c817bbd"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -52,7 +52,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
     assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 8_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 9_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -62,9 +62,44 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
     assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 8_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 9_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn nominal_affine_unit_return_round_trips_two_roots_in_reverse_parameter_order() {
+    let module = two_nominal_affine_fixture();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        cleanups
+            .iter()
+            .map(|cleanup| cleanup.place)
+            .collect::<Vec<_>>(),
+        vec![place_id(2), place_id(1)]
+    );
+
+    let bytes = encode_module(&module).expect("two nominal affine roots should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+
+    let mut reordered = module;
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups.reverse();
+    assert_eq!(
+        encode_module(&reordered),
+        Err(CodecError::MalformedStructuralFoundation(
+            "nominal affine cleanup list is not in reverse parameter order"
+        ))
+    );
 }
 
 #[test]
@@ -82,12 +117,12 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
     );
 
     let mut wrong_type = nominal_affine_fixture();
-    let Terminator::ReturnUnitNominalAffine { cleanup, .. } =
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
         &mut wrong_type.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    cleanup.structural_type = structural_type_id(2);
+    cleanups[0].structural_type = structural_type_id(2);
     assert_eq!(
         encode_module(&wrong_type),
         Err(CodecError::MalformedStructuralFoundation(
@@ -105,7 +140,7 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
     assert_eq!(
         encode_module(&claimed),
         Err(CodecError::MalformedStructuralFoundation(
-            "nominal affine cleanup is not a claim-free qualified-free affine root"
+            "nominal affine cleanup is duplicated or not a claim-free qualified-free affine root"
         ))
     );
 
@@ -115,7 +150,7 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
     assert_eq!(
         encode_module(&unrestricted),
         Err(CodecError::MalformedStructuralFoundation(
-            "nominal affine cleanup is not a claim-free qualified-free affine root"
+            "nominal affine cleanup is duplicated or not a claim-free qualified-free affine root"
         ))
     );
 
@@ -133,17 +168,17 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
     assert_eq!(
         encode_module(&qualified),
         Err(CodecError::MalformedStructuralFoundation(
-            "nominal affine cleanup is not a claim-free qualified-free affine root"
+            "nominal affine cleanup is duplicated or not a claim-free qualified-free affine root"
         ))
     );
 
     let mut missing_root = nominal_affine_fixture();
-    let Terminator::ReturnUnitNominalAffine { cleanup, .. } =
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
         &mut missing_root.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    cleanup.place = place_id(99);
+    cleanups[0].place = place_id(99);
     assert_eq!(
         encode_module(&missing_root),
         Err(CodecError::MalformedStructuralFoundation(
@@ -500,7 +535,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 8_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 9_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1595,6 +1630,41 @@ fn partial_affine_fixture() -> TerminalModule {
     }
 }
 
+fn two_nominal_affine_fixture() -> TerminalModule {
+    let mut module = nominal_affine_fixture();
+    let machine = &mut module.machines[0];
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 1,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(2),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &mut machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups.insert(
+        0,
+        NominalAffineCleanup {
+            place: place_id(2),
+            structural_type: structural_type_id(1),
+            cleanup_machine: machine_id(2),
+        },
+    );
+    module
+}
+
 fn nominal_affine_fixture() -> TerminalModule {
     let resource_type = structural_type_id(1);
     let owner_type = structural_type_id(2);
@@ -1652,11 +1722,11 @@ fn nominal_affine_fixture() -> TerminalModule {
                     operations: Vec::new(),
                     terminator: Terminator::ReturnUnitNominalAffine {
                         edge: edge_id(1),
-                        cleanup: NominalAffineCleanup {
+                        cleanups: vec![NominalAffineCleanup {
                             place: source_place,
                             structural_type: resource_type,
                             cleanup_machine: machine_id(2),
-                        },
+                        }],
                     },
                 }],
                 contract: MachineContract {

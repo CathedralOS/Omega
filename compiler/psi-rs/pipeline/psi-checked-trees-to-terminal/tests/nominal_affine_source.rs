@@ -27,6 +27,14 @@ const SCALAR_SOURCE: &str = r#"
     machine Root::enter(token: Token) {}
 "#;
 
+const TWO_ROOT_SOURCE: &str = r#"
+    data Token {}
+    machine Token::drop(&mut self) {}
+
+    data Root {}
+    machine Root::enter(first: Token, second: Token) {}
+"#;
+
 const EXECUTABLE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -86,19 +94,19 @@ fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         panic!("nominal cleanup source slice has one block")
     };
     assert!(block.operations.is_empty());
-    let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &block.terminator else {
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator else {
         panic!("expected executable nominal cleanup return")
     };
-    assert_eq!(cleanup.place, root.place);
-    assert_eq!(cleanup.structural_type, root.structural_type);
+    assert_eq!(cleanups[0].place, root.place);
+    assert_eq!(cleanups[0].structural_type, root.structural_type);
 
     let target = lowered
         .semantic_module
         .machines
         .iter()
-        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .find(|machine| machine.id == cleanups[0].cleanup_machine)
         .expect("cleanup target machine");
-    assert_eq!(target.attachment, Some(cleanup.structural_type));
+    assert_eq!(target.attachment, Some(cleanups[0].structural_type));
     assert!(target.structural_parameters.is_empty());
     assert!(target.blocks[0].operations.is_empty());
     assert!(matches!(
@@ -139,14 +147,14 @@ fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
         .iter()
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("entry machine");
-    let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator else {
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
         panic!("expected executable nominal cleanup return")
     };
     let cleanup_type = lowered
         .semantic_module
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == cleanup.structural_type)
+        .find(|declaration| declaration.id == cleanups[0].structural_type)
         .expect("cleanup structural type");
     let StructuralTypeShape::Record { fields } = &cleanup_type.shape else {
         panic!("cleanup type remains a record")
@@ -200,6 +208,58 @@ fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
 }
 
 #[test]
+fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target() {
+    let tokens = Lexer::new(TWO_ROOT_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("two nominal roots lower");
+
+    assert_eq!(
+        lowered.semantic_module.machines.len(),
+        2,
+        "same-type roots share one exact cleanup target"
+    );
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [first, second] = entry.structural_parameters.as_slice() else {
+        panic!("two source roots remain structural parameters")
+    };
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
+        panic!("expected ordered nominal cleanup return")
+    };
+    let [second_cleanup, first_cleanup] = cleanups.as_slice() else {
+        panic!("both roots require nominal cleanup")
+    };
+    assert_eq!(second_cleanup.place, second.place);
+    assert_eq!(first_cleanup.place, first.place);
+    assert_eq!(second_cleanup.structural_type, second.structural_type);
+    assert_eq!(first_cleanup.structural_type, first.structural_type);
+    assert_eq!(
+        second_cleanup.cleanup_machine, first_cleanup.cleanup_machine,
+        "same-type roots reuse the same exact cleanup target"
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts ordered two-root nominal cleanup");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(
+        decode_module(&bytes).expect("semantic module decodes"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
 fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let tokens = Lexer::new(EXECUTABLE_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -216,14 +276,14 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         .iter()
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("entry machine");
-    let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator else {
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
         panic!("expected executable nominal cleanup return")
     };
     let target = lowered
         .semantic_module
         .machines
         .iter()
-        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .find(|machine| machine.id == cleanups[0].cleanup_machine)
         .expect("cleanup target");
     let [call] = target.blocks[0].operations.as_slice() else {
         panic!("cleanup target must contain exactly one call")
@@ -292,14 +352,14 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
         .iter()
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("entry machine");
-    let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator else {
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &entry.blocks[0].terminator else {
         panic!("expected executable nominal cleanup return")
     };
     let target = lowered
         .semantic_module
         .machines
         .iter()
-        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .find(|machine| machine.id == cleanups[0].cleanup_machine)
         .expect("cleanup target");
     let [first_call, second_call] = target.blocks[0].operations.as_slice() else {
         panic!("cleanup target must contain exactly two calls")

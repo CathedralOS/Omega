@@ -354,6 +354,116 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
 }
 
 #[test]
+fn ordered_nominal_affine_cleanups_run_in_reverse_parameter_order_after_one_root_charge() {
+    let module = ordered_empty_nominal_affine_module(false);
+    let semantic = encode_module(&module).expect("ordered nominal cleanups encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 80,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 81,
+            structural_type: structural_type_id(2),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+    )
+    .expect("verified ordered nominal cleanups should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    for (consumed, site) in [
+        FuelChargeSite::Edge(edge_id(1)),
+        FuelChargeSite::Edge(edge_id(3)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                site: exhausted_site,
+                ..
+            }) if exhausted_site == site
+        ));
+        assert_eq!(meter.usage().total_units(), consumed as u64);
+        meter.replenish(1).unwrap();
+    }
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Edge(edge_id(1)))
+            .unwrap()
+            .executions(),
+        1,
+        "the root edge is charged once for the entire ordered cleanup list"
+    );
+}
+
+#[test]
+fn ordered_nominal_affine_cleanups_can_invoke_the_same_cleanup_machine_twice() {
+    let module = ordered_empty_nominal_affine_module(true);
+    let semantic = encode_module(&module).expect("same-target nominal cleanups encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let arguments = [
+        TerminalStructuralValue {
+            opaque_identity: 82,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+        TerminalStructuralValue {
+            opaque_identity: 83,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    ];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+    )
+    .expect("verified same-target nominal cleanups should start");
+    let mut meter = TerminalFuelMeter::with_allowance(3);
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+    let root = meter
+        .usage()
+        .at(FuelChargeSite::Edge(edge_id(1)))
+        .expect("root edge charged");
+    let cleanup = meter
+        .usage()
+        .at(FuelChargeSite::Edge(edge_id(2)))
+        .expect("shared cleanup edge charged");
+    assert_eq!((root.executions(), root.units()), (1, 1));
+    assert_eq!((cleanup.executions(), cleanup.units()), (2, 2));
+}
+
+#[test]
 fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order() {
     let module = executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("executable nominal cleanup encodes");
@@ -1324,11 +1434,11 @@ fn nominal_affine_module() -> TerminalModule {
                     operations: Vec::new(),
                     terminator: Terminator::ReturnUnitNominalAffine {
                         edge: edge_id(1),
-                        cleanup: NominalAffineCleanup {
+                        cleanups: vec![NominalAffineCleanup {
                             place: place_id(1),
                             structural_type: token.id,
                             cleanup_machine: machine_id(2),
-                        },
+                        }],
                     },
                 }],
                 contract: empty_contract(contract_id(1)),
@@ -1359,6 +1469,91 @@ fn nominal_affine_module() -> TerminalModule {
             },
         ],
     }
+}
+
+fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {
+    let mut module = nominal_affine_module();
+    let first_type = structural_type_id(1);
+    let second_type = if same_target {
+        first_type
+    } else {
+        let second_type = structural_type_id(2);
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: second_type,
+            identity: "SecondToken".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    identity: "payload".into(),
+                    id: psi_core::StructuralFieldId::new(2).unwrap(),
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                    relevance: BindingRelevance::Relevant,
+                }],
+            },
+        });
+        second_type
+    };
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            identity: "payload".into(),
+            id: psi_core::StructuralFieldId::new(1).unwrap(),
+            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap(),
+            )),
+            relevance: BindingRelevance::Relevant,
+        }],
+    };
+    let second_cleanup_machine = if same_target {
+        machine_id(2)
+    } else {
+        let mut target = module.machines[1].clone();
+        target.id = machine_id(3);
+        target.attachment = Some(second_type);
+        target.entry = block_id(3);
+        target.blocks[0].id = block_id(3);
+        target.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: edge_id(3),
+            trivial_affine_discards: Vec::new(),
+        };
+        target.contract.id = contract_id(3);
+        module.machines.push(target);
+        machine_id(3)
+    };
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 1,
+            is_self: false,
+            structural_type: second_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(2),
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    caller.blocks[0].terminator = Terminator::ReturnUnitNominalAffine {
+        edge: edge_id(1),
+        cleanups: vec![
+            NominalAffineCleanup {
+                place: place_id(2),
+                structural_type: second_type,
+                cleanup_machine: second_cleanup_machine,
+            },
+            NominalAffineCleanup {
+                place: place_id(1),
+                structural_type: first_type,
+                cleanup_machine: machine_id(2),
+            },
+        ],
+    };
+    module
 }
 
 fn executable_nominal_affine_module() -> TerminalModule {
