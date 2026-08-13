@@ -9723,19 +9723,12 @@ stderr:
 #[test]
 fn runtime_dual_frame_index_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_frame_index_copy_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-dual-fi-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-dual-fi-copy-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dual frame-index copy canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("dual frame-index copy canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("dual frame-index copy canary should run");
 
@@ -9749,26 +9742,19 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_frame_mixed_index_pair_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_frame_mixed_index_pair_copy_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-frame-mi-pair-copy-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mixed-index frame pair-copy canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("mixed-index frame pair-copy canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("mixed-index frame pair-copy canary should run");
 
@@ -9780,28 +9766,21 @@ fn runtime_frame_mixed_index_pair_copy_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_cross_region_indexed_pair_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_cross_region_indexed_pair_copy_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-cross-region-indexed-pair-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cross-region indexed-pair canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cross-region indexed-pair canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cross-region indexed-pair canary should run");
 
@@ -9813,28 +9792,21 @@ fn runtime_cross_region_indexed_pair_copy_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_cross_region_double_indexed_pair_copy_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-cross-region-double-indexed-pair-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("cross-region double-indexed-pair canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("cross-region double-indexed-pair canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("cross-region double-indexed-pair canary should run");
 
@@ -9846,7 +9818,7 @@ fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
