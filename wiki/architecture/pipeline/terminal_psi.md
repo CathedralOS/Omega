@@ -298,11 +298,14 @@ Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
 One narrower nominal branch admits a finite nonempty list of direct affine
-structural parameters that may mix no-code and nominal roots, no scalar inputs
+structural parameters that may mix no-code and nominal roots, a finite set of
+direct primitive scalar inputs interleaved at authored parameter positions,
 and no authored contract beyond the direct-Boolean contextual subset below,
 plus a finite source-ordered prefix of immutable branch-free primitive locals
-and one branch-free scalar result over those locals. Terminal production
-materializes the local and result operations in
+and one branch-free scalar result over the inputs and locals. Checked plans
+retain the complete authored parameter partition; terminal Psi gives scalar
+values and structural places independent dense namespaces. Terminal production
+materializes the input-dependent local and result operations in
 source order, then executes the complete cleanup stream in reverse authored
 root order. No-code roots retain their exact position without invoking a
 machine; nominal targets may be distinct or shared, and each drop may be empty
@@ -314,9 +317,12 @@ Checked production binds every target premise to the exact nominal caller root
 and retains supported caller-only facts on no-code roots; terminal Psi carries
 canonical caller requirements, proof-only receivers, and distinct action
 obligations. Omega consumes those facts only after verification and projects
-the proof metadata away before target lowering. Scalar inputs,
-short-circuit/control bodies, calls, effects, nested nominal ownership,
-projections, and wider cleanup shapes still fail closed.
+the proof metadata away before target lowering. Native lowering preserves the
+computed ABI result and, on AArch64, the return link across executable cleanup
+calls in an exact lifetime frame; object construction validates the frame,
+stores, loads, calls, and stack ceiling from emitted bytes. Short-circuit/
+control bodies, calls, effects, nested nominal ownership, projections, and
+wider cleanup shapes still fail closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -470,7 +476,7 @@ composes every nominal invocation. Omega preserves the same action order and
 call ownership through target assignment, all five machine emitters, object and
 image custody, and canonical installation; no-code actions emit no target
 instruction. Current source production covers the wider trivial-discard scalar
-slice plus the finite mixed no-code/nominal, branch-free-local branch described
+slice plus the finite mixed no-code/nominal, branch-free-input/local branch described
 above, including direct-Boolean contextual cleanup across mixed roots.
 
 The proof kernel, proposition representation, total primitive judgments,

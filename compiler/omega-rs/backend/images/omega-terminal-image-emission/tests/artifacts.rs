@@ -15,7 +15,8 @@ use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
     TerminalInternalCallRelocation, TerminalInternalUnitCallRecord, TerminalMachineCodeFunction,
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord, TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
+    TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
+    TerminalScalarCleanupPreservationEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
     TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitAffineCleanupRecord,
     TerminalUnitCallStackEvidence, TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord,
@@ -519,29 +520,7 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
 fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
     let mut plan = edge_owned_cleanup_plan();
     let caller = &mut plan.functions[2];
-    caller.bytes.splice(0..0, [0xb8, 1, 0, 0, 0]);
-    let relocation = &mut caller.internal_calls[0];
-    relocation.offset += 5;
-    let outbound = relocation
-        .unit_stack
-        .as_mut()
-        .and_then(|stack| stack.outbound.as_mut())
-        .expect("x86 cleanup call stack pair");
-    outbound.allocation_offset += 5;
-    outbound.release_offset += 5;
-    caller.internal_unit_calls[0].code_offset += 5;
-    let cleanup = caller
-        .unit_affine_cleanup
-        .take()
-        .expect("Unit cleanup fixture");
-    caller.scalar_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
-        code_offset: cleanup.code_offset + 5,
-        byte_count: cleanup.byte_count,
-        ..cleanup
-    });
-    caller.scalar_structural_parameters = std::mem::take(&mut caller.unit_parameters);
-    caller.scalar_structural_parameter_homes = std::mem::take(&mut caller.unit_parameter_homes);
-    caller.fuel_attribution[0].code_offset += 5;
+    promote_x86_cleanup_to_scalar(caller);
 
     let artifact = build_terminal_object_artifact(&plan).expect("scalar cleanup object");
     let object_caller = artifact
@@ -551,6 +530,8 @@ fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
         .expect("scalar cleanup caller");
     assert!(object_caller.unit_affine_cleanup.is_none());
     assert!(object_caller.scalar_affine_cleanup.is_some());
+    assert!(object_caller.unit_stack.is_none());
+    assert_eq!(object_caller.scalar_stack.unwrap().local_peak_bytes, 32);
     assert_eq!(object_caller.scalar_structural_parameter_homes.len(), 1);
     assert!(object_caller.unit_parameters.is_empty());
 
@@ -573,6 +554,107 @@ fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
     );
     validate_terminal_installation_record(&installation, &image)
         .expect("scalar cleanup image binding");
+
+    let demand = derive_terminal_stack_demand(&artifact, machine_id(3))
+        .expect("scalar cleanup stack closure");
+    assert_eq!(demand.ceiling_bytes(), 48);
+    assert_eq!(
+        demand
+            .contributing_machines()
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [machine_id(1), machine_id(2), machine_id(3)]
+    );
+
+    let cleanup_owner = plan.functions[2].internal_calls[0].owner;
+    let mut missing_function_evidence = plan.clone();
+    missing_function_evidence.functions[2].scalar_stack = None;
+    assert_eq!(
+        build_terminal_object_artifact(&missing_function_evidence),
+        Err(TerminalObjectError::UnexpectedScalarCallStackEvidence {
+            caller: machine_id(3),
+            owner: cleanup_owner,
+        })
+    );
+
+    let mut missing_call_evidence = plan.clone();
+    missing_call_evidence.functions[2].internal_calls[0].scalar_stack = None;
+    assert_eq!(
+        build_terminal_object_artifact(&missing_call_evidence),
+        Err(TerminalObjectError::MissingScalarCallStackEvidence {
+            caller: machine_id(3),
+            owner: cleanup_owner,
+        })
+    );
+
+    let mut conflicting_domains = plan.clone();
+    conflicting_domains.functions[2].unit_stack = Some(TerminalUnitStackEvidence {
+        frame: None,
+        aarch64_return_link: None,
+        stack_alignment: 16,
+    });
+    assert_eq!(
+        build_terminal_object_artifact(&conflicting_domains),
+        Err(TerminalObjectError::ConflictingTerminalStackEvidence(
+            machine_id(3)
+        ))
+    );
+
+    let mut missing_preservation = plan.clone();
+    missing_preservation.functions[2]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar stack")
+        .cleanup_preservation = None;
+    assert_eq!(
+        build_terminal_object_artifact(&missing_preservation),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        ))
+    );
+
+    let mut corrupted_result_store = plan.clone();
+    let store_offset = corrupted_result_store.functions[2]
+        .scalar_stack
+        .as_ref()
+        .and_then(|stack| stack.cleanup_preservation)
+        .expect("cleanup preservation")
+        .result_store_offset;
+    corrupted_result_store.functions[2].bytes[store_offset + 1] = 0x8b;
+    assert_eq!(
+        build_terminal_object_artifact(&corrupted_result_store),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        ))
+    );
+
+    let mut overflowed_preservation = plan.clone();
+    overflowed_preservation.functions[2]
+        .scalar_stack
+        .as_mut()
+        .and_then(|stack| stack.cleanup_preservation.as_mut())
+        .expect("cleanup preservation")
+        .result_load_offset = usize::MAX;
+    assert_eq!(
+        build_terminal_object_artifact(&overflowed_preservation),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        ))
+    );
+
+    let mut call_outside_cleanup = plan;
+    call_outside_cleanup.functions[2]
+        .scalar_affine_cleanup
+        .as_mut()
+        .expect("scalar cleanup")
+        .code_offset = 10;
+    assert_eq!(
+        build_terminal_object_artifact(&call_outside_cleanup),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        ))
+    );
 }
 
 #[test]
@@ -588,27 +670,7 @@ fn mixed_no_code_and_nominal_cleanup_is_scalar_only_and_keeps_action_ordinal() {
 
     let mut scalar = mixed_unit;
     let caller = &mut scalar.functions[2];
-    caller.bytes.splice(0..0, [0xb8, 1, 0, 0, 0]);
-    caller.internal_calls[0].offset += 5;
-    let outbound = caller.internal_calls[0]
-        .unit_stack
-        .as_mut()
-        .and_then(|stack| stack.outbound.as_mut())
-        .expect("x86 cleanup call stack pair");
-    outbound.allocation_offset += 5;
-    outbound.release_offset += 5;
-    caller.internal_unit_calls[0].code_offset += 5;
-    let cleanup = caller
-        .unit_affine_cleanup
-        .take()
-        .expect("mixed Unit cleanup fixture");
-    caller.scalar_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
-        code_offset: cleanup.code_offset + 5,
-        ..cleanup
-    });
-    caller.scalar_structural_parameters = std::mem::take(&mut caller.unit_parameters);
-    caller.scalar_structural_parameter_homes = std::mem::take(&mut caller.unit_parameter_homes);
-    caller.fuel_attribution[0].code_offset += 5;
+    promote_x86_cleanup_to_scalar(caller);
 
     let artifact = build_terminal_object_artifact(&scalar).expect("mixed scalar cleanup object");
     let object_caller = artifact
@@ -682,6 +744,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
         ],
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     let artifact = build_terminal_object_artifact(&x86).expect("x86 scalar stack artifact");
     assert_eq!(
@@ -752,12 +815,13 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
         mutations: Vec::new(),
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     assert_eq!(
         build_terminal_object_artifact(&call),
         Err(TerminalObjectError::MissingScalarCallStackEvidence {
             caller: machine_id(2),
-            operation: operation_id(2),
+            owner: TerminalCallSiteOwner::Operation(operation_id(2)),
         })
     );
 
@@ -797,6 +861,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
         ],
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     let artifact = build_terminal_object_artifact(&aarch64).expect("AArch64 scalar stack artifact");
     assert_eq!(
@@ -829,6 +894,7 @@ fn object_replays_linear_scalar_stack_peaks_and_rejects_mutations() {
         mutations: Vec::new(),
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     assert_eq!(
         build_terminal_object_artifact(&unsupported_aarch64),
@@ -853,6 +919,7 @@ fn scalar_stack_decoder_ignores_stack_opcode_bytes_inside_immediates() {
         mutations: Vec::new(),
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     build_terminal_object_artifact(&plan)
         .expect("stack opcodes inside an immediate are not instructions");
@@ -886,7 +953,7 @@ fn scalar_direct_calls_compose_pending_temporaries_and_fail_closed() {
             build_terminal_object_artifact(&missing),
             Err(TerminalObjectError::MissingScalarCallStackEvidence {
                 caller: machine_id(2),
-                operation: operation_id(2),
+                owner: TerminalCallSiteOwner::Operation(operation_id(2)),
             })
         );
 
@@ -1153,6 +1220,7 @@ fn scalar_two_return_conditional_replays_each_arm_and_rejects_forgery() {
             false_arm_offset: 12,
         },
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     assert_eq!(
         build_terminal_object_artifact(&crossed),
@@ -1276,7 +1344,7 @@ fn scalar_conditional_calls_replay_per_arm_and_compose_by_maximum() {
             build_terminal_object_artifact(&missing),
             Err(TerminalObjectError::MissingScalarCallStackEvidence {
                 caller: machine_id(2),
-                operation: operation_id(2),
+                owner: TerminalCallSiteOwner::Operation(operation_id(2)),
             })
         );
 
@@ -1841,6 +1909,7 @@ fn scalar_two_return_conditional_plan(target: NativeTarget) -> TerminalMachineCo
                     false_arm_offset: 19,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
         }
         omega_target::Architecture::Aarch64 => {
@@ -1883,6 +1952,7 @@ fn scalar_two_return_conditional_plan(target: NativeTarget) -> TerminalMachineCo
                     false_arm_offset: 16,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
         }
     }
@@ -1927,6 +1997,7 @@ fn scalar_expression_two_return_conditional_plan(target: NativeTarget) -> Termin
                     false_arm_offset: 18,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
         }
         omega_target::Architecture::Aarch64 => {
@@ -1958,6 +2029,7 @@ fn scalar_expression_two_return_conditional_plan(target: NativeTarget) -> Termin
                     false_arm_offset: 20,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
         }
     }
@@ -1974,6 +2046,7 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
         mutations: Vec::new(),
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     let caller = &mut plan.functions[1];
     caller.provenance.operations = vec![operation_id(2)];
@@ -2008,6 +2081,7 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
                     false_arm_offset: 22,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
             caller.internal_calls = vec![TerminalInternalCallRelocation {
                 owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
@@ -2060,6 +2134,7 @@ fn scalar_expression_condition_call_plan(target: NativeTarget) -> TerminalMachin
                     false_arm_offset: 32,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
             caller.internal_calls = vec![TerminalInternalCallRelocation {
                 owner: omega_terminal_target_operations::TerminalCallSiteOwner::Operation(
@@ -2098,6 +2173,7 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
         mutations: Vec::new(),
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     let caller = &mut plan.functions[1];
     caller.provenance.operations = vec![operation_id(2), operation_id(3)];
@@ -2138,6 +2214,7 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
                     false_arm_offset: 18,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
             caller.internal_calls = vec![
                 TerminalInternalCallRelocation {
@@ -2230,6 +2307,7 @@ fn scalar_conditional_call_plan(target: NativeTarget) -> TerminalMachineCodePlan
                     false_arm_offset: 36,
                 },
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
             caller.internal_calls = vec![
                 TerminalInternalCallRelocation {
@@ -2292,6 +2370,7 @@ fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
         mutations: Vec::new(),
         control_flow: TerminalScalarControlFlowEvidence::Linear,
         stack_alignment: 16,
+        cleanup_preservation: None,
     });
     let caller = &mut plan.functions[1];
     match target.architecture {
@@ -2309,6 +2388,7 @@ fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 ],
                 control_flow: TerminalScalarControlFlowEvidence::Linear,
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
             caller.internal_calls[0].offset = 2;
             caller.internal_calls[0].scalar_stack = Some(TerminalScalarCallStackEvidence {
@@ -2352,6 +2432,7 @@ fn scalar_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 ],
                 control_flow: TerminalScalarControlFlowEvidence::Linear,
                 stack_alignment: 16,
+                cleanup_preservation: None,
             });
             caller.internal_calls[0].offset = 12;
             caller.internal_calls[0].scalar_stack = Some(TerminalScalarCallStackEvidence {
@@ -2441,6 +2522,109 @@ fn scalar_mutation(
         byte_count,
         kind,
     }
+}
+
+fn promote_x86_cleanup_to_scalar(caller: &mut TerminalMachineCodeFunction) {
+    let prefix_len = 5;
+    caller.bytes.splice(0..0, [0xb8, 1, 0, 0, 0]);
+    let cleanup_start = prefix_len;
+    caller.bytes.splice(
+        cleanup_start..cleanup_start,
+        [
+            0x48, 0x83, 0xec, 16, // sub rsp, 16
+            0x48, 0x89, 0x44, 0x24, 0, // mov [rsp], rax
+        ],
+    );
+    let inserted_prefix = prefix_len + 9;
+    let relocation = &mut caller.internal_calls[0];
+    relocation.offset += inserted_prefix;
+    let outbound = relocation
+        .unit_stack
+        .take()
+        .and_then(|stack| stack.outbound)
+        .expect("x86 cleanup call stack pair");
+    let outbound = TerminalStackAdjustmentPair {
+        allocation_offset: outbound.allocation_offset + inserted_prefix,
+        release_offset: outbound.release_offset + inserted_prefix,
+        ..outbound
+    };
+    relocation.scalar_stack = Some(TerminalScalarCallStackEvidence {
+        outbound: Some(outbound),
+        aarch64_return_link: None,
+    });
+    caller.internal_unit_calls[0].code_offset += inserted_prefix;
+    let original_ret = caller.bytes.pop();
+    assert_eq!(original_ret, Some(0xc3));
+    let result_load_offset = caller.bytes.len();
+    caller.bytes.extend_from_slice(&[
+        0x48, 0x8b, 0x44, 0x24, 0, // mov rax, [rsp]
+        0x48, 0x83, 0xc4, 16, // add rsp, 16
+        0xc3,
+    ]);
+    let frame_release_offset = result_load_offset + 5;
+    caller.unit_stack = None;
+    caller.scalar_stack = Some(TerminalScalarStackEvidence {
+        mutations: vec![
+            scalar_mutation(
+                cleanup_start,
+                4,
+                TerminalScalarStackMutationKind::Allocate { byte_size: 16 },
+            ),
+            scalar_mutation(
+                outbound.allocation_offset,
+                outbound.allocation_byte_count,
+                TerminalScalarStackMutationKind::Allocate {
+                    byte_size: outbound.byte_size,
+                },
+            ),
+            scalar_mutation(
+                outbound.release_offset,
+                outbound.release_byte_count,
+                TerminalScalarStackMutationKind::Release {
+                    byte_size: outbound.byte_size,
+                },
+            ),
+            scalar_mutation(
+                frame_release_offset,
+                4,
+                TerminalScalarStackMutationKind::Release { byte_size: 16 },
+            ),
+        ],
+        control_flow: TerminalScalarControlFlowEvidence::Linear,
+        stack_alignment: 16,
+        cleanup_preservation: Some(TerminalScalarCleanupPreservationEvidence {
+            frame: TerminalStackAdjustmentPair {
+                byte_size: 16,
+                allocation_offset: cleanup_start,
+                allocation_byte_count: 4,
+                release_offset: frame_release_offset,
+                release_byte_count: 4,
+            },
+            result_byte_offset: 0,
+            result_store_offset: cleanup_start + 4,
+            result_load_offset,
+            aarch64_return_link: None,
+        }),
+    });
+    let cleanup = caller
+        .unit_affine_cleanup
+        .take()
+        .expect("Unit cleanup fixture");
+    caller.scalar_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
+        code_offset: cleanup_start,
+        byte_count: caller.bytes.len() - cleanup_start,
+        ..cleanup
+    });
+    caller.scalar_structural_parameters = std::mem::take(&mut caller.unit_parameters);
+    caller.scalar_structural_parameter_homes = std::mem::take(&mut caller.unit_parameter_homes);
+    caller.fuel_attribution[0].code_offset += inserted_prefix;
+    caller.fuel_attribution[0].byte_count += 9;
+    let cleanup_fuel = caller
+        .fuel_attribution
+        .last_mut()
+        .expect("cleanup edge fuel");
+    cleanup_fuel.code_offset = cleanup_start;
+    cleanup_fuel.byte_count = caller.bytes.len() - cleanup_start;
 }
 
 fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {

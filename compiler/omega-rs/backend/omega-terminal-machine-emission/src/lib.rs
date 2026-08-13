@@ -22,10 +22,11 @@ use omega_terminal_machine_code::{
     TerminalInternalCallRelocation, TerminalInternalUnitCallArgumentRecord,
     TerminalInternalUnitCallRecord, TerminalMachineCodeFunction, TerminalMachineCodePlan,
     TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
-    TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
-    TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
-    TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalStructuralReturnRecord,
-    TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalScalarCallStackEvidence, TerminalScalarCleanupPreservationEvidence,
+    TerminalScalarConditionalCondition, TerminalScalarControlFlowEvidence,
+    TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
+    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{MachineRegister, TerminalCallSiteOwner};
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
@@ -412,7 +413,7 @@ fn emit_function(
         },
     };
     let scalar_stack = scalar_stack_eligible
-        .then(|| collect_scalar_stack_evidence(architecture, &bytes, scalar_control_flow))
+        .then(|| collect_scalar_stack_evidence(architecture, &bytes, scalar_control_flow, None))
         .transpose()?;
     if !scalar_stack_eligible {
         for call in &mut internal_calls {
@@ -494,6 +495,13 @@ fn emit_scalar_return_with_cleanup(
         || !emitted.internal_calls.is_empty()
         || !emitted.internal_unit_calls.is_empty()
         || emitted.structural_return.is_some()
+        || !matches!(
+            emitted
+                .scalar_stack
+                .as_ref()
+                .map(|stack| stack.control_flow),
+            Some(TerminalScalarControlFlowEvidence::Linear)
+        )
     {
         return Err(EmissionError::UnsupportedScalarCleanup);
     }
@@ -507,30 +515,32 @@ fn emit_scalar_return_with_cleanup(
     }
     let cleanup_offset = emitted.bytes.len();
     let mut internal_unit_calls = Vec::new();
-    let mut frame = None;
-    let mut aarch64_return_link = None;
-    if target.architecture == Architecture::Aarch64 {
-        let allocation_offset = emitted.bytes.len();
-        let mut instructions = Vec::new();
-        emit_aarch64_adjust_sp(&mut instructions, 16, false)?;
-        append_aarch64_instructions(&mut emitted.bytes, instructions);
-        let store_offset = emitted.bytes.len();
-        emitted
-            .bytes
-            .extend_from_slice(&aarch64_unit_stack_access(0xf900_0000, 30, 0, 8)?.to_le_bytes());
-        aarch64_return_link = Some(TerminalAarch64ReturnLinkEvidence {
-            frame_byte_offset: 0,
-            store_offset,
-            load_offset: 0,
-        });
-        frame = Some(TerminalStackAdjustmentPair {
-            byte_size: 16,
-            allocation_offset,
-            allocation_byte_count: 4,
-            release_offset: 0,
-            release_byte_count: 4,
-        });
-    }
+    let (frame_allocation_byte_count, result_store_offset, aarch64_link_store_offset) =
+        match target.architecture {
+            Architecture::X86_64 => {
+                // Keep the ABI result out of every cleanup callee's caller-clobbered
+                // register set. A 16-byte lifetime frame also preserves the entry
+                // stack residue assumed by the existing Unit-call emitter.
+                emit_x86_64_adjust_sp(&mut emitted.bytes, 16, false);
+                let result_store_offset = emitted.bytes.len();
+                emit_x86_64_stack_store(&mut emitted.bytes, 0, 0);
+                (
+                    result_store_offset - cleanup_offset,
+                    result_store_offset,
+                    None,
+                )
+            }
+            Architecture::Aarch64 => {
+                let mut instructions = Vec::new();
+                emit_aarch64_adjust_sp(&mut instructions, 16, false)?;
+                let result_store_offset = emitted.bytes.len() + instructions.len() * 4;
+                instructions.push(aarch64_unit_stack_access(0xf900_0000, 0, 0, 8)?);
+                let link_store_offset = emitted.bytes.len() + instructions.len() * 4;
+                instructions.push(aarch64_unit_stack_access(0xf900_0000, 30, 8, 8)?);
+                append_aarch64_instructions(&mut emitted.bytes, instructions);
+                (4, result_store_offset, Some(link_store_offset))
+            }
+        };
     for (ordinal, action) in cleanup_actions.iter().enumerate() {
         let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
             continue;
@@ -568,6 +578,20 @@ fn emit_scalar_return_with_cleanup(
                 )?;
             }
         }
+        let relocation = emitted
+            .internal_calls
+            .last_mut()
+            .expect("cleanup call emission retains its relocation");
+        let unit_stack = relocation
+            .unit_stack
+            .take()
+            .expect("cleanup call starts from the Unit call emitter");
+        relocation.scalar_stack = Some(TerminalScalarCallStackEvidence {
+            outbound: unit_stack.outbound,
+            // The composed scalar-cleanup function keeps LR in its lifetime
+            // frame, so no cleanup call owns a separate AArch64 link slot.
+            aarch64_return_link: None,
+        });
         internal_unit_calls.push(TerminalInternalUnitCallRecord {
             owner,
             target: cleanup.cleanup_machine,
@@ -578,30 +602,41 @@ fn emit_scalar_return_with_cleanup(
             byte_count: emitted.bytes.len() - code_offset,
         });
     }
-    match target.architecture {
-        Architecture::X86_64 => emitted.bytes.push(0xc3),
-        Architecture::Aarch64 => {
-            let load_offset = emitted.bytes.len();
-            emitted.bytes.extend_from_slice(
-                &aarch64_unit_stack_access(0xf940_0000, 30, 0, 8)?.to_le_bytes(),
-            );
+    let (
+        result_load_offset,
+        aarch64_link_load_offset,
+        frame_release_offset,
+        frame_release_byte_count,
+    ) = match target.architecture {
+        Architecture::X86_64 => {
+            let result_load_offset = emitted.bytes.len();
+            emit_x86_64_stack_load(&mut emitted.bytes, 0, 0);
             let release_offset = emitted.bytes.len();
+            emit_x86_64_adjust_sp(&mut emitted.bytes, 16, true);
+            let release_byte_count = emitted.bytes.len() - release_offset;
+            emitted.bytes.push(0xc3);
+            (result_load_offset, None, release_offset, release_byte_count)
+        }
+        Architecture::Aarch64 => {
             let mut instructions = Vec::new();
+            let result_load_offset = emitted.bytes.len();
+            instructions.push(aarch64_unit_stack_access(0xf940_0000, 0, 0, 8)?);
+            let link_load_offset = emitted.bytes.len() + instructions.len() * 4;
+            instructions.push(aarch64_unit_stack_access(0xf940_0000, 30, 8, 8)?);
+            let release_offset = emitted.bytes.len() + instructions.len() * 4;
             emit_aarch64_adjust_sp(&mut instructions, 16, true)?;
             append_aarch64_instructions(&mut emitted.bytes, instructions);
             emitted
                 .bytes
                 .extend_from_slice(&0xd65f_03c0_u32.to_le_bytes());
-            frame
-                .as_mut()
-                .expect("AArch64 cleanup frame")
-                .release_offset = release_offset;
-            aarch64_return_link
-                .as_mut()
-                .expect("AArch64 cleanup link")
-                .load_offset = load_offset;
+            (
+                result_load_offset,
+                Some(link_load_offset),
+                release_offset,
+                4,
+            )
         }
-    }
+    };
     let parameter_records = structural_parameters
         .iter()
         .map(
@@ -638,12 +673,34 @@ fn emit_scalar_return_with_cleanup(
         code_offset: cleanup_offset,
         byte_count: emitted.bytes.len() - cleanup_offset,
     };
-    emitted.unit_stack = Some(TerminalUnitStackEvidence {
-        frame,
-        aarch64_return_link,
-        stack_alignment: 16,
-    });
-    emitted.scalar_stack = None;
+    emitted.unit_stack = None;
+    let cleanup_preservation = TerminalScalarCleanupPreservationEvidence {
+        frame: TerminalStackAdjustmentPair {
+            byte_size: 16,
+            allocation_offset: cleanup_offset,
+            allocation_byte_count: frame_allocation_byte_count,
+            release_offset: frame_release_offset,
+            release_byte_count: frame_release_byte_count,
+        },
+        result_byte_offset: 0,
+        result_store_offset,
+        result_load_offset,
+        aarch64_return_link: match (aarch64_link_store_offset, aarch64_link_load_offset) {
+            (Some(store_offset), Some(load_offset)) => Some(TerminalAarch64ReturnLinkEvidence {
+                frame_byte_offset: 8,
+                store_offset,
+                load_offset,
+            }),
+            (None, None) => None,
+            _ => unreachable!("AArch64 cleanup link save and restore are paired"),
+        },
+    };
+    emitted.scalar_stack = Some(collect_scalar_stack_evidence(
+        target.architecture,
+        &emitted.bytes,
+        TerminalScalarControlFlowEvidence::Linear,
+        Some(cleanup_preservation),
+    )?);
     emitted.internal_unit_calls = internal_unit_calls;
     emitted.scalar_affine_cleanup = Some(cleanup.clone());
     emitted.scalar_structural_parameters = parameter_records;
@@ -5708,6 +5765,7 @@ fn collect_scalar_stack_evidence(
     architecture: Architecture,
     bytes: &[u8],
     control_flow: TerminalScalarControlFlowEvidence,
+    cleanup_preservation: Option<TerminalScalarCleanupPreservationEvidence>,
 ) -> Result<TerminalScalarStackEvidence, EmissionError> {
     let mutations = match architecture {
         Architecture::X86_64 => {
@@ -5793,6 +5851,7 @@ fn collect_scalar_stack_evidence(
         mutations,
         control_flow,
         stack_alignment: 16,
+        cleanup_preservation,
     })
 }
 
@@ -6318,6 +6377,154 @@ mod tests {
                         root.bytes.get(root.bytes.len() - 4..),
                         Some(0xd65f_03c0_u32.to_le_bytes().as_slice())
                     );
+                }
+            }
+        }
+    }
+
+    fn runtime_expression_cleanup_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
+        let (mut plan, edge, _, _, _) = executable_nominal_cleanup_plan(target);
+        let TerminalTargetOperation::UnitBody(root_body) = &mut plan.functions[0].operation else {
+            unreachable!("fixture root starts as Unit")
+        };
+        let structural_types = root_body.structural_types.clone();
+        let mut structural_parameters = root_body.parameters.clone();
+        let [
+            TerminalTargetUnitOperation::Return {
+                cleanup_actions, ..
+            },
+        ] = root_body.operations.as_slice()
+        else {
+            unreachable!("fixture root has one return")
+        };
+        let cleanup_actions = cleanup_actions.clone();
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(8, 8),
+                    structural_parameters[0].shape,
+                ],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("two scalar inputs and one structural root have an ABI");
+        structural_parameters[0].placement = call_plan.parameters[2].clone();
+        let scalar_register = |index: usize| {
+            let [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] = call_plan.parameters[index].locations.as_slice()
+            else {
+                unreachable!("first two scalar inputs are direct native registers")
+            };
+            TerminalScalarParameterLocation::Register(*register)
+        };
+        plan.functions[0].operation = TerminalTargetOperation::ScalarReturnWithCleanup {
+            scalar: Box::new(TerminalTargetOperation::ReturnIntegerExpression {
+                psi_edge: edge,
+                source_value: ValueId::new(3).expect("result value"),
+                scalar_type,
+                expression: wrapping_expression(scalar_register(0), scalar_register(1)),
+            }),
+            structural_types,
+            call_plan,
+            structural_parameters,
+            cleanup_actions,
+            psi_edge: edge,
+        };
+        plan
+    }
+
+    #[test]
+    fn runtime_scalar_result_is_spilled_across_executable_cleanup_calls() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let emitted = emit_machine_code(&runtime_expression_cleanup_plan(target))
+                .expect("runtime scalar cleanup emits");
+            let root = &emitted.functions[0];
+            let cleanup = root
+                .scalar_affine_cleanup
+                .as_ref()
+                .expect("runtime cleanup custody");
+            let stack = root
+                .scalar_stack
+                .as_ref()
+                .expect("composed scalar stack evidence");
+            assert_eq!(root.unit_stack, None);
+            assert_eq!(root.internal_calls.len(), 1);
+            assert_eq!(root.internal_unit_calls.len(), 1);
+            let call = root.internal_calls[0];
+            assert_eq!(call.unit_stack, None);
+            let call_stack = call
+                .scalar_stack
+                .expect("cleanup call uses composed scalar stack evidence");
+            assert!(cleanup.code_offset < call.offset);
+            assert!(stack.mutations.iter().any(|mutation| {
+                mutation.offset == cleanup.code_offset
+                    && mutation.kind == TerminalScalarStackMutationKind::Allocate { byte_size: 16 }
+            }));
+            assert!(stack.mutations.iter().any(|mutation| {
+                mutation.kind == TerminalScalarStackMutationKind::Release { byte_size: 16 }
+            }));
+            let preservation = stack
+                .cleanup_preservation
+                .expect("cleanup retains exact result-preservation evidence");
+            assert_eq!(preservation.frame.allocation_offset, cleanup.code_offset);
+            assert_eq!(preservation.frame.byte_size, 16);
+            assert_eq!(preservation.result_byte_offset, 0);
+            assert!(preservation.result_store_offset < call.offset);
+            assert!(preservation.result_load_offset > call.offset);
+
+            match target.architecture {
+                Architecture::X86_64 => {
+                    assert!(
+                        stack
+                            .mutations
+                            .iter()
+                            .any(|mutation| mutation.kind
+                                == TerminalScalarStackMutationKind::X86Push)
+                    );
+                    assert!(
+                        stack.mutations.iter().any(
+                            |mutation| mutation.kind == TerminalScalarStackMutationKind::X86Pop
+                        )
+                    );
+                    assert_eq!(
+                        root.bytes.get(cleanup.code_offset..cleanup.code_offset + 9),
+                        Some(&[0x48, 0x83, 0xec, 16, 0x48, 0x89, 0x44, 0x24, 0][..])
+                    );
+                    assert_eq!(
+                        &root.bytes[root.bytes.len() - 10..],
+                        &[0x48, 0x8b, 0x44, 0x24, 0, 0x48, 0x83, 0xc4, 16, 0xc3]
+                    );
+                    assert!(call_stack.outbound.is_some());
+                    assert_eq!(call_stack.aarch64_return_link, None);
+                    assert_eq!(preservation.aarch64_return_link, None);
+                }
+                Architecture::Aarch64 => {
+                    let instructions = aarch64_instructions(&root.bytes);
+                    let cleanup_instruction = cleanup.code_offset / 4;
+                    assert_eq!(
+                        &instructions[cleanup_instruction..cleanup_instruction + 3],
+                        &[0xd100_43ff, 0xf900_03e0, 0xf900_07fe]
+                    );
+                    assert_eq!(
+                        &instructions[instructions.len() - 4..],
+                        &[0xf940_03e0, 0xf940_07fe, 0x9100_43ff, 0xd65f_03c0]
+                    );
+                    assert_eq!(call_stack.outbound, None);
+                    assert_eq!(call_stack.aarch64_return_link, None);
+                    let link = preservation
+                        .aarch64_return_link
+                        .expect("cleanup lifetime frame preserves X30");
+                    assert_eq!(link.frame_byte_offset, 8);
+                    assert_eq!(link.store_offset, preservation.result_store_offset + 4);
+                    assert_eq!(link.load_offset, preservation.result_load_offset + 4);
                 }
             }
         }

@@ -1,4 +1,5 @@
 use super::*;
+use psi_checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 
 #[test]
 fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_cleanup() {
@@ -727,7 +728,144 @@ fn nominal_scalar_cleanup_retains_finite_branch_free_primitive_locals() {
 }
 
 #[test]
-fn nominal_scalar_cleanup_fences_branching_mutable_call_effect_and_scalar_input_bodies() {
+fn nominal_scalar_cleanup_retains_interleaved_scalar_inputs_before_locals() {
+    let checked = checked(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+        data Plain { observed: bool; }
+        data Root {}
+        machine Root::measure(
+            first: Token,
+            offset: u64,
+            plain: Plain,
+            scale: u64,
+            second: Token
+        ) -> u64
+        requires first.ready, plain.observed, second.ready
+        {
+            let shifted: u64 = offset ^ 1u64;
+            let scaled: u64 = shifted | scale;
+            scaled
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("direct scalar inputs compose with branch-free mixed contextual cleanup");
+    assert_eq!(
+        plan.structural_parameters
+            .iter()
+            .map(|parameter| parameter.position)
+            .collect::<Vec<_>>(),
+        vec![0, 2, 4],
+    );
+    assert_eq!(
+        plan.scalar_parameters
+            .iter()
+            .map(|parameter| (parameter.source_position, parameter.primitive_type))
+            .collect::<Vec<_>>(),
+        vec![(1, PrimitiveType::U64), (3, PrimitiveType::U64)],
+        "scalar inputs retain authored positions in dense scalar order",
+    );
+    let mut complete_partition = plan
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.position)
+        .chain(
+            plan.scalar_parameters
+                .iter()
+                .map(|parameter| parameter.source_position),
+        )
+        .collect::<Vec<_>>();
+    complete_partition.sort_unstable();
+    assert_eq!(complete_partition, vec![0, 1, 2, 3, 4]);
+    assert_eq!(
+        plan.bindings
+            .iter()
+            .map(|binding| binding.statement_ordinal)
+            .collect::<Vec<_>>(),
+        vec![0, 1],
+    );
+    assert_eq!(plan.return_statement_ordinal, 2);
+
+    let shifted = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(
+            plan.state,
+            0,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+        )
+        .expect("first local expression");
+    assert!(matches!(
+        shifted,
+        CheckedScalarExpression::IntegerBinary { left, .. }
+            if matches!(left.as_ref(), CheckedScalarExpression::Parameter { position: 0, .. })
+    ));
+    let scaled = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(
+            plan.state,
+            1,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
+        )
+        .expect("second local expression");
+    assert!(matches!(
+        scaled,
+        CheckedScalarExpression::IntegerBinary { left, right, .. }
+            if matches!(left.as_ref(), CheckedScalarExpression::Local { position: 2, .. })
+                && matches!(right.as_ref(), CheckedScalarExpression::Parameter { position: 1, .. })
+    ));
+    let returned = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(plan.state, 2, CheckedScalarExpressionRole::Return)
+        .expect("return expression");
+    assert!(matches!(
+        returned,
+        CheckedScalarExpression::Local { position: 3, .. }
+    ));
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (0, "ready", true),
+            (2, "observed", true),
+            (4, "ready", true)
+        ],
+    );
+    let [
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(second),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(2),
+        psi_checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(first),
+    ] = plan.cleanup_actions.as_slice()
+    else {
+        panic!("cleanup retains reverse authored structural-root order")
+    };
+    assert_eq!(second.source_parameter_index, 4);
+    assert_eq!(first.source_parameter_index, 0);
+}
+
+#[test]
+fn nominal_scalar_cleanup_fences_branching_mutable_call_and_effect_bodies() {
     let checked = checked(
         r#"
         data Token {}
@@ -756,10 +894,6 @@ fn nominal_scalar_cleanup_fences_branching_mutable_call_effect_and_scalar_input_
             Helper::touch();
             1u64
         }
-        machine Root::scalar_input(token: Token, offset: u64) -> u64 {
-            let staged: u64 = offset + 1u64;
-            staged
-        }
         "#,
     );
     for machine in [
@@ -768,7 +902,6 @@ fn nominal_scalar_cleanup_fences_branching_mutable_call_effect_and_scalar_input_
         "mutable_local",
         "call_local",
         "effect_before_return",
-        "scalar_input",
     ] {
         assert!(
             checked

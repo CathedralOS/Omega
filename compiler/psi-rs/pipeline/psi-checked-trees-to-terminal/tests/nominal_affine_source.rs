@@ -306,6 +306,30 @@ const MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE: &str = r#"
     }
 "#;
 
+const MIXED_CONTEXTUAL_SCALAR_INPUTS_SOURCE: &str = r#"
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(
+        first: Token,
+        left: bool,
+        plain: Plain,
+        right: bool,
+        second: Token
+    ) -> bool
+    requires first.ready, plain.observed, second.ready
+    {
+        let same: bool = left == right;
+        let inverted: bool = !same;
+        !inverted
+    }
+"#;
+
 const CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE: &str = r#"
     data Token { ready: bool; armed: bool; }
     machine Token::drop(&mut self)
@@ -935,6 +959,145 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
     assert_eq!(
         measured.value(),
         TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
+    assert_eq!(measured.usage().total_units(), 6);
+    assert!(measured.effects().is_empty());
+}
+
+#[test]
+fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
+    let tokens = Lexer::new(MIXED_CONTEXTUAL_SCALAR_INPUTS_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed contextual scalar inputs");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar inputs");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed contextual scalar inputs");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type mixed contextual scalar inputs source");
+    let checked = lower_typed_trees(typed).expect("check mixed contextual scalar inputs source");
+    let checked_plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .find(|plan| !plan.scalar_parameters.is_empty())
+        .expect("checked mixed signature is retained");
+    assert_eq!(
+        checked_plan
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.position)
+            .collect::<Vec<_>>(),
+        [0, 2, 4]
+    );
+    assert_eq!(
+        checked_plan
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.source_position)
+            .collect::<Vec<_>>(),
+        [1, 3]
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed contextual scalar inputs lower");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("mixed contextual scalar inputs entry");
+    let [left, right] = entry.parameters.as_slice() else {
+        panic!("primitive inputs become a dense scalar ABI")
+    };
+    assert_eq!([left.id.get(), right.id.get()], [1, 2]);
+    assert_eq!(left.scalar_type, ScalarType::Boolean);
+    assert_eq!(right.scalar_type, ScalarType::Boolean);
+    let [first, plain, second] = entry.structural_parameters.as_slice() else {
+        panic!("interleaved signature retains all structural roots")
+    };
+    assert_eq!([first.position, plain.position, second.position], [0, 1, 2]);
+
+    let [same, inverted, result] = entry.blocks[0].operations.as_slice() else {
+        panic!("input-dependent bindings and return materialize in source order")
+    };
+    assert!(matches!(
+        same.kind,
+        OperationKind::BooleanEqual {
+            left: operand_left,
+            right: operand_right,
+        } if operand_left == left.id && operand_right == right.id
+    ));
+    let same_value = same.result.scalar().expect("equality result").id;
+    assert_eq!(same_value.get(), 3, "locals begin after both ABI inputs");
+    assert!(matches!(
+        inverted.kind,
+        OperationKind::BooleanNot { operand } if operand == same_value
+    ));
+    let inverted_value = inverted.result.scalar().expect("inversion result").id;
+    assert_eq!(inverted_value.get(), 4);
+    assert!(matches!(
+        result.kind,
+        OperationKind::BooleanNot { operand } if operand == inverted_value
+    ));
+    assert_eq!(result.result.scalar().expect("return result").id.get(), 5);
+    let Terminator::Return {
+        value,
+        cleanup_actions,
+        ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("mixed contextual scalar input entry returns its scalar result")
+    };
+    assert_eq!(result.result.scalar().expect("return result").id, *value);
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+            TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+            TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+        ] if second_cleanup.place == second.place
+            && *plain_cleanup == plain.place
+            && first_cleanup.place == first.place
+            && second_cleanup.cleanup_machine == first_cleanup.cleanup_machine
+    ));
+    assert_eq!(entry.contract.requires.len(), 3);
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed contextual scalar inputs verify");
+    let semantics = encode_module(&lowered.semantic_module).expect("input module encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("input proof encodes");
+    assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+
+    let scalar_arguments = [
+        TerminalScalarValue::Boolean(true),
+        TerminalScalarValue::Boolean(false),
+    ];
+    let structural_arguments = [first, plain, second].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    let mut handler = AcceptTerminalEffects;
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &scalar_arguments,
+        &structural_arguments,
+        &mut handler,
+    )
+    .expect("mixed contextual scalar inputs interpret from canonical artifacts");
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(false))
     );
     assert_eq!(measured.usage().total_units(), 6);
     assert!(measured.effects().is_empty());
