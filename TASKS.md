@@ -318,9 +318,11 @@ Remaining:
   Boolean fields of record parameters retain every canonical field identity,
   rebase across whole-root and all-field-projected structural Unit calls,
   round-trip through both codecs, and are checked independently by the
-  verifier. Add fixed-index argument prefixes and wider aggregate/member
-  predicate forms. Imported crash capsules remain design-blocked on artifact
-  identity and certificate binding.
+  verifier. Fixed-index argument prefixes and built-in Boolean member equality,
+  inequality, negation, and conjunction now compose and rebase every retained
+  path. Continue with terminal proposition disjunction, integer-member
+  predicates, whole-aggregate equality, and case-payload paths. Imported crash
+  capsules remain design-blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

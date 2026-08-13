@@ -13,7 +13,7 @@ use psi_typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
     signature::StateParameter,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
-    types::PrimitiveType,
+    types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
 
 #[derive(Debug, Clone)]
@@ -293,10 +293,27 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         fields: &mut Vec<String>,
     ) -> Option<u32> {
         match program.expression_table.expression(expression) {
-            ExpressionNode::Name(name) => parameters
-                .iter()
-                .position(|parameter| name.symbol.is_valid() && parameter.symbol == name.symbol)
-                .and_then(|position| u32::try_from(position).ok()),
+            ExpressionNode::Name(name) => {
+                let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
+                    program
+                        .expression_table
+                        .name_path_member_symbols(name.member_symbols)
+                        .iter()
+                        .copied()
+                        .find(|symbol| symbol.is_valid())
+                });
+                let name_text = program
+                    .expression_table
+                    .name_path_members(name.members)
+                    .last();
+                parameters
+                    .iter()
+                    .position(|parameter| {
+                        name_symbol.is_some_and(|symbol| parameter.symbol == symbol)
+                            || name_text.is_some_and(|name| parameter.name == *name)
+                    })
+                    .and_then(|position| u32::try_from(position).ok())
+            }
             ExpressionNode::Member(member) if member.case_variant.is_none() => {
                 let parameter =
                     structural_parameter_field_path(program, parameters, member.receiver, fields)?;
@@ -307,26 +324,147 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         }
     }
 
-    let mut path = Vec::new();
-    if let Some(parameter_position) =
-        structural_parameter_field_path(program, parameters, expression, &mut path)
-        && !path.is_empty()
-        && let ExpressionNode::Member(member) = program.expression_table.expression(expression)
-        && program.data_definitions().iter().any(|data| {
-            program.data_members(data).iter().any(|candidate| {
-                let psi_typed_trees::data::DataMember::Field(field) = candidate else {
-                    return false;
+    fn lower_structural_boolean_expression(
+        program: &TypedTrees,
+        operators: &CheckedOperatorFacts,
+        parameters: &[StateParameter],
+        expression: ExpressionHandle,
+    ) -> Option<CheckedBooleanExpression> {
+        fn field_type(
+            program: &TypedTrees,
+            mut receiver: TypeReferenceHandle,
+            identity: &str,
+        ) -> Option<TypeReferenceHandle> {
+            loop {
+                match program.type_reference_table.type_reference(receiver) {
+                    TypeReferenceNode::Reference { referee, .. }
+                    | TypeReferenceNode::Constrained {
+                        base_type: referee, ..
+                    } => receiver = *referee,
+                    TypeReferenceNode::Named { symbol, name }
+                    | TypeReferenceNode::Generic {
+                        base_symbol: symbol,
+                        base_name: name,
+                        ..
+                    } => {
+                        let data = program.data_definitions().iter().find(|data| {
+                            (symbol.is_valid() && data.symbol == *symbol) || data.name == *name
+                        })?;
+                        return program.data_members(data).iter().find_map(|member| {
+                            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                                return None;
+                            };
+                            (field.name.as_str() == identity).then_some(field.type_reference)
+                        });
+                    }
+                    _ => return None,
+                }
+            }
+        }
+
+        fn path_ends_in_boolean(
+            program: &TypedTrees,
+            parameters: &[StateParameter],
+            parameter_position: u32,
+            path: &[String],
+        ) -> bool {
+            let Some(parameter) = usize::try_from(parameter_position)
+                .ok()
+                .and_then(|position| parameters.get(position))
+            else {
+                return false;
+            };
+            let Some(leaf) = path
+                .iter()
+                .try_fold(parameter.type_reference, |receiver, field| {
+                    field_type(program, receiver, field)
+                })
+            else {
+                return false;
+            };
+            program.primitive_type_reference(leaf) == Some(PrimitiveType::Bool)
+        }
+
+        let mut path = Vec::new();
+        if let Some(parameter_position) =
+            structural_parameter_field_path(program, parameters, expression, &mut path)
+            && !path.is_empty()
+            && path_ends_in_boolean(program, parameters, parameter_position, &path)
+        {
+            return Some(CheckedBooleanExpression::StructuralParameterField {
+                parameter_position,
+                path,
+            });
+        }
+
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
+            ExpressionNode::Unary(unary)
+                if unary.operator == UnaryOperator::LogicalNot
+                    && operator_is_builtin(operators, expression) =>
+            {
+                Some(CheckedBooleanExpression::Not(Box::new(
+                    lower_structural_boolean_expression(
+                        program,
+                        operators,
+                        parameters,
+                        unary.operand,
+                    )?,
+                )))
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && operator_is_builtin(operators, expression) =>
+            {
+                let equality = CheckedBooleanExpression::Equal {
+                    left: Box::new(lower_structural_boolean_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.left,
+                    )?),
+                    right: Box::new(lower_structural_boolean_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.right,
+                    )?),
                 };
-                field.symbol == member.member_symbol
-                    && program.primitive_type_reference(field.type_reference)
-                        == Some(PrimitiveType::Bool)
-            })
-        })
+                Some(if binary.operator == BinaryOperator::NotEqual {
+                    CheckedBooleanExpression::Not(Box::new(equality))
+                } else {
+                    equality
+                })
+            }
+            ExpressionNode::Binary(binary)
+                if binary.operator == BinaryOperator::And
+                    && operator_is_builtin(operators, expression) =>
+            {
+                Some(CheckedBooleanExpression::And {
+                    left: Box::new(lower_structural_boolean_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.left,
+                    )?),
+                    right: Box::new(lower_structural_boolean_expression(
+                        program,
+                        operators,
+                        parameters,
+                        binary.right,
+                    )?),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    if let Some(structural) =
+        lower_structural_boolean_expression(program, operators, parameters, expression)
     {
-        return Some(CheckedBooleanExpression::StructuralParameterField {
-            parameter_position,
-            path,
-        });
+        return Some(structural);
     }
     let parameter_types = parameters
         .iter()

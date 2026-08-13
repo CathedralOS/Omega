@@ -400,10 +400,13 @@ path. Canonical predicate segments distinguish verifier-owned field identities
 from exact array indices. The verifier independently traverses both declared
 record and fixed-array paths, requires in-bounds indices, structural
 intermediates, and a Boolean leaf, and rejects absent, erased, truncated,
-mistyped, out-of-bounds, or redirected paths. Wider aggregate predicates and
-imported crash capsules remain fail-closed. Structural/content contracts reject
-because custody effects require their own vertical slice rather than an ordinary
-scalar flag.
+mistyped, out-of-bounds, or redirected paths. Built-in Boolean equality,
+inequality, negation, and conjunction may compose multiple relevant member
+paths and literals; every nested path is independently traversed and rebased.
+Disjunction, whole-aggregate equality, integer member predicates, case-payload
+paths, and imported crash capsules remain fail-closed. Structural/content
+contracts reject because custody effects require their own vertical slice
+rather than an ordinary scalar flag.
 
 The interpreter uses owned call frames and charges the call before entering the
 callee. Sponsor exhaustion in the callee resumes without replaying that paid

@@ -3447,7 +3447,7 @@ fn target_contract_mentions_projected_parameter(
                             return false;
                         }
                         predicate.expression().is_none_or(|expression| {
-                            crash_expression_mentions_parameter(expression, 0)
+                            crash_expression_mentions_parameter_outside_member_path(expression, 0)
                         })
                     }
                 })
@@ -3471,7 +3471,7 @@ fn crash_expression_is_nonempty_member_path_from_parameter(
         && matches!(expression, CrashPredicateExpression::Parameter(index) if *index == parameter)
 }
 
-fn crash_expression_mentions_parameter(
+fn crash_expression_mentions_parameter_outside_member_path(
     expression: &psi_checked_trees::CrashPredicateExpression,
     parameter: u32,
 ) -> bool {
@@ -3480,22 +3480,28 @@ fn crash_expression_mentions_parameter(
     match expression {
         CrashPredicateExpression::Parameter(index) => *index == parameter,
         CrashPredicateExpression::Binary { left, right, .. } => {
-            crash_expression_mentions_parameter(left, parameter)
-                || crash_expression_mentions_parameter(right, parameter)
+            crash_expression_mentions_parameter_outside_member_path(left, parameter)
+                || crash_expression_mentions_parameter_outside_member_path(right, parameter)
         }
-        CrashPredicateExpression::Unary { operand, .. }
-        | CrashPredicateExpression::Member {
-            receiver: operand, ..
-        } => crash_expression_mentions_parameter(operand, parameter),
+        CrashPredicateExpression::Unary { operand, .. } => {
+            crash_expression_mentions_parameter_outside_member_path(operand, parameter)
+        }
+        CrashPredicateExpression::Member { receiver, .. } => {
+            if crash_expression_is_nonempty_member_path_from_parameter(expression, parameter) {
+                false
+            } else {
+                crash_expression_mentions_parameter_outside_member_path(receiver, parameter)
+            }
+        }
         CrashPredicateExpression::Call {
             receiver,
             arguments,
             ..
         } => {
-            crash_expression_mentions_parameter(receiver, parameter)
-                || arguments
-                    .iter()
-                    .any(|argument| crash_expression_mentions_parameter(argument, parameter))
+            crash_expression_mentions_parameter_outside_member_path(receiver, parameter)
+                || arguments.iter().any(|argument| {
+                    crash_expression_mentions_parameter_outside_member_path(argument, parameter)
+                })
         }
         CrashPredicateExpression::Invalid
         | CrashPredicateExpression::Opaque(_)
