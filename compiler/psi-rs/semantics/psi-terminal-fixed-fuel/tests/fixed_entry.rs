@@ -8,10 +8,11 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContractClause,
     CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
     NominalAffineCleanup, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -75,7 +76,16 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
     module.structural_types = vec![StructuralTypeDeclaration {
         id: structural_type,
         identity: "test::Token".into(),
-        shape: StructuralTypeShape::Record { fields: Vec::new() },
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                identity: "payload".into(),
+                id: psi_core::StructuralFieldId::new(900).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                )),
+                relevance: psi_terminal::BindingRelevance::Relevant,
+            }],
+        },
     }];
     let caller = &mut module.machines[0];
     caller.structural_parameters = vec![StructuralParameterDeclaration {

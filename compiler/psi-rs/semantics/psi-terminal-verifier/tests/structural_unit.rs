@@ -27,7 +27,23 @@ fn exact_empty_nominal_affine_cleanup_validates() {
 }
 
 #[test]
-fn nominal_affine_cleanup_rejects_forged_target_and_nonempty_type() {
+fn exact_one_primitive_field_nominal_affine_cleanup_validates() {
+    let mut module = nominal_affine_module();
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            identity: "payload".into(),
+            id: psi_core::StructuralFieldId::new(1).unwrap(),
+            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap(),
+            )),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+        }],
+    };
+    validate_module(&module).expect("one primitive-field nominal cleanup should validate");
+}
+
+#[test]
+fn nominal_affine_cleanup_rejects_forged_target_and_wider_type() {
     let mut wrong_attachment = nominal_affine_module();
     wrong_attachment.machines[1].attachment = None;
     assert!(matches!(
@@ -49,15 +65,39 @@ fn nominal_affine_cleanup_rejects_forged_target_and_nonempty_type() {
 
     let mut nonempty = nominal_affine_module();
     nonempty.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![
+            StructuralFieldDeclaration {
+                identity: "first".into(),
+                id: psi_core::StructuralFieldId::new(1).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                relevance: psi_terminal::BindingRelevance::Relevant,
+            },
+            StructuralFieldDeclaration {
+                identity: "second".into(),
+                id: psi_core::StructuralFieldId::new(2).unwrap(),
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                relevance: psi_terminal::BindingRelevance::Relevant,
+            },
+        ],
+    };
+    assert!(matches!(
+        validate_module(&nonempty),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut unsupported_scalar = nominal_affine_module();
+    unsupported_scalar.structural_types[0].shape = StructuralTypeShape::Record {
         fields: vec![StructuralFieldDeclaration {
-            identity: "value".into(),
+            identity: "payload".into(),
             id: psi_core::StructuralFieldId::new(1).unwrap(),
-            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 128).unwrap(),
+            )),
             relevance: psi_terminal::BindingRelevance::Relevant,
         }],
     };
     assert!(matches!(
-        validate_module(&nonempty),
+        validate_module(&unsupported_scalar),
         Err(ModuleError::InvalidNominalAffineCleanup { .. })
     ));
 }
