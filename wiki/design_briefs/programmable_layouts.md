@@ -122,7 +122,10 @@ The same normalized geometry may feed different compiler-owned consumers:
   and arrays in the supported fixed subset. Psi retains the semantic value and
   shape; the Omega realization seam supplies target byte order. Erased bindings
   remain required semantic terms but contribute no bytes or initialization
-  work. Schema/type mismatch, duplicate or missing fields, out-of-range scalars,
+  work; an owned record whose fields are all erased therefore validates its
+  complete semantic value while materializing only zeroed plan storage. This
+  does not create a by-value public ABI carrier. Schema/type mismatch, duplicate
+  or missing fields, out-of-range scalars,
   sum/generic/reference shapes, and unsupported recursion reject before
   destination mutation. An
   admitted zero-argument source machine may supply that structured value through

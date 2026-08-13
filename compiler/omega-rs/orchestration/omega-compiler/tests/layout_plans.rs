@@ -788,6 +788,62 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_all_erased_record_materializes_only_plan_storage() {
+    let main_path = write_program(
+        "source-owned-all-erased-record",
+        r#"
+use omega::language::core::layout;
+
+data Whole { entries: [FieldEntry; 64]; }
+machine Whole::plan(&mut self, schema: Schema) -> Plan {
+    Plan { entries: self.entries, entry_count: 0,
+           size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data ProofBox { proof [erased]: Evidence; }
+machine make_proof_box() -> ProofBox {
+    ProofBox { proof: Evidence::Only }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("all-erased owned record should remain a checked semantic value");
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "ProofBox")
+        .expect("an all-erased owned record should require no physical field entries");
+    assert!(report.entries.is_empty());
+    let mut bytes = [0xa5; 8];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_proof_box",
+        "ProofBox",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("all-erased semantic content should contribute no bytes");
+    assert_eq!(bytes, [0; 8]);
+
+    let missing_proof = BuildTimeValue::Struct {
+        type_name: "ProofBox".to_owned(),
+        fields: Vec::new(),
+    };
+    let mut unchanged = [0x5a; 8];
+    let error = materialize_typed_owned_layout_into(
+        &checked.typed,
+        "ProofBox",
+        &report,
+        &missing_proof,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("erased storage omission must not make the semantic term optional");
+    assert!(error.0.contains("0 fields, expected 1"));
+    assert_eq!(unchanged, [0x5a; 8]);
+}
+
+#[test]
 fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
     let main_path = write_program(
         "typed-owned-negative-u64",
