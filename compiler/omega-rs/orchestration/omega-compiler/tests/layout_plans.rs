@@ -726,6 +726,68 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_record_arrays_omit_each_erased_field() {
+    let main_path = write_program(
+        "source-owned-record-array-erased-fields",
+        r#"
+use omega::language::core::layout;
+
+data Whole { entries: [FieldEntry; 64]; }
+machine Whole::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 24, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data Certified {
+    left: u16;
+    proof [erased]: Evidence;
+    right: u32;
+}
+data Batch { items: [Certified; 2]; }
+machine make_batch() -> Batch {
+    let items: [Certified; 2];
+    items[0] = Certified {
+        left: 258,
+        proof: Evidence::Only,
+        right: 100992003,
+    };
+    items[1] = Certified {
+        left: 2055,
+        proof: Evidence::Only,
+        right: 202050057,
+    };
+    Batch { items: items }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("record array with erased fields should check");
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Batch")
+        .expect("record array should retain one whole repeated extent");
+    let mut bytes = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_batch",
+        "Batch",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("every erased array-element field should contribute no bytes");
+    assert_eq!(
+        &bytes[4..20],
+        &[2, 1, 0, 0, 3, 4, 5, 6, 7, 8, 0, 0, 9, 10, 11, 12]
+    );
+    assert!(bytes[..4].iter().chain(&bytes[20..]).all(|byte| *byte == 0));
+}
+
+#[test]
 fn typed_owned_unsigned_values_reject_negative_structured_carriers_atomically() {
     let main_path = write_program(
         "typed-owned-negative-u64",
