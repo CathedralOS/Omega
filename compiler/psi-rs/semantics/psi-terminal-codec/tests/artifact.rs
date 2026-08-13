@@ -3,7 +3,8 @@ use psi_core::{
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
     ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
     IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
-    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralFieldId,
+    StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
@@ -122,6 +123,27 @@ fn proof_format_canonically_encodes_boolean_equality() {
         decode_proof_bundle(&stale),
         Err(ProofCodecError::UnsupportedProofSystemMarker(2))
     );
+}
+
+#[test]
+fn proof_format_round_trips_direct_boolean_field_terms() {
+    let field = ScalarTerm::boolean_field(place_id(4), structural_field_id(7));
+    let goal = Proposition::Equal(field.clone(), field);
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(9),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                },
+            }),
+        }],
+    };
+    let bytes = encode_proof_bundle(&bundle).expect("Boolean field proof encodes");
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
 #[test]
@@ -1287,6 +1309,8 @@ macro_rules! id_constructor {
 }
 
 id_constructor!(value_id, ValueId);
+id_constructor!(place_id, PlaceId);
+id_constructor!(structural_field_id, StructuralFieldId);
 id_constructor!(machine_id, MachineId);
 id_constructor!(block_id, BlockId);
 id_constructor!(operation_id, OperationId);

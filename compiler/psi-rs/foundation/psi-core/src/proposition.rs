@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use crate::{
     ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
-    StructuralPlaceKind, ValueId,
+    StructuralFieldId, StructuralPlaceKind, ValueId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -831,6 +831,13 @@ pub enum ScalarTerm {
         id: ValueId,
         scalar_type: ScalarType,
     },
+    /// One direct relevant Boolean field below a terminal structural root.
+    /// The terminal verifier binds `field` against the root's exact declared
+    /// structural type and independently confirms its Boolean type.
+    BooleanField {
+        root: PlaceId,
+        field: StructuralFieldId,
+    },
     Boolean(bool),
     BooleanNot {
         operand: Box<ScalarTerm>,
@@ -991,6 +998,10 @@ pub enum ScalarTerm {
 impl ScalarTerm {
     pub fn value(id: ValueId, scalar_type: ScalarType) -> Self {
         Self::Value { id, scalar_type }
+    }
+
+    pub fn boolean_field(root: PlaceId, field: StructuralFieldId) -> Self {
+        Self::BooleanField { root, field }
     }
 
     pub const fn boolean(value: bool) -> Self {
@@ -1476,6 +1487,7 @@ impl ScalarTerm {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
             Self::Boolean(_)
+            | Self::BooleanField { .. }
             | Self::BooleanNot { .. }
             | Self::BooleanEqual { .. }
             | Self::IntegerEqual { .. }
@@ -1858,7 +1870,7 @@ impl ScalarTerm {
 
     pub fn validate(&self) -> Result<(), PropositionError> {
         match self {
-            Self::Value { .. } | Self::Boolean(_) => Ok(()),
+            Self::Value { .. } | Self::BooleanField { .. } | Self::Boolean(_) => Ok(()),
             Self::BooleanNot { operand } => {
                 operand.validate()?;
                 if operand.scalar_type() != ScalarType::Boolean {
@@ -2382,6 +2394,11 @@ impl PropositionContext {
                         expected: *expected,
                         actual: *scalar_type,
                     });
+                }
+            }
+            ScalarTerm::BooleanField { root, .. } => {
+                if !self.structural_places.contains_key(root) {
+                    return Err(PropositionError::UnknownStructuralPlace(*root));
                 }
             }
             ScalarTerm::ExactIntegerAdd { left, right, .. }

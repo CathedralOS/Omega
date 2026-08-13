@@ -302,7 +302,10 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
             validate_scalar_term_depth(value, depth + 1)?;
             validate_scalar_term_depth(count, depth + 1)?;
         }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        ScalarTerm::Value { .. }
+        | ScalarTerm::BooleanField { .. }
+        | ScalarTerm::Boolean(_)
+        | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
 }
@@ -541,6 +544,11 @@ fn encode_scalar_term(
             writer.u8(1);
             writer.id(*id);
             encode_scalar_type(writer, *scalar_type);
+        }
+        ScalarTerm::BooleanField { root, field } => {
+            writer.u8(34);
+            writer.id(*root);
+            writer.id(*field);
         }
         ScalarTerm::Boolean(value) => {
             writer.u8(2);
@@ -1300,6 +1308,7 @@ fn decode_scalar_term(
             ScalarTerm::saturating_integer_remainder(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
+        34 => ScalarTerm::boolean_field(reader.id("PlaceId")?, reader.id("StructuralFieldId")?),
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
     })
 }

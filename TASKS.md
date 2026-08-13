@@ -223,9 +223,12 @@ Remaining:
   substitutions, and emit verifier-reconstructed guarded continuations.
   Positional calls stage short-circuit arguments left-to-right; guarded staged
   calls bind their continuations from the fingerprint-pinned, parameter-relative
-  callee contract to exact terminal argument values. Add wider aggregate/member
-  predicates. Imported crash capsules remain design-blocked on artifact identity
-  and certificate binding.
+  callee contract to exact terminal argument values. Direct relevant Boolean
+  fields of whole record parameters now retain canonical field identity, rebase
+  across structural Unit calls, round-trip through both codecs, and are checked
+  independently by the verifier. Add nested projections, projected structural
+  arguments, and wider aggregate/member predicates. Imported crash capsules
+  remain design-blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

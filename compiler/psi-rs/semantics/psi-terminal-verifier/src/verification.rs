@@ -2366,11 +2366,18 @@ pub(crate) fn substitute_proposition_places(
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
-        Proposition::Equal(left, right) => Proposition::Equal(left.clone(), right.clone()),
-        Proposition::LessThan(left, right) => Proposition::LessThan(left.clone(), right.clone()),
-        Proposition::LessOrEqual(left, right) => {
-            Proposition::LessOrEqual(left.clone(), right.clone())
-        }
+        Proposition::Equal(left, right) => Proposition::Equal(
+            substitute_scalar_term_places(left, substitutions),
+            substitute_scalar_term_places(right, substitutions),
+        ),
+        Proposition::LessThan(left, right) => Proposition::LessThan(
+            substitute_scalar_term_places(left, substitutions),
+            substitute_scalar_term_places(right, substitutions),
+        ),
+        Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(
+            substitute_scalar_term_places(left, substitutions),
+            substitute_scalar_term_places(right, substitutions),
+        ),
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
@@ -2392,6 +2399,59 @@ pub(crate) fn substitute_proposition_places(
             ))
         }
     }
+}
+
+fn substitute_scalar_term_places(
+    term: &ScalarTerm,
+    substitutions: &BTreeMap<PlaceId, PlaceId>,
+) -> ScalarTerm {
+    let mut term = term.clone();
+    fn substitute(term: &mut ScalarTerm, substitutions: &BTreeMap<PlaceId, PlaceId>) {
+        match term {
+            ScalarTerm::BooleanField { root, .. } => {
+                *root = substitutions.get(root).copied().unwrap_or(*root);
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => substitute(operand, substitutions),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                substitute(left, substitutions);
+                substitute(right, substitutions);
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                substitute(value, substitutions);
+                substitute(count, substitutions);
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+    }
+    substitute(&mut term, substitutions);
+    term
 }
 
 fn substitute_content_term_places(
@@ -2432,7 +2492,9 @@ fn substitute_scalar_term_values(
             .get(id)
             .cloned()
             .unwrap_or_else(|| term.clone()),
-        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => term.clone(),
+        ScalarTerm::BooleanField { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {
+            term.clone()
+        }
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },
