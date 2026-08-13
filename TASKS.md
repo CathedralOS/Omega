@@ -76,9 +76,11 @@ Remaining:
   is insufficient. Checked source already derives exact identity-reshuffle and
   authored-partition composition rows, and terminal Psi independently validates
   their canonical replay. The remaining end-to-end handoff is engineering:
-  terminal machines need a result-bearing structural-custody carrier and exit
-  semantics before those source programs can cross the boundary without
-  silently dropping their live claim.
+  terminal artifacts now have a root-only structural result/return carrier with
+  exact claim transfer, exit-time content replay, interpretation, and fuel. The
+  remaining end-to-end handoff is engineering: produce that carrier from the
+  checked source program, then preserve it through Omega ABI realization rather
+  than silently dropping the live claim.
 - **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
   and compiler-provisioned origins must preserve complete evidence and reject
   cross-origin composition and replay. Once the sealed local-capacity source
@@ -176,8 +178,9 @@ Remaining:
   on each accepted carrier. Unsupported claims, cleanup, calls, topology, or
   computation fail closed rather than falling back to source trees.
 
-  Add structural result-bearing custody first, then indexed aggregates, affine
-  locals, nominal/partial-value cleanup, remaining edge kinds and conservation,
+  Connect the root-only structural result carrier to checked source and Omega
+  realization, then add indexed aggregates, affine locals, nominal/partial-value
+  cleanup, remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,
   projections, and incomplete evidence remain fenced until their entire slice

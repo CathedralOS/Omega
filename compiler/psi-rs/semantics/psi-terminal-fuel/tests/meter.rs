@@ -124,6 +124,12 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         value: value_id(1),
         trivial_affine_discards: vec![place_id(1)],
     };
+    let structural_return_edge = Terminator::ReturnStructural {
+        edge: edge_id(6),
+        source: place_id(1),
+        returned_claims: vec![psi_core::ClaimId::new(1).unwrap()],
+        trivial_affine_discards: Vec::new(),
+    };
     let crash_edge = Terminator::Crash {
         edge: edge_id(3),
         cause: CrashCause::Abort,
@@ -139,6 +145,23 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         TerminalFuelSchedule::CURRENT.terminator_units(&unit_return_edge),
         1,
         "a value-less normal return has one explicit edge unit"
+    );
+    assert_eq!(
+        TerminalFuelSchedule::CURRENT.terminator_units(&structural_return_edge),
+        1,
+        "a structural ownership transfer is one explicit edge unit"
+    );
+    let mut structural_meter = TerminalFuelMeter::with_allowance(1);
+    structural_meter
+        .charge_terminator(&structural_return_edge)
+        .unwrap();
+    assert_eq!(
+        structural_meter
+            .usage()
+            .at(FuelChargeSite::Edge(edge_id(6)))
+            .unwrap()
+            .units(),
+        1
     );
     assert_eq!(
         TerminalFuelSchedule::CURRENT.terminator_units(&scalar_cleanup_edge),

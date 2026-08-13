@@ -8,9 +8,9 @@ use psi_terminal::{
     EntryClaim, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -70,6 +70,130 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
         execution.resume(&mut meter).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
+    assert_eq!(meter.usage().total_units(), 1);
+}
+
+#[test]
+fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
+    let structural_type = structural_type_id(1);
+    let domain = structural_domain_id(1);
+    let source = place_id(1);
+    let result_place = place_id(2);
+    let claim = claim_id(1);
+    let edge = edge_id(1);
+    let module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::Resource".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: domain,
+            identity: "test::Owned".into(),
+            carrier: structural_type,
+        }],
+        services: Vec::new(),
+        boundary_machines: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(1),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: source,
+                position: 0,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                qualifications: vec![domain],
+            }],
+            result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: result_place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                qualifications: vec![domain],
+            }),
+            structural_places: vec![
+                StructuralPlaceDeclaration {
+                    id: source,
+                    kind: psi_core::StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                },
+                StructuralPlaceDeclaration {
+                    id: result_place,
+                    kind: psi_core::StructuralPlaceKind::Result,
+                },
+            ],
+            entry_claims: vec![EntryClaim {
+                claim,
+                input: source,
+                field_path: Vec::new(),
+            }],
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(1),
+            blocks: vec![Block {
+                id: block_id(1),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnStructural {
+                    edge,
+                    source,
+                    returned_claims: vec![claim],
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: empty_contract(contract_id(1)),
+        }],
+    };
+    let semantic = encode_module(&module).expect("structural return encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0x5eed,
+        structural_type,
+        qualifications: vec![domain],
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        std::slice::from_ref(&argument),
+    )
+    .expect("verified structural return starts");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(edge),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    assert_eq!(
+        execution.live_claim_frontier().collect::<Vec<_>>(),
+        vec![claim]
+    );
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
+            psi_terminal_interpreter::TerminalStructuralResult {
+                value: argument,
+                claims: vec![claim],
+            }
+        ))
+    );
+    assert!(execution.live_claim_frontier().next().is_none());
     assert_eq!(meter.usage().total_units(), 1);
 }
 

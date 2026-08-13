@@ -259,6 +259,7 @@ pub fn derive_fixed_safe_point_segments(
             }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => {}
         }
     }
@@ -446,16 +447,19 @@ fn outcome_bounds_from(
     let terminator_units = schedule.terminator_units(&block.terminator);
     let continued = match (&block.terminator, normal_units) {
         (_, None) => OutcomeBounds::default(),
-        (Terminator::Return { .. } | Terminator::ReturnUnit { .. }, Some(prefix)) => {
-            OutcomeBounds {
-                returned: Some(
-                    prefix
-                        .checked_add(terminator_units)
-                        .ok_or(FixedFuelError::BoundOverflow)?,
-                ),
-                crashed: None,
-            }
-        }
+        (
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. },
+            Some(prefix),
+        ) => OutcomeBounds {
+            returned: Some(
+                prefix
+                    .checked_add(terminator_units)
+                    .ok_or(FixedFuelError::BoundOverflow)?,
+            ),
+            crashed: None,
+        },
         (Terminator::Crash { .. }, Some(prefix)) => OutcomeBounds {
             returned: None,
             crashed: Some(
@@ -597,6 +601,12 @@ fn derive_segment_bound(
                 });
             }
             Terminator::ReturnUnit { edge, .. } => {
+                return Err(FixedFuelError::SegmentEndNotReached {
+                    requested: end_edge,
+                    reached_terminal: edge,
+                });
+            }
+            Terminator::ReturnStructural { edge, .. } => {
                 return Err(FixedFuelError::SegmentEndNotReached {
                     requested: end_edge,
                     reached_terminal: edge,

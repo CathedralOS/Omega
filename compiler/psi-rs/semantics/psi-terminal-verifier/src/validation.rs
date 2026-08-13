@@ -445,6 +445,76 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             &domains,
             StructuralSignatureOwner::Machine(machine.id),
         )?;
+        match &machine.result {
+            TerminalMachineResult::Unit => {
+                if let Some(place) = machine
+                    .structural_places
+                    .iter()
+                    .find(|place| place.kind == StructuralPlaceKind::Result)
+                {
+                    return Err(ModuleError::UnitMachineHasResultStructuralPlace {
+                        machine: machine.id,
+                        place: place.id,
+                    });
+                }
+            }
+            TerminalMachineResult::Scalar(_) => {
+                if let Some(place) = machine
+                    .structural_places
+                    .iter()
+                    .find(|place| place.kind == StructuralPlaceKind::Result)
+                {
+                    return Err(ModuleError::ScalarMachineHasResultStructuralPlace {
+                        machine: machine.id,
+                        place: place.id,
+                    });
+                }
+            }
+            TerminalMachineResult::Structural(result) => {
+                if result.multiplicity == StructuralMultiplicity::Unrestricted {
+                    return Err(ModuleError::StructuralResultMustBeOwned(machine.id));
+                }
+                if !types.contains_key(&result.structural_type) {
+                    return Err(ModuleError::UnknownStructuralType(result.structural_type));
+                }
+                let mut qualifications = BTreeSet::new();
+                for qualification in &result.qualifications {
+                    if !qualifications.insert(*qualification) {
+                        return Err(ModuleError::DuplicateStructuralQualification {
+                            place: result.place,
+                            domain: *qualification,
+                        });
+                    }
+                    let Some(domain) = domains.get(qualification) else {
+                        return Err(ModuleError::UnknownStructuralDomain(*qualification));
+                    };
+                    if domain.carrier != result.structural_type {
+                        return Err(ModuleError::StructuralDomainCarrierMismatch {
+                            domain: domain.id,
+                            expected: result.structural_type,
+                            actual: domain.carrier,
+                        });
+                    }
+                }
+                if result
+                    .qualifications
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(ModuleError::NonCanonicalStructuralQualifications(
+                        result.place,
+                    ));
+                }
+                if !machine.structural_places.iter().any(|place| {
+                    place.id == result.place && place.kind == StructuralPlaceKind::Result
+                }) {
+                    return Err(ModuleError::StructuralResultPlaceMismatch {
+                        machine: machine.id,
+                        place: result.place,
+                    });
+                }
+            }
+        }
         if !machine.structural_parameters.is_empty() {
             for parameter in &machine.structural_parameters {
                 let expected = StructuralPlaceKind::Parameter {
@@ -2275,6 +2345,12 @@ fn validate_content_identity_reshuffles(
     structural_place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
     context: &PropositionContext,
 ) -> Result<(), ModuleError> {
+    let Some(result) = machine.result.structural() else {
+        if machine.content_identity_reshuffles.is_empty() {
+            return Ok(());
+        }
+        return Err(ModuleError::ContentIdentityReshuffleRequiresStructuralResult(machine.id));
+    };
     if machine
         .content_identity_reshuffles
         .windows(2)
@@ -2328,6 +2404,7 @@ fn validate_content_identity_reshuffles(
             ));
         }
         if reshuffle.output.version != psi_core::ContentPlaceVersion::Current
+            || reshuffle.output.root != result.place
             || !matches!(
                 structural_place_kinds.get(&reshuffle.output.root),
                 Some(StructuralPlaceKind::Result)
@@ -2837,9 +2914,13 @@ fn validate_structural_frontier(
         );
     }
     for claim in &machine.content_entry_claims {
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == claim.input.root);
         claims.entry(claim.claim).or_insert(LiveClaim {
-            input: None,
-            multiplicity: None,
+            input: parameter.map(|_| claim.input.root),
+            multiplicity: parameter.map(|parameter| parameter.multiplicity),
         });
     }
     let entry = StructuralOwnershipFrontier {
@@ -2869,6 +2950,7 @@ fn validate_structural_frontier(
             } => vec![when_true.target, when_false.target],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
@@ -3078,6 +3160,74 @@ fn validate_structural_frontier(
                     });
                 }
             }
+            Terminator::ReturnStructural {
+                source,
+                returned_claims,
+                trivial_affine_discards,
+                ..
+            } => {
+                let result = machine
+                    .result
+                    .structural()
+                    .expect("control validation requires a structural result");
+                let source_parameter = machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *source)
+                    .expect("control validation requires a structural source parameter");
+                if frontier.owned_places.remove(source).is_none() {
+                    return Err(ModuleError::StructuralReturnSourceNotLive {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
+                    });
+                }
+                if source_parameter.structural_type != result.structural_type
+                    || source_parameter.multiplicity != result.multiplicity
+                    || source_parameter.qualifications != result.qualifications
+                {
+                    return Err(ModuleError::StructuralReturnSignatureMismatch {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                if returned_claims.is_empty()
+                    || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(ModuleError::NonCanonicalStructuralReturnClaims {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                let expected_claims = frontier
+                    .claims
+                    .iter()
+                    .filter_map(|(claim, live)| (live.input == Some(*source)).then_some(*claim))
+                    .collect::<Vec<_>>();
+                if *returned_claims != expected_claims {
+                    return Err(ModuleError::StructuralReturnClaimSetMismatch {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                for claim in returned_claims {
+                    frontier.claims.remove(claim);
+                }
+                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
+                if *trivial_affine_discards != expected_affine_discards {
+                    return Err(ModuleError::StructuralReturnAffineDiscardsMismatch {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                if let Some(claim) = frontier.claims.keys().next() {
+                    return Err(ModuleError::LiveClaimAtStructuralReturn {
+                        machine: machine.id,
+                        block: block.id,
+                        claim: *claim,
+                    });
+                }
+            }
             Terminator::Crash {
                 frontier_lower_bound,
                 ..
@@ -3176,6 +3326,7 @@ fn validate_control_flow(
             } => vec![when_true.target, when_false.target],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
@@ -3349,10 +3500,29 @@ fn validate_control_flow(
                 }
             }
             Terminator::ReturnUnit { .. } => {
-                if matches!(machine.result, TerminalMachineResult::Scalar(_)) {
+                if !matches!(machine.result, TerminalMachineResult::Unit) {
                     return Err(ModuleError::UnitReturnFromScalarMachine {
                         machine: machine.id,
                         block: block.id,
+                    });
+                }
+            }
+            Terminator::ReturnStructural { source, .. } => {
+                if machine.result.structural().is_none() {
+                    return Err(ModuleError::StructuralReturnFromNonStructuralMachine {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+                if !machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == *source)
+                {
+                    return Err(ModuleError::StructuralReturnRequiresParameterSource {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
                     });
                 }
             }
@@ -4143,6 +4313,11 @@ pub enum ModuleError {
         machine: MachineId,
         place: PlaceId,
     },
+    StructuralResultMustBeOwned(MachineId),
+    StructuralResultPlaceMismatch {
+        machine: MachineId,
+        place: PlaceId,
+    },
     DuplicateEntryClaimInput(PlaceId),
     InvalidEntryClaimFieldPath(ClaimId),
     OverlappingEntryClaimInput {
@@ -4285,6 +4460,41 @@ pub enum ModuleError {
         block: BlockId,
         claim: ClaimId,
     },
+    StructuralReturnFromNonStructuralMachine {
+        machine: MachineId,
+        block: BlockId,
+    },
+    StructuralReturnRequiresParameterSource {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
+    },
+    StructuralReturnSourceNotLive {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
+    },
+    StructuralReturnSignatureMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    NonCanonicalStructuralReturnClaims {
+        machine: MachineId,
+        block: BlockId,
+    },
+    StructuralReturnClaimSetMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    StructuralReturnAffineDiscardsMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    LiveClaimAtStructuralReturn {
+        machine: MachineId,
+        block: BlockId,
+        claim: ClaimId,
+    },
     DuplicateEdge(EdgeId),
     DuplicateObligation(ObligationId),
     NonCanonicalContractEnsures(ContractId),
@@ -4301,6 +4511,10 @@ pub enum ModuleError {
         kind: psi_core::StructuralPlaceKind,
     },
     UnitMachineHasResultStructuralPlace {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    ScalarMachineHasResultStructuralPlace {
         machine: MachineId,
         place: PlaceId,
     },
@@ -4354,6 +4568,7 @@ pub enum ModuleError {
     NonCanonicalContentIdentityReshuffles(MachineId),
     ContentIdentityReshuffleRequiresEntryParameter(ClaimId),
     ContentIdentityReshuffleRequiresCurrentResult(ClaimId),
+    ContentIdentityReshuffleRequiresStructuralResult(MachineId),
     DuplicateContentIdentityInput(ContentStructuralPlace),
     DuplicateContentIdentityOutput(ContentStructuralPlace),
     OverlappingContentIdentityInput {

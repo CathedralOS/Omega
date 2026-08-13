@@ -214,11 +214,9 @@ fn reconstruct_machine_semantics(
         )
     };
 
-    let base_axioms = machine
-        .content_identity_reshuffles
-        .iter()
-        .flat_map(|reshuffle| reshuffle.inferred_propositions())
-        .collect::<Vec<_>>();
+    // Result-content equalities become true only when an exact structural
+    // return edge transfers the corresponding live claims.
+    let base_axioms = Vec::new();
     let mut successors = BTreeMap::<_, Vec<_>>::new();
     let mut indegree = machine
         .blocks
@@ -235,6 +233,7 @@ fn reconstruct_machine_semantics(
             } => vec![when_true.target, when_false.target],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
         for target in &targets {
@@ -1124,6 +1123,18 @@ fn reconstruct_machine_semantics(
                 exits.push(axioms);
             }
             Terminator::ReturnUnit { .. } => exits.push(axioms),
+            Terminator::ReturnStructural {
+                returned_claims, ..
+            } => {
+                axioms.extend(
+                    machine
+                        .content_identity_reshuffles
+                        .iter()
+                        .filter(|reshuffle| returned_claims.contains(&reshuffle.claim))
+                        .flat_map(|reshuffle| reshuffle.inferred_propositions()),
+                );
+                exits.push(axioms);
+            }
             // A crash establishes no normal-return guarantee. Its explicit
             // frontier record is validated structurally before proof replay.
             Terminator::Crash { .. } => {}
