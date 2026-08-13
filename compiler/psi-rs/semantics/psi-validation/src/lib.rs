@@ -2,6 +2,7 @@ mod arithmetic_domains;
 mod call_cycles;
 mod callable_overloads;
 mod calls;
+mod cleanup;
 mod content_conservation;
 mod content_projections;
 mod contract_entailment;
@@ -173,6 +174,7 @@ fn validate_program_internal(
     validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
+    cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
     for trait_definition in program.traits() {
         validate_trait_conformance_bounds(program, trait_definition, &mut diagnostics);
