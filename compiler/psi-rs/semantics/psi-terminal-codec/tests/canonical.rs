@@ -68,29 +68,43 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
 }
 
 #[test]
-fn contextual_nominal_affine_cleanup_round_trips_receiver_and_obligation() {
+fn contextual_nominal_affine_cleanup_round_trips_receiver_and_ordered_obligations() {
     let mut module = nominal_affine_fixture();
     let receiver = place_id(99);
-    let field = StructuralFieldId::new(1).expect("field");
+    let first = StructuralFieldId::new(1).expect("first field");
+    let second = StructuralFieldId::new(2).expect("second field");
     module.structural_types[0].shape = StructuralTypeShape::Record {
-        fields: vec![StructuralFieldDeclaration {
-            id: field,
-            identity: "ready".into(),
-            relevance: BindingRelevance::Relevant,
-            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-        }],
+        fields: vec![
+            StructuralFieldDeclaration {
+                id: first,
+                identity: "ready".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            },
+            StructuralFieldDeclaration {
+                id: second,
+                identity: "settled".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            },
+        ],
     };
-    module.machines[1].contract.requires = vec![Proposition::Equal(
-        ScalarTerm::boolean(true),
-        ScalarTerm::boolean_field(receiver, field),
-    )];
+    module.machines[1].contract.requires = [first, second]
+        .into_iter()
+        .map(|field| {
+            Proposition::Equal(
+                ScalarTerm::boolean(true),
+                ScalarTerm::boolean_field(receiver, field),
+            )
+        })
+        .collect();
     let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
         &mut module.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
     cleanups[0].cleanup_receiver = Some(receiver);
-    cleanups[0].requirement_obligations = vec![obligation_id(1)];
+    cleanups[0].requirement_obligations = vec![obligation_id(8), obligation_id(3)];
 
     let bytes = encode_module(&module).expect("contextual nominal cleanup should encode");
     let decoded = decode_module(&bytes).expect("contextual nominal cleanup should decode");
@@ -101,11 +115,28 @@ fn contextual_nominal_affine_cleanup_round_trips_receiver_and_obligation() {
         unreachable!()
     };
     assert_eq!(cleanups[0].cleanup_receiver, Some(receiver));
-    assert_eq!(cleanups[0].requirement_obligations, vec![obligation_id(1)]);
+    assert_eq!(
+        cleanups[0].requirement_obligations,
+        vec![obligation_id(8), obligation_id(3)]
+    );
 
     let mut truncated = bytes;
     truncated.pop();
     assert_eq!(decode_module(&truncated), Err(CodecError::UnexpectedEnd));
+
+    let mut reordered = module.clone();
+    reordered.machines[1].contract.requires.reverse();
+    assert_eq!(
+        encode_module(&reordered),
+        Err(CodecError::NonCanonicalOrder("requires propositions"))
+    );
+
+    let mut duplicate = module;
+    duplicate.machines[1].contract.requires[1] = duplicate.machines[1].contract.requires[0].clone();
+    assert_eq!(
+        encode_module(&duplicate),
+        Err(CodecError::NonCanonicalOrder("requires propositions"))
+    );
 }
 
 #[test]

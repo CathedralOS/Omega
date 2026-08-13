@@ -1,5 +1,5 @@
 use psi_core::{IntegerSign, IntegerType, ScalarType};
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -39,12 +39,51 @@ const CONTEXTUAL_SOURCE: &str = r#"
     {}
 "#;
 
+const FINITE_CONTEXTUAL_SOURCE: &str = r#"
+    data Token { ready: bool; audited: bool; armed: bool; }
+    machine Token::drop(&mut self)
+    requires
+        self.armed;
+        self.ready
+    {}
+
+    data Root {}
+    machine Root::enter(token: Token)
+    requires
+        token.armed;
+        token.audited;
+        token.ready
+    {}
+"#;
+
+const CALLER_ONLY_CONTEXTUAL_SOURCE: &str = r#"
+    data Token { observed: bool; }
+    machine Token::drop(&mut self) {}
+
+    data Root {}
+    machine Root::enter(token: Token)
+    requires token.observed
+    {}
+"#;
+
 const TWO_ROOT_SOURCE: &str = r#"
     data Token {}
     machine Token::drop(&mut self) {}
 
     data Root {}
     machine Root::enter(first: Token, second: Token) {}
+"#;
+
+const TWO_ROOT_CONTEXTUAL_SOURCE: &str = r#"
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Root {}
+    machine Root::enter(first: Token, second: Token)
+    requires first.ready, second.ready
+    {}
 "#;
 
 const TWO_ROOT_ONE_EXECUTABLE_SOURCE: &str = r#"
@@ -330,6 +369,227 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
 }
 
 #[test]
+fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_artifacts() {
+    let tokens = Lexer::new(FINITE_CONTEXTUAL_SOURCE)
+        .tokenize()
+        .expect("tokenize finite contextual cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse finite contextual cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve finite contextual cleanup");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type finite contextual cleanup source");
+    let checked = lower_typed_trees(typed).expect("check finite contextual cleanup source");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("finite contextual nominal cleanup lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [parameter] = entry.structural_parameters.as_slice() else {
+        panic!("finite contextual cleanup caller has one structural parameter")
+    };
+    let [block] = entry.blocks.as_slice() else {
+        panic!("finite contextual cleanup caller has one block")
+    };
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator else {
+        panic!("finite contextual cleanup uses the nominal return carrier")
+    };
+    let [cleanup] = cleanups.as_slice() else {
+        panic!("finite contextual cleanup has one action")
+    };
+    let receiver = cleanup
+        .cleanup_receiver
+        .expect("finite contextual cleanup carries a proof-only receiver root");
+    assert_ne!(receiver, parameter.place);
+    assert_eq!(
+        cleanup
+            .requirement_obligations
+            .iter()
+            .map(|obligation| obligation.get())
+            .collect::<Vec<_>>(),
+        vec![1, 2],
+        "cleanup obligations are stable and dense in target-clause order",
+    );
+
+    let token_type = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == cleanup.structural_type)
+        .expect("Token terminal type");
+    let StructuralTypeShape::Record { fields } = &token_type.shape else {
+        panic!("Token is a record")
+    };
+    let field = |identity: &str| {
+        fields
+            .iter()
+            .find(|field| field.identity == identity)
+            .unwrap_or_else(|| panic!("{identity} terminal field"))
+            .id
+    };
+    let ready = field("ready");
+    let armed = field("armed");
+    let audited = field("audited");
+    let caller_requires = vec![
+        psi_core::Proposition::Equal(
+            psi_core::ScalarTerm::boolean(true),
+            psi_core::ScalarTerm::boolean_field(parameter.place, ready),
+        ),
+        psi_core::Proposition::Equal(
+            psi_core::ScalarTerm::boolean(true),
+            psi_core::ScalarTerm::boolean_field(parameter.place, audited),
+        ),
+        psi_core::Proposition::Equal(
+            psi_core::ScalarTerm::boolean(true),
+            psi_core::ScalarTerm::boolean_field(parameter.place, armed),
+        ),
+    ];
+    assert_eq!(
+        entry.contract.requires, caller_requires,
+        "the full caller set is canonically ordered by terminal field identity",
+    );
+
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .expect("cleanup target");
+    assert!(target.structural_parameters.is_empty());
+    assert!(target.structural_places.is_empty());
+    assert_eq!(
+        target.contract.requires,
+        vec![
+            psi_core::Proposition::Equal(
+                psi_core::ScalarTerm::boolean(true),
+                psi_core::ScalarTerm::boolean_field(receiver, ready),
+            ),
+            psi_core::Proposition::Equal(
+                psi_core::ScalarTerm::boolean(true),
+                psi_core::ScalarTerm::boolean_field(receiver, armed),
+            ),
+        ],
+        "the cleanup target retains only its canonical requirement subset",
+    );
+    assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+    for (obligation_index, evidence) in lowered.proof_bundle.evidence.iter().enumerate() {
+        assert_eq!(
+            evidence.obligation,
+            cleanup.requirement_obligations[obligation_index]
+        );
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("contextual cleanup evidence is certificate-derived")
+        };
+        let assumption_index = [0, 2][obligation_index];
+        assert_eq!(
+            certificate.proof.conclusion,
+            caller_requires[assumption_index]
+        );
+        assert!(matches!(
+            certificate.proof.rule,
+            ProofRule::Assumption { index: assumption } if assumption == assumption_index
+        ));
+    }
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier discharges the finite cleanup subset from the caller superset");
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("finite contextual module encodes");
+    assert_eq!(
+        decode_module(&semantic_bytes).expect("finite contextual module decodes"),
+        lowered.semantic_module,
+        "finite contextual cleanup semantic data is canonical",
+    );
+    let proof_bytes =
+        encode_proof_bundle(&lowered.proof_bundle).expect("finite contextual proof bundle encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof_bytes).expect("finite contextual proof bundle decodes"),
+        lowered.proof_bundle,
+        "finite contextual cleanup proof data is canonical",
+    );
+}
+
+#[test]
+fn caller_only_contextual_fact_does_not_invent_a_cleanup_receiver_or_obligation() {
+    let tokens = Lexer::new(CALLER_ONLY_CONTEXTUAL_SOURCE)
+        .tokenize()
+        .expect("tokenize caller-only contextual cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse caller-only contextual cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve caller-only contextual cleanup");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type caller-only contextual cleanup source");
+    let checked = lower_typed_trees(typed).expect("check caller-only contextual cleanup source");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("caller-only contextual nominal cleanup lowers");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [parameter] = entry.structural_parameters.as_slice() else {
+        panic!("caller-only contextual cleanup has one structural parameter")
+    };
+    let [caller_requirement] = entry.contract.requires.as_slice() else {
+        panic!("caller-only contextual fact is retained")
+    };
+    let [block] = entry.blocks.as_slice() else {
+        panic!("caller-only contextual cleanup has one block")
+    };
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator else {
+        panic!("caller-only contextual cleanup uses the nominal return carrier")
+    };
+    let [cleanup] = cleanups.as_slice() else {
+        panic!("caller-only contextual cleanup has one action")
+    };
+    assert!(cleanup.cleanup_receiver.is_none());
+    assert!(cleanup.requirement_obligations.is_empty());
+    assert!(lowered.proof_bundle.evidence.is_empty());
+
+    let target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .expect("cleanup target");
+    assert!(target.contract.requires.is_empty());
+    let psi_core::Proposition::Equal(
+        psi_core::ScalarTerm::Boolean(true),
+        psi_core::ScalarTerm::BooleanField { root, .. },
+    ) = caller_requirement
+    else {
+        panic!("caller-only contextual fact retains its Boolean-field shape")
+    };
+    assert_eq!(*root, parameter.place);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier accepts a caller-only fact without a cleanup obligation");
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("caller-only contextual module encodes");
+    assert_eq!(
+        decode_module(&semantic_bytes).expect("caller-only contextual module decodes"),
+        lowered.semantic_module,
+    );
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("caller-only contextual proof bundle encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof_bytes).expect("caller-only contextual proof bundle decodes"),
+        lowered.proof_bundle,
+    );
+}
+
+#[test]
 fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
     let tokens = Lexer::new(SCALAR_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -455,6 +715,24 @@ fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target()
         decode_module(&bytes).expect("semantic module decodes"),
         lowered.semantic_module
     );
+}
+
+#[test]
+fn contextual_multi_root_nominal_cleanup_fails_closed_until_its_complete_slice() {
+    let tokens = Lexer::new(TWO_ROOT_CONTEXTUAL_SOURCE)
+        .tokenize()
+        .expect("tokenize contextual two-root cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse contextual two-root cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual two-root cleanup");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type contextual two-root cleanup source");
+    let checked = lower_typed_trees(typed).expect("check contextual two-root cleanup source");
+    assert!(matches!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter"),
+        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+            "ordered nominal cleanup caller requirements are outside the root-only contextual slice"
+        ))
+    ));
 }
 
 #[test]

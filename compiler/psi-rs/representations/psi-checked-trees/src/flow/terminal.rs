@@ -573,7 +573,18 @@ pub struct CheckedNominalAffineUnitCleanupMachinePlan {
     /// lists are empty; `cleanups` is the complete reverse-parameter-order
     /// disposal list committed by the edge.
     pub machine: CheckedUnitEffectMachinePlan,
+    /// Complete canonical direct-Boolean caller requirement set at the sole
+    /// return edge. Cleanup-local requirements select subsets of this set by
+    /// `source_parameter_index`.
+    pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
     pub cleanups: Vec<CheckedUnitNominalAffineCleanupPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitNominalAffineCallerRequirementPlan {
+    pub source_parameter_index: u32,
+    pub field_identity: String,
+    pub expected: bool,
 }
 
 /// One whole affine parameter disposed by its exact checked empty nominal
@@ -587,8 +598,8 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
     pub cleanup_state: SymbolHandle,
     pub cleanup_contract_fingerprint: u64,
     /// Source-independent preconditions proved at this exact implicit cleanup
-    /// edge. The first contextual slice admits at most one direct relevant
-    /// Boolean field of the cleanup receiver.
+    /// edge. The contextual slice admits a finite canonical set of direct
+    /// relevant Boolean fields of the cleanup receiver.
     pub requirements: Vec<CheckedUnitNominalAffineCleanupRequirementPlan>,
 }
 

@@ -150,14 +150,14 @@ const NOMINAL_AFFINE_SOURCE: &str = r#"
 "#;
 
 const CONTEXTUAL_NOMINAL_AFFINE_SOURCE: &str = r#"
-    data Token { ready: bool; }
+    data Token { first: bool; second: bool; caller_only: bool; padding: u8; }
     machine Token::drop(&mut self)
-    requires self.ready
+    requires self.second, self.first
     {}
 
     data Root {}
     machine Root::enter(token: Token)
-    requires token.ready
+    requires token.caller_only, token.first, token.second
     {}
 "#;
 
@@ -411,8 +411,8 @@ fn contextual_nominal_affine_plan()
         panic!("one contextual cleanup action")
     };
     assert!(cleanup.cleanup_receiver.is_some());
-    assert_eq!(cleanup.requirement_obligations.len(), 1);
-    assert_eq!(terminal.proof_bundle.evidence.len(), 1);
+    assert_eq!(cleanup.requirement_obligations.len(), 2);
+    assert_eq!(terminal.proof_bundle.evidence.len(), 2);
 
     let semantics =
         encode_module(&terminal.semantic_module).expect("encode contextual nominal affine Psi");
@@ -1534,6 +1534,27 @@ fn contextual_nominal_cleanup_is_verified_then_projected_on_all_targets() {
         unreachable!()
     };
     forged_cleanup.cleanup_receiver = Some(PlaceId::new(99).unwrap());
+    assert!(lower_to_target_operations(&forged, NativeTarget::linux_x64()).is_err());
+
+    let mut forged = plan.clone();
+    let forged_caller = forged
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+        cleanup_actions,
+        ..
+    } = forged_caller.operations.last_mut().unwrap()
+    else {
+        panic!("contextual caller ends at Unit return")
+    };
+    let TerminalAffineCleanupAction::InvokeNominal(forged_cleanup) = &mut cleanup_actions[0] else {
+        unreachable!()
+    };
+    forged_cleanup
+        .requirement_obligations
+        .push(psi_core::ObligationId::new(1).unwrap());
     assert!(lower_to_target_operations(&forged, NativeTarget::linux_x64()).is_err());
 
     for target in [

@@ -674,29 +674,134 @@ fn retains_contextual_nominal_cleanup_boolean_requirement_at_the_return_edge() {
 }
 
 #[test]
-fn rejects_contextual_nominal_cleanup_when_the_return_edge_lacks_its_boolean_premise() {
-    let source = r#"
-        data Token { ready: bool; }
+fn canonicalizes_multiple_contextual_cleanup_requirements_independent_of_caller_order() {
+    let checked = checked(
+        r#"
+        data Token { armed: bool; extra: bool; ready: bool; }
         machine Token::drop(&mut self)
-        requires self.ready == true
+        requires
+            self.ready;
+            self.armed == true
         {}
 
         data Root {}
-        machine Root::enter(token: Token) {}
+        machine Root::enter(token: Token)
+        requires
+            token.armed;
+            token.ready == true;
+            token.extra
+        {}
+        "#,
+    );
+    let enter = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(enter)
+        .expect("order-independent contextual nominal cleanup plan");
+    let [cleanup] = plan.cleanups.as_slice() else {
+        panic!("one cleanup action")
+    };
+    assert_eq!(
+        cleanup
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.field_identity.as_str(), requirement.expected))
+            .collect::<Vec<_>>(),
+        vec![("armed", true), ("ready", true)],
+        "checked cleanup requirements use canonical declaration-identity order"
+    );
+    assert_eq!(
+        plan.caller_requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.source_parameter_index,
+                    requirement.field_identity.as_str(),
+                    requirement.expected,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(0, "armed", true), (0, "extra", true), (0, "ready", true)],
+        "the machine plan retains the full canonical supported caller superset"
+    );
+}
+
+#[test]
+fn rejects_multiple_contextual_cleanup_requirements_when_one_is_missing() {
+    let source = r#"
+        data Token { armed: bool; ready: bool; }
+        machine Token::drop(&mut self)
+        requires
+            self.ready;
+            self.armed
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires token.armed
+        {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
-        .expect_err("implicit cleanup must prove the drop precondition at its return edge");
+    let diagnostics = contextual_cleanup_diagnostics(source);
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
             .contains("cannot prove automatic cleanup requires at Unit return edge")
-            && diagnostic.message.contains("token.ready == true")
+            && diagnostic.message.contains("missing token.ready == true")
             && diagnostic.message.contains("Token::drop")
     }));
+}
+
+#[test]
+fn rejects_contextual_cleanup_requirement_set_with_a_mismatched_caller_clause() {
+    let source = r#"
+        data Token { armed: bool; ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires token.armed
+        {}
+    "#;
+    let diagnostics = contextual_cleanup_diagnostics(source);
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at Unit return edge")
+            && diagnostic.message.contains("missing token.ready == true")
+            && diagnostic.message.contains("Token::drop")
+    }));
+}
+
+#[test]
+fn fences_non_boolean_caller_clauses_out_of_the_bounded_contextual_cleanup_lane() {
+    let checked = checked(
+        r#"
+        data Token { count: u64; ready: bool; }
+        machine Token::drop(&mut self)
+        requires self.ready
+        {}
+
+        data Root {}
+        machine Root::enter(token: Token)
+        requires
+            token.ready;
+            token.count == 1
+        {}
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "a non-Boolean-field caller clause must fail closed out of this bounded lane"
+    );
 }
 
 #[test]
@@ -912,6 +1017,15 @@ fn checked(source: &str) -> psi_checked_trees::CheckedTrees {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
+}
+
+fn contextual_cleanup_diagnostics(source: &str) -> Vec<psi_diagnostics::Diagnostic> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed)
+        .expect_err("contextual cleanup requirement-set mismatch must reject at its return edge")
 }
 
 fn machine_named(
