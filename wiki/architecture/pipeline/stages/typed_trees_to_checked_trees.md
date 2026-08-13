@@ -230,12 +230,12 @@ Current ownership is:
   recursive or opaque free/attached view producers remain fences. An exact
   member projection may be carried by the stable alias or follow a free or
   attached helper result before the view; the suffix composes before view
-  preservation and index coarsening, while a member after the index remains absorbed by the
-  coarse backing collection. With repeated indexes, the first fixes that coarse
-  collection, later indexes stay absorbed, and every independently bounded
-  index frame publishes. The indexed argument may project through a stable
-  helper-local mutable alias; that alias's
-  established origin supplies the collection. It may also index a
+  preservation and index coarsening, while a member after the index remains
+  absorbed by the coarse backing collection. With repeated indexes, the first
+  fixes that coarse collection, later indexes stay absorbed, and every
+  independently bounded index frame publishes. The indexed argument may
+  project through a stable helper-local mutable alias; that alias's established
+  origin supplies the collection. It may also index a
   structurally transparent helper result directly; the helper's returned-place
   relation
   supplies the collection without an intermediate binding. This includes an
@@ -257,8 +257,9 @@ Current ownership is:
   trees are independently complete through depth two. The first index fixes
   the coarse collection origin; later indexes are absorbing, every index frame
   publishes, and only the rebound name moves while prior reborrows retain their
-  origins. Deeper, binding-reborrow, recursive, or opaque index forms remain
-  fences.
+  origins. A compiler-owned `as_mut_slice()` view before the first index
+  preserves the replacement collection's backing origin. Deeper,
+  binding-reborrow, recursive, or opaque index forms remain fences.
   For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other

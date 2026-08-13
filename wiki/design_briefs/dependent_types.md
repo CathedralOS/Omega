@@ -367,12 +367,12 @@ view to its backing array before the index coarsens it. Deeper index trees and
 recursive or opaque free/attached view
 producers remain fences. An exact member projection may be carried by the
 stable alias or follow a free or attached helper result before the view; the
-suffix composes before view preservation and index coarsening, while a member after the index
-remains absorbed by the coarse backing collection. With repeated indexes, the
-first fixes that coarse collection, later indexes stay absorbed, and every
-independently bounded index frame publishes. An attached helper may likewise
-root that relation in
-its actual `self` receiver. An exact member projection may follow the helper
+suffix composes before view preservation and index coarsening, while a member
+after the index remains absorbed by the coarse backing collection. With
+repeated indexes, the first fixes that coarse collection, later indexes stay
+absorbed, and every independently bounded index frame publishes. An attached
+helper may likewise root that relation in its actual `self` receiver. An exact
+member projection may follow the helper
 result before one or more indexes: the suffix composes first, the first index
 coarsens to that nearest collection, and
 later indexes or members are absorbed; each index expression independently
@@ -421,8 +421,10 @@ Terminal returned places, stable local mutable aliases, and direct alias rebind
 replacements may contain one or more indexes whose non-rebinding call trees are
 independently complete through depth two. The first index fixes the coarse
 collection origin; later indexes are absorbing, every index frame publishes, and
-only the rebound name moves while prior reborrows retain their origins. Deeper,
-binding-reborrow, recursive, or opaque index forms remain fences.
+only the rebound name moves while prior reborrows retain their origins. A
+compiler-owned `as_mut_slice()` view before the first index preserves the
+replacement collection's backing origin. Deeper, binding-reborrow, recursive,
+or opaque index forms remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
