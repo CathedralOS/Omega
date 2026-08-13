@@ -3731,6 +3731,27 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
         &mut cells[identity_index(write_index(value))]
     }
 
+    machine return_slice_view_call_index<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut u64 {
+        &mut cells.as_mut_slice()[identity_index(write_index(value))]
+    }
+
+    machine return_deep_slice_view_call_index(
+        cells: &mut [u64; 2]
+    ) -> &mut u64 {
+        &mut cells.as_mut_slice()[
+            identity_index(identity_index(make_index()))
+        ]
+    }
+
+    machine return_recursive_slice_view_call_index(
+        cells: &mut [u64; 2]
+    ) -> &mut u64 {
+        &mut cells.as_mut_slice()[recursive_index()]
+    }
+
     machine return_deep_call_index(cells: &mut [u64; 2]) -> &mut u64 {
         &mut cells[identity_index(identity_index(make_index()))]
     }
@@ -3777,6 +3798,24 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
     machine Main::nested_write_call_index_result(&mut self) {
         let alias: &mut u64 =
             return_nested_write_call_index(&mut self.cells, &mut self.value);
+        alias = 1;
+    }
+
+    machine Main::slice_view_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_slice_view_call_index(&mut self.cells, &mut self.value);
+        alias = 1;
+    }
+
+    machine Main::deep_slice_view_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_deep_slice_view_call_index(&mut self.cells);
+        alias = 1;
+    }
+
+    machine Main::recursive_slice_view_call_index_result(&mut self) {
+        let alias: &mut u64 =
+            return_recursive_slice_view_call_index(&mut self.cells);
         alias = 1;
     }
 
@@ -3842,6 +3881,10 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::slice_view_call_index_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
             "Main::repeated_call_index_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
@@ -3873,7 +3916,9 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
     for name in [
         "Main::deep_call_index_result",
         "Main::deep_repeated_call_index_result",
+        "Main::deep_slice_view_call_index_result",
         "Main::recursive_call_index_result",
+        "Main::recursive_slice_view_call_index_result",
     ] {
         let machine = typed
             .machines()

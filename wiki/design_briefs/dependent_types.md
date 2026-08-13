@@ -423,7 +423,7 @@ independently complete through depth two. The first index fixes the coarse
 collection origin; later indexes are absorbing, every index frame publishes, and
 only the rebound name moves while prior reborrows retain their origins. A
 compiler-owned `as_mut_slice()` view before the first index preserves the
-initializer or replacement collection's backing origin. Deeper,
+returned, initializer, or replacement collection's backing origin. Deeper,
 binding-reborrow, recursive, or opaque index forms remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
