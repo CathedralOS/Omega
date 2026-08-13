@@ -15209,17 +15209,10 @@ fn runtime_inferred_return_range_exit_canary_runs() {
 #[test]
 fn runtime_provable_field_construction_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_provable_field_construction_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-provable-field-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("provable non-literal field construction should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-provable-field-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("provable non-literal field construction should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("provable field construction canary should run");
     assert_eq!(
@@ -15229,7 +15222,7 @@ fn runtime_provable_field_construction_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Fact catalog over PLAIN STRUCT fields: a range-refined field `v: i32 [0..=15]`
@@ -15237,19 +15230,12 @@ fn runtime_provable_field_construction_exit_canary_runs() {
 #[test]
 fn runtime_struct_field_range_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_struct_field_range_narrowing_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-struct-field-range-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect(
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()).expect(
         "struct-field range narrowing should compile (constrained field discharges the obligation)",
     );
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("struct-field range narrowing canary should run");
     assert_eq!(
@@ -15259,7 +15245,7 @@ fn runtime_struct_field_range_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Stage 1 of the fact catalog over sum cases: a case-payload field's range
@@ -15269,19 +15255,11 @@ fn runtime_struct_field_range_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_payload_range_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_payload_range_narrowing_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-payload-range-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect(
+    let scratch = std::env::temp_dir().join(format!("omega-payload-range-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()).expect(
         "payload range narrowing should compile (constrained payload discharges the obligation)",
     );
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("payload range narrowing canary should run");
     assert_eq!(
@@ -15291,7 +15269,7 @@ fn runtime_payload_range_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Sum-payload-range narrowing for a DIRECT pass-through (2026-07-08): the
