@@ -193,14 +193,16 @@ cleanup contracts, repeated-cycle composition, and the retained whole-edge
 conservation witness remain CML4 work.
 
 Scalar-result materialization does not change that ordering. A first attached
-one-state source slice now evaluates a checked closed integer expression whose
-leaves are landed literals and whose internal operations are already in the
-terminal scalar vocabulary, then performs exact reverse-declaration cleanup of
-its claim-free affine structural parameters on the scalar return edge. The
-producer rechecks the expression, signature, and cleanup row before assigning
-terminal places and reconstructs exact-operation proofs before publication.
-Boolean results, mixed scalar/structural namespaces, locals, claims, and richer
-exits remain fail-closed rather than weakening the frontier model.
+one-state source slice now evaluates either a checked closed integer expression
+whose leaves are landed literals and whose internal operations are already in
+the terminal scalar vocabulary, or a branch-free Boolean expression comprising
+constants, negation, equality, and closed integer comparisons. It then performs
+exact reverse-declaration cleanup of its claim-free affine structural parameters
+on the scalar return edge. The producer rechecks the expression, signature, and
+cleanup row before assigning terminal places and reconstructs exact-operation
+proofs before publication. Short-circuit Boolean forms, mixed
+scalar/structural namespaces, locals, claims, and richer exits remain
+fail-closed rather than weakening the frontier model.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

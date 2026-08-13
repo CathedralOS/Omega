@@ -262,12 +262,40 @@ fn attached_closed_integer_expression_retains_exact_structural_cleanup() {
 }
 
 #[test]
-fn structural_scalar_return_rejects_boolean_or_mixed_parameter_shapes() {
+fn attached_closed_branch_free_boolean_retains_exact_structural_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Root {}
+        machine Root::measure(token: Token) -> bool { !(3i32 < 4i32 == false) }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("measure"))
+        .expect("measure machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("closed branch-free Boolean should compose with structural cleanup");
+    assert_eq!(
+        plan.result_type,
+        psi_typed_trees::types::PrimitiveType::Bool
+    );
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
+}
+
+#[test]
+fn structural_scalar_return_rejects_short_circuit_or_mixed_parameter_shapes() {
     for source in [
         r#"
         data Token { value: i32; }
         data Root {}
-        machine Root::measure(token: Token) -> bool { true }
+        machine Root::measure(token: Token) -> bool { true && false }
         "#,
         r#"
         data Token { value: i32; }

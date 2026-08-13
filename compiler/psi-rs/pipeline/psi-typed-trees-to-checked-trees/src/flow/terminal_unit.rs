@@ -213,7 +213,7 @@ fn build_structural_scalar_return_machine(
         return None;
     };
     let result_type = program.primitive_type_reference(state.return_type)?;
-    if !is_closed_integer_expression(facts.values.scalar_expressions.expression_at(
+    if !is_closed_scalar_return_expression(facts.values.scalar_expressions.expression_at(
         state.symbol,
         0,
         CheckedScalarExpressionRole::Return,
@@ -267,6 +267,37 @@ fn is_closed_integer_expression(expression: &CheckedScalarExpression) -> bool {
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::Boolean(_) => false,
+    }
+}
+
+fn is_closed_scalar_return_expression(expression: &CheckedScalarExpression) -> bool {
+    match expression {
+        CheckedScalarExpression::Boolean(expression) => {
+            is_closed_branch_free_boolean_expression(expression)
+        }
+        expression => is_closed_integer_expression(expression),
+    }
+}
+
+fn is_closed_branch_free_boolean_expression(
+    expression: &psi_checked_trees::CheckedBooleanExpression,
+) -> bool {
+    match expression {
+        psi_checked_trees::CheckedBooleanExpression::Constant(_) => true,
+        psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
+            is_closed_branch_free_boolean_expression(operand)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+            is_closed_branch_free_boolean_expression(left)
+                && is_closed_branch_free_boolean_expression(right)
+        }
+        psi_checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            is_closed_integer_expression(left) && is_closed_integer_expression(right)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | psi_checked_trees::CheckedBooleanExpression::Local { .. }
+        | psi_checked_trees::CheckedBooleanExpression::And { .. }
+        | psi_checked_trees::CheckedBooleanExpression::Or { .. } => false,
     }
 }
 

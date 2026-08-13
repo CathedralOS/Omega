@@ -1631,8 +1631,8 @@ fn lower_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    if !is_closed_integer_expression(&expression) {
-        return unsupported("structural scalar return is not one closed integer expression");
+    if !is_closed_scalar_return_expression(&expression) {
+        return unsupported("structural scalar return is not one closed branch-free expression");
     }
     if expression.scalar_type() != result_type {
         return unsupported(
@@ -1735,6 +1735,35 @@ fn is_closed_integer_expression(expression: &LoweredDirectExpression) -> bool {
         LoweredDirectExpression::Parameter { .. }
         | LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::Boolean { .. } => false,
+    }
+}
+
+fn is_closed_scalar_return_expression(expression: &LoweredDirectExpression) -> bool {
+    match expression {
+        LoweredDirectExpression::Boolean { expression } => {
+            is_closed_branch_free_boolean_expression(expression)
+        }
+        expression => is_closed_integer_expression(expression),
+    }
+}
+
+fn is_closed_branch_free_boolean_expression(expression: &LoweredBooleanReturnExpression) -> bool {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. } => true,
+        LoweredBooleanReturnExpression::Not { operand } => {
+            is_closed_branch_free_boolean_expression(operand)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            is_closed_branch_free_boolean_expression(left)
+                && is_closed_branch_free_boolean_expression(right)
+        }
+        LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
+            is_closed_integer_expression(left) && is_closed_integer_expression(right)
+        }
+        LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::And { .. }
+        | LoweredBooleanReturnExpression::Or { .. } => false,
     }
 }
 
@@ -9608,7 +9637,91 @@ mod tests {
         assert!(matches!(
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
-                "structural scalar return is not one closed integer expression"
+                "structural scalar return is not one closed branch-free expression"
+            ))
+        ));
+    }
+
+    #[test]
+    fn structural_scalar_return_emits_closed_branch_free_boolean_before_cleanup() {
+        let mut checked = hard_root_checked_fixture();
+        install_structural_scalar_return_fixture(&mut checked);
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines[0]
+            .result_type = PrimitiveType::Bool;
+        checked.facts.values.scalar_expressions.expressions[0].expression =
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(Box::new(
+                CheckedBooleanExpression::Equal {
+                    left: Box::new(CheckedBooleanExpression::Constant(true)),
+                    right: Box::new(CheckedBooleanExpression::Constant(false)),
+                },
+            ))));
+
+        let lowered = lower_machine(&checked, "example::Root::enter")
+            .expect("closed branch-free Boolean should lower before structural cleanup");
+        let machine = &lowered.semantic_module.machines[0];
+        assert!(matches!(
+            machine.result,
+            TerminalMachineResult::Scalar(ValueDeclaration {
+                scalar_type: ScalarType::Boolean,
+                ..
+            })
+        ));
+        assert!(matches!(
+            machine.blocks[0].operations.as_slice(),
+            [
+                Operation {
+                    kind: OperationKind::BooleanConstant { value: true },
+                    ..
+                },
+                Operation {
+                    kind: OperationKind::BooleanConstant { value: false },
+                    ..
+                },
+                Operation {
+                    kind: OperationKind::BooleanEqual { .. },
+                    ..
+                },
+                Operation {
+                    kind: OperationKind::BooleanNot { .. },
+                    ..
+                }
+            ]
+        ));
+        assert!(matches!(
+            &machine.blocks[0].terminator,
+            Terminator::Return {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+        ));
+        assert!(lowered.proof_bundle.evidence.is_empty());
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &psi_proof_kernel::AdmissionProfile::default(),
+        )
+        .expect("closed Boolean return and cleanup should verify");
+        let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("closed Boolean cleanup module should encode canonically");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&bytes)
+                .expect("closed Boolean cleanup module should decode canonically"),
+            lowered.semantic_module
+        );
+
+        checked.facts.values.scalar_expressions.expressions[0].expression =
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
+                left: Box::new(CheckedBooleanExpression::Constant(true)),
+                right: Box::new(CheckedBooleanExpression::Constant(false)),
+            }));
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural scalar return is not one closed branch-free expression"
             ))
         ));
     }
