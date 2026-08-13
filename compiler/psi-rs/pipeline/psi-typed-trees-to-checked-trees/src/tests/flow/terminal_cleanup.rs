@@ -389,7 +389,7 @@ fn structural_scalar_return_retains_short_circuit_return_cleanup() {
 }
 
 #[test]
-fn structural_scalar_return_rejects_short_circuit_local_initializer() {
+fn structural_scalar_return_retains_one_short_circuit_local_continuation() {
     let checked = checked(
         r#"
         data Token { value: i32; }
@@ -407,13 +407,17 @@ fn structural_scalar_return_rejects_short_circuit_local_initializer() {
         .find(|machine| machine.name.as_str().ends_with("measure"))
         .expect("measure machine")
         .symbol;
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine)
-            .is_none(),
-        "short-circuit local initialization needs an explicit continuation stage"
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine)
+        .expect("one short-circuit Boolean local has an exact convergence continuation");
+    assert_eq!(plan.bindings.len(), 1);
+    assert_eq!(
+        plan.bindings[0].primitive_type,
+        psi_typed_trees::types::PrimitiveType::Bool
     );
+    assert_eq!(plan.return_statement_ordinal, 1);
+    assert_eq!(plan.trivial_affine_discard_parameter_positions, [0]);
 }
