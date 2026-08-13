@@ -6,7 +6,11 @@
 //! array position, so policies may reorder entries or fragment one logical
 //! field.
 
-use psi_checked_interpreter::BuildTimeValue;
+pub use psi_checked_interpreter::BuildTimeValue;
+use psi_layout_plans::{
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, MaterializationDiagnostic,
+    materialize_aggregate_layout_into,
+};
 pub use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
@@ -55,6 +59,106 @@ pub fn compute_layout_plan(
     .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
 
     validate_plan(&plan, &schema_fields, schema_identity, policy_machine)
+}
+
+/// Materializes one compiler-checked, source-owned record through a normalized
+/// layout. Psi supplies the typed semantic value and derives every native field
+/// extent; the Omega realization seam supplies byte order. Source code never
+/// supplies physical field bytes or offsets.
+pub fn materialize_typed_owned_layout_into(
+    typed: &TypedTrees,
+    schema_data: &str,
+    layout: &LayoutPlanReport,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let data = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == schema_data)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "no typed data definition named `{schema_data}` exists"
+            ))
+        })?;
+    if layout.schema_identity != normalized_schema_identity(typed, data) {
+        return Err(MaterializationDiagnostic(format!(
+            "layout schema identity does not match typed data `{schema_data}`"
+        )));
+    }
+    let (schema_fields, _) =
+        schema_fields(typed, schema_data).map_err(MaterializationDiagnostic)?;
+    let BuildTimeValue::Struct { type_name, fields } = value else {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned value for `{schema_data}` is not a record"
+        )));
+    };
+    if type_name != schema_data {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned value `{type_name}` does not match schema `{schema_data}`"
+        )));
+    }
+    let supplied = exact_struct_fields(schema_data, fields)?;
+    let physical_fields = typed
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if physical_fields.len() != typed.data_members(data).len() {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned materialization does not yet admit erased fields or sum cases in `{schema_data}`"
+        )));
+    }
+    if supplied.len() != physical_fields.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned value `{schema_data}` has {} fields, expected {}",
+            supplied.len(),
+            physical_fields.len()
+        )));
+    }
+
+    let mut schemas = Vec::with_capacity(schema_fields.len());
+    let mut values = Vec::with_capacity(schema_fields.len());
+    for reflected in &schema_fields {
+        let field = physical_fields
+            .iter()
+            .find(|field| field.name.as_str() == reflected.name)
+            .expect("schema reflection retained the same physical fields");
+        let field_value = supplied.get(reflected.name.as_str()).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "typed owned value `{schema_data}` has no field `{}`",
+                reflected.name
+            ))
+        })?;
+        let bytes = encode_typed_owned_value(
+            typed,
+            field.type_reference,
+            field_value,
+            byte_order,
+            &mut Vec::new(),
+        )?;
+        let byte_size = u64::try_from(bytes.len()).map_err(|_| {
+            MaterializationDiagnostic(format!(
+                "typed field `{}` extent cannot be represented as u64",
+                reflected.name
+            ))
+        })?;
+        if byte_size != reflected.size {
+            return Err(MaterializationDiagnostic(format!(
+                "typed field `{}` encoded to {byte_size} bytes, expected {}",
+                reflected.name, reflected.size
+            )));
+        }
+        schemas.push(AggregateFieldSchema::new(&reflected.name, reflected.size)?);
+        values.push(AggregateFieldValue::new(&reflected.name, bytes)?);
+    }
+    materialize_aggregate_layout_into(layout, &schemas, &values, destination)
 }
 
 pub(crate) fn schema_fields(
@@ -434,6 +538,240 @@ fn reflected_repeated_element_layout(
     let (element_size, element_align) = reflected_repeated_element_layout(typed, *element_type)?;
     let length = u64::try_from(*length).ok()?;
     Some((element_size.checked_mul(length)?, element_align))
+}
+
+fn exact_struct_fields<'a>(
+    type_name: &str,
+    fields: &'a [(String, BuildTimeValue)],
+) -> Result<std::collections::BTreeMap<&'a str, &'a BuildTimeValue>, MaterializationDiagnostic> {
+    let mut supplied = std::collections::BTreeMap::new();
+    for (name, value) in fields {
+        if supplied.insert(name.as_str(), value).is_some() {
+            return Err(MaterializationDiagnostic(format!(
+                "typed owned value `{type_name}` supplies field `{name}` more than once"
+            )));
+        }
+    }
+    Ok(supplied)
+}
+
+fn encode_typed_owned_value(
+    typed: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Result<Vec<u8>, MaterializationDiagnostic> {
+    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+        let width = primitive_byte_size(primitive).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "typed owned materialization does not support primitive `{}`",
+                primitive.name()
+            ))
+        })?;
+        if let BuildTimeValue::Int(value) = value {
+            let in_carrier_range = match primitive {
+                PrimitiveType::I8 => i8::try_from(*value).is_ok(),
+                PrimitiveType::U8 => u8::try_from(*value).is_ok(),
+                PrimitiveType::I16 => i16::try_from(*value).is_ok(),
+                PrimitiveType::U16 => u16::try_from(*value).is_ok(),
+                PrimitiveType::I32 => i32::try_from(*value).is_ok(),
+                PrimitiveType::U32 => u32::try_from(*value).is_ok(),
+                PrimitiveType::I64 | PrimitiveType::U64 => true,
+                _ => false,
+            };
+            let in_declared_range =
+                psi_typed_trees::wire::scalar_representation_range(typed, type_reference)
+                    .is_none_or(|range| *value >= range.minimum && *value <= range.maximum);
+            if !in_carrier_range || !in_declared_range {
+                return Err(MaterializationDiagnostic(format!(
+                    "typed integer value {value} is outside `{}`",
+                    typed.display_type_reference(type_reference)
+                )));
+            }
+        }
+        let bits = match (primitive, value) {
+            (PrimitiveType::Bool, BuildTimeValue::Bool(value)) => u64::from(*value),
+            (PrimitiveType::F32, BuildTimeValue::Float(value)) => {
+                u64::from((*value as f32).to_bits())
+            }
+            (PrimitiveType::F64, BuildTimeValue::Float(value)) => value.to_bits(),
+            (
+                PrimitiveType::I8
+                | PrimitiveType::U8
+                | PrimitiveType::I16
+                | PrimitiveType::U16
+                | PrimitiveType::I32
+                | PrimitiveType::U32
+                | PrimitiveType::I64
+                | PrimitiveType::U64,
+                BuildTimeValue::Int(value),
+            ) => *value as u64,
+            _ => {
+                return Err(MaterializationDiagnostic(format!(
+                    "typed owned value does not match primitive `{}`",
+                    primitive.name()
+                )));
+            }
+        };
+        let bytes = match byte_order {
+            ByteOrder::LittleEndian => bits.to_le_bytes(),
+            ByteOrder::BigEndian => bits.to_be_bytes(),
+        };
+        let width = usize::try_from(width).expect("supported primitive width fits usize");
+        return Ok(match byte_order {
+            ByteOrder::LittleEndian => bytes[..width].to_vec(),
+            ByteOrder::BigEndian => bytes[bytes.len() - width..].to_vec(),
+        });
+    }
+
+    match typed.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            let BuildTimeValue::Array(elements) = value else {
+                return Err(MaterializationDiagnostic(
+                    "typed owned fixed-array value is not an array".into(),
+                ));
+            };
+            if elements.len() != *length {
+                return Err(MaterializationDiagnostic(format!(
+                    "typed owned fixed array has {} elements, expected {length}",
+                    elements.len()
+                )));
+            }
+            let mut bytes = Vec::new();
+            for element in elements {
+                bytes.extend(encode_typed_owned_value(
+                    typed,
+                    *element_type,
+                    element,
+                    byte_order,
+                    visiting,
+                )?);
+            }
+            Ok(bytes)
+        }
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
+            encode_typed_owned_record(typed, *symbol, name.as_str(), value, byte_order, visiting)
+        }
+        _ => Err(MaterializationDiagnostic(
+            "typed owned value is outside the supported fixed aggregate subset".into(),
+        )),
+    }
+}
+
+fn encode_typed_owned_record(
+    typed: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+    name: &str,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Result<Vec<u8>, MaterializationDiagnostic> {
+    let data = typed
+        .data_definitions()
+        .iter()
+        .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name.as_str() == name)
+        .ok_or_else(|| MaterializationDiagnostic(format!("no typed data named `{name}` exists")))?;
+    if visiting.contains(&data.symbol) {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned record `{name}` is recursively laid out"
+        )));
+    }
+    if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+        || data.name.as_str().contains('<')
+        || !data.type_parameters.is_empty()
+        || !data.lifetime_parameters.is_empty()
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned record `{name}` is outside the fixed checked-shape subset"
+        )));
+    }
+    let BuildTimeValue::Struct { type_name, fields } = value else {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned value for `{name}` is not a record"
+        )));
+    };
+    if type_name != data.name.as_str() {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned nested value `{type_name}` does not match `{}`",
+            data.name
+        )));
+    }
+    let supplied = exact_struct_fields(name, fields)?;
+    let members = typed.data_members(data);
+    if members.iter().any(|member| {
+        !matches!(member, psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased())
+    }) {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned record `{name}` contains an erased field or sum case"
+        )));
+    }
+    if supplied.len() != members.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "typed owned record `{name}` has {} fields, expected {}",
+            supplied.len(),
+            members.len()
+        )));
+    }
+
+    visiting.push(data.symbol);
+    let result = (|| {
+        let mut bytes = Vec::new();
+        let mut aggregate_align = 1u64;
+        for member in members {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                unreachable!("record subset validated above")
+            };
+            let (_, align) = reflected_nested_member_layout(typed, field.type_reference, visiting)
+                .ok_or_else(|| {
+                    MaterializationDiagnostic(format!(
+                        "typed field `{}` is outside the fixed aggregate subset",
+                        field.name
+                    ))
+                })?;
+            let aligned = checked_align_up(bytes.len() as u64, align).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "typed field `{}` alignment overflows",
+                    field.name
+                ))
+            })?;
+            bytes.resize(
+                usize::try_from(aligned).map_err(|_| {
+                    MaterializationDiagnostic("typed aggregate extent exceeds compiler host".into())
+                })?,
+                0,
+            );
+            let field_value = supplied.get(field.name.as_str()).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "typed owned record `{name}` has no field `{}`",
+                    field.name
+                ))
+            })?;
+            bytes.extend(encode_typed_owned_value(
+                typed,
+                field.type_reference,
+                field_value,
+                byte_order,
+                visiting,
+            )?);
+            aggregate_align = aggregate_align.max(align);
+        }
+        let size = checked_align_up(bytes.len() as u64, aggregate_align).ok_or_else(|| {
+            MaterializationDiagnostic(format!("typed record `{name}` extent overflows"))
+        })?;
+        bytes.resize(
+            usize::try_from(size).map_err(|_| {
+                MaterializationDiagnostic("typed aggregate extent exceeds compiler host".into())
+            })?,
+            0,
+        );
+        Ok(bytes)
+    })();
+    visiting.pop();
+    result
 }
 
 fn field_key(schema: &str, field: &str) -> u64 {
