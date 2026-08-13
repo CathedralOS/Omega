@@ -401,7 +401,9 @@ producers remain fences.
 The bounded indexed target and bounded non-reference value tree may occur on
 the same assignment. Their complete frames compose and publish independently;
 either side exceeding its depth or non-rebinding rail fences the returned-place
-relation.
+relation. A compiler-owned mutable-slice view on the target collection is
+neutral to that composition: the target index and value tree retain independent
+depth-two budgets and publish all call writes.
 Terminal returned places, stable local mutable aliases, and direct alias rebind
 replacements may contain one or more indexes whose non-rebinding call trees are
 independently complete through depth two. The first index fixes the coarse
