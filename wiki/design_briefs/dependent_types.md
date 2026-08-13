@@ -379,11 +379,13 @@ stable helper-local mutable alias or an exact transparent helper result and
 each of its one or more indexes is a complete, non-rebinding direct-call tree
 of maximum depth two. The first index fixes the collection-coarse target, later
 indexes are absorbing, and the ordinary frame publishes every index-call
-write. A transparent free helper result or an attached helper result rooted in
-its actual `self` receiver supplies the collection origin without an
-intermediate binding. An exact member projection may follow that result before
-one or more indexes: the suffix composes first, the first index coarsens to that
-nearest collection, and later indexes or members remain absorbed while every
+write. The compiler-owned `as_mut_slice()` view may occur on the collection
+spine: it preserves the backing array origin before the index coarsens it. A
+transparent free helper result or an attached helper result rooted in its actual
+`self` receiver likewise supplies the collection origin without an intermediate
+binding. An exact member projection may follow that result before one or more
+indexes: the suffix composes first, the first index coarsens to that nearest
+collection, and later indexes or members remain absorbed while every
 independently bounded index frame publishes. Deeper or binding-reborrow index
 trees and recursive or opaque free/attached collection producers remain fences.
 The bounded indexed target and bounded non-reference value tree may occur on
