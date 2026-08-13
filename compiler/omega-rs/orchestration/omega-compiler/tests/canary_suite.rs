@@ -15284,17 +15284,10 @@ fn runtime_payload_range_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
     let canary = pass_canary("ranges/sum_payload_range_narrowed_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-payload-narrow-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("direct payload pass-through should prove under the case-arm guard");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-payload-narrow-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("direct payload pass-through should prove under the case-arm guard");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("sum payload range narrowed canary should run");
     assert_eq!(
@@ -15304,7 +15297,7 @@ fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Sum-payload-range narrowing through ARITHMETIC in a transition arg
@@ -15317,17 +15310,10 @@ fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
 #[test]
 fn runtime_sum_payload_range_arith_narrowed_exit_canary_runs() {
     let canary = pass_canary("ranges/sum_payload_range_arith_narrowed_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-payload-arith-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("payload operand arithmetic should prove under the case-arm guard");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-payload-arith-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("payload operand arithmetic should prove under the case-arm guard");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("sum payload range arith narrowed canary should run");
     assert_eq!(
@@ -15337,7 +15323,7 @@ fn runtime_sum_payload_range_arith_narrowed_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// The `a..b` (exclusive) / `a..=b` (inclusive) range refinement syntax that
@@ -15346,17 +15332,11 @@ fn runtime_sum_payload_range_arith_narrowed_exit_canary_runs() {
 #[test]
 fn runtime_exclusive_range_constraint_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_exclusive_range_constraint_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-exclusive-range-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("exclusive/inclusive range-constraint syntax should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("exclusive/inclusive range-constraint syntax should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("exclusive range constraint canary should run");
     assert_eq!(
@@ -15366,7 +15346,7 @@ fn runtime_exclusive_range_constraint_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 S4: min/max clamp narrowing. `max(self.seed, 0)` lower-bounds at
@@ -15380,16 +15360,10 @@ fn runtime_fnv1a_hash_exit_canary_runs() {
     // checked against the independently computed reference 844955649 -> exit 70. Proves Omega's u32
     // wrapping XOR+multiply computes the correct hash of a real algorithm.
     let canary = pass_canary("arithmetic/runtime_fnv1a_hash_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-fnv1a-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("FNV-1a hash canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-fnv1a-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("FNV-1a hash canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("FNV-1a hash canary should run");
     assert_eq!(
@@ -15399,25 +15373,19 @@ fn runtime_fnv1a_hash_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_min_max_clamp_narrowing_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-min-max-clamp-narrowing-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("min/max clamp narrowing canary should compile (narrowing proves the bound)");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("min/max clamp narrowing canary should compile (narrowing proves the bound)");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("min/max clamp narrowing canary should run");
     assert_eq!(
@@ -15428,7 +15396,7 @@ fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 /// Decision 17 S4: modulo + division result-interval narrowing. `self.seed %
@@ -15439,17 +15407,11 @@ fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
 #[test]
 fn runtime_modulo_div_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_modulo_div_narrowing_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-modulo-div-narrowing-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("modulo/div narrowing canary should compile (narrowing proves the bound)");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("modulo/div narrowing canary should compile (narrowing proves the bound)");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("modulo/div narrowing canary should run");
     assert_eq!(
@@ -15460,7 +15422,7 @@ fn runtime_modulo_div_narrowing_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
