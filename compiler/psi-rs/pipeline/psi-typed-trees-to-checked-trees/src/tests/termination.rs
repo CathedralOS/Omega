@@ -4677,10 +4677,15 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
 #[test]
 fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
     let source = r#"
+    data Bucket {
+        cells: [u64; 2];
+    }
+
     data Main {
         result: u64;
         index_write: u64;
         cells: [u64; 2];
+        bucket: Bucket;
     }
 
     machine write_argument(value: &mut u64) {
@@ -4710,6 +4715,14 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
 
     machine recursive_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         recursive_cells(cells)
+    }
+
+    machine return_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        bucket
+    }
+
+    machine recursive_bucket(bucket: &mut Bucket) -> &mut Bucket {
+        recursive_bucket(bucket)
     }
 
     machine Main::return_attached_cells(&mut self) -> &mut [u64; 2] {
@@ -4765,6 +4778,27 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         result: &'result mut u64
     ) -> &'result mut u64 {
         write_argument(&mut recursive_cells(cells)[make_index()]);
+        result
+    }
+
+    machine return_after_projected_helper_indexed_statement<'bucket, 'result, 'write>(
+        bucket: &'bucket mut Bucket,
+        result: &'result mut u64,
+        index_write: &'write mut u64
+    ) -> &'result mut u64 {
+        write_argument(
+            &mut return_bucket(bucket).cells[
+                identity_index(write_index(index_write))
+            ]
+        );
+        result
+    }
+
+    machine return_after_recursive_projected_helper_statement<'bucket, 'result>(
+        bucket: &'bucket mut Bucket,
+        result: &'result mut u64
+    ) -> &'result mut u64 {
+        write_argument(&mut recursive_bucket(bucket).cells[make_index()]);
         result
     }
 
@@ -4869,6 +4903,23 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         alias = 3;
     }
 
+    machine Main::projected_helper_indexed_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_projected_helper_indexed_statement(
+            &mut self.bucket,
+            &mut self.result,
+            &mut self.index_write
+        );
+        alias = 3;
+    }
+
+    machine Main::recursive_projected_helper_statement_result(&mut self) {
+        let alias: &mut u64 = return_after_recursive_projected_helper_statement(
+            &mut self.bucket,
+            &mut self.result
+        );
+        alias = 3;
+    }
+
     machine Main::attached_result_indexed_statement_result(&mut self) {
         let alias: &mut u64 = self.return_after_attached_result_indexed_statement();
         alias = 3;
@@ -4943,6 +4994,10 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             "Main::attached_result_indexed_statement_result",
             vec!["self.cells", "self.index_write", "self.result"],
         ),
+        (
+            "Main::projected_helper_indexed_statement_result",
+            vec!["self.bucket.cells", "self.index_write", "self.result"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -4975,6 +5030,7 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
         "Main::recursive_indexed_statement_result",
         "Main::recursive_helper_indexed_statement_result",
         "Main::recursive_attached_indexed_statement_result",
+        "Main::recursive_projected_helper_statement_result",
     ] {
         let machine = typed
             .machines()
