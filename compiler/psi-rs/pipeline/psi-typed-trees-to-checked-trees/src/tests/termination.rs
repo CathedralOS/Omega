@@ -7134,6 +7134,16 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         choice: PairChoice;
     }
 
+    data OuterChoice {
+        stamp: u64;
+        case Nested(choice: PairChoice);
+        case Empty;
+    }
+
+    data GenericChoiceHolder {
+        choice: GenericChoice<u64>;
+    }
+
     data Main {
         value: u64;
         other: u64;
@@ -7144,6 +7154,8 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         nested_pair: NestedPair;
         deep_pair: DeepPair;
         choice_holder: ChoiceHolder;
+        outer_choice: OuterChoice;
+        generic_choice_holder: GenericChoiceHolder;
         cells: [u64; 2];
     }
 
@@ -7364,6 +7376,49 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_case_nested_case_value_calls<'cells, 'outer, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        outer: &'outer mut OuterChoice,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        outer = OuterChoice::Nested {
+            stamp: 0,
+            choice: PairChoice::Values {
+                tag: identity(compute(first)),
+                first: 0,
+                second: identity(identity(identity(compute(second))))
+            }
+        };
+        cells
+    }
+
+    machine return_after_generic_nested_case_value_call<'cells, 'holder, 'value>(
+        cells: &'cells mut [u64; 2],
+        holder: &'holder mut GenericChoiceHolder,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        holder = GenericChoiceHolder {
+            choice: GenericChoice::Value { value: compute(value) }
+        };
+        cells
+    }
+
+    machine return_after_nested_computed_case_field<'cells, 'holder, 'value>(
+        cells: &'cells mut [u64; 2],
+        holder: &'holder mut ChoiceHolder,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        holder = ChoiceHolder {
+            choice: PairChoice::Values {
+                tag: 0,
+                first: compute(value) + 1,
+                second: 0
+            }
+        };
+        cells
+    }
+
     machine return_after_too_deep_value_call<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -7532,6 +7587,34 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::case_nested_case_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_case_nested_case_value_calls(
+            &mut self.cells,
+            &mut self.outer_choice,
+            &mut self.value,
+            &mut self.other
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::generic_nested_case_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_generic_nested_case_value_call(
+            &mut self.cells,
+            &mut self.generic_choice_holder,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::nested_computed_case_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nested_computed_case_field(
+            &mut self.cells,
+            &mut self.choice_holder,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::too_deep_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_too_deep_value_call(&mut self.cells, &mut self.value);
@@ -7603,6 +7686,19 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             "Main::case_nested_record_value_call_assignment_result",
             vec!["self.cells", "self.choice", "self.other", "self.value"],
         ),
+        (
+            "Main::nested_case_value_call_assignment_result",
+            vec!["self.cells", "self.choice_holder", "self.value"],
+        ),
+        (
+            "Main::case_nested_case_value_call_assignment_result",
+            vec![
+                "self.cells",
+                "self.other",
+                "self.outer_choice",
+                "self.value",
+            ],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -7638,7 +7734,8 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::generic_case_value_call_assignment_result",
         "Main::computed_case_field_assignment_result",
         "Main::deep_record_value_call_assignment_result",
-        "Main::nested_case_value_call_assignment_result",
+        "Main::generic_nested_case_value_call_assignment_result",
+        "Main::nested_computed_case_field_assignment_result",
     ] {
         let machine = typed
             .machines()
