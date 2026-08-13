@@ -191,8 +191,10 @@ Current ownership is:
   may contain one or more indexes whose non-rebinding direct-call trees are
   independently complete through depth two; the first index fixes the
   collection-coarse write, later indexes are absorbing, and every index-call
-  write remains published. A transparent free helper result or an attached
-  helper result rooted in its actual `self` receiver supplies the collection
+  write remains published. The compiler-owned `as_mut_slice()` view may occur
+  on the collection spine: it preserves the backing array origin before the
+  index coarsens it. A transparent free helper result or an attached helper
+  result rooted in its actual `self` receiver likewise supplies the collection
   origin without an intermediate binding. An exact member projection may
   follow that result before one or more indexes: the suffix composes first, the
   first index coarsens to that nearest collection, and later indexes or members
