@@ -175,13 +175,17 @@ with at least two relevant structural fields. A finite nonempty set of distinct
 direct fields may move through source-ordered one-parameter ordinary Unit
 calls, provided at least one sibling remains. The Unit return then names every
 residual sibling by exact root, canonical field path, and leaf type in reverse
-declaration order. The verifier independently proves that the moved and
-residual paths are disjoint and exhaust the root. Interpretation charges the
-return edge before disposing the residual paths, so fuel exhaustion cannot
+declaration order. Alternatively, one call may move one arbitrary-depth,
+nonempty all-field path; return then names the maximal live sibling subtrees
+around that path in recursive reverse declaration order and never discards a
+partially moved ancestor whole. The verifier independently proves that the
+moved and residual paths are disjoint and exhaust the root. Interpretation
+charges the return edge before disposing the residual paths, so fuel exhaustion cannot
 clean early. Omega carries every path and type through all five target
 pipelines, object/image validation, and canonical installation records while
 emitting no cleanup instruction or runtime bitmap. Claims, content, contracts,
-nominal `drop`, and nested paths remain fenced.
+nominal `drop`, arrays/cases, and multiple moves involving a nested path remain
+fenced.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
