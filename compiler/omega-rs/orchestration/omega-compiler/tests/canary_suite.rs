@@ -9414,20 +9414,12 @@ stderr:
 #[test]
 fn runtime_machine_frame_index_dual_frame_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_dual_frame_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-mfi-dual-write-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-mfi-dual-write-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine frame-index dual-frame write canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("machine frame-index dual-frame write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("machine frame-index dual-frame write canary should run");
 
@@ -9441,7 +9433,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // MACHINE-array RMW at a FRAME (param) index under a dominating guard: the
@@ -9450,19 +9442,12 @@ stderr:
 #[test]
 fn runtime_machine_frame_index_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_machine_frame_index_rmw_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-mfi-rmw-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-mfi-rmw-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine frame-index rmw canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("machine frame-index rmw canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("machine frame-index rmw canary should run");
 
@@ -9476,7 +9461,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // Machine-array reads at FRAME indices as binary operands (incl. a struct
