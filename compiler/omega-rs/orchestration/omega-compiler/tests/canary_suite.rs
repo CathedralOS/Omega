@@ -11814,22 +11814,15 @@ fn runtime_equatable_scalar_not_equals_guard_exit_canary_runs() {
     // (value position) and pass/traits/equatable_string_equality_guard_exit
     // (guard position).
     let canary = pass_canary("traits/runtime_equatable_scalar_not_equals_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-equatable-scalar-neq-guard-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("equatable scalar != guard canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("equatable scalar != guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("equatable scalar != guard canary should run");
 
@@ -11841,7 +11834,7 @@ fn runtime_equatable_scalar_not_equals_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -11850,22 +11843,15 @@ fn runtime_case_membership_mixed_shape_exit_canary_runs() {
     // fields live between the tag and the payload overlay, so the membership
     // test must stay tag-only -- and survive a common-field write.
     let canary = pass_canary("data/runtime_case_membership_mixed_shape_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-membership-mixed-shape-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("mixed-shape membership canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("mixed-shape membership canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("mixed-shape membership canary should run");
 
@@ -11877,7 +11863,7 @@ fn runtime_case_membership_mixed_shape_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
