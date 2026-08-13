@@ -9469,20 +9469,13 @@ stderr:
 #[test]
 fn runtime_machine_frame_index_arg_operand_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_machine_frame_index_arg_operand_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-mfi-arg-operand-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine frame-index arg/operand canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("machine frame-index arg/operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("machine frame-index arg/operand canary should run");
 
@@ -9496,7 +9489,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // CONST-row + RUNTIME-column 2D reads: machine-field AND frame-let consumers.
