@@ -4354,7 +4354,6 @@ fn lower_partial_affine_unit_cleanup_machine(
                 .path
                 .iter()
                 .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-            || (argument.path.len() > 1 && call_operations.len() != 1)
         {
             return unsupported("partial affine Unit transfer is not an exact field path");
         }
@@ -4364,9 +4363,9 @@ fn lower_partial_affine_unit_cleanup_machine(
             || coordinate.call_ordinal != 0
             || !claim_transfers.is_empty()
             || argument.source_parameter_index != 0
-            || moved_paths
-                .iter()
-                .any(|(earlier, _, _)| *earlier == argument.path)
+            || moved_paths.iter().any(|(earlier, _, _)| {
+                earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
+            })
         {
             return unsupported("partial affine Unit cleanup signature or coordinates drifted");
         }
@@ -4431,19 +4430,6 @@ fn lower_partial_affine_unit_cleanup_machine(
     if fields.len() < 2 {
         return unsupported("partial affine Unit record has fewer than two fields");
     }
-    let checked_field_type = |identity: &str| {
-        fields
-            .iter()
-            .find(|field| field.identity == identity)
-            .and_then(|field| (!field.relevance.is_erased()).then_some(&field.field_type))
-            .and_then(|field_type| match field_type {
-                CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                    Some(type_identity.as_str())
-                }
-                CheckedUnitStructuralFieldType::Scalar(_)
-                | CheckedUnitStructuralFieldType::Erased { .. } => None,
-            })
-    };
     if fields.iter().enumerate().any(|(index, field)| {
         field.relevance.is_erased()
             || !matches!(
@@ -4453,47 +4439,20 @@ fn lower_partial_affine_unit_cleanup_machine(
             || fields[..index]
                 .iter()
                 .any(|earlier| earlier.identity == field.identity)
-    }) || (moved_paths.iter().all(|(path, _, _)| path.len() == 1)
-        && moved_paths.iter().any(|(path, moved_type, _)| {
-            let [CheckedUnitStructuralPathSegment::Field(moved_field)] = *path else {
-                unreachable!("direct branch contains direct field paths")
-            };
-            checked_field_type(moved_field) != Some(*moved_type)
-        }))
-    {
+    }) {
         return unsupported("partial affine Unit field path or type identity drifted");
     }
-    let expected_residuals = if moved_paths.len() == 1 && moved_paths[0].0.len() > 1 {
-        checked_nested_partial_affine_residuals(
-            partial_plans,
-            &parameter.type_identity,
-            moved_paths[0].0,
-            moved_paths[0].1,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "partial affine Unit nested field path or type identity drifted",
-        ))?
-    } else {
-        fields
+    let expected_residuals = checked_partial_affine_residuals(
+        partial_plans,
+        &parameter.type_identity,
+        &moved_paths
             .iter()
-            .rev()
-            .filter(|field| {
-                !moved_paths.iter().any(|(path, _, _)| {
-                    matches!(path, [CheckedUnitStructuralPathSegment::Field(moved)]
-                        if moved == &field.identity)
-                })
-            })
-            .map(|field| CheckedUnitPartialAffineDiscardPlan {
-                source_parameter_index: 0,
-                path: vec![CheckedUnitStructuralPathSegment::Field(
-                    field.identity.clone(),
-                )],
-                type_identity: checked_field_type(&field.identity)
-                    .expect("field shape was validated above")
-                    .to_owned(),
-            })
-            .collect::<Vec<_>>()
-    };
+            .map(|(path, moved_type, _)| (*path, *moved_type))
+            .collect::<Vec<_>>(),
+    )
+    .ok_or(LoweringError::Unsupported(
+        "partial affine Unit field path or type identity drifted",
+    ))?;
     if partial.residual_affine_discards != expected_residuals {
         return unsupported("partial affine Unit residual field partition drifted");
     }
@@ -4583,23 +4542,28 @@ fn lower_partial_affine_unit_cleanup_machine(
     Ok(lowered)
 }
 
-fn checked_nested_partial_affine_residuals(
+fn checked_partial_affine_residuals(
     types: &[CheckedUnitStructuralTypePlan],
     root_type: &str,
-    moved_path: &[CheckedUnitStructuralPathSegment],
-    moved_type: &str,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     fn visit(
         types: &[CheckedUnitStructuralTypePlan],
         current_type: &str,
-        moved_path: &[CheckedUnitStructuralPathSegment],
-        moved_type: &str,
+        moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
         prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
         residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
     ) -> Option<()> {
-        let [CheckedUnitStructuralPathSegment::Field(selected), tail @ ..] = moved_path else {
+        if moved_paths.is_empty()
+            || moved_paths.iter().any(|(path, _)| {
+                !matches!(
+                    path.first(),
+                    Some(CheckedUnitStructuralPathSegment::Field(_))
+                )
+            })
+        {
             return None;
-        };
+        }
         let declaration = types
             .iter()
             .find(|declaration| declaration.identity == current_type)?;
@@ -4620,50 +4584,60 @@ fn checked_nested_partial_affine_residuals(
         {
             return None;
         }
-        let selected_field = fields.iter().find(|field| field.identity == *selected)?;
-        let CheckedUnitStructuralFieldType::Structural {
-            type_identity: selected_type,
-        } = &selected_field.field_type
-        else {
-            return None;
-        };
         for field in fields.iter().rev() {
             let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type
             else {
                 return None;
             };
+            let matching = moved_paths
+                .iter()
+                .filter(|(path, _)| {
+                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Field(identity))
+                        if identity == &field.identity)
+                })
+                .copied()
+                .collect::<Vec<_>>();
             prefix.push(CheckedUnitStructuralPathSegment::Field(
                 field.identity.clone(),
             ));
-            if field.identity == *selected {
-                if tail.is_empty() {
-                    if type_identity != moved_type {
-                        return None;
-                    }
-                } else {
-                    visit(types, selected_type, tail, moved_type, prefix, residuals)?;
-                }
-            } else {
+            if matching.is_empty() {
                 residuals.push(CheckedUnitPartialAffineDiscardPlan {
                     source_parameter_index: 0,
                     path: prefix.clone(),
                     type_identity: type_identity.clone(),
                 });
+                prefix.pop();
+                continue;
             }
+            let whole = matching
+                .iter()
+                .filter(|(path, _)| path.len() == 1)
+                .collect::<Vec<_>>();
+            if !whole.is_empty() {
+                if whole.len() != 1 || matching.len() != 1 || whole[0].1 != type_identity {
+                    return None;
+                }
+                prefix.pop();
+                continue;
+            }
+            let nested = matching
+                .iter()
+                .map(|(path, moved_type)| (&path[1..], *moved_type))
+                .collect::<Vec<_>>();
+            visit(types, type_identity, &nested, prefix, residuals)?;
             prefix.pop();
         }
         Some(())
     }
 
-    if moved_path.len() < 2 {
+    if moved_paths.is_empty() {
         return None;
     }
     let mut residuals = Vec::new();
     visit(
         types,
         root_type,
-        moved_path,
-        moved_type,
+        moved_paths,
         &mut Vec::new(),
         &mut residuals,
     )?;
@@ -11179,13 +11153,16 @@ mod tests {
     fn nested_partial_affine_unit_checked_fixture() -> CheckedTrees {
         let source = r#"
             data Token { value: u64; }
-            data Inner { left: Token; middle: Token; right: Token; }
-            data Outer { first: Token; inner: Inner; last: Token; }
+            data Deep { low: Token; middle: Token; high: Token; }
+            data Branch { head: Token; deep: Deep; tail: Token; }
+            data Outer { first: Token; left: Branch; right: Branch; last: Token; }
             data Sink {}
             machine Sink::take(token: Token) {}
             data Root {}
             machine Root::enter(value: Outer) {
-                Sink::take(value.inner.middle);
+                Sink::take(value.left.deep.middle);
+                Sink::take(value.right.tail);
+                Sink::take(value.first);
             }
         "#;
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -11295,7 +11272,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_partial_affine_unit_cleanup_lowers_recursive_maximal_residuals() {
+    fn mixed_partial_affine_unit_cleanup_lowers_recursive_maximal_residuals() {
         let checked = nested_partial_affine_unit_checked_fixture();
         let [plan] = checked
             .facts
@@ -11304,31 +11281,39 @@ mod tests {
             .machines
             .as_slice()
         else {
-            panic!("expected one checked nested partial-cleanup plan")
+            panic!("expected one checked mixed partial-cleanup plan")
         };
         let lowered = lower_partial_affine_unit_cleanup_machine(&checked, plan)
-            .expect("strict nested partial cleanup should lower in memory");
+            .expect("strict mixed partial cleanup should lower in memory");
         let entry = lowered
             .semantic_module
             .machines
             .iter()
             .find(|machine| machine.id == lowered.semantic_module.entry)
             .expect("terminal entry");
-        let [call] = entry.blocks[0].operations.as_slice() else {
-            panic!("nested partial cleanup entry contains one call")
-        };
-        let OperationKind::CallUnit {
-            structural_arguments,
-            ..
-        } = &call.kind
-        else {
-            panic!("nested partial cleanup calls Unit")
-        };
         assert_eq!(
-            structural_arguments[0].path,
-            [
-                StructuralPathSegment::Field("inner".to_owned()),
-                StructuralPathSegment::Field("middle".to_owned()),
+            entry.blocks[0]
+                .operations
+                .iter()
+                .map(|operation| match &operation.kind {
+                    OperationKind::CallUnit {
+                        structural_arguments,
+                        ..
+                    } => structural_arguments[0].path.clone(),
+                    _ => panic!("mixed partial cleanup calls Unit"),
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                vec![
+                    StructuralPathSegment::Field("left".to_owned()),
+                    StructuralPathSegment::Field("deep".to_owned()),
+                    StructuralPathSegment::Field("middle".to_owned()),
+                ],
+                vec![
+                    StructuralPathSegment::Field("right".to_owned()),
+                    StructuralPathSegment::Field("tail".to_owned()),
+                ],
+                vec![StructuralPathSegment::Field("first".to_owned())],
             ]
         );
         let Terminator::ReturnUnitPartialAffine {
@@ -11336,7 +11321,7 @@ mod tests {
             ..
         } = &entry.blocks[0].terminator
         else {
-            panic!("nested partial cleanup retains its distinct return")
+            panic!("mixed partial cleanup retains its distinct return")
         };
         assert_eq!(
             residual_affine_discards
@@ -11346,14 +11331,31 @@ mod tests {
             vec![
                 vec![StructuralPathSegment::Field("last".to_owned())],
                 vec![
-                    StructuralPathSegment::Field("inner".to_owned()),
                     StructuralPathSegment::Field("right".to_owned()),
+                    StructuralPathSegment::Field("deep".to_owned()),
                 ],
                 vec![
-                    StructuralPathSegment::Field("inner".to_owned()),
-                    StructuralPathSegment::Field("left".to_owned()),
+                    StructuralPathSegment::Field("right".to_owned()),
+                    StructuralPathSegment::Field("head".to_owned()),
                 ],
-                vec![StructuralPathSegment::Field("first".to_owned())],
+                vec![
+                    StructuralPathSegment::Field("left".to_owned()),
+                    StructuralPathSegment::Field("tail".to_owned()),
+                ],
+                vec![
+                    StructuralPathSegment::Field("left".to_owned()),
+                    StructuralPathSegment::Field("deep".to_owned()),
+                    StructuralPathSegment::Field("high".to_owned()),
+                ],
+                vec![
+                    StructuralPathSegment::Field("left".to_owned()),
+                    StructuralPathSegment::Field("deep".to_owned()),
+                    StructuralPathSegment::Field("low".to_owned()),
+                ],
+                vec![
+                    StructuralPathSegment::Field("left".to_owned()),
+                    StructuralPathSegment::Field("head".to_owned()),
+                ],
             ]
         );
 
@@ -11365,12 +11367,27 @@ mod tests {
         else {
             unreachable!()
         };
-        structural_arguments[0].path[1] =
+        structural_arguments[0].path[2] =
             CheckedUnitStructuralPathSegment::Field("missing".to_owned());
+        assert!(lower_partial_affine_unit_cleanup_machine(&checked, &stale).is_err());
+
+        let mut overlapping = plan.clone();
+        let [_, second, _, _] = overlapping.machine.operations.as_mut_slice() else {
+            unreachable!()
+        };
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        } = second
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].path =
+            vec![CheckedUnitStructuralPathSegment::Field("left".to_owned())];
         assert!(matches!(
-            lower_partial_affine_unit_cleanup_machine(&checked, &stale),
+            lower_partial_affine_unit_cleanup_machine(&checked, &overlapping),
             Err(LoweringError::Unsupported(
-                "partial affine Unit nested field path or type identity drifted"
+                "partial affine Unit cleanup signature or coordinates drifted"
             ))
         ));
     }

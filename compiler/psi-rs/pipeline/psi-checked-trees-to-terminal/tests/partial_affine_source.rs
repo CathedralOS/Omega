@@ -31,17 +31,20 @@ const SOURCE: &str = r#"
     }
 "#;
 
-const NESTED_SOURCE: &str = r#"
+const MIXED_SOURCE: &str = r#"
     data Token { value: u64; }
-    data Inner { left: Token; middle: Token; right: Token; }
-    data Outer { first: Token; inner: Inner; last: Token; }
+    data Deep { low: Token; middle: Token; high: Token; }
+    data Branch { head: Token; deep: Deep; tail: Token; }
+    data Outer { first: Token; left: Branch; right: Branch; last: Token; }
 
     data Sink {}
     machine Sink::take(token: Token) {}
 
     data Root {}
     machine Root::enter(value: Outer) {
-        Sink::take(value.inner.middle);
+        Sink::take(value.left.deep.middle);
+        Sink::take(value.right.tail);
+        Sink::take(value.first);
     }
 "#;
 
@@ -186,14 +189,14 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
 }
 
 #[test]
-fn nested_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
-    let tokens = Lexer::new(NESTED_SOURCE).tokenize().expect("tokenize");
+fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
+    let tokens = Lexer::new(MIXED_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
-        .expect("nested field transfer plus recursive residual cleanup lowers");
+        .expect("mixed field transfers plus recursive residual cleanup lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -206,21 +209,29 @@ fn nested_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let [block] = entry.blocks.as_slice() else {
         panic!("nested partial slice has one block")
     };
-    let [call] = block.operations.as_slice() else {
-        panic!("nested partial slice has one projected call")
-    };
-    let OperationKind::CallUnit {
-        structural_arguments,
-        ..
-    } = &call.kind
-    else {
-        panic!("nested partial slice calls Unit")
-    };
     assert_eq!(
-        structural_arguments[0].path,
-        [
-            StructuralPathSegment::Field("inner".into()),
-            StructuralPathSegment::Field("middle".into()),
+        block
+            .operations
+            .iter()
+            .map(|operation| match &operation.kind {
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } => structural_arguments[0].path.clone(),
+                _ => panic!("mixed partial slice calls Unit"),
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            vec![
+                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::Field("deep".into()),
+                StructuralPathSegment::Field("middle".into()),
+            ],
+            vec![
+                StructuralPathSegment::Field("right".into()),
+                StructuralPathSegment::Field("tail".into()),
+            ],
+            vec![StructuralPathSegment::Field("first".into())],
         ]
     );
     let Terminator::ReturnUnitPartialAffine {
@@ -238,14 +249,31 @@ fn nested_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         vec![
             vec![StructuralPathSegment::Field("last".into())],
             vec![
-                StructuralPathSegment::Field("inner".into()),
                 StructuralPathSegment::Field("right".into()),
+                StructuralPathSegment::Field("deep".into()),
             ],
             vec![
-                StructuralPathSegment::Field("inner".into()),
-                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::Field("right".into()),
+                StructuralPathSegment::Field("head".into()),
             ],
-            vec![StructuralPathSegment::Field("first".into())],
+            vec![
+                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::Field("tail".into()),
+            ],
+            vec![
+                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::Field("deep".into()),
+                StructuralPathSegment::Field("high".into()),
+            ],
+            vec![
+                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::Field("deep".into()),
+                StructuralPathSegment::Field("low".into()),
+            ],
+            vec![
+                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::Field("head".into()),
+            ],
         ]
     );
 
@@ -275,11 +303,11 @@ fn nested_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         &[argument],
     )
     .expect("verified nested source artifact starts");
-    let mut meter = TerminalFuelMeter::with_allowance(3);
+    let mut meter = TerminalFuelMeter::with_allowance(7);
     assert_eq!(
         execution.resume(&mut meter).expect("execution completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
-    assert_eq!(meter.usage().total_units(), 3);
+    assert_eq!(meter.usage().total_units(), 7);
 }
