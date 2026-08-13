@@ -2495,7 +2495,8 @@ fn substitute_scalar_term_places(
         substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) {
         match term {
-            ScalarTerm::BooleanField { root, path } => {
+            ScalarTerm::BooleanField { root, path }
+            | ScalarTerm::IntegerField { root, path, .. } => {
                 if let Some((replacement, prefix)) = substitutions.get(root) {
                     *root = *replacement;
                     if !prefix.is_empty() {
@@ -2587,9 +2588,10 @@ fn substitute_scalar_term_values(
             .get(id)
             .cloned()
             .unwrap_or_else(|| term.clone()),
-        ScalarTerm::BooleanField { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {
-            term.clone()
-        }
+        ScalarTerm::BooleanField { .. }
+        | ScalarTerm::IntegerField { .. }
+        | ScalarTerm::Boolean(_)
+        | ScalarTerm::Integer { .. } => term.clone(),
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },

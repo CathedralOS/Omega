@@ -52,7 +52,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 6;
+const FORMAT_MARKER: u16 = 7;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1162,6 +1162,13 @@ fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, Cod
     Ok(writer.finish())
 }
 
+/// Canonical bytewise ordering key for one terminal proposition. Producers
+/// that construct canonical sets use the codec-owned order rather than Rust
+/// enum declaration order.
+pub fn canonical_proposition_order_key(proposition: &Proposition) -> Result<Vec<u8>, CodecError> {
+    canonical_proposition_bytes(proposition)
+}
+
 fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     encode_scalar_term(&mut writer, term, 0)?;
@@ -1215,6 +1222,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             }
             ScalarTerm::Value { .. }
             | ScalarTerm::BooleanField { .. }
+            | ScalarTerm::IntegerField { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. } => {}
         }
@@ -2357,6 +2365,28 @@ fn encode_scalar_term(
                     }
                 }
             }
+        }
+        ScalarTerm::IntegerField {
+            root,
+            path,
+            scalar_type,
+        } => {
+            writer.u8(35);
+            writer.id(*root);
+            writer.len("Integer field path", path.len())?;
+            for segment in path {
+                match segment {
+                    CanonicalStructuralPathSegment::Field(field) => {
+                        writer.u8(1);
+                        writer.id(*field);
+                    }
+                    CanonicalStructuralPathSegment::FixedIndex(index) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                }
+            }
+            encode_integer_type(writer, *scalar_type);
         }
         ScalarTerm::Boolean(value) => {
             writer.u8(2);
@@ -3906,6 +3936,24 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
                 });
             }
             ScalarTerm::boolean_field_path(root, path)
+        }
+        35 => {
+            let root = reader.id("PlaceId")?;
+            let count = reader.count()?;
+            let mut path = Vec::new();
+            for _ in 0..count {
+                path.push(match reader.u8()? {
+                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
+                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    tag => {
+                        return Err(CodecError::InvalidTag(
+                            "CanonicalStructuralPathSegment",
+                            tag,
+                        ));
+                    }
+                });
+            }
+            ScalarTerm::integer_field_path(root, path, decode_integer_type(reader)?)
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })

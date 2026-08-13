@@ -403,7 +403,12 @@ intermediates, and a Boolean leaf, and rejects absent, erased, truncated,
 mistyped, out-of-bounds, or redirected paths. Built-in Boolean equality,
 inequality, negation, and conjunction may compose multiple relevant member
 paths and literals; every nested path is independently traversed and rebased.
-Disjunction, whole-aggregate equality, integer member predicates, case-payload
+Equality, inequality, and ordered comparisons also accept same-typed relevant
+fixed-integer member paths; terminal terms retain both the canonical path and
+the exact integer type, and the verifier checks that annotation against the
+declared leaf. Whole-root structural calls reconstruct those predicates across
+the callee boundary. Disjunction, projected-call prefixes for integer-member
+predicates, whole-aggregate equality, arithmetic over members, case-payload
 paths, and imported crash capsules remain fail-closed. Structural/content
 contracts reject because custody effects require their own vertical slice
 rather than an ordinary scalar flag.

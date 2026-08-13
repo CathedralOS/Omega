@@ -848,6 +848,14 @@ pub enum ScalarTerm {
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
     },
+    /// One nonempty canonical structural path to a relevant fixed-integer
+    /// field. The repeated integer type is independently checked against the
+    /// terminal structural declaration at the leaf.
+    IntegerField {
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: IntegerType,
+    },
     Boolean(bool),
     BooleanNot {
         operand: Box<ScalarTerm>,
@@ -1016,6 +1024,18 @@ impl ScalarTerm {
 
     pub fn boolean_field_path(root: PlaceId, path: Vec<CanonicalStructuralPathSegment>) -> Self {
         Self::BooleanField { root, path }
+    }
+
+    pub fn integer_field_path(
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        scalar_type: IntegerType,
+    ) -> Self {
+        Self::IntegerField {
+            root,
+            path,
+            scalar_type,
+        }
     }
 
     pub const fn boolean(value: bool) -> Self {
@@ -1500,6 +1520,7 @@ impl ScalarTerm {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
+            Self::IntegerField { scalar_type, .. } => ScalarType::Integer(*scalar_type),
             Self::Boolean(_)
             | Self::BooleanField { .. }
             | Self::BooleanNot { .. }
@@ -1884,7 +1905,10 @@ impl ScalarTerm {
 
     pub fn validate(&self) -> Result<(), PropositionError> {
         match self {
-            Self::Value { .. } | Self::BooleanField { .. } | Self::Boolean(_) => Ok(()),
+            Self::Value { .. }
+            | Self::BooleanField { .. }
+            | Self::IntegerField { .. }
+            | Self::Boolean(_) => Ok(()),
             Self::BooleanNot { operand } => {
                 operand.validate()?;
                 if operand.scalar_type() != ScalarType::Boolean {
@@ -2410,7 +2434,7 @@ impl PropositionContext {
                     });
                 }
             }
-            ScalarTerm::BooleanField { root, .. } => {
+            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
                 if !self.structural_places.contains_key(root) {
                     return Err(PropositionError::UnknownStructuralPlace(*root));
                 }
