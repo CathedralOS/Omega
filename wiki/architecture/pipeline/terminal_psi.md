@@ -202,9 +202,9 @@ empty or contain only relevant Terminal-supported Boolean/integer fields, plus
 their exact attached `T::drop(&mut self)` machines. One cleanup may be empty or
 contain up to two source-ordered ordinary zero-argument calls to mutually
 distinct exact-empty attached helpers. Two cleanups run in reverse parameter
-declaration order; at most one body may use that executable form. Repeated use
-of the same empty cleanup machine remains legal because each action names a
-distinct place. The
+declaration order; both bodies may use that executable form, including a shared
+cleanup target or helper. Repeated use of the same cleanup machine remains legal
+because each action names a distinct place. The
 return carries the ordered whole-place/type/machine list. Verification
 reconstructs its exact deduplicated machine closure; interpretation charges the
 caller edge once and executes each cleanup sequentially; fixed fuel counts
@@ -213,7 +213,7 @@ cleanup kinds in one ordered action stream through abstract, target, assigned,
 machine, object, image, and installation artifacts. Empty drops emit no native
 call; an executable body emits a call owned by the exact edge/action ordinal
 before teardown, with source-ordered operation-owned helper calls. Wider lists,
-two executable actions, nested/erased receivers,
+nested/erased receivers,
 three-or-more-call bodies, claims, qualifications, locals, and non-root edges
 remain fenced.
 

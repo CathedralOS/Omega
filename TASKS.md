@@ -207,16 +207,15 @@ Remaining:
   only relevant Boolean/integer fields. One attached `T::drop` may be empty or
   make up to two source-ordered calls to distinct exact-empty helpers. Two
   attached drops execute in reverse parameter order and may share one empty
-  cleanup target. At most one body in the two-action list may use the same
-  bounded helper-call form. Checked production, canonical
+  cleanup target. Both bodies in the two-action list may use the same bounded
+  helper-call form, including a shared cleanup target or helper. Checked production, canonical
   terminal encoding, independent verification, interpretation, and fixed fuel
   preserve each whole receiver, charge the root edge once, and count every
   cleanup invocation. Omega carries one ordered cleanup-action stream through
   all five object/image/install paths. Empty drops add no call; each accepted
   executable form emits a call owned by its exact edge/action ordinal before
   return teardown and retains source-ordered operation-owned helper custody.
-  Nested/erased receivers, three-or-more-call bodies, wider lists or two
-  executable actions, locals, claims,
+  Nested/erased receivers, three-or-more-call bodies, wider lists, locals, claims,
   qualifications, contracts, and non-root edges remain fenced.
 
   The root-only structural result carrier now reaches exact one-fragment Omega

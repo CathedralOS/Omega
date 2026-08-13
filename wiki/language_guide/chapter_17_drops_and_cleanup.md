@@ -44,15 +44,15 @@ The implemented terminal subset is deliberately narrower. A root-only Unit
 return may invoke attached `drop` for one or two whole claim-free, unqualified
 affine records that are empty or contain only relevant Boolean or integer
 fields. Two cleanups run in reverse parameter declaration order and may share
-one empty cleanup machine because the actions own different places. At most one
-body in the two-action list may contain up to two source-ordered ordinary
-zero-argument calls to mutually distinct exact-empty attached helpers. Psi
+one cleanup machine because the actions own different places. Each body may
+contain up to two source-ordered ordinary zero-argument calls to mutually
+distinct exact-empty attached helpers; different bodies may share helpers. Psi
 preserves each whole receiver and executes
 the complete ordered list. Omega represents all return cleanup as one ordered
 action stream, assigns nonempty receivers their ordinary ABI homes, and emits
 only executable cleanup calls while retaining exact edge/action and helper
-operation custody. Wider lists, two executable actions, nested or erased
-receivers, and three-or-more-call bodies remain pending engineering work under
+operation custody. Wider lists, nested or erased receivers, and
+three-or-more-call bodies remain pending engineering work under
 the rules below.
 
 A release that waits, suspends, may fail, or promises protocol completion is an

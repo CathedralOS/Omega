@@ -199,9 +199,9 @@ reverse declaration order. The first nominal list slice realizes that rule for
 two whole affine Unit parameters with bounded attached drops. The ordered
 actions may share one empty cleanup target because custody remains
 place-specific; Psi charges and executes both invocations while Omega preserves
-the list as one artifact action stream. At most one action may instead have the
-bounded executable body, whose emitted call retains its exact edge/action
-ordinal. One
+the list as one artifact action stream. Both actions may have bounded executable
+bodies and may share their cleanup target or helpers; each emitted cleanup call
+retains its exact edge/action ordinal. One
 root-only structural-result slice admits a
 finite consecutive prefix of immutable, unqualified empty-record affine locals:
 checked facts retain each dense declaration ordinal and type identity, terminal
