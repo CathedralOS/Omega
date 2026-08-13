@@ -16693,16 +16693,10 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating multiply canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating multiply canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating multiply canary should run");
     assert_eq!(
@@ -16712,7 +16706,7 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16733,16 +16727,10 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating INT_MIN/-1 canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating INT_MIN/-1 canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating INT_MIN/-1 canary should run");
     assert_eq!(
@@ -16752,7 +16740,7 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16774,16 +16762,10 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wrapping INT_MIN/-1 canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wrapping INT_MIN/-1 canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wrapping INT_MIN/-1 canary should run");
     assert_eq!(
@@ -16793,26 +16775,18 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
 fn runtime_signed_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_signed_division_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-signed-division-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("signed division canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("signed division canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("signed division canary should run");
 
@@ -16824,7 +16798,7 @@ fn runtime_signed_division_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16849,21 +16823,14 @@ fn runtime_shift_right_signedness_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-shift-right-signedness-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("shift-right signedness canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("shift-right signedness canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("shift-right signedness canary should run");
 
@@ -16876,7 +16843,7 @@ fn runtime_shift_right_signedness_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16896,21 +16863,14 @@ fn const_fold_saturating_narrow_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-const-fold-sat-narrow-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating narrow const-fold canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating narrow const-fold canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating narrow const-fold canary should run");
 
@@ -16922,7 +16882,7 @@ fn const_fold_saturating_narrow_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -16942,21 +16902,14 @@ fn const_fold_wrapping_narrow_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-const-fold-wrap-narrow-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("wrapping narrow const-fold canary should compile");
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wrapping narrow const-fold canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("wrapping narrow const-fold canary should run");
 
@@ -16968,7 +16921,7 @@ fn const_fold_wrapping_narrow_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
