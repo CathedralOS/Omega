@@ -766,32 +766,57 @@ fn emit_unit_body(
                     .collect::<Vec<_>>();
                 let partial_cleanup_valid = if cleanup_actions == &expected_root_actions {
                     true
-                } else if let Some((last, prefix)) = cleanup_actions.split_last() {
-                    matches!(last,
-                    psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
-                        if prefix == expected_local_actions.as_slice()
-                            && residual.path.len() == 1
-                            && body.parameters.iter().any(|parameter| {
-                                parameter.place == residual.place
-                                    && parameter.multiplicity
-                                        == psi_terminal::StructuralMultiplicity::Affine
-                                    && parameter.structural_type != residual.structural_type
-                            })
-                            && body.operations[..operation_ordinal]
-                                .iter()
-                                .any(|operation| {
-                                    matches!(
-                                        operation,
-                                        TerminalAssignedUnitOperation::Call { copies, .. }
-                                            if copies.iter().any(|copy| {
-                                                copy.place == residual.place
-                                                    && copy.path.len() == 1
-                                                    && copy.path != residual.path
-                                            })
-                                    )
-                                }))
                 } else {
-                    false
+                    let residual_actions = cleanup_actions
+                        .get(expected_local_actions.len()..)
+                        .unwrap_or_default();
+                    let residuals = residual_actions
+                        .iter()
+                        .filter_map(|action| match action {
+                            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(
+                                residual,
+                            ) => Some(residual),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    let residual_root = residuals.first().map(|residual| residual.place);
+                    let moved_paths = body.operations[..operation_ordinal]
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            TerminalAssignedUnitOperation::Call { copies, .. } => Some(copies),
+                            _ => None,
+                        })
+                        .flatten()
+                        .filter(|copy| Some(copy.place) == residual_root && copy.path.len() == 1)
+                        .map(|copy| copy.path.as_slice())
+                        .collect::<Vec<_>>();
+                    cleanup_actions.get(..expected_local_actions.len())
+                        == Some(expected_local_actions.as_slice())
+                        && !residuals.is_empty()
+                        && residuals.len() == residual_actions.len()
+                        && residual_root.is_some_and(|root| {
+                            expected_discards.get(expected_local_actions.len()..) == Some(&[root])
+                        })
+                        && residuals.iter().all(|residual| {
+                            Some(residual.place) == residual_root
+                                && matches!(residual.path.as_slice(),
+                                    [psi_terminal::StructuralPathSegment::Field(identity)]
+                                        if !identity.is_empty())
+                                && body.parameters.iter().any(|parameter| {
+                                    parameter.place == residual.place
+                                        && parameter.multiplicity
+                                            == psi_terminal::StructuralMultiplicity::Affine
+                                        && parameter.structural_type != residual.structural_type
+                                })
+                        })
+                        && residuals
+                            .iter()
+                            .map(|residual| residual.path.as_slice())
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len()
+                            == residuals.len()
+                        && matches!(moved_paths.as_slice(), [moved]
+                            if residuals.iter().all(|residual| residual.path.as_slice() != *moved))
                 } || (expected_local_prefix.is_empty()
                     && !nominal_cleanups.is_empty()
                     && nominal_cleanups.len() == cleanup_actions.len()

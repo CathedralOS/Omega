@@ -62,6 +62,19 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const WIDE_PARTIAL_AFFINE_SOURCE: &str = r#"
+    data LeftToken { value: u32; }
+    data MiddleToken { value: u64; }
+    data RightToken { value: u64; }
+    data Triple { left: LeftToken; middle: MiddleToken; right: RightToken; }
+    data Helper {}
+    machine Helper::take(token: RightToken) {}
+    data Root {}
+    machine Root::enter(triple: Triple) {
+        Helper::take(triple.right);
+    }
+"#;
+
 const NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
     data FirstCleanupHelper {}
@@ -211,6 +224,23 @@ fn partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstract
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine artifact enters Omega")
+}
+
+fn wide_partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(WIDE_PARTIAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize wide partial affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse wide partial affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve wide partial affine source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type wide partial affine source");
+    let checked = lower_typed_trees(typed).expect("check wide partial affine source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower wide partial affine Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode wide partial affine Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode wide partial affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified wide partial affine artifact enters Omega")
 }
 
 fn nominal_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
@@ -580,6 +610,139 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
         assert_eq!(
             decode_terminal_installation_record(&bytes),
             Ok(installation.clone())
+        );
+    }
+}
+
+#[test]
+fn wide_partial_affine_cleanup_preserves_reverse_field_order_without_code() {
+    let plan = wide_partial_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .expect("wide partial return retains cleanup actions");
+    let [
+        TerminalAffineCleanupAction::DiscardResidual(middle),
+        TerminalAffineCleanupAction::DiscardResidual(left),
+    ] = cleanup_actions.as_slice()
+    else {
+        panic!("wide partial return retains two residual fields")
+    };
+    assert_eq!(middle.path, [StructuralPathSegment::Field("middle".into())]);
+    assert_eq!(left.path, [StructuralPathSegment::Field("left".into())]);
+    assert_eq!(middle.place, left.place);
+    assert_ne!(middle.structural_type, left.structural_type);
+
+    let mut reordered = plan.clone();
+    let reordered_caller = reordered
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+        cleanup_actions: reordered_actions,
+        ..
+    } = reordered_caller.operations.last_mut().unwrap()
+    else {
+        panic!("caller ends in a Unit return")
+    };
+    reordered_actions.swap(0, 1);
+    assert!(lower_to_target_operations(&reordered, NativeTarget::linux_x64()).is_err());
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+        let [call] = emitted.internal_unit_calls.as_slice() else {
+            panic!("wide partial caller retains one projected call")
+        };
+        let [argument] = call.arguments.as_slice() else {
+            panic!("wide partial call retains one projected argument")
+        };
+        assert_eq!(
+            argument.path,
+            [StructuralPathSegment::Field("right".into())]
+        );
+        assert_eq!(argument.source_byte_offset, 16);
+
+        let mut root_cleanup_assigned = assigned.clone();
+        let root_cleanup_caller = root_cleanup_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
+            &mut root_cleanup_caller.operation
+        else {
+            panic!("caller remains a Unit body")
+        };
+        let omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
+            cleanup_actions: root_actions,
+            ..
+        } = body.operations.last_mut().unwrap()
+        else {
+            panic!("caller ends in a Unit return")
+        };
+        *root_actions = vec![TerminalAffineCleanupAction::DiscardRoot(middle.place)];
+        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
+        let root_cleanup_bytes = &root_cleanup_machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .bytes;
+        assert_eq!(
+            &emitted.bytes, root_cleanup_bytes,
+            "two residual field actions add no runtime instruction bytes"
+        );
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed_actions = &installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_ref()
+            .unwrap()
+            .actions;
+        assert_eq!(installed_actions, &cleanup_actions);
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
         );
     }
 }
