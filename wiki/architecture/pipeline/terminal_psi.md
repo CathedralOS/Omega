@@ -348,9 +348,13 @@ commits; canonical encoding and fixed-fuel derivation cover the same edge.
 The exact checked-source slice accepts one attached, one-state passthrough of a
 whole linear parameter with matching qualifications and one whole-root claim;
 locals, authored contracts, projections, and wider control shapes fail closed.
-Omega ABI realization remains unfinished, so Omega rejects a verified
-structural return before emitting any partial abstract-operation plan;
-structural calls are not yet admitted.
+Omega realizes that exact slice through its target calling policy when the value
+has one direct eight-byte integer fragment. The source and result placements,
+typed declarations, Psi edge, and claim set survive target assignment, machine
+emission, object/image construction, and canonical installation. Claim identity
+is zero-runtime semantic metadata rather than an extra ABI word. Wider or
+indirect values, projections, structural calls, and broader control remain
+fenced before partial lowering.
 
 Normal scalar returns carry the exact canonical list of live unclaimed affine
 parameters to discard; the list is empty when no cleanup is required.

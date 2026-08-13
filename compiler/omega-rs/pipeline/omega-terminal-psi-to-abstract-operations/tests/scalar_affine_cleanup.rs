@@ -1,17 +1,20 @@
-use omega_terminal_abstract_operations::TerminalAbstractOperation;
+use omega_terminal_abstract_operations::{
+    TerminalAbstractFunctionResult, TerminalAbstractOperation,
+};
 use omega_terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, LoweringError, lower_artifact_sections,
 };
 use psi_core::{
-    BlockId, ClaimId, ContractId, EdgeId, MachineId, PlaceId, ScalarType, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    BlockId, ClaimId, ContractId, EdgeId, MachineId, PlaceId, ScalarType, StructuralDomainId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralDomainDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_verifier::ProofBundle;
@@ -134,11 +137,12 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
 }
 
 #[test]
-fn omega_rejects_structural_return_before_emitting_a_partial_plan() {
+fn omega_preserves_exact_singleton_structural_return_custody() {
     let source = place_id(1);
     let result_place = place_id(2);
     let claim = claim_id(1);
     let structural_type = structural_type_id(1);
+    let structural_domain = structural_domain_id(1);
     let edge = edge_id(1);
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -148,7 +152,11 @@ fn omega_rejects_structural_return_before_emitting_a_partial_plan() {
             identity: "test::LinearToken".into(),
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
-        structural_domains: Vec::new(),
+        structural_domains: vec![StructuralDomainDeclaration {
+            id: structural_domain,
+            identity: "test::Owned".into(),
+            carrier: structural_type,
+        }],
         services: Vec::new(),
         boundary_machines: Vec::new(),
         proposition_declarations: Vec::new(),
@@ -163,13 +171,13 @@ fn omega_rejects_structural_return_before_emitting_a_partial_plan() {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
-                qualifications: Vec::new(),
+                qualifications: vec![structural_domain],
             }],
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
                 place: result_place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
-                qualifications: Vec::new(),
+                qualifications: vec![structural_domain],
             }),
             structural_places: vec![
                 StructuralPlaceDeclaration {
@@ -216,17 +224,47 @@ fn omega_rejects_structural_return_before_emitting_a_partial_plan() {
     let semantics = encode_module(&module).expect("structural return should encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof should encode");
 
+    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("exact structural custody return should enter Omega");
+    let [function] = plan.functions.as_slice() else {
+        panic!("fixture has one terminal function")
+    };
+    assert_eq!(
+        function.structural_parameters,
+        module.machines[0].structural_parameters
+    );
+    assert_eq!(function.entry_claims, module.machines[0].entry_claims);
+    assert_eq!(
+        function.result,
+        TerminalAbstractFunctionResult::Structural(StructuralResultDeclaration {
+            place: result_place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![structural_domain],
+        })
+    );
+    assert_eq!(
+        function
+            .result
+            .structural()
+            .expect("structural result")
+            .place,
+        result_place
+    );
     assert!(matches!(
-        lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default()),
-        Err(ArtifactLoweringError::Lowering(
-            LoweringError::UnsupportedStructuralReturn {
-                machine,
-                edge: actual_edge,
-            }
-        )) if machine == machine_id(1) && actual_edge == edge
+        function.operations.as_slice(),
+        [TerminalAbstractOperation::ReturnStructural {
+            psi_edge,
+            source: actual_source,
+            returned_claims,
+            trivial_affine_discards,
+        }] if *psi_edge == edge
+            && *actual_source == source
+            && returned_claims.as_slice() == [claim]
+            && trivial_affine_discards.is_empty()
     ));
 
-    let mut crash_only = module;
+    let mut crash_only = module.clone();
     crash_only.machines[0].contract.crash_routes = vec![CrashRouteBucket {
         cause: CrashCause::Abort,
         alternatives: vec![CrashRouteGuard::Truth],
@@ -238,6 +276,43 @@ fn omega_rejects_structural_return_before_emitting_a_partial_plan() {
         frontier_lower_bound: vec![claim],
     };
     let semantics = encode_module(&crash_only).expect("structural crash-only machine encodes");
+    assert!(matches!(
+        lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default()),
+        Err(ArtifactLoweringError::Lowering(
+            LoweringError::UnsupportedStructuralResult(machine)
+        )) if machine == machine_id(1)
+    ));
+
+    let extra = place_id(3);
+    let mut wider_cleanup = module;
+    wider_cleanup.machines[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: extra,
+            position: 1,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        });
+    wider_cleanup.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: extra,
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+    let Terminator::ReturnStructural {
+        trivial_affine_discards,
+        ..
+    } = &mut wider_cleanup.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.push(extra);
+    let semantics = encode_module(&wider_cleanup).expect("wider cleanup return should encode");
     assert!(matches!(
         lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default()),
         Err(ArtifactLoweringError::Lowering(
@@ -272,6 +347,10 @@ fn place_id(raw: u64) -> PlaceId {
 
 fn structural_type_id(raw: u64) -> StructuralTypeId {
     StructuralTypeId::new(raw).unwrap()
+}
+
+fn structural_domain_id(raw: u64) -> StructuralDomainId {
+    StructuralDomainId::new(raw).unwrap()
 }
 
 fn claim_id(raw: u64) -> ClaimId {

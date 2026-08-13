@@ -77,8 +77,11 @@ Remaining:
   authored-partition composition rows, and terminal Psi independently validates
   their canonical replay. The exact root-only source passthrough now produces a
   structural result/return carrier with claim transfer, exit-time content
-  replay, interpretation, and fuel. Preserve that carrier through Omega ABI
-  realization rather than silently dropping the live claim.
+  replay, interpretation, and fuel. Omega preserves that carrier through the
+  exact one-fragment native ABI path and all artifact/install layers, with claim
+  identity retained as zero-runtime metadata. The remaining work is real sealed
+  introduction, custody exit, residual geometry, and provider binding—not
+  another passthrough representation.
 - **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
   and compiler-provisioned origins must preserve complete evidence and reject
   cross-origin composition and replay. Once the sealed local-capacity source
@@ -176,8 +179,9 @@ Remaining:
   on each accepted carrier. Unsupported claims, cleanup, calls, topology, or
   computation fail closed rather than falling back to source trees.
 
-  Connect the root-only structural result carrier to Omega realization, then
-  add indexed aggregates, affine locals, nominal/partial-value cleanup,
+  The root-only structural result carrier now reaches exact one-fragment Omega
+  native realization and installation. Next add indexed aggregates, affine
+  locals, nominal/partial-value cleanup,
   remaining edge kinds and conservation,
   returned transfer, loops, suspension, and scoped ordering. Cycles, divergent
   or wider joins, reordered custody, computed structural guards/successors,

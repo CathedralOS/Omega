@@ -169,6 +169,9 @@ fn lower_function(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
+    if let Some(result) = function.result.structural() {
+        return lower_structural_return_function(function, result, target, structural_types);
+    }
     let Some(function_result) = function.result.scalar() else {
         return lower_unit_function(function, target, functions, structural_types, settlements);
     };
@@ -1325,7 +1328,8 @@ fn lower_function(
                     }
                 });
             }
-            TerminalAbstractOperation::ReturnUnit { .. } => {
+            TerminalAbstractOperation::ReturnUnit { .. }
+            | TerminalAbstractOperation::ReturnStructural { .. } => {
                 return Err(LoweringError::FunctionResultKindMismatch(function.machine));
             }
         }
@@ -1336,6 +1340,119 @@ fn lower_function(
         provenance,
         operation: returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?,
     })
+}
+
+fn lower_structural_return_function(
+    function: &TerminalAbstractFunction,
+    result: &psi_terminal::StructuralResultDeclaration,
+    target: NativeTarget,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<TerminalTargetFunction, LoweringError> {
+    let [source] = function.structural_parameters.as_slice() else {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    };
+    let [entry_claim] = function.entry_claims.as_slice() else {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    };
+    let [block_entry] = function.block_entries.as_slice() else {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    };
+    let [
+        TerminalAbstractOperation::ReturnStructural {
+            psi_edge,
+            source: returned_source,
+            returned_claims,
+            trivial_affine_discards,
+        },
+    ] = function.operations.as_slice()
+    else {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    };
+    if !function.parameters.is_empty()
+        || !function.published_service_ceiling.is_empty()
+        || block_entry.block != function.entry
+        || block_entry.operation_offset != 0
+        || source.position != 0
+        || source.is_self
+        || source.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+        || result.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+        || source.structural_type != result.structural_type
+        || source.qualifications != result.qualifications
+        || source.place == result.place
+        || *returned_source != source.place
+        || entry_claim.input != source.place
+        || !entry_claim.field_path.is_empty()
+        || returned_claims.as_slice() != [entry_claim.claim]
+        || !trivial_affine_discards.is_empty()
+    {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let shape = structural_shape(
+        source.structural_type,
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?;
+    if shape.byte_size != 8 || shape.alignment != 8 {
+        return Err(LoweringError::UnsupportedStructuralReturnShape {
+            machine: function.machine,
+            byte_size: shape.byte_size,
+        });
+    }
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![shape],
+            result: Some(shape),
+        },
+    )
+    .map_err(LoweringError::AbiPlan)?;
+    let [source_placement] = call_plan.parameters.as_slice() else {
+        return Err(LoweringError::AbiParameterCountMismatch {
+            expected: 1,
+            actual: call_plan.parameters.len(),
+        });
+    };
+    let Some(result_placement) = call_plan.result.as_ref() else {
+        return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+    };
+    require_one_direct_structural_fragment(function.machine, source_placement)?;
+    require_one_direct_structural_fragment(function.machine, result_placement)?;
+    Ok(TerminalTargetFunction {
+        machine: function.machine,
+        provenance: TerminalPsiProvenance {
+            operations: Vec::new(),
+            edges: vec![*psi_edge],
+        },
+        operation: TerminalTargetOperation::ReturnStructuralParameter {
+            call_plan: call_plan.clone(),
+            source: source.clone(),
+            result: result.clone(),
+            shape,
+            source_placement: source_placement.clone(),
+            result_placement: result_placement.clone(),
+            psi_edge: *psi_edge,
+            returned_claims: returned_claims.clone(),
+        },
+    })
+}
+
+fn require_one_direct_structural_fragment(
+    machine: MachineId,
+    placement: &ValuePlacement,
+) -> Result<(), LoweringError> {
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size: 8,
+                ..
+            },
+        ] if placement.shape.byte_size == 8 => Ok(()),
+        _ => Err(LoweringError::UnsupportedStructuralReturnPlacement(machine)),
+    }
 }
 
 fn lower_unit_function(
@@ -1586,7 +1703,8 @@ fn lower_unit_function(
             | TerminalAbstractOperation::SaturatingIntegerRemainder { .. }
             | TerminalAbstractOperation::Jump { .. }
             | TerminalAbstractOperation::Conditional { .. }
-            | TerminalAbstractOperation::Return { .. } => {
+            | TerminalAbstractOperation::Return { .. }
+            | TerminalAbstractOperation::ReturnStructural { .. } => {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(
                     function.machine,
                 ));
@@ -3877,6 +3995,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::Conditional { .. }
             | TerminalAbstractOperation::Return { .. }
             | TerminalAbstractOperation::ReturnUnit { .. }
+            | TerminalAbstractOperation::ReturnStructural { .. }
             | TerminalAbstractOperation::Crash { .. } => None,
         };
         if let Some(psi_operation) = psi_operation
@@ -3888,6 +4007,7 @@ fn conditional_provenance(
             TerminalAbstractOperation::Jump { psi_edge, .. }
             | TerminalAbstractOperation::Return { psi_edge, .. }
             | TerminalAbstractOperation::ReturnUnit { psi_edge }
+            | TerminalAbstractOperation::ReturnStructural { psi_edge, .. }
             | TerminalAbstractOperation::Crash { psi_edge, .. } => {
                 if edges.remove(psi_edge) {
                     provenance.edges.push(*psi_edge);
@@ -3932,6 +4052,12 @@ pub enum LoweringError {
         operation: OperationId,
     },
     UnsupportedOperationInUnitFunction(MachineId),
+    UnsupportedStructuralReturn(MachineId),
+    UnsupportedStructuralReturnShape {
+        machine: MachineId,
+        byte_size: u16,
+    },
+    UnsupportedStructuralReturnPlacement(MachineId),
     UnitCallTargetKindMismatch(MachineId),
     StructuralCallArgumentCountMismatch {
         callee: MachineId,

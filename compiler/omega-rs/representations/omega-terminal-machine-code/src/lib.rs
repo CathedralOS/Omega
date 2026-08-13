@@ -3,14 +3,19 @@
 //! Owned target machine code emitted from the clean terminal-Psi realization
 //! lane.
 
+use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding, TerminalPsiProvenance,
 };
 use psi_core::{
-    BoundaryMachineId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ServiceId,
+    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
+    ServiceId,
 };
-use psi_terminal::{CompletionReceipt, TerminalPsiIdentity};
+use psi_terminal::{
+    CompletionReceipt, StructuralParameterDeclaration, StructuralResultDeclaration,
+    TerminalPsiIdentity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachineCodePlan {
@@ -48,6 +53,23 @@ pub struct TerminalMachineCodeFunction {
     /// Verified metadata-only boundary settlements retained at their exact
     /// code position. They emit no duplicate hardware effect.
     pub boundary_settlements: Vec<TerminalBoundarySettlementRecord>,
+    /// Exact ownership-bearing structural return bound to the emitted byte
+    /// interval. Claim identities are semantic metadata, never hidden ABI
+    /// words.
+    pub structural_return: Option<TerminalStructuralReturnRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralReturnRecord {
+    pub psi_edge: EdgeId,
+    pub source: StructuralParameterDeclaration,
+    pub result: StructuralResultDeclaration,
+    pub shape: ValueShape,
+    pub source_placement: ValuePlacement,
+    pub result_placement: ValuePlacement,
+    pub returned_claims: Vec<ClaimId>,
+    pub code_offset: usize,
+    pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

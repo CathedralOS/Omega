@@ -792,14 +792,19 @@ dependencies = [
  "psi-layout-plans",
  "psi-numerics",
  "psi-proof-kernel",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
  "psi-terminal-fuel",
  "psi-terminal-interpreter",
  "psi-terminal-verifier",
+ "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1172,6 +1177,7 @@ name = "omega-terminal-image-emission"
 version = "0.1.0"
 dependencies = [
  "iced-x86",
+ "omega-calling-conventions",
  "omega-external-roots",
  "omega-image",
  "omega-image-elf",
@@ -1193,6 +1199,7 @@ dependencies = [
 name = "omega-terminal-machine-code"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-target",
  "omega-terminal-target-operations",
  "psi-core",
@@ -1242,6 +1249,7 @@ dependencies = [
 name = "omega-terminal-target-operations-to-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-target",
  "omega-terminal-assigned-target-operations",
  "omega-terminal-target-operations",

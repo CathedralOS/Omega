@@ -32,7 +32,8 @@ use omega_terminal_machine_code::{
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarCallStackEvidence,
     TerminalScalarConditionalCondition, TerminalScalarControlFlowEvidence,
     TerminalScalarStackEvidence, TerminalScalarStackMutation, TerminalScalarStackMutationKind,
-    TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
+    TerminalStackAdjustmentPair, TerminalStructuralReturnRecord, TerminalUnitCallStackEvidence,
+    TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
@@ -137,6 +138,9 @@ pub struct TerminalObjectFunction {
     pub scalar_stack: Option<TerminalObjectScalarStack>,
     pub unit_call_stacks: Vec<TerminalObjectUnitCallStack>,
     pub scalar_call_stacks: Vec<TerminalObjectScalarCallStack>,
+    /// Byte-validated structural custody returned by this function, when the
+    /// complete one-fragment slice applies.
+    pub structural_return: Option<TerminalStructuralReturnRecord>,
 }
 
 impl TerminalObjectFunction {
@@ -298,6 +302,25 @@ pub fn build_terminal_object_artifact(
             return Err(TerminalObjectError::ConflictingTerminalStackEvidence(
                 function.machine,
             ));
+        }
+        if let Some(returned) = &function.structural_return {
+            validate_structural_return_record(
+                plan.target.architecture,
+                function.machine,
+                &function.provenance,
+                &function.bytes,
+                returned,
+            )?;
+            if function.unit_stack.is_some()
+                || function.scalar_stack.is_some()
+                || !function.internal_calls.is_empty()
+                || !function.port_effects.is_empty()
+                || !function.boundary_settlements.is_empty()
+            {
+                return Err(TerminalObjectError::StructuralReturnEvidenceConflict(
+                    function.machine,
+                ));
+            }
         }
         if let Some(stack) = &function.scalar_stack {
             validated_scalar_stacks.insert(
@@ -622,6 +645,7 @@ pub fn build_terminal_object_artifact(
             scalar_stack,
             unit_call_stacks,
             scalar_call_stacks,
+            structural_return: function.structural_return.clone(),
         });
     }
 
@@ -677,6 +701,106 @@ pub fn build_terminal_object_artifact(
         port_effects,
         boundary_settlements,
     })
+}
+
+fn validate_structural_return_record(
+    architecture: Architecture,
+    machine: MachineId,
+    provenance: &TerminalPsiProvenance,
+    bytes: &[u8],
+    returned: &TerminalStructuralReturnRecord,
+) -> Result<(), TerminalObjectError> {
+    let end = returned
+        .code_offset
+        .checked_add(returned.byte_count)
+        .ok_or(TerminalObjectError::InvalidStructuralReturnEvidence(
+            machine,
+        ))?;
+    if returned.code_offset != 0
+        || end != bytes.len()
+        || returned.byte_count == 0
+        || provenance.edges.as_slice() != [returned.psi_edge]
+        || !provenance.operations.is_empty()
+        || returned.source.structural_type != returned.result.structural_type
+        || returned.source.multiplicity != returned.result.multiplicity
+        || returned.source.qualifications != returned.result.qualifications
+        || returned.shape != returned.source_placement.shape
+        || returned.shape != returned.result_placement.shape
+        || returned.shape.byte_size != 8
+        || returned.returned_claims.len() != 1
+    {
+        return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
+            machine,
+        ));
+    }
+    let expected = match architecture {
+        Architecture::X86_64 => {
+            let [
+                omega_calling_conventions::ValueLocation::Register {
+                    register: source,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] = returned.source_placement.locations.as_slice()
+            else {
+                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
+                    machine,
+                ));
+            };
+            let [
+                omega_calling_conventions::ValueLocation::Register {
+                    register: omega_calling_conventions::MachineRegister::X86Rax,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] = returned.result_placement.locations.as_slice()
+            else {
+                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
+                    machine,
+                ));
+            };
+            match source {
+                omega_calling_conventions::MachineRegister::X86Rdi => &[0x48, 0x89, 0xf8, 0xc3][..],
+                omega_calling_conventions::MachineRegister::X86Rcx => &[0x48, 0x89, 0xc8, 0xc3][..],
+                _ => {
+                    return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
+                        machine,
+                    ));
+                }
+            }
+        }
+        Architecture::Aarch64 => {
+            let [
+                omega_calling_conventions::ValueLocation::Register {
+                    register: omega_calling_conventions::MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] = returned.source_placement.locations.as_slice()
+            else {
+                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
+                    machine,
+                ));
+            };
+            let [
+                omega_calling_conventions::ValueLocation::Register {
+                    register: omega_calling_conventions::MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] = returned.result_placement.locations.as_slice()
+            else {
+                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
+                    machine,
+                ));
+            };
+            &[0xc0, 0x03, 0x5f, 0xd6]
+        }
+    };
+    if bytes != expected {
+        return Err(TerminalObjectError::StructuralReturnBytesMismatch(machine));
+    }
+    Ok(())
 }
 
 fn validate_unit_function_stack(
@@ -2369,6 +2493,9 @@ pub enum TerminalObjectError {
     InvalidFuelAttribution(MachineId),
     NonCanonicalPortEffectOrder(MachineId),
     NonCanonicalBoundarySettlementOrder(MachineId),
+    InvalidStructuralReturnEvidence(MachineId),
+    StructuralReturnEvidenceConflict(MachineId),
+    StructuralReturnBytesMismatch(MachineId),
     UnknownInternalCallTarget {
         caller: MachineId,
         target: MachineId,

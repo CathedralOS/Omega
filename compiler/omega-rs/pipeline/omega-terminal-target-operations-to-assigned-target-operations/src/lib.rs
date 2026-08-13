@@ -5,7 +5,8 @@
 
 use std::collections::BTreeMap;
 
-use omega_target::Architecture;
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
+use omega_target::{Architecture, NativeTarget};
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedAggregateCopy, TerminalAssignedBooleanControl,
     TerminalAssignedBooleanExpression, TerminalAssignedCallArgument,
@@ -41,15 +42,16 @@ pub fn assign_registers(
         functions: plan
             .functions
             .iter()
-            .map(|function| assign_function(function, plan.target.architecture))
+            .map(|function| assign_function(function, plan.target))
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
 fn assign_function(
     function: &TerminalTargetFunction,
-    architecture: Architecture,
+    target: NativeTarget,
 ) -> Result<TerminalAssignedFunction, AssignmentError> {
+    let architecture = target.architecture;
     let operation = match &function.operation {
         TerminalTargetOperation::UnitBody(body) => {
             let operations = body
@@ -114,6 +116,47 @@ fn assign_function(
                 parameters: body.parameters.clone(),
                 operations,
             })
+        }
+        TerminalTargetOperation::ReturnStructuralParameter {
+            call_plan,
+            source,
+            result,
+            shape,
+            source_placement,
+            result_placement,
+            psi_edge,
+            returned_claims,
+        } => {
+            let expected_call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![*shape],
+                    result: Some(*shape),
+                },
+            )
+            .map_err(|_| AssignmentError::UnsupportedStructuralPlacement(source.place))?;
+            let expected_parameters = [source_placement.clone()];
+            if *call_plan != expected_call_plan
+                || call_plan.parameters.as_slice() != expected_parameters
+                || call_plan.result.as_ref() != Some(result_placement)
+                || source.place == result.place
+            {
+                return Err(AssignmentError::UnsupportedStructuralPlacement(
+                    source.place,
+                ));
+            }
+            validate_structural_placement(source.place, source_placement, architecture)?;
+            validate_structural_placement(result.place, result_placement, architecture)?;
+            TerminalAssignedOperation::ReturnStructuralParameter {
+                call_plan: call_plan.clone(),
+                source: source.clone(),
+                result: result.clone(),
+                shape: *shape,
+                source_placement: source_placement.clone(),
+                result_placement: result_placement.clone(),
+                psi_edge: *psi_edge,
+                returned_claims: returned_claims.clone(),
+            }
         }
         TerminalTargetOperation::Crash {
             psi_edge,
@@ -287,6 +330,47 @@ fn assign_function(
         provenance: function.provenance.clone(),
         operation,
     })
+}
+
+fn validate_structural_placement(
+    place: psi_core::PlaceId,
+    placement: &omega_calling_conventions::ValuePlacement,
+    architecture: Architecture,
+) -> Result<(), AssignmentError> {
+    let [ValueLocation::Register { register, .. }] = placement.locations.as_slice() else {
+        return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+    };
+    let matches_architecture = match (architecture, register) {
+        (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rax)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rcx)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rdx)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rbx)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rsp)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rbp)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rsi)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rdi)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R8)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R9)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R10)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R11)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R12)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R13)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R14)
+        | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86R15)
+        | (
+            Architecture::Aarch64,
+            omega_terminal_target_operations::MachineRegister::Aarch64X(0..=30),
+        ) => true,
+        _ => false,
+    };
+    if !matches_architecture {
+        return Err(AssignmentError::StructuralRegisterArchitectureMismatch {
+            place,
+            register: *register,
+            architecture,
+        });
+    }
+    Ok(())
 }
 
 fn assign_boolean_control_arm(
@@ -1715,6 +1799,12 @@ fn x86_expression_scratch_conflict(register: MachineRegister) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentError {
     EntryFunctionMissing(MachineId),
+    UnsupportedStructuralPlacement(psi_core::PlaceId),
+    StructuralRegisterArchitectureMismatch {
+        place: psi_core::PlaceId,
+        register: MachineRegister,
+        architecture: Architecture,
+    },
     ParameterRegisterArchitectureMismatch {
         value: ValueId,
         register: MachineRegister,

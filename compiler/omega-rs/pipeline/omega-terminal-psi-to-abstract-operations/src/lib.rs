@@ -10,8 +10,10 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractParameter,
     TerminalAbstractResult, TerminalAbstractSuccessor, TerminalValueBinding,
 };
-use psi_core::{BlockId, MachineId, ScalarType};
-use psi_terminal::{OperationKind, TerminalMachine, Terminator};
+use psi_core::{BlockId, MachineId, ScalarType, StructuralPlaceKind};
+use psi_terminal::{
+    OperationKind, StructuralMultiplicity, StructuralResultDeclaration, TerminalMachine, Terminator,
+};
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
@@ -62,20 +64,8 @@ fn lower_decoded_verified_module(
 }
 
 fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, LoweringError> {
-    if let Some(edge) = machine.blocks.iter().find_map(|block| {
-        if let Terminator::ReturnStructural { edge, .. } = &block.terminator {
-            Some(*edge)
-        } else {
-            None
-        }
-    }) {
-        return Err(LoweringError::UnsupportedStructuralReturn {
-            machine: machine.id,
-            edge,
-        });
-    }
-    if machine.result.structural().is_some() {
-        return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+    if let Some(result) = machine.result.structural() {
+        return lower_structural_machine(machine, result);
     }
     let result = machine.result.scalar();
     let blocks = machine
@@ -702,16 +692,101 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
     })
 }
 
+/// Lower only the first complete structural ABI requirement: one verified
+/// whole-root linear parameter is returned unchanged with its one live claim.
+/// Wider verified terminal programs remain fenced until their target-neutral
+/// carrier and Omega realization land together.
+fn lower_structural_machine(
+    machine: &TerminalMachine,
+    result: &StructuralResultDeclaration,
+) -> Result<TerminalAbstractFunction, LoweringError> {
+    let unsupported = || LoweringError::UnsupportedStructuralResult(machine.id);
+    let [parameter] = machine.structural_parameters.as_slice() else {
+        return Err(unsupported());
+    };
+    let [entry_claim] = machine.entry_claims.as_slice() else {
+        return Err(unsupported());
+    };
+    let [block] = machine.blocks.as_slice() else {
+        return Err(unsupported());
+    };
+    let [parameter_place, result_place] = machine.structural_places.as_slice() else {
+        return Err(unsupported());
+    };
+    let Terminator::ReturnStructural {
+        edge,
+        source,
+        returned_claims,
+        trivial_affine_discards,
+    } = &block.terminator
+    else {
+        return Err(unsupported());
+    };
+
+    if !machine.parameters.is_empty()
+        || parameter.position != 0
+        || parameter.is_self
+        || parameter.multiplicity != StructuralMultiplicity::Linear
+        || result.multiplicity != StructuralMultiplicity::Linear
+        || parameter.structural_type != result.structural_type
+        || parameter.qualifications != result.qualifications
+        || parameter.place != *source
+        || entry_claim.input != parameter.place
+        || !entry_claim.field_path.is_empty()
+        || returned_claims.as_slice() != [entry_claim.claim]
+        || !trivial_affine_discards.is_empty()
+        || block.id != machine.entry
+        || !block.parameters.is_empty()
+        || !block.operations.is_empty()
+        || !machine.published_service_ceiling.is_empty()
+        || !machine.contract.crash_routes.is_empty()
+        || !machine.contract.requires.is_empty()
+        || !machine.contract.ensures.is_empty()
+        || parameter_place.id != parameter.place
+        || !matches!(
+            parameter_place.kind,
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false
+            }
+        )
+        || result_place.id != result.place
+        || result_place.kind != StructuralPlaceKind::Result
+    {
+        return Err(unsupported());
+    }
+
+    Ok(TerminalAbstractFunction {
+        machine: machine.id,
+        attachment: machine.attachment,
+        entry: machine.entry,
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter.clone()],
+        result: TerminalAbstractFunctionResult::Structural(result.clone()),
+        entry_claims: vec![entry_claim.clone()],
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![TerminalAbstractBlockEntry {
+            block: block.id,
+            operation_offset: 0,
+        }],
+        operations: vec![TerminalAbstractOperation::ReturnStructural {
+            psi_edge: *edge,
+            source: *source,
+            returned_claims: returned_claims.clone(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
+        }],
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     SemanticIdentity(CodecError),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
-    /// Omega has not yet assigned a target ABI or realization shape to a
-    /// structural terminal result.
+    /// The verified structural-result machine is wider than the exact
+    /// singleton whole-root passthrough currently carried into Omega.
     UnsupportedStructuralResult(MachineId),
-    /// Omega has not yet implemented ownership-preserving structural result
-    /// transfer. Reject before emitting any partial abstract-operation plan.
+    /// A structural return appeared on a non-structural-result machine.
     UnsupportedStructuralReturn {
         machine: MachineId,
         edge: psi_core::EdgeId,
