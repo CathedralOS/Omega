@@ -540,8 +540,9 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     /// still path-sensitive.
     pub machine: CheckedUnitEffectMachinePlan,
     /// Exact maximal residual subtrees after every source-ordered projected
-    /// call commits. Nested paths recurse at their selected ancestor while
-    /// retaining reverse declaration order at every record level.
+    /// call commits. Pairwise prefix-disjoint paths are grouped recursively at
+    /// selected ancestors while retaining reverse declaration order at every
+    /// record level.
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 

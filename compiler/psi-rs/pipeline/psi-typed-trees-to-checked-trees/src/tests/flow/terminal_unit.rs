@@ -78,18 +78,20 @@ fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_clea
 }
 
 #[test]
-fn retains_one_nested_field_transfer_with_recursive_maximal_residual_cleanup() {
+fn retains_mixed_prefix_disjoint_field_transfers_with_maximal_residual_cleanup() {
     let checked = checked(
         r#"
         data Token { value: u64; }
         data Deep { low: Token; middle: Token; high: Token; }
-        data Inner { before: Token; deep: Deep; after: Token; }
-        data Outer { first: Token; inner: Inner; last: Token; }
+        data Branch { head: Token; deep: Deep; tail: Token; }
+        data Outer { first: Token; left: Branch; right: Branch; last: Token; }
         data Sink {}
         machine Sink::take(token: Token) {}
         data Root {}
         machine Root::enter(value: Outer) {
-            Sink::take(value.inner.deep.middle);
+            Sink::take(value.left.deep.middle);
+            Sink::take(value.right.tail);
+            Sink::take(value.first);
         }
         "#,
     );
@@ -98,20 +100,29 @@ fn retains_one_nested_field_transfer_with_recursive_maximal_residual_cleanup() {
         .flow
         .terminal_partial_affine_unit_cleanups
         .for_machine(machine_named(&checked, "enter"))
-        .expect("one nested field move has an exact maximal residual plan");
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &plan.machine.operations[0]
-    else {
-        panic!("nested partial cleanup begins with one Unit call")
-    };
+        .expect("mixed disjoint field moves have an exact maximal residual plan");
     assert_eq!(
-        structural_arguments[0].path,
-        [
-            CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
-            CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
-            CheckedUnitStructuralPathSegment::Field("middle".to_owned()),
+        plan.machine.operations[..3]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => structural_arguments[0].path.clone(),
+                _ => panic!("partial cleanup begins with source-ordered Unit calls"),
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("middle".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("right".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("tail".to_owned()),
+            ],
+            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
         ]
     );
     assert_eq!(
@@ -122,24 +133,31 @@ fn retains_one_nested_field_transfer_with_recursive_maximal_residual_cleanup() {
         vec![
             vec![CheckedUnitStructuralPathSegment::Field("last".to_owned())],
             vec![
-                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
-                CheckedUnitStructuralPathSegment::Field("after".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("right".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
             ],
             vec![
-                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("right".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("head".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("tail".to_owned()),
+            ],
+            vec![
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
                 CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
                 CheckedUnitStructuralPathSegment::Field("high".to_owned()),
             ],
             vec![
-                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
                 CheckedUnitStructuralPathSegment::Field("deep".to_owned()),
                 CheckedUnitStructuralPathSegment::Field("low".to_owned()),
             ],
             vec![
-                CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
-                CheckedUnitStructuralPathSegment::Field("before".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("left".to_owned()),
+                CheckedUnitStructuralPathSegment::Field("head".to_owned()),
             ],
-            vec![CheckedUnitStructuralPathSegment::Field("first".to_owned())],
         ]
     );
 }
@@ -160,10 +178,6 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
         machine Root::missing(value: One) {
             Sink::take(value.right);
         }
-        machine Root::nested_multiple(value: Outer) {
-            Sink::take(value.inner.right);
-            Sink::take(value.left);
-        }
         machine Root::complete(value: Pair) {
             Sink::take(value.right);
             Sink::take(value.left);
@@ -174,7 +188,7 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
         "#,
     );
 
-    for machine in ["missing", "nested_multiple", "complete", "scalar"] {
+    for machine in ["missing", "complete", "scalar"] {
         assert!(
             checked
                 .facts

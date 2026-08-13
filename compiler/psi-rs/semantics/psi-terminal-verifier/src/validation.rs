@@ -1038,78 +1038,33 @@ fn partial_affine_residuals(
     if moved_paths.is_empty() || moved_paths.iter().any(|path| !is_nonempty_field_path(path)) {
         return None;
     }
-    if moved_paths.iter().any(|path| path.len() > 1) {
-        if moved_paths.len() != 1 {
-            return None;
-        }
-        let moved_path = moved_paths.first()?;
-        let mut residuals = Vec::new();
-        collect_nested_partial_affine_residuals(
-            module,
-            root_type,
-            moved_path,
-            &mut Vec::new(),
-            &mut residuals,
-        )?;
-        return Some(residuals);
-    }
-
-    let declaration = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == root_type)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
-    };
-    if fields.is_empty()
-        || fields.iter().any(|field| {
-            field.relevance.is_erased()
-                || !matches!(field.field_type, StructuralFieldType::Structural(_))
-        })
-    {
-        return None;
-    }
-    let moved_identities = moved_paths
-        .iter()
-        .map(|path| match path.as_slice() {
-            [StructuralPathSegment::Field(identity)] => Some(identity),
-            _ => None,
-        })
-        .collect::<Option<BTreeSet<_>>>()?;
-    if moved_identities
-        .iter()
-        .any(|identity| !fields.iter().any(|field| field.identity == ***identity))
-    {
-        return None;
-    }
-    Some(
-        fields
+    if moved_paths.iter().enumerate().any(|(index, path)| {
+        moved_paths
             .iter()
-            .rev()
-            .filter(|field| !moved_identities.contains(&field.identity))
-            .map(|field| {
-                let StructuralFieldType::Structural(structural_type) = field.field_type else {
-                    unreachable!("record field shape was checked above")
-                };
-                (
-                    vec![StructuralPathSegment::Field(field.identity.clone())],
-                    structural_type,
-                )
-            })
-            .collect(),
-    )
+            .enumerate()
+            .any(|(other_index, other)| index != other_index && path.starts_with(other))
+    }) {
+        return None;
+    }
+    let moved_paths = moved_paths.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    let mut residuals = Vec::new();
+    collect_partial_affine_residuals(
+        module,
+        root_type,
+        &moved_paths,
+        &mut Vec::new(),
+        &mut residuals,
+    )?;
+    Some(residuals)
 }
 
-fn collect_nested_partial_affine_residuals(
+fn collect_partial_affine_residuals(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
-    moved_path: &[StructuralPathSegment],
+    moved_paths: &[&[StructuralPathSegment]],
     prefix: &mut Vec<StructuralPathSegment>,
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
-    let [StructuralPathSegment::Field(moved_identity), remaining @ ..] = moved_path else {
-        return None;
-    };
     let declaration = module
         .structural_types
         .iter()
@@ -1125,25 +1080,36 @@ fn collect_nested_partial_affine_residuals(
     {
         return None;
     }
-    let mut found = false;
+    let mut matched = 0_usize;
     for field in fields.iter().rev() {
         let StructuralFieldType::Structural(field_type) = field.field_type else {
             unreachable!("record field shape was checked above")
         };
         prefix.push(StructuralPathSegment::Field(field.identity.clone()));
-        if field.identity == *moved_identity {
-            found = true;
-            if !remaining.is_empty() {
-                collect_nested_partial_affine_residuals(
-                    module, field_type, remaining, prefix, residuals,
-                )?;
-            }
-        } else {
+        let descendants = moved_paths
+            .iter()
+            .filter_map(|path| match path {
+                [StructuralPathSegment::Field(identity), remaining @ ..]
+                    if *identity == field.identity =>
+                {
+                    Some(remaining)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        matched += descendants.len();
+        if descendants.is_empty() {
             residuals.push((prefix.clone(), field_type));
+        } else if descendants.iter().all(|path| !path.is_empty()) {
+            collect_partial_affine_residuals(module, field_type, &descendants, prefix, residuals)?;
+        } else if descendants.len() != 1 {
+            return None;
+        } else {
+            debug_assert!(descendants[0].is_empty());
         }
         prefix.pop();
     }
-    found.then_some(())
+    (matched == moved_paths.len()).then_some(())
 }
 
 #[derive(Default)]
@@ -2038,11 +2004,11 @@ fn validate_unit_operation_static(
     Ok(())
 }
 
-/// Validate the complete bounded representation for either a nonempty run of
-/// direct-field affine transfers or one nested-field transfer, followed by
-/// disposal of every maximal residual sibling subtree in recursive reverse
-/// declaration order. This partition is checked independently of producer
-/// facts before the ownership walk relies on the path-sensitive terminator.
+/// Validate the complete bounded representation for a nonempty run of
+/// pairwise-disjoint field transfers, followed by disposal of every maximal
+/// residual sibling subtree in recursive reverse declaration order. This
+/// partition is checked independently of producer facts before the ownership
+/// walk relies on the path-sensitive terminator.
 fn validate_partial_affine_cleanup_shape(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -2156,9 +2122,6 @@ fn validate_partial_affine_cleanup_shape(
         {
             return Err(invalid(block.id));
         }
-    }
-    if moved_paths.iter().any(|path| path.len() > 1) && moved_paths.len() != 1 {
-        return Err(invalid(block.id));
     }
     let Some(expected_residuals) =
         partial_affine_residuals(module, root.structural_type, &moved_paths)

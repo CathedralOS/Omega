@@ -2004,15 +2004,14 @@ fn build_partial_affine_unit_cleanup_machine(
                 .path
                 .iter()
                 .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-            || (argument.path.len() > 1 && calls.len() != 1)
         {
             return None;
         }
         if argument.source_parameter_index != 0
             || !claim_transfers.is_empty()
-            || moved_paths
-                .iter()
-                .any(|(earlier, _)| earlier == &argument.path)
+            || moved_paths.iter().any(|(earlier, _)| {
+                earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
+            })
         {
             return None;
         }
@@ -2061,51 +2060,11 @@ fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
-    let residual_affine_discards = if moved_paths.len() == 1 && moved_paths[0].0.len() > 1 {
-        nested_partial_affine_residuals(
-            &shapes.types,
-            &checked_parameter.type_identity,
-            &moved_paths[0].0,
-            &moved_paths[0].1,
-        )?
-    } else {
-        let moved_fields = moved_paths
-            .iter()
-            .map(|(path, moved_type)| match path.as_slice() {
-                [CheckedUnitStructuralPathSegment::Field(field)] => {
-                    Some((field.as_str(), moved_type.as_str()))
-                }
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>()?;
-        for (moved_field, moved_type) in &moved_fields {
-            let mut moved_candidates = fields.iter().filter(|field| field.identity == *moved_field);
-            let moved = moved_candidates.next()?;
-            if moved_candidates.next().is_some()
-                || structural_field_type_identity(moved)?.as_str() != *moved_type
-            {
-                return None;
-            }
-        }
-        fields
-            .iter()
-            .rev()
-            .filter(|field| {
-                !moved_fields
-                    .iter()
-                    .any(|(moved, _)| *moved == field.identity)
-            })
-            .map(|field| {
-                Some(CheckedUnitPartialAffineDiscardPlan {
-                    source_parameter_index: 0,
-                    path: vec![CheckedUnitStructuralPathSegment::Field(
-                        field.identity.clone(),
-                    )],
-                    type_identity: structural_field_type_identity(field)?.clone(),
-                })
-            })
-            .collect::<Option<Vec<_>>>()?
-    };
+    let residual_affine_discards = partial_affine_residuals(
+        &shapes.types,
+        &checked_parameter.type_identity,
+        &moved_paths,
+    )?;
     if residual_affine_discards.is_empty() {
         return None;
     }
@@ -2139,23 +2098,28 @@ fn build_partial_affine_unit_cleanup_machine(
     })
 }
 
-fn nested_partial_affine_residuals(
+fn partial_affine_residuals(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
     root_type: &str,
-    moved_path: &[CheckedUnitStructuralPathSegment],
-    moved_type: &str,
+    moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     fn visit(
         types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
         current_type: &str,
-        moved_path: &[CheckedUnitStructuralPathSegment],
-        moved_type: &str,
+        moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
         prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
         residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
     ) -> Option<()> {
-        let [CheckedUnitStructuralPathSegment::Field(selected), tail @ ..] = moved_path else {
+        if moved_paths.is_empty()
+            || moved_paths.iter().any(|(path, _)| {
+                !matches!(
+                    path.first(),
+                    Some(CheckedUnitStructuralPathSegment::Field(_))
+                )
+            })
+        {
             return None;
-        };
+        }
         let declaration = types.get(current_type)?;
         let CheckedUnitStructuralTypeShape::Record { fields } = &declaration.shape else {
             return None;
@@ -2171,45 +2135,58 @@ fn nested_partial_affine_residuals(
         {
             return None;
         }
-        let selected_field = fields.iter().find(|field| field.identity == *selected)?;
-        let selected_type = structural_field_type_identity(selected_field)?;
         for field in fields.iter().rev() {
             let field_type = structural_field_type_identity(field)?;
+            let matching = moved_paths
+                .iter()
+                .filter(|(path, _)| {
+                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Field(identity))
+                        if identity == &field.identity)
+                })
+                .copied()
+                .collect::<Vec<_>>();
             prefix.push(CheckedUnitStructuralPathSegment::Field(
                 field.identity.clone(),
             ));
-            if field.identity == *selected {
-                if tail.is_empty() {
-                    if field_type != moved_type {
-                        return None;
-                    }
-                } else {
-                    visit(types, selected_type, tail, moved_type, prefix, residuals)?;
-                }
-            } else {
+            if matching.is_empty() {
                 residuals.push(CheckedUnitPartialAffineDiscardPlan {
                     source_parameter_index: 0,
                     path: prefix.clone(),
                     type_identity: field_type.clone(),
                 });
+                prefix.pop();
+                continue;
             }
+            let whole = matching
+                .iter()
+                .filter(|(path, _)| path.len() == 1)
+                .collect::<Vec<_>>();
+            if !whole.is_empty() {
+                if whole.len() != 1 || matching.len() != 1 || whole[0].1 != field_type {
+                    return None;
+                }
+                prefix.pop();
+                continue;
+            }
+            let nested = matching
+                .iter()
+                .map(|(path, moved_type)| (&path[1..], *moved_type))
+                .collect::<Vec<_>>();
+            visit(types, field_type, &nested, prefix, residuals)?;
             prefix.pop();
         }
         Some(())
     }
 
-    if moved_path.len() < 2 {
+    if moved_paths.is_empty() {
         return None;
     }
+    let borrowed = moved_paths
+        .iter()
+        .map(|(path, moved_type)| (path.as_slice(), moved_type.as_str()))
+        .collect::<Vec<_>>();
     let mut residuals = Vec::new();
-    visit(
-        types,
-        root_type,
-        moved_path,
-        moved_type,
-        &mut Vec::new(),
-        &mut residuals,
-    )?;
+    visit(types, root_type, &borrowed, &mut Vec::new(), &mut residuals)?;
     Some(residuals)
 }
 
