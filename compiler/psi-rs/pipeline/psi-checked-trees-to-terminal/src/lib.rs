@@ -1702,7 +1702,7 @@ fn lower_structural_scalar_return_machine(
             ))?,
     );
     scalar_values.extend_from_slice(&scalar_parameters);
-    let mut staged_short_circuit_binding = None;
+    let mut staged_short_circuit_bindings = Vec::new();
     for (binding_index, binding) in plan.bindings.iter().enumerate() {
         let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar return binding index exceeds u32")
@@ -1730,12 +1730,10 @@ fn lower_structural_scalar_return_machine(
                     "structural scalar short-circuit binding has a non-Boolean carrier",
                 );
             }
-            if staged_short_circuit_binding
-                .replace((binding_index, *expression))
-                .is_some()
-            {
+            staged_short_circuit_bindings.push((binding_index, *expression));
+            if staged_short_circuit_bindings.len() > 2 {
                 return unsupported(
-                    "structural scalar cleanup supports only one short-circuit local stage",
+                    "structural scalar cleanup supports at most two short-circuit local stages",
                 );
             }
         }
@@ -1745,8 +1743,8 @@ fn lower_structural_scalar_return_machine(
         .iter()
         .enumerate()
         .filter(|(binding_index, _)| {
-            staged_short_circuit_binding
-                .as_ref()
+            staged_short_circuit_bindings
+                .first()
                 .is_none_or(|(staged_index, _)| binding_index < staged_index)
         })
     {
@@ -1804,7 +1802,7 @@ fn lower_structural_scalar_return_machine(
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
-    let return_supported = if staged_short_circuit_binding.is_some() {
+    let return_supported = if !staged_short_circuit_bindings.is_empty() {
         is_branch_free_structural_scalar_expression(
             &expression,
             scalar_parameter_count,
@@ -1825,89 +1823,117 @@ fn lower_structural_scalar_return_machine(
             "structural scalar return value does not match its checked result type",
         );
     }
-    let blocks = if let Some((staged_index, short_circuit_binding)) = &staged_short_circuit_binding
-    {
-        validate_boolean_parameter_types(
-            short_circuit_binding,
-            &scalar_values
-                .iter()
-                .map(|value| value.scalar_type)
-                .collect::<Vec<_>>(),
-        )?;
-        let decision = lower_boolean_value_decision(short_circuit_binding);
-        let decision_block_count = boolean_decision_block_count(&decision);
-        let prefix_operation_count = operations.operations.len();
-        let continuation = block_id(
-            u64::try_from(decision_block_count)
-                .map_err(|_| {
-                    LoweringError::Unsupported(
-                        "structural scalar local decision block count exceeds u64",
-                    )
-                })?
-                .checked_add(1)
-                .ok_or(LoweringError::Unsupported(
-                    "structural scalar local continuation identity overflows",
-                ))?,
-        );
+    let blocks = if !staged_short_circuit_bindings.is_empty() {
         let mut next_edge = 1_u64;
-        let (root, mut children) = emit_inlined_boolean_value_blocks(
-            &decision,
-            &scalar_values,
-            Vec::new(),
-            LoweredBooleanDecisionExit::Jump {
-                target: continuation,
-            },
-            block_id(1),
-            block_id(2),
-            &mut next_value,
-            &mut next_edge,
-            &mut operations,
-        );
-        let mut root = root;
-        let mut root_operations = operations.operations[..prefix_operation_count].to_vec();
-        root_operations.extend(root.operations);
-        root.operations = root_operations;
-        let local = ValueDeclaration {
-            id: value_id(allocate_dense(&mut next_value)?),
-            scalar_type: ScalarType::Boolean,
-        };
-        scalar_values.push(local.clone());
-        let operation_start = operations.operations.len();
-        for (binding_index, binding) in plan.bindings.iter().enumerate().skip(staged_index + 1) {
-            let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
-                LoweringError::Unsupported("structural scalar return binding index exceeds u32")
-            })?;
-            let scalar_type = terminal_scalar_type(binding.primitive_type)?;
-            let suffix = lower_checked_scalar_expression_at(
-                checked,
-                plan.state,
-                statement_ordinal,
-                CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: statement_ordinal,
-                },
-            )?;
-            if !is_branch_free_structural_scalar_expression(
-                &suffix,
-                scalar_parameter_count,
-                binding_index,
-            ) {
-                return unsupported("structural scalar continuation binding is not branch-free");
-            }
-            if suffix.scalar_type() != scalar_type {
-                return unsupported(
-                    "structural scalar continuation binding does not match its checked local type",
-                );
-            }
-            validate_direct_parameter_types(
-                &suffix,
+        let mut next_block = block_id(1);
+        let mut next_block_parameters = Vec::new();
+        let mut operation_start = 0;
+        let mut blocks = Vec::new();
+        for (stage_position, (staged_index, short_circuit_binding)) in
+            staged_short_circuit_bindings.iter().enumerate()
+        {
+            validate_boolean_parameter_types(
+                short_circuit_binding,
                 &scalar_values
                     .iter()
                     .map(|value| value.scalar_type)
                     .collect::<Vec<_>>(),
             )?;
-            let id =
-                emit_direct_expression(&suffix, &scalar_values, &mut next_value, &mut operations);
-            scalar_values.push(ValueDeclaration { id, scalar_type });
+            let decision = lower_boolean_value_decision(short_circuit_binding);
+            let decision_block_count = boolean_decision_block_count(&decision);
+            let continuation = block_id(
+                next_block
+                    .get()
+                    .checked_add(u64::try_from(decision_block_count).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "structural scalar local decision block count exceeds u64",
+                        )
+                    })?)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural scalar local continuation identity overflows",
+                    ))?,
+            );
+            let decision_operation_start = operations.operations.len();
+            let first_synthetic_block = block_id(next_block.get().checked_add(1).ok_or(
+                LoweringError::Unsupported(
+                    "structural scalar local decision block identity overflows",
+                ),
+            )?);
+            let (mut root, mut children) = emit_inlined_boolean_value_blocks(
+                &decision,
+                &scalar_values,
+                next_block_parameters,
+                LoweredBooleanDecisionExit::Jump {
+                    target: continuation,
+                },
+                next_block,
+                first_synthetic_block,
+                &mut next_value,
+                &mut next_edge,
+                &mut operations,
+            );
+            let mut root_operations =
+                operations.operations[operation_start..decision_operation_start].to_vec();
+            root_operations.extend(root.operations);
+            root.operations = root_operations;
+            blocks.push(root);
+            blocks.append(&mut children);
+
+            let local = ValueDeclaration {
+                id: value_id(allocate_dense(&mut next_value)?),
+                scalar_type: ScalarType::Boolean,
+            };
+            scalar_values.push(local);
+            next_block = continuation;
+            next_block_parameters = vec![local];
+            operation_start = operations.operations.len();
+
+            let next_staged_index = staged_short_circuit_bindings
+                .get(stage_position + 1)
+                .map_or(plan.bindings.len(), |(binding_index, _)| *binding_index);
+            for binding_index in staged_index + 1..next_staged_index {
+                let binding = &plan.bindings[binding_index];
+                let statement_ordinal = u32::try_from(binding_index).map_err(|_| {
+                    LoweringError::Unsupported("structural scalar return binding index exceeds u32")
+                })?;
+                let scalar_type = terminal_scalar_type(binding.primitive_type)?;
+                let continuation_expression = lower_checked_scalar_expression_at(
+                    checked,
+                    plan.state,
+                    statement_ordinal,
+                    CheckedScalarExpressionRole::LocalInitializer {
+                        binding_ordinal: statement_ordinal,
+                    },
+                )?;
+                if !is_branch_free_structural_scalar_expression(
+                    &continuation_expression,
+                    scalar_parameter_count,
+                    binding_index,
+                ) {
+                    return unsupported(
+                        "structural scalar continuation binding is not branch-free",
+                    );
+                }
+                if continuation_expression.scalar_type() != scalar_type {
+                    return unsupported(
+                        "structural scalar continuation binding does not match its checked local type",
+                    );
+                }
+                validate_direct_parameter_types(
+                    &continuation_expression,
+                    &scalar_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>(),
+                )?;
+                let id = emit_direct_expression(
+                    &continuation_expression,
+                    &scalar_values,
+                    &mut next_value,
+                    &mut operations,
+                );
+                scalar_values.push(ValueDeclaration { id, scalar_type });
+            }
         }
         validate_direct_parameter_types(
             &expression,
@@ -1922,14 +1948,9 @@ fn lower_structural_scalar_return_machine(
             &mut next_value,
             &mut operations,
         );
-        let mut blocks = Vec::with_capacity(decision_block_count.checked_add(1).ok_or(
-            LoweringError::Unsupported("structural scalar local block count exceeds usize"),
-        )?);
-        blocks.push(root);
-        blocks.append(&mut children);
         blocks.push(Block {
-            id: continuation,
-            parameters: vec![local],
+            id: next_block,
+            parameters: next_block_parameters,
             operations: operations.operations[operation_start..].to_vec(),
             terminator: Terminator::Return {
                 edge: edge_id(next_edge),
@@ -10180,7 +10201,7 @@ mod tests {
     }
 
     #[test]
-    fn structural_scalar_return_supports_one_short_circuit_local_with_scalar_suffix() {
+    fn structural_scalar_return_supports_two_carried_short_circuit_local_continuations() {
         let mut checked = hard_root_checked_fixture();
         install_structural_scalar_return_fixture(&mut checked);
         let plan = &mut checked
@@ -10204,9 +10225,19 @@ mod tests {
                 primitive_type: PrimitiveType::Bool,
                 value: CheckedScalarBindingValue::Expression,
             },
+            psi_checked_trees::CheckedScalarBinding {
+                statement_ordinal: 3,
+                primitive_type: PrimitiveType::Bool,
+                value: CheckedScalarBindingValue::Expression,
+            },
+            psi_checked_trees::CheckedScalarBinding {
+                statement_ordinal: 4,
+                primitive_type: PrimitiveType::Bool,
+                value: CheckedScalarBindingValue::Expression,
+            },
         ];
         plan.result_type = PrimitiveType::Bool;
-        plan.return_statement_ordinal = 3;
+        plan.return_statement_ordinal = 5;
         checked.facts.values.scalar_expressions.expressions = vec![
             psi_checked_trees::CheckedLocatedScalarExpression {
                 state: plan.state,
@@ -10240,28 +10271,68 @@ mod tests {
             psi_checked_trees::CheckedLocatedScalarExpression {
                 state: plan.state,
                 statement_ordinal: 3,
+                role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 3 },
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::Or {
+                        left: Box::new(CheckedBooleanExpression::Local { position: 2 }),
+                        right: Box::new(CheckedBooleanExpression::Constant(false)),
+                    },
+                )),
+            },
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: plan.state,
+                statement_ordinal: 4,
+                role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 4 },
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Local {
+                        position: 3,
+                    })),
+                )),
+            },
+            psi_checked_trees::CheckedLocatedScalarExpression {
+                state: plan.state,
+                statement_ordinal: 5,
                 role: CheckedScalarExpressionRole::Return,
                 expression: CheckedScalarExpression::Boolean(Box::new(
-                    CheckedBooleanExpression::Local { position: 2 },
+                    CheckedBooleanExpression::Local { position: 4 },
                 )),
             },
         ];
 
         let lowered = lower_machine(&checked, "example::Root::enter")
-            .expect("a branch-free prefix should dominate one short-circuit convergence");
+            .expect("two short-circuit locals should compose through carried continuations");
         let machine = &lowered.semantic_module.machines[0];
-        assert_eq!(machine.blocks.len(), 6);
-        let continuation = machine
+        assert_eq!(machine.blocks.len(), 11);
+        let second_stage = machine
             .blocks
             .iter()
             .find(|block| block.id == block_id(6))
-            .expect("short-circuit local has one convergence continuation");
+            .expect("the first short-circuit result enters the second decision stage");
+        let continuation = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == block_id(11))
+            .expect("the second short-circuit result enters the return continuation");
         assert!(matches!(
             machine.blocks[0].operations.first(),
             Some(Operation {
                 kind: OperationKind::BooleanConstant { value: true },
                 ..
             })
+        ));
+        assert!(matches!(
+            second_stage.parameters.as_slice(),
+            [ValueDeclaration {
+                scalar_type: ScalarType::Boolean,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            second_stage.operations.as_slice(),
+            [Operation {
+                kind: OperationKind::BooleanNot { .. },
+                ..
+            }]
         ));
         assert!(matches!(
             continuation.parameters.as_slice(),
@@ -10285,7 +10356,7 @@ mod tests {
             } if trivial_affine_discards == &[place_id(2), place_id(1)]
         ));
         assert!(
-            machine.blocks[..5]
+            machine.blocks[..10]
                 .iter()
                 .all(|block| match &block.terminator {
                     Terminator::Conditional {
@@ -10299,7 +10370,10 @@ mod tests {
                         target,
                         trivial_affine_discards,
                         ..
-                    } => *target == block_id(6) && trivial_affine_discards.is_empty(),
+                    } => {
+                        matches!(*target, target if target == block_id(6) || target == block_id(11))
+                            && trivial_affine_discards.is_empty()
+                    }
                     _ => false,
                 })
         );
@@ -10317,15 +10391,15 @@ mod tests {
             lowered.semantic_module
         );
 
-        checked.facts.values.scalar_expressions.expressions[2].expression =
+        checked.facts.values.scalar_expressions.expressions[4].expression =
             CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-                left: Box::new(CheckedBooleanExpression::Local { position: 1 }),
+                left: Box::new(CheckedBooleanExpression::Local { position: 3 }),
                 right: Box::new(CheckedBooleanExpression::Constant(true)),
             }));
         assert!(matches!(
             lower_machine(&checked, "example::Root::enter"),
             Err(LoweringError::Unsupported(
-                "structural scalar cleanup supports only one short-circuit local stage"
+                "structural scalar cleanup supports at most two short-circuit local stages"
             ))
         ));
     }

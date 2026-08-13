@@ -291,10 +291,10 @@ fn build_structural_scalar_return_machine(
                 if checked_boolean_contains_short_circuit(expression))
         })
         .count();
-    if short_circuit_binding_count > 1 {
+    if short_circuit_binding_count > 2 {
         return None;
     }
-    let return_supported = if short_circuit_binding_count == 1 {
+    let return_supported = if short_circuit_binding_count != 0 {
         is_branch_free_structural_scalar_expression(
             return_expression,
             scalar_parameters.len(),
