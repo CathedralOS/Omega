@@ -345,9 +345,12 @@ places on scalar or Unit machines, and reconstructs content-identity facts only
 at the validated return edge. Interpretation preserves the opaque value,
 qualifications, and claim identities, charging fuel before custody or cleanup
 commits; canonical encoding and fixed-fuel derivation cover the same edge.
-Checked-source production and Omega ABI realization remain unfinished. Omega
-therefore rejects a verified structural return before emitting any partial
-abstract-operation plan; structural calls are not yet admitted.
+The exact checked-source slice accepts one attached, one-state passthrough of a
+whole linear parameter with matching qualifications and one whole-root claim;
+locals, authored contracts, projections, and wider control shapes fail closed.
+Omega ABI realization remains unfinished, so Omega rejects a verified
+structural return before emitting any partial abstract-operation plan;
+structural calls are not yet admitted.
 
 Normal scalar returns carry the exact canonical list of live unclaimed affine
 parameters to discard; the list is empty when no cleanup is required.

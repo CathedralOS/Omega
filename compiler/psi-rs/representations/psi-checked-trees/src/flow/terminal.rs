@@ -334,6 +334,45 @@ impl CheckedUnitEffectPlans {
     }
 }
 
+/// Source-handle-free checked plan for the first exact whole-root structural
+/// result transfer. The slice admits one linear parameter, one matching entry
+/// claim, and one checker-derived identity reshuffle.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStructuralReturnPlans {
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
+    pub machines: Vec<CheckedStructuralReturnMachinePlan>,
+}
+
+impl CheckedStructuralReturnPlans {
+    pub fn for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedStructuralReturnMachinePlan> {
+        self.machines.iter().find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub input: CheckedUnitStructuralParameterPlan,
+    pub result: CheckedStructuralResultPlan,
+    pub entry_claim: CheckedUnitEntryClaimPlan,
+    /// Exact identity shared by the entry claim, normalized claim outcome, and
+    /// identity-reshuffle fact.
+    pub transferred_claim: psi_language_semantics::PermissionClaimIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralResultPlan {
+    pub type_identity: String,
+    pub multiplicity: Multiplicity,
+    pub qualifications: Vec<SemanticDomainId>,
+}
+
 /// One concrete target-neutral record shape. Field order is declaration order;
 /// identities are normalized declaration identities rather than field names.
 #[derive(Debug, Clone, PartialEq, Eq)]

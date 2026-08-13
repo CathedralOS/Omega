@@ -1367,10 +1367,17 @@ dependencies = [
  "psi-numerics",
  "psi-proof-kernel",
  "psi-source",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-fuel",
+ "psi-terminal-interpreter",
  "psi-terminal-verifier",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

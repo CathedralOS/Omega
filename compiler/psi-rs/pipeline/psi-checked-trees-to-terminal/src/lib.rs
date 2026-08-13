@@ -15,12 +15,13 @@ use psi_checked_trees::{
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind, CheckedPropositionEvidence,
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
-    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitBoundaryMachinePlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    ClosedScalarContractValue, ClosedScalarValueContractPlan, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
@@ -39,8 +40,8 @@ use psi_language_semantics::content::{
     ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
 };
 use psi_language_semantics::{
-    CarryPolicy, Multiplicity, PermissionClaimIdentity, ServiceReachId, ServiceReachInterface,
-    ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
+    CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
+    ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
 };
 use psi_proof_kernel::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
@@ -54,9 +55,9 @@ use psi_terminal::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
     StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -1541,6 +1542,17 @@ fn lower_selected_machine(
     if let Some(plan) = checked
         .facts
         .flow
+        .terminal_structural_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural result transfer requires an attached signature");
+        }
+        return lower_structural_return_machine(checked, plan);
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
         .terminal_structural_scalar_returns
         .for_machine(selection.machine)
     {
@@ -1586,6 +1598,216 @@ fn lower_selected_machine(
     } else {
         lower_scalar_call_closure(checked, &closure)
     }
+}
+
+fn lower_structural_return_machine(
+    checked: &CheckedTrees,
+    plan: &CheckedStructuralReturnMachinePlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let plans = &checked.facts.flow.terminal_structural_returns;
+    if plan.input.multiplicity != Multiplicity::Linear
+        || plan.result.multiplicity != Multiplicity::Linear
+        || plan.entry_claim.parameter_index != 0
+        || !plan.entry_claim.field_path.is_empty()
+        || plan.entry_claim.carry != CarryPolicy::STRICT
+        || plan.entry_claim.claim_identity != plan.transferred_claim
+        || plan.input.type_identity != plan.result.type_identity
+        || plan.input.qualifications != plan.result.qualifications
+    {
+        return unsupported("structural result plan is not one exact whole-root linear transfer");
+    }
+    let PermissionClaimIdentity::Established {
+        machine_symbol,
+        state_symbol,
+        source: psi_language_semantics::PermissionEventSource::StateEntry,
+        ..
+    } = plan.transferred_claim
+    else {
+        return unsupported("structural result claim is not an exact checked state-entry claim");
+    };
+    if machine_symbol != plan.machine || state_symbol != plan.state {
+        return unsupported("structural result claim belongs to another checked state");
+    }
+
+    let (structural_types, type_ids) = lower_structural_type_plans(&plans.structural_types)?;
+    let (structural_domains, domain_ids) =
+        lower_structural_domain_plans(&plans.structural_domains, &type_ids)?;
+    let mut next_place = 1_u64;
+    let [input] = lower_unit_parameters(
+        std::slice::from_ref(&plan.input),
+        &type_ids,
+        &domain_ids,
+        &mut next_place,
+    )?
+    .try_into()
+    .map_err(|_| LoweringError::Unsupported("structural result plan must have one input"))?;
+    let result_place = place_id(RESULT_STRUCTURAL_PLACE_ID);
+    if input.place == result_place {
+        return unsupported("structural result place collides with its input namespace");
+    }
+    let mut result_qualifications = plan
+        .result
+        .qualifications
+        .iter()
+        .map(|domain| lookup_domain_id(&domain_ids, *domain))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    result_qualifications.sort();
+    result_qualifications.dedup();
+    if result_qualifications.len() != plan.result.qualifications.len() {
+        return unsupported("structural result repeats a qualification");
+    }
+
+    let identity_facts = checked
+        .facts
+        .qualifications
+        .content
+        .identity_reshuffles
+        .iter()
+        .filter(|fact| fact.machine_symbol == plan.machine && fact.state_symbol == plan.state)
+        .cloned()
+        .collect::<Vec<_>>();
+    let identity = lower_content_identity_reshuffles(&identity_facts)?;
+    let [(source_claim, content_claim)] = identity.source_claims.as_slice() else {
+        return unsupported("structural result requires one exact identity reshuffle claim");
+    };
+    let [content_entry] = identity.entry_claims.as_slice() else {
+        return unsupported("structural result requires one content entry binding");
+    };
+    let [reshuffle] = identity.reshuffles.as_slice() else {
+        return unsupported("structural result requires one content identity reshuffle");
+    };
+    let claim = claim_id(1);
+    if *source_claim != plan.transferred_claim
+        || *content_claim != claim
+        || content_entry.claim != claim
+        || reshuffle.claim != claim
+        || content_entry.input.root != input.place
+        || reshuffle.input.root != input.place
+        || reshuffle.output.root != result_place
+        || !content_entry.input.segments.is_empty()
+        || !reshuffle.input.segments.is_empty()
+        || !reshuffle.output.segments.is_empty()
+    {
+        return unsupported("structural result claim/content identities do not unify exactly");
+    }
+    let expected_places = BTreeMap::from([
+        (
+            input.place,
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: input.is_self,
+            },
+        ),
+        (result_place, StructuralPlaceKind::Result),
+    ]);
+    let actual_places = identity
+        .structural_places
+        .iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    if actual_places != expected_places {
+        return unsupported("structural result content roots do not match the checked signature");
+    }
+
+    let terminal_machine = machine_id(1);
+    let machine = TerminalMachine {
+        id: terminal_machine,
+        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        parameters: Vec::new(),
+        structural_parameters: vec![input.clone()],
+        result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: result_place,
+            structural_type: lookup_type_id(&type_ids, &plan.result.type_identity)?,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: result_qualifications,
+        }),
+        structural_places: expected_places
+            .into_iter()
+            .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+            .collect(),
+        entry_claims: vec![EntryClaim {
+            claim,
+            input: input.place,
+            field_path: Vec::new(),
+        }],
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: identity.entry_claims,
+        content_identity_reshuffles: identity.reshuffles,
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnStructural {
+                edge: edge_id(1),
+                source: input.place,
+                returned_claims: vec![claim],
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    Ok(LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: terminal_machine,
+            structural_types,
+            structural_domains,
+            services: Vec::new(),
+            boundary_machines: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            machines: vec![machine],
+        },
+        proof_bundle: ProofBundle::default(),
+        debug_map: None,
+    })
+}
+
+fn lower_structural_domain_plans(
+    plans: &[psi_checked_trees::CheckedUnitStructuralDomainPlan],
+    type_ids: &[(String, StructuralTypeId)],
+) -> Result<
+    (
+        Vec<StructuralDomainDeclaration>,
+        Vec<(SemanticDomainId, StructuralDomainId)>,
+    ),
+    LoweringError,
+> {
+    let mut ordered = plans.iter().collect::<Vec<_>>();
+    ordered.sort_by(|left, right| {
+        (&left.identity, left.domain.0).cmp(&(&right.identity, right.domain.0))
+    });
+    if ordered.iter().any(|plan| {
+        !plan.domain.is_valid() || plan.identity.is_empty() || plan.carrier_type_identity.is_empty()
+    }) || ordered
+        .windows(2)
+        .any(|pair| pair[0].domain == pair[1].domain || pair[0].identity == pair[1].identity)
+    {
+        return unsupported("structural result domains are invalid or noncanonical");
+    }
+    let domain_ids = ordered
+        .iter()
+        .enumerate()
+        .map(|(index, plan)| Ok((plan.domain, structural_domain_id(dense_identity(index)?))))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let declarations = ordered
+        .into_iter()
+        .map(|plan| {
+            Ok(StructuralDomainDeclaration {
+                id: lookup_domain_id(&domain_ids, plan.domain)?,
+                identity: plan.identity.clone(),
+                carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok((declarations, domain_ids))
 }
 
 fn lower_structural_scalar_return_machine(
