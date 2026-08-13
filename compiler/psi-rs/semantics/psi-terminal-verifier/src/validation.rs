@@ -460,7 +460,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
             &domains,
             StructuralSignatureOwner::Machine(machine.id),
         )?;
-        let trivial_affine_locals = machine
+        let mut trivial_affine_locals = machine
             .structural_places
             .iter()
             .filter_map(|place| match place.kind {
@@ -471,11 +471,12 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if trivial_affine_locals.len() > 1
-            || trivial_affine_locals
-                .first()
-                .is_some_and(|(_, declaration_ordinal, _)| *declaration_ordinal != 0)
-        {
+        trivial_affine_locals.sort_by_key(|(_, declaration_ordinal, _)| *declaration_ordinal);
+        if trivial_affine_locals.iter().enumerate().any(
+            |(expected, (_, declaration_ordinal, _))| {
+                u32::try_from(expected).ok() != Some(*declaration_ordinal)
+            },
+        ) {
             return Err(ModuleError::NonCanonicalTrivialAffineLocals(machine.id));
         }
         for (place, _, structural_type) in &trivial_affine_locals {
@@ -492,34 +493,30 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleE
                 );
             }
         }
-        if !trivial_affine_locals.is_empty() {
-            let establishments = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .filter_map(|operation| match operation.kind {
-                    OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            if machine.blocks.len() != 1
+        let establishments = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation.kind {
+                OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let expected_establishments = trivial_affine_locals
+            .iter()
+            .map(|(place, _, _)| *place)
+            .collect::<Vec<_>>();
+        if !trivial_affine_locals.is_empty()
+            && (machine.blocks.len() != 1
                 || !matches!(
                     machine.blocks[0].terminator,
                     Terminator::ReturnStructural { .. }
                 )
-                || establishments.len() != trivial_affine_locals.len()
-                || trivial_affine_locals.iter().any(|(place, _, _)| {
-                    establishments
-                        .iter()
-                        .filter(|destination| **destination == *place)
-                        .count()
-                        != 1
-                })
-            {
-                return Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(
-                    machine.id,
-                ));
-            }
+                || establishments != expected_establishments)
+        {
+            return Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(
+                machine.id,
+            ));
         }
         match &machine.result {
             TerminalMachineResult::Unit => {

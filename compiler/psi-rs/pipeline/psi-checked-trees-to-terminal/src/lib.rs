@@ -1623,7 +1623,6 @@ fn lower_structural_return_machine(
     if plan.returned_parameter_index != 0
         || !matches!(plan.structural_parameters.len(), 1 | 2)
         || plan.trivial_affine_discards.as_slice() != expected_discards
-        || plan.trivial_affine_locals.len() > 1
         || plan.trivial_affine_local_discard_ordinals != expected_local_discards
         || plan
             .trivial_affine_locals

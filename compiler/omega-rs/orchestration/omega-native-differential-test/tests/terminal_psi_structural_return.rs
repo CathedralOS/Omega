@@ -136,7 +136,7 @@ fn checked_source() -> psi_checked_trees::CheckedTrees {
 fn assert_source_structural_return(
     machine_name: &str,
     has_parameter_cleanup: bool,
-    has_local_cleanup: bool,
+    local_cleanup_count: usize,
 ) {
     let checked = checked_source();
     let planned_structural_returns = checked
@@ -215,7 +215,20 @@ fn assert_source_structural_return(
             (operation.id, place, local_type)
         })
         .collect::<Vec<_>>();
-    assert_eq!(trivial_affine_locals.len(), usize::from(has_local_cleanup));
+    assert_eq!(trivial_affine_locals.len(), local_cleanup_count);
+    assert_eq!(
+        trivial_affine_locals
+            .iter()
+            .map(|(_, local, _)| match local.kind {
+                StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    ..
+                } => declaration_ordinal,
+                _ => unreachable!("local kind checked above"),
+            })
+            .collect::<Vec<_>>(),
+        (0..u32::try_from(local_cleanup_count).expect("local count fits u32")).collect::<Vec<_>>()
+    );
     let expected_cleanup = trivial_affine_locals
         .iter()
         .rev()
@@ -323,7 +336,7 @@ fn assert_source_structural_return(
             && abstract_locals == &trivial_affine_locals
             && trivial_affine_discards == &expected_cleanup
     ));
-    if has_parameter_cleanup || has_local_cleanup {
+    if has_parameter_cleanup || local_cleanup_count != 0 {
         let mut missing_cleanup = abstract_plan.clone();
         let [
             TerminalAbstractOperation::ReturnStructural {
@@ -408,7 +421,7 @@ fn assert_source_structural_return(
         assert_eq!(assigned_claims, returned_claims);
         assert_eq!(assigned_locals, target_locals);
         assert_eq!(assigned_cleanup, trivial_affine_discards);
-        if has_parameter_cleanup || has_local_cleanup {
+        if has_parameter_cleanup || local_cleanup_count != 0 {
             let mut noncanonical_cleanup = target_plan.clone();
             let TerminalTargetOperation::ReturnStructuralParameter {
                 trivial_affine_discards,
@@ -498,7 +511,7 @@ fn assert_source_structural_return(
             "{:?} object validation must reject a silently dropped live claim",
             case.target
         );
-        if has_parameter_cleanup || has_local_cleanup {
+        if has_parameter_cleanup || local_cleanup_count != 0 {
             let mut dropped_cleanup = machine_code.clone();
             dropped_cleanup.functions[0]
                 .structural_return
@@ -512,7 +525,7 @@ fn assert_source_structural_return(
                 case.target
             );
         }
-        if has_local_cleanup {
+        if local_cleanup_count != 0 {
             assert_eq!(
                 custody.parameter_placements.len(),
                 machine.structural_parameters.len(),
@@ -564,6 +577,59 @@ fn assert_source_structural_return(
                 build_terminal_object_artifact(&missing_establishment_fuel).is_err(),
                 "object validation must reject a local establishment without exact fuel attribution"
             );
+
+            if local_cleanup_count == 2 {
+                let mut duplicate_local = machine_code.clone();
+                let duplicate = duplicate_local.functions[0]
+                    .structural_return
+                    .as_mut()
+                    .expect("structural custody row");
+                let first_place = duplicate.trivial_affine_locals[0].1.id;
+                duplicate.trivial_affine_locals[1].1.id = first_place;
+                duplicate.trivial_affine_discards[0] = first_place;
+                assert!(
+                    build_terminal_object_artifact(&duplicate_local).is_err(),
+                    "object validation must reject two local declarations aliased to one place"
+                );
+
+                let mut gapped_ordinal = machine_code.clone();
+                let (_, second, _) = &mut gapped_ordinal.functions[0]
+                    .structural_return
+                    .as_mut()
+                    .expect("structural custody row")
+                    .trivial_affine_locals[1];
+                let StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    ..
+                } = &mut second.kind
+                else {
+                    unreachable!("local kind checked above")
+                };
+                *declaration_ordinal = 2;
+                assert!(
+                    build_terminal_object_artifact(&gapped_ordinal).is_err(),
+                    "object validation must reject a gap in local declaration ordinals"
+                );
+
+                let mut reordered_cleanup = machine_code.clone();
+                reordered_cleanup.functions[0]
+                    .structural_return
+                    .as_mut()
+                    .expect("structural custody row")
+                    .trivial_affine_discards
+                    .swap(0, 1);
+                assert!(
+                    build_terminal_object_artifact(&reordered_cleanup).is_err(),
+                    "object validation must reject non-reverse local cleanup"
+                );
+
+                let mut missing_second_fuel = machine_code.clone();
+                missing_second_fuel.functions[0].fuel_attribution.remove(1);
+                assert!(
+                    build_terminal_object_artifact(&missing_second_fuel).is_err(),
+                    "object validation must reject missing second-local fuel evidence"
+                );
+            }
         }
         if has_parameter_cleanup {
             let mut aliased_parameter = machine_code.clone();
@@ -627,7 +693,9 @@ fn assert_source_structural_return(
                 .expect("local count fits u32")
                 .to_le_bytes(),
         );
+        let mut local_record_offsets = Vec::with_capacity(trivial_affine_locals.len());
         for (operation, local, local_type) in &trivial_affine_locals {
+            local_record_offsets.push(custody_suffix.len());
             let StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 structural_type,
@@ -687,7 +755,7 @@ fn assert_source_structural_return(
             validate_terminal_installation_record(&changed_claim, &image).is_err(),
             "installation validation must reject a changed structural custody claim"
         );
-        if has_local_cleanup {
+        if local_cleanup_count != 0 {
             let mut changed_local_type_bytes = installation_bytes.clone();
             let local_type_declaration_offset = custody_offset + 44;
             changed_local_type_bytes
@@ -701,7 +769,39 @@ fn assert_source_structural_return(
                 "canonical installation decoding must reject a mutated local type identity"
             );
         }
-        if has_parameter_cleanup || has_local_cleanup {
+        if local_cleanup_count == 2 {
+            let mut changed_second_ordinal_bytes = installation_bytes.clone();
+            let second_ordinal_offset = custody_offset + local_record_offsets[1] + 16;
+            changed_second_ordinal_bytes[second_ordinal_offset..second_ordinal_offset + 4]
+                .copy_from_slice(&2_u32.to_le_bytes());
+            assert_eq!(
+                decode_terminal_installation_record(&changed_second_ordinal_bytes),
+                Err(TerminalInstallationError::InvalidStructuralReturn(
+                    machine.id
+                )),
+                "canonical installation decoding must reject a gapped second-local ordinal"
+            );
+
+            let mut reordered_cleanup_bytes = installation_bytes.clone();
+            let cleanup_place_offset = custody_offset + cleanup_count_in_suffix + 4;
+            let first_cleanup =
+                reordered_cleanup_bytes[cleanup_place_offset..cleanup_place_offset + 8].to_vec();
+            let second_cleanup = reordered_cleanup_bytes
+                [cleanup_place_offset + 8..cleanup_place_offset + 16]
+                .to_vec();
+            reordered_cleanup_bytes[cleanup_place_offset..cleanup_place_offset + 8]
+                .copy_from_slice(&second_cleanup);
+            reordered_cleanup_bytes[cleanup_place_offset + 8..cleanup_place_offset + 16]
+                .copy_from_slice(&first_cleanup);
+            assert_eq!(
+                decode_terminal_installation_record(&reordered_cleanup_bytes),
+                Err(TerminalInstallationError::InvalidStructuralReturn(
+                    machine.id
+                )),
+                "canonical installation decoding must reject reordered local cleanup"
+            );
+        }
+        if has_parameter_cleanup || local_cleanup_count != 0 {
             let mut changed_cleanup_bytes = installation_bytes.clone();
             let cleanup_place_offset = custody_offset + cleanup_count_in_suffix + 4;
             changed_cleanup_bytes[cleanup_place_offset..cleanup_place_offset + 8]
@@ -728,10 +828,11 @@ fn assert_source_structural_return(
 
 #[test]
 fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop() {
-    assert_source_structural_return("Main::forward", false, false);
-    assert_source_structural_return("Main::forward_and_drop", true, false);
-    assert_source_structural_return("Main::forward_with_local", false, true);
-    assert_source_structural_return("Main::forward_with_local_and_drop", true, true);
+    assert_source_structural_return("Main::forward", false, 0);
+    assert_source_structural_return("Main::forward_and_drop", true, 0);
+    assert_source_structural_return("Main::forward_with_local", false, 1);
+    assert_source_structural_return("Main::forward_with_two_locals", false, 2);
+    assert_source_structural_return("Main::forward_with_local_and_drop", true, 1);
 }
 
 #[cfg(unix)]

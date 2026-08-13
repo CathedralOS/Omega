@@ -41,6 +41,12 @@ machine Main::forward_with_local(region: Region in Owned) -> Region in Owned {
     region
 }
 
+machine Main::forward_with_two_locals(region: Region in Owned) -> Region in Owned {
+    let first: EmptyScratch = EmptyScratch {};
+    let second: EmptyScratch = EmptyScratch {};
+    region
+}
+
 machine Main::forward_with_local_and_drop(
     region: Region in Owned,
     scratch: Scratch

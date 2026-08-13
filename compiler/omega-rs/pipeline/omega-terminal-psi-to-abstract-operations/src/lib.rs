@@ -780,9 +780,6 @@ fn lower_structural_machine(
             Ok((operation.id, declaration, local_type))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if trivial_affine_locals.len() > 1 {
-        return Err(unsupported());
-    }
     let Terminator::ReturnStructural {
         edge,
         source,
@@ -854,6 +851,12 @@ fn lower_structural_machine(
                         && structural_type == local_type.id
                 )
             })
+        || trivial_affine_locals
+            .iter()
+            .map(|(_, local, _)| local.id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != trivial_affine_locals.len()
         || machine.structural_places.len()
             != machine.structural_parameters.len() + trivial_affine_locals.len() + 1
     {
