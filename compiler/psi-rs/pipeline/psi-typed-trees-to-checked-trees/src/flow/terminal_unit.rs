@@ -858,6 +858,62 @@ fn build_structural_scalar_return_machine(
                     scalar_parameters.len() + binding_count - 1,
                 ) == 1
         );
+    let final_short_circuit_continuation_is_inlined = binding_count >= 2
+        && binding_branch_free[..binding_count - 2]
+            .iter()
+            .all(|branch_free| *branch_free)
+        && !binding_branch_free[binding_count - 2]
+        && binding_branch_free[binding_count - 1]
+        && bindings[binding_count - 2].primitive_type == PrimitiveType::Bool
+        && bindings[binding_count - 1].primitive_type == PrimitiveType::Bool
+        && facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                u32::try_from(binding_count - 2).ok()?,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: u32::try_from(binding_count - 2).ok()?,
+                },
+            )
+            .is_some_and(|expression| {
+                is_single_top_level_short_circuit_boolean_return(
+                    expression,
+                    scalar_parameters.len(),
+                    binding_count - 2,
+                )
+            })
+        && facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                u32::try_from(binding_count - 1).ok()?,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: u32::try_from(binding_count - 1).ok()?,
+                },
+            )
+            .is_some_and(|expression| {
+                matches!(
+                    expression,
+                    CheckedScalarExpression::Boolean(expression)
+                        if is_branch_free_structural_boolean_expression(
+                            expression,
+                            scalar_parameters.len(),
+                            binding_count - 1,
+                        ) && checked_boolean_local_reference_count(
+                            expression,
+                            scalar_parameters.len() + binding_count - 2,
+                        ) == 1
+                )
+            })
+        && matches!(
+            return_expression,
+            CheckedScalarExpression::Boolean(expression)
+                if matches!(expression.as_ref(),
+                    psi_checked_trees::CheckedBooleanExpression::Local { position }
+                        if *position == scalar_parameters.len() + binding_count - 1)
+        );
     if !is_structural_scalar_return_expression(
         return_expression,
         scalar_parameters.len(),
@@ -882,7 +938,8 @@ fn build_structural_scalar_return_machine(
         && (structural_parameters.len() != whole_discards.len()
             || !(bindings_are_branch_free
                 && (return_is_branch_free || return_is_one_short_circuit_boolean)
-                || final_binding_is_inlined_short_circuit_return))
+                || final_binding_is_inlined_short_circuit_return
+                || final_short_circuit_continuation_is_inlined))
     {
         return None;
     }

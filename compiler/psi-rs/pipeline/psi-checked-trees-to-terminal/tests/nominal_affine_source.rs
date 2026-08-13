@@ -373,7 +373,8 @@ const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     {
         let inverted: bool = !right;
         let staged: bool = left && inverted;
-        !staged
+        let completed: bool = !staged;
+        completed
     }
 "#;
 
