@@ -371,10 +371,10 @@ fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
 }
 
 #[test]
-fn retains_two_mixed_width_primitive_scalars_for_whole_root_nominal_cleanup() {
+fn retains_wide_flat_mixed_primitive_record_for_whole_root_nominal_cleanup() {
     let checked = checked(
         r#"
-        data Token { tag: u8; payload: i64; }
+        data Token { flag: bool; tag: u8; delta: i16; payload: u64; address: addr; }
         machine Token::drop(&mut self) {}
 
         data Root {}
@@ -387,7 +387,7 @@ fn retains_two_mixed_width_primitive_scalars_for_whole_root_nominal_cleanup() {
         .flow
         .terminal_nominal_affine_unit_cleanups
         .for_machine(enter)
-        .expect("two-scalar-field nominal-cleanup plan");
+        .expect("wide flat scalar nominal-cleanup plan");
     let token_shape = checked
         .facts
         .flow
@@ -396,21 +396,23 @@ fn retains_two_mixed_width_primitive_scalars_for_whole_root_nominal_cleanup() {
         .iter()
         .find(|shape| shape.identity == plan.cleanup.type_identity)
         .expect("cleanup type shape");
-    let [tag, payload] = record_fields(token_shape) else {
-        panic!("bounded nominal cleanup retains exactly two fields")
+    let [flag, tag, delta, payload, address] = record_fields(token_shape) else {
+        panic!("bounded nominal cleanup retains every flat primitive field")
     };
-    assert_eq!(tag.identity, "tag");
-    assert_eq!(tag.relevance, BindingRelevance::Relevant);
-    assert!(matches!(
-        tag.field_type,
-        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U8)
-    ));
-    assert_eq!(payload.identity, "payload");
-    assert_eq!(payload.relevance, BindingRelevance::Relevant);
-    assert!(matches!(
-        payload.field_type,
-        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::I64)
-    ));
+    for (field, identity, primitive) in [
+        (flag, "flag", PrimitiveType::Bool),
+        (tag, "tag", PrimitiveType::U8),
+        (delta, "delta", PrimitiveType::I16),
+        (payload, "payload", PrimitiveType::U64),
+        (address, "address", PrimitiveType::Addr),
+    ] {
+        assert_eq!(field.identity, identity);
+        assert_eq!(field.relevance, BindingRelevance::Relevant);
+        assert!(matches!(
+            field.field_type,
+            CheckedUnitStructuralFieldType::Scalar(actual) if actual == primitive
+        ));
+    }
     assert!(plan.machine.entry_claims.is_empty());
     assert!(matches!(
         plan.machine.operations.as_slice(),
@@ -424,18 +426,18 @@ fn retains_two_mixed_width_primitive_scalars_for_whole_root_nominal_cleanup() {
 }
 
 #[test]
-fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes() {
+fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_unsupported_source_shapes() {
     let checked = checked(
         r#"
         data Empty {}
         data Token {}
         machine Token::drop(&mut self) {}
         machine Token::self_cleanup(self) {}
-        data Wide { first: u8; second: u32; third: i64; }
-        machine Wide::drop(&mut self) {}
         data Leaf {}
         data Structural { value: Leaf; }
         machine Structural::drop(&mut self) {}
+        data Fixed { values: [Leaf; 2]; }
+        machine Fixed::drop(&mut self) {}
         data ErasedOnly { proof [erased]: u64; }
         machine ErasedOnly::drop(&mut self) {}
         data ScalarAndErased { value: u64; proof [erased]: u64; }
@@ -463,8 +465,8 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes(
         machine Root::with_contract(token: Token)
         ensures true
         {}
-        machine Root::wide(value: Wide) {}
         machine Root::structural(value: Structural) {}
+        machine Root::fixed(value: Fixed) {}
         machine Root::erased(value: ErasedOnly) {}
         machine Root::scalar_and_erased(value: ScalarAndErased) {}
         machine Root::floating(value: Float) {}
@@ -489,8 +491,8 @@ fn bounded_whole_root_nominal_cleanup_plan_fails_closed_for_wider_source_shapes(
         "with_call",
         "with_contract",
         "self_cleanup",
-        "wide",
         "structural",
+        "fixed",
         "erased",
         "scalar_and_erased",
         "floating",

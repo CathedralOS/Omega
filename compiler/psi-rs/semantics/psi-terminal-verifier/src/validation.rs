@@ -2189,20 +2189,17 @@ fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
     let StructuralTypeShape::Record { fields } = shape else {
         return false;
     };
-    fields.len() <= 2
-        && fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && match field.field_type {
-                    StructuralFieldType::Scalar(ScalarType::Boolean) => true,
-                    StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-                        matches!(integer.bits(), 8 | 16 | 32 | 64)
-                            && (!integer.is_address() || integer.bits() == 64)
-                    }
-                    StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => {
-                        false
-                    }
+    fields.iter().all(|field| {
+        !field.relevance.is_erased()
+            && match field.field_type {
+                StructuralFieldType::Scalar(ScalarType::Boolean) => true,
+                StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                    matches!(integer.bits(), 8 | 16 | 32 | 64)
+                        && (!integer.is_address() || integer.bits() == 64)
                 }
-        })
+                StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => false,
+            }
+    })
 }
 
 fn validate_unit_call_contract_places(

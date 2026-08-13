@@ -3548,27 +3548,24 @@ fn lower_nominal_affine_unit_cleanup_machine(
 
 fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
     match shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => {
-            fields.len() <= 2
-                && fields.iter().all(|field| {
-                    !field.relevance.is_erased()
-                        && matches!(
-                            &field.field_type,
-                            CheckedUnitStructuralFieldType::Scalar(
-                                PrimitiveType::Bool
-                                    | PrimitiveType::I8
-                                    | PrimitiveType::I16
-                                    | PrimitiveType::I32
-                                    | PrimitiveType::I64
-                                    | PrimitiveType::U8
-                                    | PrimitiveType::U16
-                                    | PrimitiveType::U32
-                                    | PrimitiveType::U64
-                                    | PrimitiveType::Addr
-                            )
-                        )
-                })
-        }
+        CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && matches!(
+                    &field.field_type,
+                    CheckedUnitStructuralFieldType::Scalar(
+                        PrimitiveType::Bool
+                            | PrimitiveType::I8
+                            | PrimitiveType::I16
+                            | PrimitiveType::I32
+                            | PrimitiveType::I64
+                            | PrimitiveType::U8
+                            | PrimitiveType::U16
+                            | PrimitiveType::U32
+                            | PrimitiveType::U64
+                            | PrimitiveType::Addr
+                    )
+                )
+        }),
         CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
     }
 }
@@ -9885,9 +9882,9 @@ mod tests {
         lower_typed_trees(typed).expect("check")
     }
 
-    fn nominal_affine_two_scalar_unit_checked_fixture() -> CheckedTrees {
+    fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
         let source = r#"
-            data Token { tag: u8; payload: i64; }
+            data Token { flag: bool; tag: u8; delta: i16; payload: u64; address: addr; }
             machine Token::drop(&mut self) {}
             data Root {}
             machine Root::enter(token: Token) {}
@@ -9978,8 +9975,8 @@ mod tests {
     }
 
     #[test]
-    fn nominal_affine_two_scalar_unit_cleanup_retains_exact_field_shape() {
-        let checked = nominal_affine_two_scalar_unit_checked_fixture();
+    fn nominal_affine_wide_scalar_unit_cleanup_retains_exact_field_shape() {
+        let checked = nominal_affine_wide_scalar_unit_checked_fixture();
         let [plan] = checked
             .facts
             .flow
@@ -9987,10 +9984,10 @@ mod tests {
             .machines
             .as_slice()
         else {
-            panic!("expected one checked two-scalar nominal-cleanup plan")
+            panic!("expected one checked wide-scalar nominal-cleanup plan")
         };
         let lowered = lower_nominal_affine_unit_cleanup_machine(&checked, plan)
-            .expect("two-scalar-field nominal cleanup should lower");
+            .expect("wide flat scalar nominal cleanup should lower");
         let entry = lowered
             .semantic_module
             .machines
@@ -9999,7 +9996,7 @@ mod tests {
             .expect("terminal entry");
         let Terminator::ReturnUnitNominalAffine { cleanup, .. } = &entry.blocks[0].terminator
         else {
-            panic!("two-scalar nominal cleanup requires its distinct terminal return")
+            panic!("wide scalar nominal cleanup requires its distinct terminal return")
         };
         let cleanup_type = lowered
             .semantic_module
@@ -10010,26 +10007,26 @@ mod tests {
         let StructuralTypeShape::Record { fields } = &cleanup_type.shape else {
             panic!("nominal scalar cleanup retains a record")
         };
-        let [tag, payload] = fields.as_slice() else {
-            panic!("nominal scalar cleanup retains exactly two fields")
+        let [flag, tag, delta, payload, address] = fields.as_slice() else {
+            panic!("nominal scalar cleanup retains every flat field")
         };
-        assert_eq!(tag.identity, "tag");
-        assert!(!tag.relevance.is_erased());
-        assert_eq!(payload.identity, "payload");
-        assert!(!payload.relevance.is_erased());
-        let (StructuralFieldType::Scalar(tag_type), StructuralFieldType::Scalar(payload_type)) =
-            (&tag.field_type, &payload.field_type)
-        else {
-            panic!("both nominal cleanup fields retain scalar carriers")
-        };
-        assert_eq!(
-            *tag_type,
-            terminal_scalar_type(PrimitiveType::U8).expect("u8 is terminal-supported")
-        );
-        assert_eq!(
-            *payload_type,
-            terminal_scalar_type(PrimitiveType::I64).expect("i64 is terminal-supported")
-        );
+        for (field, identity, primitive) in [
+            (flag, "flag", PrimitiveType::Bool),
+            (tag, "tag", PrimitiveType::U8),
+            (delta, "delta", PrimitiveType::I16),
+            (payload, "payload", PrimitiveType::U64),
+            (address, "address", PrimitiveType::Addr),
+        ] {
+            assert_eq!(field.identity, identity);
+            assert!(!field.relevance.is_erased());
+            let StructuralFieldType::Scalar(actual) = &field.field_type else {
+                panic!("wide nominal cleanup field retains its scalar carrier")
+            };
+            assert_eq!(
+                *actual,
+                terminal_scalar_type(primitive).expect("fixture uses terminal-supported fields")
+            );
+        }
 
         for bad_field_type in [
             CheckedUnitStructuralFieldType::Scalar(PrimitiveType::F64),
@@ -10066,32 +10063,6 @@ mod tests {
                 ))
             ));
         }
-
-        let mut stale = checked.clone();
-        let shape = stale
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
-            .structural_types
-            .iter_mut()
-            .find(|shape| shape.identity == plan.cleanup.type_identity)
-            .expect("nominal cleanup shape");
-        let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
-            panic!("scalar fixture has a record shape")
-        };
-        fields.push(fields[0].clone());
-        let stale_plan = stale
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
-            .machines[0]
-            .clone();
-        assert!(matches!(
-            lower_nominal_affine_unit_cleanup_machine(&stale, &stale_plan),
-            Err(LoweringError::Unsupported(
-                "nominal affine Unit parameter is outside the bounded record shape"
-            ))
-        ));
     }
 
     #[test]
