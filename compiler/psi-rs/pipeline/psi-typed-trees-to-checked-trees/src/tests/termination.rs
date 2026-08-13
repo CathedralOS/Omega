@@ -7109,11 +7109,24 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         second: u64;
     }
 
+    data PairChoice {
+        tag: u64;
+        case Values(first: u64, second: u64);
+        case Empty;
+    }
+
+    data GenericChoice<T> {
+        case Value(value: T);
+        case Empty;
+    }
+
     data Main {
         value: u64;
         other: u64;
         pair: Pair;
         generic_pair: GenericPair<u64>;
+        choice: PairChoice;
+        generic_choice: GenericChoice<u64>;
         cells: [u64; 2];
     }
 
@@ -7234,6 +7247,42 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_case_value_calls<'cells, 'choice, 'first, 'second>(
+        cells: &'cells mut [u64; 2],
+        choice: &'choice mut PairChoice,
+        first: &'first mut u64,
+        second: &'second mut u64
+    ) -> &'cells mut [u64; 2] {
+        choice = PairChoice::Values {
+            tag: identity(compute(first)),
+            first: 0,
+            second: identity(identity(compute(second)))
+        };
+        cells
+    }
+
+    machine return_after_generic_case_value_call<'cells, 'choice, 'value>(
+        cells: &'cells mut [u64; 2],
+        choice: &'choice mut GenericChoice<u64>,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        choice = GenericChoice::Value { value: compute(value) };
+        cells
+    }
+
+    machine return_after_computed_case_field<'cells, 'choice, 'value>(
+        cells: &'cells mut [u64; 2],
+        choice: &'choice mut PairChoice,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        choice = PairChoice::Values {
+            tag: 0,
+            first: compute(value) + 1,
+            second: 0
+        };
+        cells
+    }
+
     machine return_after_too_deep_value_call<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -7336,6 +7385,34 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::case_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_case_value_calls(
+            &mut self.cells,
+            &mut self.choice,
+            &mut self.value,
+            &mut self.other
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::generic_case_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_generic_case_value_call(
+            &mut self.cells,
+            &mut self.generic_choice,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
+    machine Main::computed_case_field_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_computed_case_field(
+            &mut self.cells,
+            &mut self.choice,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::too_deep_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] =
             return_after_too_deep_value_call(&mut self.cells, &mut self.value);
@@ -7395,6 +7472,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             "Main::record_value_call_assignment_result",
             vec!["self.cells", "self.other", "self.pair", "self.value"],
         ),
+        (
+            "Main::case_value_call_assignment_result",
+            vec!["self.cells", "self.choice", "self.other", "self.value"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -7427,6 +7508,8 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::recursive_value_call_assignment_result",
         "Main::generic_record_value_call_assignment_result",
         "Main::computed_record_field_assignment_result",
+        "Main::generic_case_value_call_assignment_result",
+        "Main::computed_case_field_assignment_result",
     ] {
         let machine = typed
             .machines()
