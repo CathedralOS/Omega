@@ -1290,16 +1290,43 @@ fn validate_record_shape(
                             .iter()
                             .filter(|call| call.machine == nominal.cleanup_machine)
                             .collect::<Vec<_>>();
-                        let cleanup_body_is_exact = match cleanup_calls.as_slice() {
-                            [] => true,
-                            [call] => {
+                        let cleanup_call_owners = cleanup_calls
+                            .iter()
+                            .map(|call| call.custody.owner)
+                            .collect::<std::collections::BTreeSet<_>>();
+                        let cleanup_call_targets = cleanup_calls
+                            .iter()
+                            .map(|call| call.custody.target)
+                            .collect::<std::collections::BTreeSet<_>>();
+                        let cleanup_body_is_exact = cleanup_calls.len() <= 2
+                            && cleanup_call_owners.len() == cleanup_calls.len()
+                            && cleanup_call_targets.len() == cleanup_calls.len()
+                            && cleanup_calls.iter().all(|call| {
                                 matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
                                     && call.custody.arguments.is_empty()
                                     && call.custody.claim_transfers.is_empty()
-                            }
-                            _ => false,
-                        };
-                        let cleanup_is_executable = cleanup_calls.len() == 1;
+                                    && record.functions.iter().any(|helper| {
+                                        helper.machine == call.custody.target
+                                            && helper.attachment.is_some()
+                                            && helper.unit_body
+                                            && helper.unit_parameters.is_empty()
+                                            && helper.unit_parameter_homes.is_empty()
+                                            && helper.unit_affine_cleanup.as_ref().is_some_and(
+                                                |return_cleanup| {
+                                                    return_cleanup.locals.is_empty()
+                                                        && return_cleanup.discards.is_empty()
+                                                        && return_cleanup
+                                                            .residual_discards
+                                                            .is_empty()
+                                                        && return_cleanup.nominal_cleanup.is_none()
+                                                },
+                                            )
+                                            && !record.internal_unit_calls.iter().any(
+                                                |helper_call| helper_call.machine == helper.machine,
+                                            )
+                                    })
+                            });
+                        let cleanup_is_executable = !cleanup_calls.is_empty();
                         let matching_edge_calls = record
                             .internal_unit_calls
                             .iter()

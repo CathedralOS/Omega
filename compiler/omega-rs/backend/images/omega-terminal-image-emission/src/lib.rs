@@ -946,6 +946,15 @@ fn validate_unit_affine_cleanup(
             (Some(nominal), []) => {
                 let cleanup_function = functions.get(&nominal.cleanup_machine).copied();
                 let cleanup_body_is_exact = cleanup_function.is_some_and(|function| {
+                    let calls = &function.internal_unit_calls;
+                    let call_owners = calls
+                        .iter()
+                        .map(|call| call.owner)
+                        .collect::<std::collections::BTreeSet<_>>();
+                    let call_targets = calls
+                        .iter()
+                        .map(|call| call.target)
+                        .collect::<std::collections::BTreeSet<_>>();
                     function.attachment == Some(nominal.structural_type)
                         && function.unit_stack.is_some()
                         && function.scalar_stack.is_none()
@@ -960,15 +969,30 @@ fn validate_unit_affine_cleanup(
                                     && return_cleanup.residual_discards.is_empty()
                                     && return_cleanup.nominal_cleanup.is_none()
                             })
-                        && match function.internal_unit_calls.as_slice() {
-                            [] => true,
-                            [call] => {
-                                matches!(call.owner, TerminalCallSiteOwner::Operation(_))
-                                    && call.arguments.is_empty()
-                                    && call.claim_transfers.is_empty()
-                            }
-                            _ => false,
-                        }
+                        && calls.len() <= 2
+                        && call_owners.len() == calls.len()
+                        && call_targets.len() == calls.len()
+                        && calls.iter().all(|call| {
+                            matches!(call.owner, TerminalCallSiteOwner::Operation(_))
+                                && call.arguments.is_empty()
+                                && call.claim_transfers.is_empty()
+                                && functions.get(&call.target).is_some_and(|helper| {
+                                    helper.attachment.is_some()
+                                        && helper.unit_stack.is_some()
+                                        && helper.scalar_stack.is_none()
+                                        && helper.unit_parameters.is_empty()
+                                        && helper.unit_parameter_homes.is_empty()
+                                        && helper.internal_unit_calls.is_empty()
+                                        && helper.unit_affine_cleanup.as_ref().is_some_and(
+                                            |return_cleanup| {
+                                                return_cleanup.locals.is_empty()
+                                                    && return_cleanup.discards.is_empty()
+                                                    && return_cleanup.residual_discards.is_empty()
+                                                    && return_cleanup.nominal_cleanup.is_none()
+                                            },
+                                        )
+                                })
+                        })
                 });
                 let cleanup_is_executable = cleanup_function
                     .is_some_and(|function| !function.internal_unit_calls.is_empty());
