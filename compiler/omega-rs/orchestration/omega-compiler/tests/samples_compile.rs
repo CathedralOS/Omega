@@ -21,6 +21,9 @@
 //!    migrated basics cohort selects `Main::main` for every hosted target and
 //!    directly lowers every entry shape the production backend currently
 //!    supports.
+//!  * `algorithm_samples_compile_from_authored_program_entry_bindings` — the
+//!    migrated algorithms cohort has the same exact selection and direct-
+//!    lowering guarantees, with no legacy staging adapter.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -67,6 +70,16 @@ const DIRECT_ENTRY_NATIVE_BASIC_SAMPLES: &[&str] = &[
     "temperature_convert",
     "text_greeting",
     "unit_converter",
+];
+const EXPLICIT_ENTRY_ALGORITHM_SAMPLES: &[&str] = &[
+    "binary_search_viz",
+    "bubble_sort",
+    "dutch_flag",
+    "horner_eval",
+    "insertion_sort",
+    "longest_run",
+    "maze_flood",
+    "sort_visualizer",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -453,6 +466,61 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
             )
         });
         let _ = fs::remove_dir_all(build_dir);
+    }
+}
+
+#[test]
+fn algorithm_samples_compile_from_authored_program_entry_bindings() {
+    for sample in EXPLICIT_ENTRY_ALGORITHM_SAMPLES {
+        let main_path = repo_root()
+            .join("samples/cli/algorithms")
+            .join(sample)
+            .join("main.omg");
+        for target in HOSTED_SAMPLE_TARGETS {
+            let checked =
+                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
+                    panic!(
+                        "algorithm sample {sample} should select its authored {target} entry: \
+                         {diagnostics:#?}"
+                    )
+                });
+            assert_eq!(
+                checked.selected_program_entry_machine(),
+                Some("Main::main"),
+                "algorithm sample {sample} must select its authored Main::main binding for \
+                 {target}"
+            );
+
+            let build_dir = std::env::temp_dir().join(format!(
+                "omega-authored-algorithm-entry-{sample}-{target}-{}",
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&build_dir);
+            compile_program(CompileOptions {
+                root_path: main_path.clone(),
+                build_dir: Some(build_dir.clone()),
+                target_name: Some((*target).to_owned()),
+                write_output: false,
+            })
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "algorithm sample {sample} should lower directly for {target} without a \
+                     staged entry: {diagnostics:#?}"
+                )
+            });
+            let _ = fs::remove_dir_all(build_dir);
+        }
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "algorithm sample {sample} should remain entry-agnostic when checked: \
+                 {diagnostics:#?}"
+            )
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            None,
+            "checked-only algorithm sample {sample} must not select a storage root"
+        );
     }
 }
 

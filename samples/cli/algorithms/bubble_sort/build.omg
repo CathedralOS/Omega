@@ -1,10 +1,20 @@
-// bubble_sort build manifest: each target lists the boundary packages it trusts.
-
-target cross_platform_cli {
-}
+// bubble_sort is deployable on every hosted target.
 
 target windows_x64 {
 }
 
 target linux_x64 {
+}
+
+target linux_arm64 {
+}
+
+target macos_arm64 {
+}
+
+machine build(b: &mut Build) {
+    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    b.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
