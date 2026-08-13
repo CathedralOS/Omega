@@ -3,13 +3,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
-    CheckedStructuralControlTransferPlan, CheckedStructuralScalarParameterPlan,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedUnitBoundaryMachinePlan,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
@@ -658,22 +659,31 @@ fn build_structural_unit_control_machine(
                 && when_false.guard == TransitionGuardNode::Always
                 && !when_true.continuation.is_valid()
                 && !when_false.continuation.is_valid()
-                && source_scalar_parameters.len() == 1
-                && source_scalar_parameters[0].primitive_type == PrimitiveType::Bool =>
+                && state_index == 0 =>
             {
                 let guard_expression = facts.values.scalar_expressions.expression_at(
                     state.symbol,
                     0,
                     CheckedScalarExpressionRole::Guard,
                 )?;
-                if !matches!(
-                    guard_expression,
+                let guard_scalar_parameter_index = match guard_expression {
                     CheckedScalarExpression::Boolean(expression)
-                        if matches!(expression.as_ref(),
-                            psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 })
-                ) {
-                    return None;
-                }
+                        if matches!(
+                            expression.as_ref(),
+                            psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
+                        ) =>
+                    {
+                        let psi_checked_trees::CheckedBooleanExpression::Parameter { position } =
+                            expression.as_ref()
+                        else {
+                            unreachable!()
+                        };
+                        let parameter = source_scalar_parameters.get(*position)?;
+                        (parameter.primitive_type == PrimitiveType::Bool)
+                            .then(|| u32::try_from(*position).ok())??
+                    }
+                    _ => return None,
+                };
                 let build_successor =
                     |statement_ordinal: u32,
                      transition: &psi_typed_trees::statement::TableTransition|
@@ -688,19 +698,18 @@ fn build_structural_unit_control_machine(
                             .position(|candidate| candidate.symbol == path.symbol)?;
                         let (target_parameters, target_scalar_parameters) =
                             &signatures[target_index];
-                        if !target_scalar_parameters.is_empty() {
-                            return None;
-                        }
                         let arguments = program.statement_table.expression_handles(*arguments);
-                        if arguments.len() != target_parameters.len() {
+                        if arguments.len()
+                            != target_parameters.len() + target_scalar_parameters.len()
+                        {
                             return None;
                         }
                         let mut transferred_sources = BTreeSet::new();
-                        let transfers = arguments
+                        let transfers = target_parameters
                             .iter()
-                            .zip(target_parameters)
                             .enumerate()
-                            .map(|(target_index, (argument, target))| {
+                            .map(|(target_index, target)| {
+                                let argument = arguments.get(target.position as usize)?;
                                 let place = super::canonical_place_from_expression_in_state(
                                     program,
                                     state.symbol,
@@ -729,6 +738,54 @@ fn build_structural_unit_control_machine(
                                 Some(CheckedStructuralControlTransferPlan {
                                     source_parameter_index: u32::try_from(source_index).ok()?,
                                     target_parameter_index: u32::try_from(target_index).ok()?,
+                                })
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let scalar_arguments = target_scalar_parameters
+                            .iter()
+                            .enumerate()
+                            .map(|(target_index, target)| {
+                                let argument_ordinal = target.source_position;
+                                let expression = facts.values.scalar_expressions.expression_at(
+                                    state.symbol,
+                                    statement_ordinal,
+                                    CheckedScalarExpressionRole::TransitionArgument {
+                                        argument_ordinal,
+                                    },
+                                )?;
+                                let source_index = match expression {
+                                    CheckedScalarExpression::Boolean(expression)
+                                        if target.primitive_type == PrimitiveType::Bool =>
+                                    {
+                                        let psi_checked_trees::CheckedBooleanExpression::Parameter {
+                                            position,
+                                        } = expression.as_ref()
+                                        else {
+                                            return None;
+                                        };
+                                        *position
+                                    }
+                                    CheckedScalarExpression::Parameter {
+                                        position,
+                                        primitive_type,
+                                    } if *primitive_type == target.primitive_type => *position,
+                                    _ => return None,
+                                };
+                                if source_scalar_parameters
+                                    .get(source_index)
+                                    .is_none_or(|source| {
+                                        source.primitive_type != target.primitive_type
+                                    })
+                                {
+                                    return None;
+                                }
+                                Some(CheckedStructuralScalarArgumentPlan {
+                                    argument_ordinal,
+                                    source_scalar_parameter_index: u32::try_from(source_index)
+                                        .ok()?,
+                                    target_scalar_parameter_index: u32::try_from(target_index)
+                                        .ok()?,
+                                    primitive_type: target.primitive_type,
                                 })
                             })
                             .collect::<Option<Vec<_>>>()?;
@@ -762,6 +819,7 @@ fn build_structural_unit_control_machine(
                             statement_ordinal,
                             target_state: path.symbol,
                             transfers,
+                            scalar_arguments,
                             trivial_affine_discard_parameter_positions: cleanup
                                 .trivial_affine_discard_parameter_positions
                                 .clone(),
@@ -773,7 +831,7 @@ fn build_structural_unit_control_machine(
                     return None;
                 }
                 CheckedStructuralUnitControlTerminatorPlan::Conditional {
-                    guard_scalar_parameter_index: 0,
+                    guard_scalar_parameter_index,
                     when_true,
                     when_false,
                 }

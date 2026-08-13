@@ -2291,18 +2291,12 @@ fn lower_structural_unit_control_machine(
             lookup_type_id(&type_ids, &parameter.type_identity)?;
         }
         for parameter in &state.scalar_parameters {
-            if !positions.insert(parameter.source_position)
-                || terminal_scalar_type(parameter.primitive_type)? != ScalarType::Boolean
-            {
+            if !positions.insert(parameter.source_position) {
                 return unsupported(
-                    "structural Unit scalar inputs are not disjoint Boolean guard custody",
+                    "structural Unit scalar inputs overlap the authored parameter partition",
                 );
             }
-        }
-        if state_index != 0 && !state.scalar_parameters.is_empty() {
-            return unsupported(
-                "structural Unit scalar guard inputs are supported only on the entry state",
-            );
+            terminal_scalar_type(parameter.primitive_type)?;
         }
         if positions.len() != state.structural_parameters.len() + state.scalar_parameters.len()
             || positions
@@ -2319,18 +2313,24 @@ fn lower_structural_unit_control_machine(
             CheckedStructuralUnitControlTerminatorPlan::Conditional {
                 guard_scalar_parameter_index,
                 ..
-            } if state.scalar_parameters.len() == 1 && *guard_scalar_parameter_index == 0 => {}
+            } if state_index == 0
+                && usize::try_from(*guard_scalar_parameter_index)
+                    .ok()
+                    .and_then(|index| state.scalar_parameters.get(index))
+                    .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool) => {}
             CheckedStructuralUnitControlTerminatorPlan::Conditional { .. } => {
                 return unsupported(
-                    "structural Unit conditional must select one Boolean scalar guard input",
+                    "structural Unit conditional must select one entry Boolean scalar guard input",
                 );
             }
-            _ if state.scalar_parameters.is_empty() => {}
-            _ => {
+            CheckedStructuralUnitControlTerminatorPlan::Jump { .. }
+                if !state.scalar_parameters.is_empty() =>
+            {
                 return unsupported(
-                    "structural Unit scalar inputs are supported only on conditional states",
+                    "structural Unit unconditional scalar successor control is outside this slice",
                 );
             }
+            _ => {}
         }
     }
     let mut next_place = 1_u64;
@@ -2343,15 +2343,21 @@ fn lower_structural_unit_control_machine(
     if entry_parameters.is_empty() {
         return unsupported("structural Unit control entry has no structural parameters");
     }
-    let scalar_parameters = plan.states[0]
-        .scalar_parameters
+    let mut next_value = 1_u64;
+    let state_scalar_parameters = plan
+        .states
         .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            Ok(ValueDeclaration {
-                id: value_id(dense_identity(index)?),
-                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
-            })
+        .map(|state| {
+            state
+                .scalar_parameters
+                .iter()
+                .map(|parameter| {
+                    Ok(ValueDeclaration {
+                        id: value_id(allocate_dense(&mut next_value)?),
+                        scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let entry_places = entry_parameters
@@ -2418,8 +2424,9 @@ fn lower_structural_unit_control_machine(
                 ..
             } => vec![(
                 target_state,
-                transfers,
-                trivial_affine_discard_parameter_positions,
+                transfers.as_slice(),
+                &[] as &[psi_checked_trees::CheckedStructuralScalarArgumentPlan],
+                trivial_affine_discard_parameter_positions.as_slice(),
             )],
             CheckedStructuralUnitControlTerminatorPlan::Conditional {
                 when_true,
@@ -2428,17 +2435,23 @@ fn lower_structural_unit_control_machine(
             } => vec![
                 (
                     &when_true.target_state,
-                    &when_true.transfers,
-                    &when_true.trivial_affine_discard_parameter_positions,
+                    when_true.transfers.as_slice(),
+                    when_true.scalar_arguments.as_slice(),
+                    when_true
+                        .trivial_affine_discard_parameter_positions
+                        .as_slice(),
                 ),
                 (
                     &when_false.target_state,
-                    &when_false.transfers,
-                    &when_false.trivial_affine_discard_parameter_positions,
+                    when_false.transfers.as_slice(),
+                    when_false.scalar_arguments.as_slice(),
+                    when_false
+                        .trivial_affine_discard_parameter_positions
+                        .as_slice(),
                 ),
             ],
         };
-        for (target_state, transfers, cleanup_positions) in successors {
+        for (target_state, transfers, scalar_arguments, cleanup_positions) in successors {
             let target_state_index = plan
                 .states
                 .iter()
@@ -2456,6 +2469,43 @@ fn lower_structural_unit_control_machine(
                 return unsupported(
                     "structural Unit transfer map does not fill its target frontier",
                 );
+            }
+            let target_scalar_parameters = &plan.states[target_state_index].scalar_parameters;
+            if scalar_arguments.len() != target_scalar_parameters.len() {
+                return unsupported(
+                    "structural Unit scalar successor map does not fill its target signature",
+                );
+            }
+            for (target_index, (argument, target_parameter)) in scalar_arguments
+                .iter()
+                .zip(target_scalar_parameters)
+                .enumerate()
+            {
+                let source_index = usize::try_from(argument.source_scalar_parameter_index)
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "structural Unit scalar successor source exceeds usize",
+                        )
+                    })?;
+                if argument.target_scalar_parameter_index
+                    != u32::try_from(target_index).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "structural Unit scalar successor target exceeds u32",
+                        )
+                    })?
+                    || argument.argument_ordinal != target_parameter.source_position
+                    || argument.primitive_type != target_parameter.primitive_type
+                    || plan.states[index]
+                        .scalar_parameters
+                        .get(source_index)
+                        .is_none_or(|source| {
+                            source.primitive_type != target_parameter.primitive_type
+                        })
+                {
+                    return unsupported(
+                        "structural Unit scalar successor map changes its checked signature",
+                    );
+                }
             }
             let mut target = vec![None; target_arity];
             let mut used_sources = BTreeSet::new();
@@ -2601,7 +2651,8 @@ fn lower_structural_unit_control_machine(
                         "structural Unit conditional successors are not in canonical order",
                     );
                 }
-                let condition = scalar_parameters
+                let source_scalar_parameters = &state_scalar_parameters[index];
+                let condition = source_scalar_parameters
                     .get(usize::try_from(*guard_scalar_parameter_index).map_err(|_| {
                         LoweringError::Unsupported(
                             "structural Unit guard scalar index exceeds usize",
@@ -2624,7 +2675,27 @@ fn lower_structural_unit_control_machine(
                                 .ok_or(LoweringError::Unsupported(
                                     "structural Unit conditional target has no terminal block",
                                 ))?,
-                            arguments: Vec::new(),
+                            arguments: successor
+                                .scalar_arguments
+                                .iter()
+                                .map(|argument| {
+                                    source_scalar_parameters
+                                        .get(
+                                            usize::try_from(
+                                                argument.source_scalar_parameter_index,
+                                            )
+                                            .map_err(|_| {
+                                                LoweringError::Unsupported(
+                                                    "structural Unit scalar successor source exceeds usize",
+                                                )
+                                            })?,
+                                        )
+                                        .map(|parameter| parameter.id)
+                                        .ok_or(LoweringError::Unsupported(
+                                            "structural Unit scalar successor names an unknown source",
+                                        ))
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
                             trivial_affine_discards: lower_discards(
                                 &successor.trivial_affine_discard_parameter_positions,
                             )?,
@@ -2640,7 +2711,11 @@ fn lower_structural_unit_control_machine(
         };
         blocks.push(Block {
             id: state_ids[index].1,
-            parameters: Vec::new(),
+            parameters: if index == 0 {
+                Vec::new()
+            } else {
+                state_scalar_parameters[index].clone()
+            },
             operations: Vec::new(),
             terminator,
         });
@@ -2648,7 +2723,7 @@ fn lower_structural_unit_control_machine(
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
-        parameters: scalar_parameters,
+        parameters: state_scalar_parameters[0].clone(),
         structural_parameters: entry_parameters.clone(),
         result: TerminalMachineResult::Unit,
         structural_places: entry_parameters
@@ -8867,7 +8942,10 @@ mod tests {
         let leaf = |state| psi_checked_trees::CheckedStructuralUnitControlStatePlan {
             state,
             structural_parameters: vec![affine_parameter(0)],
-            scalar_parameters: Vec::new(),
+            scalar_parameters: vec![psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: 1,
+                primitive_type: PrimitiveType::I32,
+            }],
             terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
                 trivial_affine_discard_parameter_positions: vec![0],
             },
@@ -8892,6 +8970,10 @@ mod tests {
                                     source_position: 2,
                                     primitive_type: PrimitiveType::Bool,
                                 },
+                                psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                                    source_position: 3,
+                                    primitive_type: PrimitiveType::I32,
+                                },
                             ],
                             terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
                                 guard_scalar_parameter_index: 0,
@@ -8905,6 +8987,14 @@ mod tests {
                                                 target_parameter_index: 0,
                                             },
                                         ],
+                                        scalar_arguments: vec![
+                                            psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                                                argument_ordinal: 1,
+                                                source_scalar_parameter_index: 1,
+                                                target_scalar_parameter_index: 0,
+                                                primitive_type: PrimitiveType::I32,
+                                            },
+                                        ],
                                         trivial_affine_discard_parameter_positions: vec![1],
                                     },
                                 when_false:
@@ -8915,6 +9005,14 @@ mod tests {
                                             psi_checked_trees::CheckedStructuralControlTransferPlan {
                                                 source_parameter_index: 1,
                                                 target_parameter_index: 0,
+                                            },
+                                        ],
+                                        scalar_arguments: vec![
+                                            psi_checked_trees::CheckedStructuralScalarArgumentPlan {
+                                                argument_ordinal: 1,
+                                                source_scalar_parameter_index: 1,
+                                                target_scalar_parameter_index: 0,
+                                                primitive_type: PrimitiveType::I32,
                                             },
                                         ],
                                         trivial_affine_discard_parameter_positions: vec![0],
@@ -9091,10 +9189,16 @@ mod tests {
         };
         assert!(matches!(
             machine.parameters.as_slice(),
-            [ValueDeclaration {
-                id,
-                scalar_type: ScalarType::Boolean,
-            }] if *id == value_id(1)
+            [
+                ValueDeclaration {
+                    id: guard,
+                    scalar_type: ScalarType::Boolean,
+                },
+                ValueDeclaration {
+                    id: value,
+                    scalar_type: ScalarType::Integer(_),
+                },
+            ] if *guard == value_id(1) && *value == value_id(2)
         ));
         assert_eq!(machine.blocks.len(), 3);
         assert!(matches!(
@@ -9115,11 +9219,25 @@ mod tests {
                 },
             } if *condition == value_id(1)
                 && *true_target == block_id(2)
-                && true_arguments.is_empty()
+                && true_arguments == &[value_id(2)]
                 && true_discards == &[place_id(2)]
                 && *false_target == block_id(3)
-                && false_arguments.is_empty()
+                && false_arguments == &[value_id(2)]
                 && false_discards == &[place_id(1)]
+        ));
+        assert!(matches!(
+            machine.blocks[1].parameters.as_slice(),
+            [ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(3)
+        ));
+        assert!(matches!(
+            machine.blocks[2].parameters.as_slice(),
+            [ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Integer(_),
+            }] if *id == value_id(4)
         ));
         assert!(matches!(
             &machine.blocks[1].terminator,
@@ -9148,6 +9266,27 @@ mod tests {
                 .expect("structural conditional should decode canonically"),
             lowered.semantic_module
         );
+
+        let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_true, .. } =
+            &mut checked
+                .facts
+                .flow
+                .terminal_structural_unit_controls
+                .machines[0]
+                .states[0]
+                .terminator
+        else {
+            unreachable!()
+        };
+        when_true.scalar_arguments[0].source_scalar_parameter_index = 0;
+        assert!(matches!(
+            lower_machine(&checked, "example::Root::enter"),
+            Err(LoweringError::Unsupported(
+                "structural Unit scalar successor map changes its checked signature"
+            ))
+        ));
+
+        install_structural_unit_conditional_fixture(&mut checked);
 
         let CheckedStructuralUnitControlTerminatorPlan::Conditional {
             when_true,
