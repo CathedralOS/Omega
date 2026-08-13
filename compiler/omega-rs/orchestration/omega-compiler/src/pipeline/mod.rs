@@ -57,7 +57,8 @@ pub use provider_plans::{
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use psi_build_time_evaluation::{
-    compute_access_plan, compute_layout_plan, compute_placement_plan,
+    BuildTimeValue, compute_access_plan, compute_layout_plan, compute_placement_plan,
+    materialize_typed_owned_layout_into,
 };
 pub use psi_layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, DataSymbolId,

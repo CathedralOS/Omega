@@ -116,7 +116,12 @@ The same normalized geometry may feed different compiler-owned consumers:
   materialization when the compiler supplies each field's exact physical extent
   and the plan uses one `At` entry; incomplete values, fragments, overlap, and
   out-of-bounds placement reject before destination mutation. The typed
-  source-owned-value bridge remains implementation work; or
+  source-owned bridge now derives complete field bytes and extents from a
+  checked structured value plus its exact typed-tree schema for fixed records
+  and arrays of supported primitives. Psi retains the semantic value and shape;
+  the Omega realization seam supplies target byte order. Schema/type mismatch,
+  duplicate or missing fields, out-of-range scalars, erased/sum/generic/reference
+  shapes, and unsupported recursion reject before destination mutation; or
 - a materializer that resolves symbolic data/entry identities into an artifact
   or post-load structure.
 

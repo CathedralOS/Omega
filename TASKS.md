@@ -130,12 +130,14 @@ Owners:
   primitive/array/record shapes now likewise reflect as one `Nested` field with
   one whole `At` extent; mutable fact-free byte views preserve compiler-derived
   offsets inside that extent across interpreter, native x64, Windows x64, and
-  Linux AArch64 paths. The normalized layout foundation can now atomically
-  materialize compiler-sized owned aggregate fields through whole `At` extents,
-  zeroing padding and rejecting incomplete, overlapping, fragmented, or
-  out-of-bounds values before mutation. Connect that writer to typed
-  source-owned values; continue with sums after their placement vocabulary is
-  settled.
+  Linux AArch64 paths. The normalized layout foundation now atomically
+  materializes compiler-sized aggregate fields through whole `At` extents, and
+  the typed source-owned bridge derives complete fixed record/array bytes from
+  exact typed schemas while Omega supplies target byte order. Both zero padding
+  and reject incomplete, mismatched, overlapping, fragmented, unsupported, or
+  out-of-bounds values before mutation. Continue source-visible establishment
+  and mutable views beyond this fixed aggregate subset; continue with sums only
+  after their placement vocabulary is settled.
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
@@ -193,14 +195,14 @@ Remaining:
   interpretation, metering, fixed-fuel derivation, and Omega consumption; its
   primitive-only source producer emits the empty list. The first nonempty
   scalar-return source path now handles an attached one-state machine with only
-  claim-free affine structural parameters plus an ordered prefix of immutable
-  primitive locals and one branch-free scalar return. Landed integer operations,
-  Boolean constants/negation/equality/comparisons, and references to already
-  materialized scalar locals emit—with exact-operation proofs reconstructed
+  an exact partition of primitive scalar inputs and claim-free affine structural
+  parameters, plus an ordered prefix of immutable primitive locals and one
+  branch-free scalar return. Landed integer operations, Boolean
+  constants/negation/equality/comparisons, and references to scalar inputs or
+  already materialized locals emit—with exact-operation proofs reconstructed
   where required—before exact reverse-declaration cleanup. Calls, mutable or
-  non-scalar locals, short-circuit Boolean control, state-parameter references,
-  mixed scalar/structural namespaces, contracts, claims, effects, and multi-state
-  control remain fenced. Unconditional
+  non-scalar locals, short-circuit Boolean control, contracts, claims, effects,
+  and multi-state control remain fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
   arguments are materialized; each ordered conditional successor carries its

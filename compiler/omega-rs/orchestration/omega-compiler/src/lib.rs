@@ -6,7 +6,7 @@ pub(crate) use psi_tokens_to_syntax_trees as parser;
 
 pub use pipeline::{
     AdmittedExternalRootEntryFactHandoff, AggregateFieldSchema, AggregateFieldValue,
-    BoundExternalRootPostHandoffWriterInvocation, BuildEvaluationUsage, ByteOrder,
+    BoundExternalRootPostHandoffWriterInvocation, BuildEvaluationUsage, BuildTimeValue, ByteOrder,
     CheckedCompilation, CompileOptions, CompileReport, ConsumptionInstant, DataSymbolId,
     EntryStubId, ExecutableTcbBuildPolicy, InstalledImageSubextent, InstalledProgramStorageRoots,
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -28,7 +28,8 @@ pub use pipeline::{
     compute_layout_plan, compute_placement_plan, decode_scalar_layout,
     derive_symbolic_materialization, evaluate_calling_policy_plan,
     install_program_storage_entry_roots, materialize_aggregate_layout_into,
-    materialize_scalar_layout_into, normalized_layout_plan_fingerprint,
-    program_storage_installation_record_json, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    materialize_scalar_layout_into, materialize_typed_owned_layout_into,
+    normalized_layout_plan_fingerprint, program_storage_installation_record_json,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
 };

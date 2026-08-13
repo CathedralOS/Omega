@@ -8,11 +8,12 @@
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
 use omega_compiler::{
-    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, EntryStubId,
-    IntegerInterpretation, LayoutPlacementReport, MaterializationAction, MaterializationContext,
-    RelocationTarget, ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, compile_to_checked,
-    compute_layout_plan, decode_scalar_layout, derive_symbolic_materialization,
-    materialize_aggregate_layout_into, materialize_scalar_layout_into,
+    AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder, ConsumptionInstant,
+    EntryStubId, IntegerInterpretation, LayoutPlacementReport, MaterializationAction,
+    MaterializationContext, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
+    SymbolicFieldValue, compile_to_checked, compute_layout_plan, decode_scalar_layout,
+    derive_symbolic_materialization, materialize_aggregate_layout_into,
+    materialize_scalar_layout_into, materialize_typed_owned_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -343,6 +344,7 @@ machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
     Plan { entries: self.entries, entry_count: 1,
            size_fixed: 24, size_is_dynamic: false, align: 4 }
 }
+
 data Pair { low: u8; high: u32; }
 data Samples { pair: Pair; }
 data Main { }
@@ -367,6 +369,90 @@ machine Main::main(&mut self) { }
     assert!(bytes[..8].iter().all(|byte| *byte == 0));
     assert_eq!(&bytes[8..16], &[1, 0, 0, 0, 5, 4, 3, 2]);
     assert!(bytes[16..].iter().all(|byte| *byte == 0));
+}
+
+#[test]
+fn typed_owned_fixed_records_materialize_without_caller_supplied_field_bytes() {
+    let main_path = write_program(
+        "typed-owned-fixed-record",
+        r#"
+use omega::language::core::layout;
+
+data RecordLayout { entries: [FieldEntry; 64]; }
+machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 24, size_is_dynamic: false, align: 4 }
+}
+data Pair { low: u8; high: u32; }
+data Samples { pair: Pair; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("fixed record should reflect");
+    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+        .expect("one At placement should admit the typed record extent");
+    let value = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "pair".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "Pair".to_owned(),
+                fields: vec![
+                    ("low".to_owned(), BuildTimeValue::Int(1)),
+                    ("high".to_owned(), BuildTimeValue::Int(0x0203_0405)),
+                ],
+            },
+        )],
+    };
+    let mut bytes = [0xa5; 24];
+    materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &report,
+        &value,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("typed source-owned record should materialize through compiler-derived bytes");
+    assert!(bytes[..8].iter().all(|byte| *byte == 0));
+    assert_eq!(&bytes[8..16], &[1, 0, 0, 0, 5, 4, 3, 2]);
+    assert!(bytes[16..].iter().all(|byte| *byte == 0));
+
+    let mut big_endian = [0xa5; 24];
+    materialize_typed_owned_layout_into(
+        &checked.typed,
+        "Samples",
+        &report,
+        &value,
+        ByteOrder::BigEndian,
+        &mut big_endian,
+    )
+    .expect("Omega may select a different target byte order at realization");
+    assert_eq!(&big_endian[8..16], &[1, 0, 0, 0, 2, 3, 4, 5]);
+
+    let mut wrong_type = value.clone();
+    let BuildTimeValue::Struct { type_name, .. } = &mut wrong_type else {
+        unreachable!()
+    };
+    *type_name = "Pair".to_owned();
+    let mut unchanged = [0x5a; 24];
+    assert!(
+        materialize_typed_owned_layout_into(
+            &checked.typed,
+            "Samples",
+            &report,
+            &wrong_type,
+            ByteOrder::LittleEndian,
+            &mut unchanged,
+        )
+        .is_err()
+    );
+    assert_eq!(unchanged, [0x5a; 24]);
 }
 
 #[test]
