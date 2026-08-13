@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
     ContentConservation, ContentStructuralPlace, ContentTerm, IntegerSign, IntegerValue,
-    ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType, ValueId,
+    ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralFieldId, ValueId,
 };
 use psi_proof_kernel::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
@@ -2429,6 +2429,17 @@ pub(crate) fn substitute_proposition_places(
     proposition: &Proposition,
     substitutions: &BTreeMap<PlaceId, PlaceId>,
 ) -> Proposition {
+    let substitutions = substitutions
+        .iter()
+        .map(|(source, target)| (*source, (*target, Vec::new())))
+        .collect::<BTreeMap<_, _>>();
+    substitute_proposition_structural_places(proposition, &substitutions)
+}
+
+pub(crate) fn substitute_proposition_structural_places(
+    proposition: &Proposition,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+) -> Proposition {
     match proposition {
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
@@ -2448,15 +2459,21 @@ pub(crate) fn substitute_proposition_places(
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
-                .map(|conjunct| substitute_proposition_places(conjunct, substitutions))
+                .map(|conjunct| substitute_proposition_structural_places(conjunct, substitutions))
                 .collect(),
         ),
         Proposition::Implication {
             premise,
             conclusion,
         } => Proposition::Implication {
-            premise: Box::new(substitute_proposition_places(premise, substitutions)),
-            conclusion: Box::new(substitute_proposition_places(conclusion, substitutions)),
+            premise: Box::new(substitute_proposition_structural_places(
+                premise,
+                substitutions,
+            )),
+            conclusion: Box::new(substitute_proposition_structural_places(
+                conclusion,
+                substitutions,
+            )),
         },
         Proposition::ContentConservation(conservation) => {
             Proposition::ContentConservation(ContentConservation::new(
@@ -2470,13 +2487,24 @@ pub(crate) fn substitute_proposition_places(
 
 fn substitute_scalar_term_places(
     term: &ScalarTerm,
-    substitutions: &BTreeMap<PlaceId, PlaceId>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
 ) -> ScalarTerm {
     let mut term = term.clone();
-    fn substitute(term: &mut ScalarTerm, substitutions: &BTreeMap<PlaceId, PlaceId>) {
+    fn substitute(
+        term: &mut ScalarTerm,
+        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
+    ) {
         match term {
-            ScalarTerm::BooleanField { root, .. } => {
-                *root = substitutions.get(root).copied().unwrap_or(*root);
+            ScalarTerm::BooleanField { root, path } => {
+                if let Some((replacement, prefix)) = substitutions.get(root) {
+                    *root = *replacement;
+                    if !prefix.is_empty() {
+                        let mut rebased = Vec::with_capacity(prefix.len() + path.len());
+                        rebased.extend(prefix);
+                        rebased.append(path);
+                        *path = rebased;
+                    }
+                }
             }
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
@@ -2523,7 +2551,7 @@ fn substitute_scalar_term_places(
 
 fn substitute_content_term_places(
     term: &ContentTerm,
-    substitutions: &BTreeMap<PlaceId, PlaceId>,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<StructuralFieldId>)>,
 ) -> ContentTerm {
     match term {
         ContentTerm::Projection {
@@ -2535,7 +2563,7 @@ fn substitute_content_term_places(
                 version: subject.version,
                 root: substitutions
                     .get(&subject.root)
-                    .copied()
+                    .map(|(root, _)| *root)
                     .unwrap_or(subject.root),
                 segments: subject.segments.clone(),
             },

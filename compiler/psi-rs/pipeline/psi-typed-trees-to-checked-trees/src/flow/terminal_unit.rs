@@ -2609,8 +2609,11 @@ fn build_partial_affine_unit_cleanup_machine(
         return None;
     }
     if !is_unit(program, state.return_type)
-        || !program.machine_contracts(machine).is_empty()
-        || !program.state_contracts(state).is_empty()
+        || program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(state))
+            .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
     {
         return None;
     }
@@ -2767,7 +2770,9 @@ fn build_partial_affine_unit_cleanup_machine(
         return None;
     }
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
-    if !service_reach_plan_is_empty(facts, contract.service_reach) {
+    if contract.closed_scalar_values.has_other_clauses()
+        || !service_reach_plan_is_empty(facts, contract.service_reach)
+    {
         return None;
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -3315,10 +3320,14 @@ fn ordinary_projected_call_is_supported(
             && crate::checks::type_multiplicity(program, target_parameter.type_reference)
                 == Multiplicity::Affine
             && !type_graph_requires_nominal_drop(program, target_parameter.type_reference)
-            && program.machine_contracts(caller_machine).is_empty()
-            && program.state_contracts(caller_state).is_empty()
-            && program.machine_contracts(target_machine).is_empty()
-            && program.state_contracts(target_state).is_empty();
+            && facts
+                .contract_plans
+                .for_machine(caller_machine.symbol)
+                .is_some_and(|contract| !contract.closed_scalar_values.has_other_clauses())
+            && facts
+                .contract_plans
+                .for_machine(target_machine.symbol)
+                .is_some_and(|contract| !contract.closed_scalar_values.has_other_clauses());
     }
 
     arguments
@@ -3392,6 +3401,7 @@ fn target_contract_mentions_projected_parameter(
     let authored_contract_mentions_parameter = program
         .state_contracts(target_state)
         .iter()
+        .filter(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .any(|fact| {
             let ProofFact::Membership(membership) = fact else {
@@ -3420,6 +3430,22 @@ fn target_contract_mentions_projected_parameter(
                 bucket.alternative_guards().iter().any(|guard| match guard {
                     psi_checked_trees::CrashRouteGuard::Truth => false,
                     psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                        if matches!(
+                            predicate.scalar_expression(),
+                            Some(
+                                psi_checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                                    parameter_position: 0,
+                                    path,
+                                }
+                            ) if !path.is_empty()
+                        ) {
+                            return false;
+                        }
+                        if predicate.expression().is_some_and(|expression| {
+                            crash_expression_is_nonempty_member_path_from_parameter(expression, 0)
+                        }) {
+                            return false;
+                        }
                         predicate.expression().is_none_or(|expression| {
                             crash_expression_mentions_parameter(expression, 0)
                         })
@@ -3427,6 +3453,22 @@ fn target_contract_mentions_projected_parameter(
                 })
             })
         })
+}
+
+fn crash_expression_is_nonempty_member_path_from_parameter(
+    expression: &psi_checked_trees::CrashPredicateExpression,
+    parameter: u32,
+) -> bool {
+    use psi_checked_trees::CrashPredicateExpression;
+
+    let mut expression = expression;
+    let mut nonempty = false;
+    while let CrashPredicateExpression::Member { receiver, .. } = expression {
+        nonempty = true;
+        expression = receiver;
+    }
+    nonempty
+        && matches!(expression, CrashPredicateExpression::Parameter(index) if *index == parameter)
 }
 
 fn crash_expression_mentions_parameter(

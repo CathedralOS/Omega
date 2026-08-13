@@ -4,7 +4,8 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{
-    CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape,
+    CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeShape,
 };
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
@@ -47,6 +48,26 @@ const NESTED_SOURCE: &str = r#"
         packet.state.should_abort
     {
         Helper::inspect(packet);
+    }
+"#;
+
+const PROJECTED_SOURCE: &str = r#"
+    data AbortState { should_abort: bool; }
+    data Packet { state: AbortState; }
+    data Spare { value: u64; }
+    data Envelope { packet: Packet; spare: Spare; }
+    data Helper {}
+    machine Helper::inspect(packet: Packet)
+    crashes Abort
+        packet.state.should_abort
+    {}
+
+    data Root {}
+    machine Root::enter(envelope: Envelope)
+    crashes Abort
+        envelope.packet.state.should_abort
+    {
+        Helper::inspect(envelope.packet);
     }
 "#;
 
@@ -295,6 +316,123 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
         &mut Accept,
     )
     .expect("nested member contract remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), 3);
+}
+
+#[test]
+fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    let tokens = Lexer::new(PROJECTED_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("projected structural member crash route lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let envelope = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_parameters[0].structural_type)
+        .expect("Envelope type");
+    let StructuralTypeShape::Record { fields } = &envelope.shape else {
+        panic!("Envelope is a record")
+    };
+    let packet_field = fields
+        .iter()
+        .find(|field| field.identity == "packet")
+        .expect("packet field");
+
+    let [CrashRouteGuard::Predicate(root_predicate)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one projected member predicate")
+    };
+    let Proposition::Equal(
+        _,
+        ScalarTerm::BooleanField {
+            root: route_root,
+            path: caller_path,
+        },
+    ) = root_predicate.proposition()
+    else {
+        panic!("caller route retains its structural field path")
+    };
+    assert_eq!(*route_root, root.structural_parameters[0].place);
+    assert_eq!(caller_path.first(), Some(&packet_field.id));
+
+    let [CrashRouteGuard::Predicate(helper_predicate)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one member predicate")
+    };
+    let Proposition::Equal(
+        _,
+        ScalarTerm::BooleanField {
+            path: helper_path, ..
+        },
+    ) = helper_predicate.proposition()
+    else {
+        panic!("callee route retains its parameter-relative field path")
+    };
+    assert_eq!(&caller_path[1..], helper_path);
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    assert_eq!(
+        structural_arguments[0].path,
+        [StructuralPathSegment::Field("packet".into())]
+    );
+    assert_eq!(crash_continuations, &root.contract.crash_routes);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier independently composes the argument and callee field paths");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("projected member route has an acyclic fixed-fuel certificate");
+    assert_eq!(fixed.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 11,
+        structural_type: root.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &mut Accept,
+    )
+    .expect("projected member contract remains verified metadata at interpretation");
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), 3);
 }

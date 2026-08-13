@@ -6708,24 +6708,27 @@ fn lower_attached_unit_closure_including(
                     } else {
                         Vec::new()
                     };
-                    if !crash_continuations.is_empty()
-                        && terminal_arguments
-                            .iter()
-                            .any(|argument| !argument.path.is_empty())
-                    {
-                        return unsupported(
-                            "projected structural calls cannot yet carry member crash predicates",
-                        );
-                    }
                     let substitutions = target_parameters
                         .iter()
                         .zip(&terminal_arguments)
-                        .map(|(parameter, argument)| (parameter.place, argument.place))
-                        .collect::<BTreeMap<_, _>>();
+                        .map(|(parameter, argument)| {
+                            Ok((
+                                parameter.place,
+                                (
+                                    argument.place,
+                                    structural_crash_route_argument_field_prefix(
+                                        argument,
+                                        parameters,
+                                        &structural_types,
+                                    )?,
+                                ),
+                            ))
+                        })
+                        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
                     substitute_structural_crash_route_roots(
                         &mut crash_continuations,
                         &substitutions,
-                    );
+                    )?;
                     OperationKind::CallUnit {
                         callee: lookup_machine_id(&machine_ids, *target_machine)?,
                         structural_arguments: terminal_arguments,
@@ -10223,12 +10226,30 @@ fn lower_structural_crash_route_buckets(
 
 fn substitute_structural_crash_route_roots(
     buckets: &mut [psi_terminal::CrashRouteBucket],
-    substitutions: &BTreeMap<PlaceId, PlaceId>,
-) {
-    fn substitute_term(term: &mut ScalarTerm, substitutions: &BTreeMap<PlaceId, PlaceId>) {
-        if let ScalarTerm::BooleanField { root, .. } = term {
-            *root = substitutions.get(root).copied().unwrap_or(*root);
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Option<Vec<StructuralFieldId>>)>,
+) -> Result<(), LoweringError> {
+    fn substitute_term(
+        term: &mut ScalarTerm,
+        substitutions: &BTreeMap<PlaceId, (PlaceId, Option<Vec<StructuralFieldId>>)>,
+    ) -> Result<(), LoweringError> {
+        if let ScalarTerm::BooleanField { root, path } = term {
+            let Some((replacement, prefix)) = substitutions.get(root) else {
+                return Ok(());
+            };
+            let Some(prefix) = prefix else {
+                return unsupported(
+                    "fixed-index projected structural calls cannot carry member crash predicates",
+                );
+            };
+            *root = *replacement;
+            if !prefix.is_empty() {
+                let mut rebased = Vec::with_capacity(prefix.len() + path.len());
+                rebased.extend(prefix);
+                rebased.append(path);
+                *path = rebased;
+            }
         }
+        Ok(())
     }
     for bucket in buckets {
         for alternative in &mut bucket.alternatives {
@@ -10239,11 +10260,54 @@ fn substitute_structural_crash_route_roots(
                 continue;
             };
             let (mut left, mut right) = (left.clone(), right.clone());
-            substitute_term(&mut left, substitutions);
-            substitute_term(&mut right, substitutions);
+            substitute_term(&mut left, substitutions)?;
+            substitute_term(&mut right, substitutions)?;
             *predicate = psi_terminal::CrashPredicateTerm::new(Proposition::Equal(left, right));
         }
     }
+    Ok(())
+}
+
+fn structural_crash_route_argument_field_prefix(
+    argument: &StructuralArgument,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<Option<Vec<StructuralFieldId>>, LoweringError> {
+    let mut structural_type = parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+        .map(|parameter| parameter.structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "structural crash route argument has no caller parameter",
+        ))?;
+    let mut prefix = Vec::with_capacity(argument.path.len());
+    for segment in &argument.path {
+        let StructuralPathSegment::Field(identity) = segment else {
+            return Ok(None);
+        };
+        let declaration = structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "structural crash route argument path type is absent",
+            ))?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return unsupported("structural crash route argument path receiver is not a record");
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == *identity)
+            .filter(|field| !field.relevance.is_erased())
+            .ok_or(LoweringError::Unsupported(
+                "structural crash route argument field is absent or erased",
+            ))?;
+        let StructuralFieldType::Structural(next) = field.field_type else {
+            return unsupported("structural crash route argument field is not structural");
+        };
+        prefix.push(field.id);
+        structural_type = next;
+    }
+    Ok(Some(prefix))
 }
 
 fn lower_checked_crash_predicates(
