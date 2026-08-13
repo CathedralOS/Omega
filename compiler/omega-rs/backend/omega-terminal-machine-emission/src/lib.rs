@@ -793,7 +793,7 @@ fn emit_unit_body(
                 } else {
                     false
                 } || (expected_local_prefix.is_empty()
-                    && (1..=2).contains(&nominal_cleanups.len())
+                    && (1..=3).contains(&nominal_cleanups.len())
                     && nominal_cleanups.len() == cleanup_actions.len()
                     && nominal_cleanups.len() == body.parameters.len()
                     && body.parameters.iter().rev().zip(&nominal_cleanups).all(

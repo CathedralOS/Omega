@@ -2038,7 +2038,7 @@ fn lower_unit_function(
                     if !local_places.is_empty()
                         || !root_discards.is_empty()
                         || !residual_discards.is_empty()
-                        || !matches!(nominal_cleanups.len(), 1 | 2)
+                        || !matches!(nominal_cleanups.len(), 1 | 2 | 3)
                         || function.structural_parameters.len() != nominal_cleanups.len()
                         || function
                             .structural_parameters

@@ -128,6 +128,15 @@ const SHARED_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
     machine Root::enter(first: Token, second: Token) {}
 "#;
 
+const THREE_SHARED_EXECUTABLE_NOMINAL_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token { value: u32; }
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::enter(first: Token, second: Token, third: Token) {}
+"#;
+
 fn verified_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -974,6 +983,105 @@ fn two_executable_nominal_cleanup_actions_retain_order_and_custody_on_all_target
                 Ok(installation)
             );
         }
+    }
+}
+
+#[test]
+fn three_shared_executable_cleanup_actions_retain_exact_order_on_all_targets() {
+    let plan = two_nominal_one_executable_plan(THREE_SHARED_EXECUTABLE_NOMINAL_AFFINE_SOURCE);
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let cleanup_targets = cleanup_actions
+        .iter()
+        .map(|action| match action {
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                (cleanup.place, cleanup.cleanup_machine)
+            }
+            _ => panic!("all three actions remain nominal"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cleanup_targets
+            .iter()
+            .map(|(place, _)| *place)
+            .collect::<Vec<_>>(),
+        caller
+            .structural_parameters
+            .iter()
+            .rev()
+            .map(|parameter| parameter.place)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        cleanup_targets
+            .windows(2)
+            .all(|pair| pair[0].1 == pair[1].1)
+    );
+    assert_eq!(plan.functions.len(), 3);
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+        assert_eq!(emitted.internal_unit_calls.len(), 3);
+        for (ordinal, call) in emitted.internal_unit_calls.iter().enumerate() {
+            assert_eq!(
+                call.owner,
+                TerminalCallSiteOwner::CleanupAction {
+                    edge: emitted.unit_affine_cleanup.as_ref().unwrap().psi_edge,
+                    action_ordinal: u32::try_from(ordinal).unwrap(),
+                }
+            );
+            assert_eq!(call.target, cleanup_targets[ordinal].1);
+        }
+        assert!(
+            emitted
+                .internal_unit_calls
+                .windows(2)
+                .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset })
+        );
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        assert_eq!(installation.internal_unit_calls().len(), 4);
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
     }
 }
 
