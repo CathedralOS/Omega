@@ -36,6 +36,8 @@
 //!  * `collection_samples_compile_from_authored_program_entry_bindings` — the
 //!    complete collection cohort has the same guarantees, including recursive
 //!    slice-value folds with cast terminals.
+//!  * `simulation_samples_compile_from_authored_program_entry_bindings` — the
+//!    deployable simulation cohort has the same exact hosted-root guarantees.
 //!  * `proof_samples_compile_from_authored_program_entry_bindings` — the five
 //!    deployable proof samples do the same, while the two proof-only sources
 //!    remain targetless checked fixtures.
@@ -149,6 +151,19 @@ const EXPLICIT_ENTRY_COLLECTION_SAMPLES: &[&str] = &[
     "slice_maximum",
     "slice_accum_probe",
     "subslice_sum",
+];
+const EXPLICIT_ENTRY_SIMULATION_SAMPLES: &[&str] = &[
+    "alarm_scheduler",
+    "calendar",
+    "cellular_automaton",
+    "elevator",
+    "game_of_life",
+    "game_of_life_glider",
+    "grid_walk",
+    "langtons_ant",
+    "random_walk",
+    "stopwatch",
+    "traffic_light",
 ];
 const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
     "bounded_counter",
@@ -628,6 +643,11 @@ fn rendering_samples_compile_from_authored_program_entry_bindings() {
 #[test]
 fn collection_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("collections", EXPLICIT_ENTRY_COLLECTION_SAMPLES);
+}
+
+#[test]
+fn simulation_samples_compile_from_authored_program_entry_bindings() {
+    assert_authored_entry_cohort("simulation", EXPLICIT_ENTRY_SIMULATION_SAMPLES);
 }
 
 #[test]
