@@ -12053,22 +12053,15 @@ fn runtime_const_array_length_transitive_exit_canary_runs() {
     // another build-time-admissible machine (base() * 3 + 1 = 16), pinning
     // that const evaluation runs the call machinery, not just expression folding.
     let canary = pass_canary("comptime/runtime_const_array_length_transitive_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-const-length-transitive-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("transitive const length canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("transitive const length canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("transitive const length canary should run");
 
@@ -12080,7 +12073,7 @@ fn runtime_const_array_length_transitive_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -12091,22 +12084,15 @@ fn runtime_const_array_length_bare_call_arm_exit_canary_runs() {
     // resolves the free machine `burn` like the arithmetic-wrapped spelling
     // does: 16 slots, both the write and the index-15 typecheck land.
     let canary = pass_canary("comptime/runtime_const_array_length_bare_call_arm_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-const-length-bare-call-arm-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bare-call-arm const length canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("bare-call-arm const length canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("bare-call-arm const length canary should run");
 
@@ -12118,7 +12104,7 @@ fn runtime_const_array_length_bare_call_arm_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
