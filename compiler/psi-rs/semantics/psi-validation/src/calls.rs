@@ -1733,6 +1733,27 @@ fn stable_alias_initializer_origin(
             collection.precision = FramePathPrecision::CollectionCoarse;
             Some(collection)
         }
+        ExpressionNode::Member(member) => {
+            let receiver = stable_alias_initializer_origin(
+                program,
+                current_machine,
+                machine_symbols,
+                active_states,
+                member.receiver,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+            )?;
+            Some(match receiver.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: format!("{}.{}", receiver.path, member.member.as_str()),
+                    precision: FramePathPrecision::Exact,
+                },
+                FramePathPrecision::CollectionCoarse => receiver,
+            })
+        }
         _ => stable_alias_expression_origin(
             program,
             expression,
@@ -2657,16 +2678,7 @@ fn statement_call_argument_preserves_transparent_result(
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
     }
-    let place_expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
-        _ => expression,
-    };
-    if remaining_call_depth == 2
-        && matches!(
-            program.expression_table.expression(place_expression),
-            ExpressionNode::Indexed(_)
-        )
-    {
+    if remaining_call_depth == 2 && expression_is_effectful_indexed_place(program, expression) {
         return parameter_relative_place_origin(
             program,
             current_machine,
@@ -2742,15 +2754,18 @@ fn expression_is_effectful_indexed_place(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
-    let expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
-        _ => expression,
-    };
-    matches!(
-        program.expression_table.expression(expression),
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => expression_is_effectful_indexed_place(program, *inner),
+        ExpressionNode::Member(member) => {
+            expression_is_effectful_indexed_place(program, member.receiver)
+        }
         ExpressionNode::Indexed(indexed)
-            if expression_is_effectful_for_transparent_result(program, indexed.index)
-    )
+            if expression_is_effectful_for_transparent_result(program, indexed.index) =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 fn expression_reborrows_transparent_alias_binding(
