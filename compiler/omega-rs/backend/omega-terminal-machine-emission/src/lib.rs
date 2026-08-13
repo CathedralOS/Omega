@@ -1122,60 +1122,74 @@ fn executable_nominal_cleanup(
     {
         return Err(invalid());
     }
-    match cleanup_body.operations.as_slice() {
-        [
+    let Some((cleanup_return, helper_calls)) = cleanup_body.operations.split_last() else {
+        return Err(invalid());
+    };
+    if helper_calls.len() > 2
+        || !matches!(cleanup_return,
             TerminalAssignedUnitOperation::Return {
                 trivial_affine_discards,
                 residual_affine_discards,
                 nominal_affine_cleanup: None,
                 ..
-            },
-        ] if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => Ok(false),
-        [
+            } if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty())
+    {
+        return Err(invalid());
+    }
+    let helper_sites = helper_calls
+        .iter()
+        .map(|operation| match operation {
             TerminalAssignedUnitOperation::Call {
+                psi_operation,
                 callee,
                 copies,
                 claim_transfers,
                 ..
-            },
-            TerminalAssignedUnitOperation::Return {
-                trivial_affine_discards,
-                residual_affine_discards,
-                nominal_affine_cleanup: None,
-                ..
-            },
-        ] if copies.is_empty()
-            && claim_transfers.is_empty()
-            && trivial_affine_discards.is_empty()
-            && residual_affine_discards.is_empty() =>
-        {
-            let helper = functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or_else(invalid)?;
-            let TerminalAssignedOperation::UnitBody(helper_body) = &helper.operation else {
-                return Err(invalid());
-            };
-            if helper.machine == cleanup.cleanup_machine
-                || helper.attachment.is_none()
-                || !helper_body.parameters.is_empty()
-                || !matches!(
-                    helper_body.operations.as_slice(),
-                    [TerminalAssignedUnitOperation::Return {
-                        trivial_affine_discards,
-                        residual_affine_discards,
-                        nominal_affine_cleanup: None,
-                        ..
-                    }] if trivial_affine_discards.is_empty()
-                        && residual_affine_discards.is_empty()
-                )
-            {
-                return Err(invalid());
-            }
-            Ok(true)
-        }
-        _ => Err(invalid()),
+            } if copies.is_empty() && claim_transfers.is_empty() => Ok((*psi_operation, *callee)),
+            _ => Err(invalid()),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if helper_sites
+        .iter()
+        .map(|(operation, _)| *operation)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        != helper_sites.len()
+        || helper_sites
+            .iter()
+            .map(|(_, callee)| *callee)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != helper_sites.len()
+    {
+        return Err(invalid());
     }
+    for (_, callee) in &helper_sites {
+        let helper = functions
+            .iter()
+            .find(|function| function.machine == *callee)
+            .ok_or_else(invalid)?;
+        let TerminalAssignedOperation::UnitBody(helper_body) = &helper.operation else {
+            return Err(invalid());
+        };
+        if helper.machine == cleanup.cleanup_machine
+            || helper.attachment.is_none()
+            || !helper_body.parameters.is_empty()
+            || !matches!(
+                helper_body.operations.as_slice(),
+                [TerminalAssignedUnitOperation::Return {
+                    trivial_affine_discards,
+                    residual_affine_discards,
+                    nominal_affine_cleanup: None,
+                    ..
+                }] if trivial_affine_discards.is_empty()
+                    && residual_affine_discards.is_empty()
+            )
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(!helper_sites.is_empty())
 }
 
 fn x86_unit_parameter_homes(
@@ -5703,6 +5717,103 @@ mod tests {
         )
     }
 
+    fn two_call_executable_nominal_cleanup_plan(
+        target: NativeTarget,
+    ) -> (
+        TerminalTargetOperationPlan,
+        EdgeId,
+        [OperationId; 2],
+        MachineId,
+        [MachineId; 2],
+    ) {
+        let (mut plan, root_return, first_call, cleanup_machine, first_helper) =
+            executable_nominal_cleanup_plan(target);
+        let second_call = OperationId::new(2).expect("second cleanup helper call");
+        let second_helper = MachineId::new(4).expect("second helper");
+        let second_helper_type = StructuralTypeId::new(3).expect("second helper type");
+        let second_helper_return = EdgeId::new(4).expect("second helper return");
+        let mut helper = plan.functions[2].clone();
+        helper.machine = second_helper;
+        helper.attachment = Some(second_helper_type);
+        helper.provenance.edges = vec![second_helper_return];
+        let TerminalTargetOperation::UnitBody(helper_body) = &mut helper.operation else {
+            unreachable!("helper remains Unit")
+        };
+        let TerminalTargetUnitOperation::Return { psi_edge, .. } = &mut helper_body.operations[0]
+        else {
+            unreachable!("helper remains empty")
+        };
+        *psi_edge = second_helper_return;
+        let cleanup = &mut plan.functions[1];
+        cleanup.provenance.operations.push(second_call);
+        let TerminalTargetOperation::UnitBody(cleanup_body) = &mut cleanup.operation else {
+            unreachable!("cleanup remains Unit")
+        };
+        cleanup_body.operations.insert(
+            1,
+            TerminalTargetUnitOperation::Call {
+                psi_operation: second_call,
+                callee: second_helper,
+                arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+            },
+        );
+        plan.functions.push(helper);
+        (
+            plan,
+            root_return,
+            [first_call, second_call],
+            cleanup_machine,
+            [first_helper, second_helper],
+        )
+    }
+
+    fn assert_two_call_nominal_cleanup(target: NativeTarget) {
+        let (plan, root_return, operations, cleanup_machine, helpers) =
+            two_call_executable_nominal_cleanup_plan(target);
+        let emitted = emit_machine_code(&plan).expect("two-call nominal cleanup emits");
+        let root = &emitted.functions[0];
+        assert_eq!(root.internal_calls.len(), 1);
+        assert_eq!(
+            root.internal_calls[0].owner,
+            TerminalCallSiteOwner::Edge(root_return)
+        );
+        assert_eq!(root.internal_calls[0].target, cleanup_machine);
+        let drop = &emitted.functions[1];
+        assert_eq!(drop.internal_calls.len(), 2);
+        assert_eq!(drop.internal_unit_calls.len(), 2);
+        for (ordinal, ((relocation, custody), (operation, helper))) in drop
+            .internal_calls
+            .iter()
+            .zip(&drop.internal_unit_calls)
+            .zip(operations.into_iter().zip(helpers))
+            .enumerate()
+        {
+            assert_eq!(
+                relocation.owner,
+                TerminalCallSiteOwner::Operation(operation)
+            );
+            assert_eq!(custody.owner, relocation.owner);
+            assert_eq!(relocation.target, helper);
+            assert_eq!(custody.target, helper);
+            assert_eq!(custody.operation_ordinal, ordinal);
+            assert!(custody.arguments.is_empty());
+            assert!(custody.claim_transfers.is_empty());
+        }
+        assert!(drop.internal_calls[0].offset < drop.internal_calls[1].offset);
+        assert!(drop.internal_unit_calls[0].code_offset < drop.internal_unit_calls[1].code_offset);
+    }
+
+    #[test]
+    fn x86_nominal_cleanup_preserves_two_ordered_helper_calls() {
+        assert_two_call_nominal_cleanup(NativeTarget::linux_x64());
+    }
+
+    #[test]
+    fn aarch64_nominal_cleanup_preserves_two_ordered_helper_calls() {
+        assert_two_call_nominal_cleanup(NativeTarget::linux_arm64());
+    }
+
     #[test]
     fn x86_executable_nominal_cleanup_call_is_edge_owned_and_precedes_epilogue() {
         let target = NativeTarget::linux_x64();
@@ -5824,6 +5935,40 @@ mod tests {
         };
         assert_eq!(
             emit_machine_code(&forged),
+            Err(EmissionError::InvalidNominalCleanupTarget(cleanup_machine))
+        );
+
+        let (mut duplicate, _, _, cleanup_machine, helpers) =
+            two_call_executable_nominal_cleanup_plan(target);
+        let TerminalTargetOperation::UnitBody(cleanup_body) = &mut duplicate.functions[1].operation
+        else {
+            panic!("cleanup remains a Unit body")
+        };
+        let TerminalTargetUnitOperation::Call { callee, .. } = &mut cleanup_body.operations[1]
+        else {
+            panic!("second operation remains a call")
+        };
+        *callee = helpers[0];
+        assert_eq!(
+            emit_machine_code(&duplicate),
+            Err(EmissionError::InvalidNominalCleanupTarget(cleanup_machine))
+        );
+
+        let (mut duplicate_owner, _, operations, cleanup_machine, _) =
+            two_call_executable_nominal_cleanup_plan(target);
+        let TerminalTargetOperation::UnitBody(cleanup_body) =
+            &mut duplicate_owner.functions[1].operation
+        else {
+            panic!("cleanup remains a Unit body")
+        };
+        let TerminalTargetUnitOperation::Call { psi_operation, .. } =
+            &mut cleanup_body.operations[1]
+        else {
+            panic!("second operation remains a call")
+        };
+        *psi_operation = operations[0];
+        assert_eq!(
+            emit_machine_code(&duplicate_owner),
             Err(EmissionError::InvalidNominalCleanupTarget(cleanup_machine))
         );
     }

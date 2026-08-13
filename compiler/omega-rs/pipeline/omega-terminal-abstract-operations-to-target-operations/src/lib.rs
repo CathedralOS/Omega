@@ -2035,46 +2035,62 @@ fn lower_unit_function(
                             function.machine,
                         ));
                     }
-                    let helper = match cleanup_function.operations.as_slice() {
-                        [
+                    let Some((cleanup_return, helper_calls)) =
+                        cleanup_function.operations.split_last()
+                    else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    if helper_calls.len() > 2
+                        || !matches!(cleanup_return,
                             TerminalAbstractOperation::ReturnUnit {
                                 trivial_affine_discards,
                                 residual_affine_discards,
                                 nominal_affine_cleanup: None,
                                 ..
-                            },
-                        ] if trivial_affine_discards.is_empty()
-                            && residual_affine_discards.is_empty() =>
-                        {
-                            None
-                        }
-                        [
+                            } if trivial_affine_discards.is_empty()
+                                && residual_affine_discards.is_empty())
+                    {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    }
+                    let helpers = helper_calls
+                        .iter()
+                        .map(|operation| match operation {
                             TerminalAbstractOperation::CallUnit {
+                                psi_operation,
                                 callee,
                                 structural_arguments,
                                 claim_transfers,
                                 ..
-                            },
-                            TerminalAbstractOperation::ReturnUnit {
-                                trivial_affine_discards,
-                                residual_affine_discards,
-                                nominal_affine_cleanup: None,
-                                ..
-                            },
-                        ] if structural_arguments.is_empty()
-                            && claim_transfers.is_empty()
-                            && trivial_affine_discards.is_empty()
-                            && residual_affine_discards.is_empty() =>
-                        {
-                            Some(*callee)
-                        }
-                        _ => {
-                            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            } if structural_arguments.is_empty() && claim_transfers.is_empty() => {
+                                Ok((*psi_operation, *callee))
+                            }
+                            _ => Err(LoweringError::UnsupportedOperationInUnitFunction(
                                 function.machine,
-                            ));
-                        }
-                    };
-                    if let Some(helper) = helper {
+                            )),
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if helpers
+                        .iter()
+                        .map(|(operation, _)| *operation)
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != helpers.len()
+                        || helpers
+                            .iter()
+                            .map(|(_, callee)| *callee)
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len()
+                            != helpers.len()
+                    {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    }
+                    for (_, helper) in helpers {
                         let Some(helper_function) = functions.get(&helper).copied() else {
                             return Err(LoweringError::UnsupportedOperationInUnitFunction(
                                 function.machine,
@@ -2095,6 +2111,11 @@ fn lower_unit_function(
                             || !helper_function.structural_parameters.is_empty()
                             || !helper_function.entry_claims.is_empty()
                             || !helper_function.published_service_ceiling.is_empty()
+                            || helper_function.block_entries.as_slice()
+                                != [omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
+                                    block: helper_function.entry,
+                                    operation_offset: 0,
+                                }]
                             || !matches!(helper_function.operations.as_slice(),
                                 [TerminalAbstractOperation::ReturnUnit {
                                     trivial_affine_discards,

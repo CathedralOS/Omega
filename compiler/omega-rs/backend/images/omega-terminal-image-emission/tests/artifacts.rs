@@ -402,7 +402,7 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
 
 #[test]
 fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
-    let plan = edge_owned_cleanup_plan();
+    let plan = two_call_edge_owned_cleanup_plan();
     let cleanup_edge = edge_id(3);
     let artifact = build_terminal_object_artifact(&plan).expect("edge-owned cleanup artifact");
     let caller = artifact
@@ -422,6 +422,28 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
             .expect("edge cleanup stack closure")
             .ceiling_bytes(),
         32
+    );
+    let drop = artifact
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(1))
+        .expect("drop function");
+    assert_eq!(drop.unit_call_stacks.len(), 2);
+    assert_eq!(
+        drop.unit_call_stacks
+            .iter()
+            .map(|call| (call.owner, call.target))
+            .collect::<Vec<_>>(),
+        [
+            (
+                TerminalCallSiteOwner::Operation(operation_id(1)),
+                machine_id(2)
+            ),
+            (
+                TerminalCallSiteOwner::Operation(operation_id(2)),
+                machine_id(4)
+            ),
+        ]
     );
     let relocation = artifact
         .relocations()
@@ -456,6 +478,7 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
     );
     assert!(installed.custody.arguments.is_empty());
     assert!(installed.custody.claim_transfers.is_empty());
+    assert_eq!(installation.internal_unit_calls().len(), 3);
     let encoded = encode_terminal_installation_record(&installation).expect("encoded cleanup");
     assert_eq!(
         decode_terminal_installation_record(&encoded),
@@ -469,6 +492,16 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
     missing_call.functions[2].internal_unit_calls.clear();
     assert_eq!(
         build_terminal_object_artifact(&missing_call),
+        Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+            machine_id(3)
+        ))
+    );
+
+    let mut duplicate_helper = two_call_edge_owned_cleanup_plan();
+    duplicate_helper.functions[0].internal_calls[1].target = machine_id(2);
+    duplicate_helper.functions[0].internal_unit_calls[1].target = machine_id(2);
+    assert_eq!(
+        build_terminal_object_artifact(&duplicate_helper),
         Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
             machine_id(3)
         ))
@@ -2444,7 +2477,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
             },
             TerminalMachineCodeFunction {
                 machine: machine_id(2),
-                attachment: None,
+                attachment: Some(StructuralTypeId::new(2).expect("helper type")),
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![edge_id(2)],
@@ -2543,6 +2576,69 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
             },
         ],
     }
+}
+
+fn two_call_edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
+    let mut plan = edge_owned_cleanup_plan();
+    let second_operation = operation_id(2);
+    let second_helper = machine_id(4);
+    let second_edge = edge_id(4);
+    let second_call_bytes = [
+        0x48, 0x83, 0xec, 0x08, 0xe8, 0, 0, 0, 0, 0x48, 0x83, 0xc4, 0x08,
+    ];
+    let drop = &mut plan.functions[0];
+    drop.bytes.splice(13..13, second_call_bytes);
+    drop.provenance.operations.push(second_operation);
+    drop.internal_calls.push(TerminalInternalCallRelocation {
+        owner: TerminalCallSiteOwner::Operation(second_operation),
+        target: second_helper,
+        unit_stack: Some(TerminalUnitCallStackEvidence {
+            outbound: Some(TerminalStackAdjustmentPair {
+                byte_size: 8,
+                allocation_offset: 13,
+                allocation_byte_count: 4,
+                release_offset: 22,
+                release_byte_count: 4,
+            }),
+        }),
+        scalar_stack: None,
+        offset: 18,
+    });
+    drop.internal_unit_calls
+        .push(TerminalInternalUnitCallRecord {
+            owner: TerminalCallSiteOwner::Operation(second_operation),
+            target: second_helper,
+            arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            operation_ordinal: 1,
+            code_offset: 13,
+            byte_count: 13,
+        });
+    drop.fuel_attribution.insert(
+        1,
+        TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site: TerminalNativeFuelSite::Operation(second_operation),
+            units: 1,
+            operation_ordinal: 1,
+            code_offset: 13,
+            byte_count: 13,
+        },
+    );
+    drop.fuel_attribution[2].operation_ordinal = 2;
+    drop.fuel_attribution[2].code_offset = 26;
+    let drop_return = drop.unit_affine_cleanup.as_mut().expect("drop return");
+    drop_return.code_offset = 26;
+
+    let mut helper = plan.functions[1].clone();
+    helper.machine = second_helper;
+    helper.attachment = Some(StructuralTypeId::new(2).expect("second helper type"));
+    helper.provenance.edges = vec![second_edge];
+    let helper_return = helper.unit_affine_cleanup.as_mut().expect("helper return");
+    helper_return.psi_edge = second_edge;
+    helper.fuel_attribution[0].site = TerminalNativeFuelSite::Edge(second_edge);
+    plan.functions.push(helper);
+    plan
 }
 
 fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {

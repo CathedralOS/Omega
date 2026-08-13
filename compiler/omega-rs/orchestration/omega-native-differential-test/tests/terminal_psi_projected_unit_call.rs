@@ -61,9 +61,14 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
 
 const NOMINAL_AFFINE_SOURCE: &str = r#"
     data Token { first: u64; second: u64; third: u64; fourth: u64; fifth: u64; }
-    data CleanupHelper {}
-    machine CleanupHelper::run() {}
-    machine Token::drop(&mut self) { CleanupHelper::run(); }
+    data FirstCleanupHelper {}
+    machine FirstCleanupHelper::run() {}
+    data SecondCleanupHelper {}
+    machine SecondCleanupHelper::run() {}
+    machine Token::drop(&mut self) {
+        FirstCleanupHelper::run();
+        SecondCleanupHelper::run();
+    }
     data Root {}
     machine Root::enter(token: Token) {}
 "#;
@@ -474,6 +479,26 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         .find(|function| function.machine == cleanup.cleanup_machine)
         .expect("cleanup closure remains in the Omega plan");
     assert_eq!(cleanup_function.attachment, Some(cleanup.structural_type));
+    let helper_calls = cleanup_function
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::CallUnit {
+                psi_operation,
+                callee,
+                structural_arguments,
+                claim_transfers,
+            } => {
+                assert!(structural_arguments.is_empty());
+                assert!(claim_transfers.is_empty());
+                Some((*psi_operation, *callee))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(helper_calls.len(), 2);
+    assert_ne!(helper_calls[0].0, helper_calls[1].0);
+    assert_ne!(helper_calls[0].1, helper_calls[1].1);
 
     for target in [
         NativeTarget::linux_x64(),
@@ -547,6 +572,25 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
                 .attachment,
             Some(cleanup.structural_type)
         );
+        let emitted_drop = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == cleanup.cleanup_machine)
+            .unwrap();
+        assert_eq!(
+            emitted_drop
+                .internal_unit_calls
+                .iter()
+                .map(|call| (call.owner, call.target))
+                .collect::<Vec<_>>(),
+            helper_calls
+                .iter()
+                .map(|(operation, target)| {
+                    (TerminalCallSiteOwner::Operation(*operation), *target)
+                })
+                .collect::<Vec<_>>(),
+            "drop helper calls retain source order"
+        );
 
         let mut forged_place = machine.clone();
         forged_place
@@ -591,6 +635,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         let image = emit_terminal_executable_image(&object, 3).unwrap();
         let installation =
             build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        assert_eq!(installation.internal_unit_calls().len(), 3);
         let installed = installation
             .functions()
             .iter()
