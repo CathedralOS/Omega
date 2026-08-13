@@ -152,12 +152,16 @@ pub struct TerminalTargetStructuralParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetStructuralArgument {
     pub place: PlaceId,
-    /// Exact source-relative semantic projection. The current in-module Unit
-    /// realization copies only whole roots, but retaining this path prevents a
-    /// projected transfer from being silently reinterpreted downstream.
+    /// Exact source-relative semantic projection retained through native and
+    /// installed-artifact custody.
     pub path: Vec<StructuralPathSegment>,
+    pub root_structural_type: StructuralTypeId,
     pub structural_type: StructuralTypeId,
     pub shape: ValueShape,
+    /// Checked byte offset of this projected value within `source`.
+    pub source_byte_offset: u32,
+    pub fixed_array_length: Option<u64>,
+    pub element_stride: Option<u32>,
     pub source: ValuePlacement,
     pub destination: ValuePlacement,
 }

@@ -27,7 +27,9 @@ use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
     ScalarType, StructuralTypeId, ValueId,
 };
-use psi_terminal::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
+use psi_terminal::{
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 /// One metadata-only boundary realization sourced from a validated, admitted
 /// provider execution. Callers supply the semantic effect association but
@@ -1669,9 +1671,72 @@ fn lower_unit_function(
                                 place: argument.place,
                             },
                         )?;
-                        if !argument.path.is_empty()
-                            || source.structural_type != callee_parameter.structural_type
-                            || source.shape != shape
+                        let (
+                            projected_type,
+                            projected_shape,
+                            source_byte_offset,
+                            fixed_array_length,
+                            element_stride,
+                        ) = match argument.path.as_slice() {
+                            [] => (source.structural_type, source.shape, 0, None, None),
+                            [StructuralPathSegment::FixedIndex(index)] => {
+                                let declaration = structural_types
+                                    .get(&source.structural_type)
+                                    .copied()
+                                    .ok_or(LoweringError::UnknownStructuralType(
+                                        source.structural_type,
+                                    ))?;
+                                let StructuralTypeShape::FixedArray { element, length } =
+                                    declaration.shape
+                                else {
+                                    return Err(
+                                        LoweringError::StructuralCallArgumentTypeMismatch {
+                                            callee: *callee,
+                                            place: argument.place,
+                                        },
+                                    );
+                                };
+                                if *index >= length {
+                                    return Err(
+                                        LoweringError::StructuralCallArgumentTypeMismatch {
+                                            callee: *callee,
+                                            place: argument.place,
+                                        },
+                                    );
+                                }
+                                let element_shape = structural_shape(
+                                    element,
+                                    structural_types,
+                                    &mut shape_cache,
+                                    &mut active,
+                                )?;
+                                let stride = checked_align_up_u32(
+                                    u32::from(element_shape.byte_size),
+                                    u32::from(element_shape.alignment),
+                                )
+                                .ok_or(
+                                    LoweringError::StructuralTypeTooLarge(source.structural_type),
+                                )?;
+                                let offset = u64::from(stride)
+                                    .checked_mul(*index)
+                                    .and_then(|offset| u32::try_from(offset).ok())
+                                    .ok_or(LoweringError::StructuralTypeTooLarge(
+                                        source.structural_type,
+                                    ))?;
+                                (element, element_shape, offset, Some(length), Some(stride))
+                            }
+                            _ => {
+                                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                                    callee: *callee,
+                                    place: argument.place,
+                                });
+                            }
+                        };
+                        if projected_type != callee_parameter.structural_type
+                            || projected_shape != shape
+                            || u32::from(shape.byte_size)
+                                .checked_add(source_byte_offset)
+                                .is_none_or(|end| end > u32::from(source.shape.byte_size))
                         {
                             return Err(LoweringError::StructuralCallArgumentTypeMismatch {
                                 callee: *callee,
@@ -1681,8 +1746,12 @@ fn lower_unit_function(
                         Ok(TerminalTargetStructuralArgument {
                             place: argument.place,
                             path: argument.path.clone(),
-                            structural_type: source.structural_type,
+                            root_structural_type: source.structural_type,
+                            structural_type: projected_type,
                             shape,
+                            source_byte_offset,
+                            fixed_array_length,
+                            element_stride,
                             source: source.placement.clone(),
                             destination: destination.clone(),
                         })

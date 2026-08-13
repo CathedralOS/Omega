@@ -12,9 +12,9 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
-    TerminalInternalCallRelocation, TerminalMachineCodeFunction, TerminalMachineCodePlan,
-    TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalPortEffectRecord,
-    TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
+    TerminalInternalCallRelocation, TerminalInternalUnitCallRecord, TerminalMachineCodeFunction,
+    TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
+    TerminalPortEffectRecord, TerminalScalarCallStackEvidence, TerminalScalarConditionalCondition,
     TerminalScalarControlFlowEvidence, TerminalScalarStackEvidence, TerminalScalarStackMutation,
     TerminalScalarStackMutationKind, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
     TerminalUnitStackEvidence,
@@ -120,6 +120,12 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     let full_width_operation = operation_id(u64::from(u32::MAX) + 1);
     plan.functions[1].provenance.operations[0] = full_width_operation;
     plan.functions[1].internal_calls[0].psi_operation = full_width_operation;
+    plan.functions[1].internal_unit_calls[0].psi_operation = full_width_operation;
+    if let TerminalNativeFuelSite::Operation(operation) =
+        &mut plan.functions[1].fuel_attribution[0].site
+    {
+        *operation = full_width_operation;
+    }
     let artifact = build_terminal_object_artifact(&plan).expect("terminal object artifact");
     assert_eq!(artifact.functions()[1].unit_stack.unwrap().frame_bytes, 0);
     assert_eq!(
@@ -336,6 +342,9 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
     );
     let caller = &mut unclaimed_aarch64_adjustment.functions[1];
     caller.internal_calls[0].offset = 16;
+    caller.internal_unit_calls[0].byte_count = 12;
+    caller.fuel_attribution[0].byte_count = 12;
+    caller.fuel_attribution[1].code_offset = 20;
     let stack = caller.unit_stack.as_mut().expect("AArch64 Unit stack");
     stack
         .frame
@@ -1112,8 +1121,10 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 },
                 bytes: bytes.clone(),
                 unit_stack: None,
+                unit_parameter_homes: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1189,7 +1200,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "7a91fd2f10cf218b15fd8c4e84139d9a172daf052ef5c24bc83b0deb10828435"
+        "58a6df8aa615a749d54d8b2d6e916ae067e16ca73122e956590cb157f18716b0"
     );
 
     let mut changed_plan = plan;
@@ -1212,10 +1223,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&9_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&10_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(9))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(10))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -1275,8 +1286,10 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             },
             bytes,
             unit_stack: None,
+            unit_parameter_homes: Vec::new(),
             scalar_stack: None,
             internal_calls: Vec::new(),
+            internal_unit_calls: Vec::new(),
             fuel_attribution: vec![
                 TerminalNativeFuelAttribution {
                     schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
@@ -1390,8 +1403,10 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 },
                 bytes: integer_return(3),
                 unit_stack: None,
+                unit_parameter_homes: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1405,8 +1420,10 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 },
                 bytes: integer_return(7),
                 unit_stack: None,
+                unit_parameter_homes: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1438,8 +1455,10 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 },
                 bytes: callee,
                 unit_stack: None,
+                unit_parameter_homes: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -1453,6 +1472,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 },
                 bytes: caller,
                 unit_stack: None,
+                unit_parameter_homes: Vec::new(),
                 scalar_stack: None,
                 internal_calls: vec![TerminalInternalCallRelocation {
                     psi_operation: operation_id(2),
@@ -1461,6 +1481,7 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                     scalar_stack: None,
                     offset: call_offset,
                 }],
+                internal_unit_calls: Vec::new(),
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
@@ -2039,6 +2060,33 @@ fn account_x86_unit_call(plan: &mut TerminalMachineCodePlan) {
             release_byte_count: 4,
         }),
     });
+    caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
+        psi_operation: caller.internal_calls[0].psi_operation,
+        target: caller.internal_calls[0].target,
+        arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        operation_ordinal: 0,
+        code_offset: 0,
+        byte_count: 13,
+    }];
+    caller.fuel_attribution = vec![
+        TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site: TerminalNativeFuelSite::Operation(caller.internal_calls[0].psi_operation),
+            units: 1,
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 13,
+        },
+        TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site: TerminalNativeFuelSite::Edge(caller.provenance.edges[0]),
+            units: 1,
+            operation_ordinal: 1,
+            code_offset: 13,
+            byte_count: 1,
+        },
+    ];
 }
 
 fn scalar_mutation(
@@ -2101,6 +2149,33 @@ fn account_aarch64_unit_call(plan: &mut TerminalMachineCodePlan) {
     });
     caller.internal_calls[0].offset = 8;
     caller.internal_calls[0].unit_stack = Some(TerminalUnitCallStackEvidence { outbound: None });
+    caller.internal_unit_calls = vec![TerminalInternalUnitCallRecord {
+        psi_operation: caller.internal_calls[0].psi_operation,
+        target: caller.internal_calls[0].target,
+        arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        operation_ordinal: 0,
+        code_offset: 8,
+        byte_count: 4,
+    }];
+    caller.fuel_attribution = vec![
+        TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site: TerminalNativeFuelSite::Operation(caller.internal_calls[0].psi_operation),
+            units: 1,
+            operation_ordinal: 0,
+            code_offset: 8,
+            byte_count: 4,
+        },
+        TerminalNativeFuelAttribution {
+            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            site: TerminalNativeFuelSite::Edge(caller.provenance.edges[0]),
+            units: 1,
+            operation_ordinal: 1,
+            code_offset: 12,
+            byte_count: 12,
+        },
+    ];
 }
 
 fn aarch64_words(words: &[u32]) -> Vec<u8> {

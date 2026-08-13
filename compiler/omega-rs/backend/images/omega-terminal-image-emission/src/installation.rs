@@ -28,7 +28,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 8;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 9;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -110,6 +110,7 @@ pub struct TerminalInstallationRecord {
     selected_provider_plans: Vec<SelectedProviderPlanIdentity>,
     functions: Vec<TerminalInstalledFunction>,
     structural_returns: Vec<TerminalInstalledStructuralReturn>,
+    internal_unit_calls: Vec<TerminalInstalledInternalUnitCall>,
     fuel_attribution: Vec<TerminalObjectFuelAttribution>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
@@ -150,6 +151,10 @@ impl TerminalInstallationRecord {
         &self.structural_returns
     }
 
+    pub fn internal_unit_calls(&self) -> &[TerminalInstalledInternalUnitCall] {
+        &self.internal_unit_calls
+    }
+
     pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
         &self.fuel_attribution
     }
@@ -178,6 +183,13 @@ pub struct TerminalInstalledFunction {
 pub struct TerminalInstalledStructuralReturn {
     pub machine: MachineId,
     pub returned: TerminalStructuralReturnRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInstalledInternalUnitCall {
+    pub machine: MachineId,
+    pub text_offset: usize,
+    pub custody: omega_terminal_machine_code::TerminalInternalUnitCallRecord,
 }
 
 /// Build the canonical installation record for an emitted image.
@@ -268,6 +280,19 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 })
             })
             .collect(),
+        internal_unit_calls: image
+            .functions()
+            .iter()
+            .flat_map(|function| {
+                function.internal_unit_calls.iter().cloned().map(|custody| {
+                    TerminalInstalledInternalUnitCall {
+                        machine: function.machine,
+                        text_offset: function.text_offset + custody.code_offset,
+                        custody,
+                    }
+                })
+            })
+            .collect(),
         fuel_attribution: image.fuel_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
@@ -290,6 +315,8 @@ pub fn encode_terminal_installation_record(
         .map_err(|_| TerminalInstallationError::TooManyInstalledFunctions)?;
     let structural_return_count = u32::try_from(record.structural_returns.len())
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturns)?;
+    let internal_unit_call_count = u32::try_from(record.internal_unit_calls.len())
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCalls)?;
     let fuel_attribution_count = u32::try_from(record.fuel_attribution.len())
         .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
     let port_effect_count = u32::try_from(record.port_effects.len())
@@ -382,6 +409,10 @@ pub fn encode_terminal_installation_record(
     push_u32(&mut bytes, structural_return_count);
     for installed in &record.structural_returns {
         encode_structural_return(&mut bytes, installed)?;
+    }
+    push_u32(&mut bytes, internal_unit_call_count);
+    for installed in &record.internal_unit_calls {
+        encode_internal_unit_call(&mut bytes, installed)?;
     }
     push_u32(&mut bytes, fuel_attribution_count);
     for installed in &record.fuel_attribution {
@@ -631,6 +662,15 @@ pub fn decode_terminal_installation_record(
     for _ in 0..structural_return_count {
         structural_returns.push(decode_structural_return(&mut reader)?);
     }
+    let internal_unit_call_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCalls)?;
+    if internal_unit_call_count > reader.remaining() / 60 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut internal_unit_calls = Vec::with_capacity(internal_unit_call_count);
+    for _ in 0..internal_unit_call_count {
+        internal_unit_calls.push(decode_internal_unit_call(&mut reader)?);
+    }
     let fuel_attribution_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
     if fuel_attribution_count > reader.remaining() / 64 {
@@ -819,6 +859,7 @@ pub fn decode_terminal_installation_record(
         selected_provider_plans,
         functions,
         structural_returns,
+        internal_unit_calls,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -902,6 +943,20 @@ pub fn validate_terminal_installation_record(
                         TerminalInstalledStructuralReturn {
                             machine: function.machine,
                             returned,
+                        }
+                    })
+                })
+                .collect::<Vec<_>>()
+        || record.internal_unit_calls
+            != image
+                .functions()
+                .iter()
+                .flat_map(|function| {
+                    function.internal_unit_calls.iter().cloned().map(|custody| {
+                        TerminalInstalledInternalUnitCall {
+                            machine: function.machine,
+                            text_offset: function.text_offset + custody.code_offset,
+                            custody,
                         }
                     })
                 })
@@ -1125,6 +1180,128 @@ fn validate_record_shape(
             ));
         }
         previous_return = Some(installed.machine);
+    }
+    let mut previous_call = None;
+    for installed in &record.internal_unit_calls {
+        let function = function_by_machine.get(&installed.machine).ok_or(
+            TerminalInstallationError::InvalidInternalUnitCall(installed.machine),
+        )?;
+        let custody = &installed.custody;
+        let expected_text_offset = function
+            .text_offset
+            .checked_add(custody.code_offset)
+            .ok_or(TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let end = custody
+            .code_offset
+            .checked_add(custody.byte_count)
+            .ok_or(TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(record.target),
+            &CallSignature {
+                parameters: custody
+                    .arguments
+                    .iter()
+                    .map(|argument| argument.shape)
+                    .collect(),
+                result: None,
+            },
+        )
+        .map_err(|_| TerminalInstallationError::InvalidInternalUnitCall(installed.machine))?;
+        let key = (
+            installed.machine,
+            custody.operation_ordinal,
+            custody.code_offset,
+        );
+        let projected_argument_indexes = custody
+            .arguments
+            .iter()
+            .enumerate()
+            .filter_map(|(index, argument)| (!argument.path.is_empty()).then_some(index))
+            .collect::<std::collections::BTreeSet<_>>();
+        let transferred_argument_indexes = custody
+            .claim_transfers
+            .iter()
+            .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
+            .collect::<std::collections::BTreeSet<_>>();
+        if previous_call.is_some_and(|previous| previous >= key)
+            || installed.text_offset != expected_text_offset
+            || end > function.byte_count
+            || !function_by_machine.contains_key(&custody.target)
+            || plan.parameters.len() != custody.arguments.len()
+            || custody.arguments.windows(2).any(|pair| {
+                pair[0]
+                    .code_offset
+                    .checked_add(pair[0].byte_count)
+                    .is_none_or(|end| end > pair[1].code_offset)
+            })
+            || custody
+                .arguments
+                .iter()
+                .zip(&plan.parameters)
+                .any(|(argument, destination)| {
+                    argument.destination != *destination
+                        || argument.byte_count == 0
+                        || argument.bytes.len() != argument.byte_count
+                        || (!argument.path.is_empty()
+                            && super::expected_projected_copy_bytes(record.target, argument)
+                                .as_deref()
+                                != Some(argument.bytes.as_slice()))
+                        || argument.code_offset < custody.code_offset
+                        || argument
+                            .code_offset
+                            .checked_add(argument.byte_count)
+                            .is_none_or(|argument_end| argument_end > end)
+                        || argument
+                            .source_byte_offset
+                            .checked_add(u32::from(argument.shape.byte_size))
+                            .is_none_or(|end| end > u32::from(argument.source.shape.byte_size))
+                        || match argument.path.as_slice() {
+                            [] => {
+                                argument.source_byte_offset != 0
+                                    || argument.source.shape != argument.shape
+                                    || argument.root_structural_type != argument.structural_type
+                                    || argument.fixed_array_length.is_some()
+                                    || argument.element_stride.is_some()
+                            }
+                            [StructuralPathSegment::FixedIndex(index)] => {
+                                let expected_stride = u32::from(argument.shape.byte_size)
+                                    .next_multiple_of(u32::from(argument.shape.alignment));
+                                let Some(length) = argument.fixed_array_length else {
+                                    return true;
+                                };
+                                let Some(stride) = argument.element_stride else {
+                                    return true;
+                                };
+                                argument.root_structural_type == argument.structural_type
+                                    || *index >= length
+                                    || stride != expected_stride
+                                    || u64::from(stride).checked_mul(*index)
+                                        != Some(u64::from(argument.source_byte_offset))
+                                    || u64::from(stride).checked_mul(length)
+                                        != Some(u64::from(argument.source.shape.byte_size))
+                                    || argument.source.shape.alignment != argument.shape.alignment
+                            }
+                            _ => true,
+                        }
+                })
+            || !projected_argument_indexes.is_subset(&transferred_argument_indexes)
+            || custody.claim_transfers.iter().any(|transfer| {
+                usize::try_from(transfer.argument_index)
+                    .map_or(true, |index| index >= custody.arguments.len())
+            })
+            || custody
+                .claim_transfers
+                .iter()
+                .map(|transfer| transfer.claim)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != custody.claim_transfers.len()
+        {
+            return Err(TerminalInstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
+        }
+        previous_call = Some(key);
     }
     let mut previous_fuel = None;
     let mut fuel_sites = std::collections::BTreeSet::new();
@@ -1375,6 +1552,343 @@ fn encode_structural_return(
             .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
     );
     Ok(())
+}
+
+fn encode_internal_unit_call(
+    bytes: &mut Vec<u8>,
+    installed: &TerminalInstalledInternalUnitCall,
+) -> Result<(), TerminalInstallationError> {
+    let custody = &installed.custody;
+    push_u64(bytes, installed.machine.get());
+    push_u64(
+        bytes,
+        u64::try_from(installed.text_offset)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u64(bytes, custody.psi_operation.get());
+    push_u64(bytes, custody.target.get());
+    push_u64(
+        bytes,
+        u64::try_from(custody.operation_ordinal)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(custody.code_offset)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(custody.byte_count)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+    );
+    push_u32(
+        bytes,
+        u32::try_from(custody.arguments.len())
+            .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallArguments)?,
+    );
+    for argument in &custody.arguments {
+        encode_structural_argument(
+            bytes,
+            &StructuralArgument {
+                place: argument.place,
+                path: argument.path.clone(),
+            },
+        )?;
+        push_u64(bytes, argument.root_structural_type.get());
+        push_u64(bytes, argument.structural_type.get());
+        encode_shape(bytes, argument.shape)?;
+        push_u32(bytes, argument.source_byte_offset);
+        push_u32(bytes, argument.source_home_byte_offset);
+        push_u32(bytes, argument.call_stack_bytes);
+        match (argument.fixed_array_length, argument.element_stride) {
+            (Some(length), Some(stride)) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                push_u64(bytes, length);
+                push_u32(bytes, stride);
+            }
+            (None, None) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&[0; 3]);
+            }
+            _ => {
+                return Err(TerminalInstallationError::InvalidInternalUnitCall(
+                    installed.machine,
+                ));
+            }
+        }
+        encode_direct_placement(bytes, &argument.source)?;
+        encode_direct_placement(bytes, &argument.destination)?;
+        push_u64(
+            bytes,
+            u64::try_from(argument.code_offset)
+                .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        push_u64(
+            bytes,
+            u64::try_from(argument.byte_count)
+                .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        push_u32(
+            bytes,
+            u32::try_from(argument.bytes.len())
+                .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        bytes.extend_from_slice(&argument.bytes);
+    }
+    push_u32(
+        bytes,
+        u32::try_from(custody.claim_transfers.len())
+            .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for transfer in &custody.claim_transfers {
+        push_u64(bytes, transfer.claim.get());
+        push_u32(bytes, transfer.argument_index);
+    }
+    Ok(())
+}
+
+fn encode_direct_placement(
+    bytes: &mut Vec<u8>,
+    placement: &ValuePlacement,
+) -> Result<(), TerminalInstallationError> {
+    encode_shape(bytes, placement.shape)?;
+    push_u32(
+        bytes,
+        u32::try_from(placement.locations.len())
+            .map_err(|_| TerminalInstallationError::UnsupportedInternalUnitCallPlacement)?,
+    );
+    for location in &placement.locations {
+        match location {
+            ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } => {
+                bytes.push(1);
+                bytes.push(register_tag(*register)?);
+                push_u16(bytes, *value_byte_offset);
+                push_u16(bytes, *byte_size);
+            }
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                bytes.push(2);
+                bytes.push(0);
+                push_u16(bytes, *value_byte_offset);
+                push_u16(bytes, *byte_size);
+                push_u16(bytes, *alignment);
+                push_u32(bytes, *stack_byte_offset);
+            }
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                bytes.push(3);
+                match pointer {
+                    omega_calling_conventions::IndirectPointerLocation::Register(register) => {
+                        bytes.push(1);
+                        bytes.push(register_tag(*register)?);
+                        bytes.push(0);
+                    }
+                    omega_calling_conventions::IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment,
+                    } => {
+                        bytes.push(2);
+                        bytes.push(0);
+                        bytes.push(0);
+                        push_u32(bytes, *stack_byte_offset);
+                        push_u16(bytes, *alignment);
+                    }
+                }
+                match copy_stack_byte_offset {
+                    Some(offset) => {
+                        bytes.push(1);
+                        push_u32(bytes, *offset);
+                    }
+                    None => bytes.push(0),
+                }
+                push_u16(bytes, *byte_size);
+                push_u16(bytes, *alignment);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_internal_unit_call(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalInstalledInternalUnitCall, TerminalInstallationError> {
+    let machine =
+        MachineId::new(reader.u64()?).ok_or(TerminalInstallationError::ZeroFunctionIdentity)?;
+    let text_offset = usize::try_from(reader.u64()?)
+        .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let psi_operation = OperationId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let target = MachineId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let operation_ordinal = usize::try_from(reader.u64()?)
+        .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let code_offset = usize::try_from(reader.u64()?)
+        .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let byte_count = usize::try_from(reader.u64()?)
+        .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let argument_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallArguments)?;
+    if argument_count > reader.remaining() / 80 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut arguments = Vec::with_capacity(argument_count);
+    for _ in 0..argument_count {
+        let argument = decode_structural_argument(reader)?;
+        let root_structural_type = StructuralTypeId::new(reader.u64()?)
+            .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+        let structural_type = StructuralTypeId::new(reader.u64()?)
+            .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+        let shape = decode_shape(reader)?;
+        let source_byte_offset = reader.u32()?;
+        let source_home_byte_offset = reader.u32()?;
+        let call_stack_bytes = reader.u32()?;
+        let has_array = decode_boolean(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let (fixed_array_length, element_stride) = if has_array {
+            (Some(reader.u64()?), Some(reader.u32()?))
+        } else {
+            (None, None)
+        };
+        let source = decode_direct_placement(reader)?;
+        let destination = decode_direct_placement(reader)?;
+        let code_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let byte_count = usize::try_from(reader.u64()?)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let encoded_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::InternalUnitCallOffsetNotRepresentable)?;
+        let bytes = reader.take(encoded_count)?.to_vec();
+        arguments.push(
+            omega_terminal_machine_code::TerminalInternalUnitCallArgumentRecord {
+                place: argument.place,
+                path: argument.path,
+                root_structural_type,
+                structural_type,
+                shape,
+                source_byte_offset,
+                source_home_byte_offset,
+                call_stack_bytes,
+                fixed_array_length,
+                element_stride,
+                source,
+                destination,
+                code_offset,
+                byte_count,
+                bytes,
+            },
+        );
+    }
+    let claim_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallClaims)?;
+    if claim_count > reader.remaining() / 12 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut claim_transfers = Vec::with_capacity(claim_count);
+    for _ in 0..claim_count {
+        claim_transfers.push(psi_terminal::ClaimTransfer {
+            claim: ClaimId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+            argument_index: reader.u32()?,
+        });
+    }
+    Ok(TerminalInstalledInternalUnitCall {
+        machine,
+        text_offset,
+        custody: omega_terminal_machine_code::TerminalInternalUnitCallRecord {
+            psi_operation,
+            target,
+            arguments,
+            claim_transfers,
+            operation_ordinal,
+            code_offset,
+            byte_count,
+        },
+    })
+}
+
+fn decode_direct_placement(
+    reader: &mut Reader<'_>,
+) -> Result<ValuePlacement, TerminalInstallationError> {
+    let shape = decode_shape(reader)?;
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::UnsupportedInternalUnitCallPlacement)?;
+    if count == 0 || count > reader.remaining() / 6 {
+        return Err(TerminalInstallationError::UnsupportedInternalUnitCallPlacement);
+    }
+    let mut locations = Vec::with_capacity(count);
+    for _ in 0..count {
+        locations.push(match reader.u8()? {
+            1 => ValueLocation::Register {
+                register: decode_register(reader.u8()?)?,
+                value_byte_offset: reader.u16()?,
+                byte_size: reader.u16()?,
+            },
+            2 => {
+                if reader.u8()? != 0 {
+                    return Err(TerminalInstallationError::NonzeroReservedField);
+                }
+                ValueLocation::Stack {
+                    value_byte_offset: reader.u16()?,
+                    byte_size: reader.u16()?,
+                    alignment: reader.u16()?,
+                    stack_byte_offset: reader.u32()?,
+                }
+            }
+            3 => {
+                let pointer = match reader.u8()? {
+                    1 => {
+                        let register = decode_register(reader.u8()?)?;
+                        if reader.u8()? != 0 {
+                            return Err(TerminalInstallationError::NonzeroReservedField);
+                        }
+                        omega_calling_conventions::IndirectPointerLocation::Register(register)
+                    }
+                    2 => {
+                        if reader.take(2)? != [0; 2] {
+                            return Err(TerminalInstallationError::NonzeroReservedField);
+                        }
+                        omega_calling_conventions::IndirectPointerLocation::Stack {
+                            stack_byte_offset: reader.u32()?,
+                            alignment: reader.u16()?,
+                        }
+                    }
+                    _ => {
+                        return Err(
+                            TerminalInstallationError::UnsupportedInternalUnitCallPlacement,
+                        );
+                    }
+                };
+                let copy_stack_byte_offset = match decode_boolean(reader.u8()?)? {
+                    true => Some(reader.u32()?),
+                    false => None,
+                };
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size: reader.u16()?,
+                    alignment: reader.u16()?,
+                }
+            }
+            _ => return Err(TerminalInstallationError::UnsupportedInternalUnitCallPlacement),
+        });
+    }
+    Ok(ValuePlacement { shape, locations })
 }
 
 fn encode_trivial_affine_local(
@@ -1945,6 +2459,9 @@ pub enum TerminalInstallationError {
     TooManyProviderPlans,
     TooManyInstalledFunctions,
     TooManyStructuralReturns,
+    TooManyInternalUnitCalls,
+    TooManyInternalUnitCallArguments,
+    TooManyInternalUnitCallClaims,
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
@@ -1959,13 +2476,16 @@ pub enum TerminalInstallationError {
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
     StructuralReturnOffsetNotRepresentable,
+    InternalUnitCallOffsetNotRepresentable,
     FuelAttributionOffsetNotRepresentable,
     PortEffectOffsetNotRepresentable,
     ZeroFunctionIdentity,
     ZeroStructuralReturnIdentity(&'static str),
+    ZeroInternalUnitCallIdentity,
     InvalidStructuralMultiplicity(u8),
     UnsupportedStructuralReturnShape,
     UnsupportedStructuralReturnPlacement,
+    UnsupportedInternalUnitCallPlacement,
     UnsupportedStructuralReturnRegister(MachineRegister),
     InvalidStructuralReturnRegister(u8),
     InvalidStructuralReturnLocal,
@@ -1983,6 +2503,7 @@ pub enum TerminalInstallationError {
     NonCanonicalInstalledFunctions,
     StructuralReturnMachineMissing(MachineId),
     InvalidStructuralReturn(MachineId),
+    InvalidInternalUnitCall(MachineId),
     FuelAttributionMachineMissing(MachineId),
     NonCanonicalFuelAttributionOrder,
     DuplicateFuelAttributionSite {

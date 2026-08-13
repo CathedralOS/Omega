@@ -71,8 +71,12 @@ fn assign_function(
                             .map(|argument| TerminalAssignedAggregateCopy {
                                 place: argument.place,
                                 path: argument.path.clone(),
+                                root_structural_type: argument.root_structural_type,
                                 structural_type: argument.structural_type,
                                 shape: argument.shape,
+                                source_byte_offset: argument.source_byte_offset,
+                                fixed_array_length: argument.fixed_array_length,
+                                element_stride: argument.element_stride,
                                 source: argument.source.clone(),
                                 destination: argument.destination.clone(),
                             })
@@ -2267,8 +2271,12 @@ mod tests {
                                 omega_terminal_target_operations::TerminalTargetStructuralArgument {
                                     place,
                                     path: path.clone(),
+                                    root_structural_type: structural_type,
                                     structural_type,
                                     shape,
+                                    source_byte_offset: 0,
+                                    fixed_array_length: None,
+                                    element_stride: None,
                                     source: call_plan.parameters[0].clone(),
                                     destination: call_plan.parameters[0].clone(),
                                 },

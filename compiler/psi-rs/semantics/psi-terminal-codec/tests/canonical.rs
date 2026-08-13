@@ -370,6 +370,43 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
 }
 
 #[test]
+fn projected_ordinary_unit_argument_round_trips_canonically() {
+    let mut module = structural_effect_fixture();
+    let element = structural_type_id(1);
+    let array = structural_type_id(4);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: array,
+        identity: "example::OccurrencePair".to_owned(),
+        shape: StructuralTypeShape::FixedArray { element, length: 2 },
+    });
+    module.machines[0].structural_parameters[0].structural_type = array;
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    module.machines[0].structural_parameters[0]
+        .qualifications
+        .clear();
+    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    module.machines[1].structural_parameters[0]
+        .qualifications
+        .clear();
+    module.boundary_machines[0].requires.clear();
+    module.boundary_machines[0].structural_parameters[0]
+        .qualifications
+        .clear();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+
+    let bytes = encode_module(&module).expect("projected ordinary call encodes");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
 fn structural_result_and_return_round_trip_as_semantic_identity() {
     let mut module = structural_effect_fixture();
     module.machines.truncate(1);

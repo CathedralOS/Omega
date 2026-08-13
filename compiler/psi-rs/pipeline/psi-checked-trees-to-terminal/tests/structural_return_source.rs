@@ -115,6 +115,30 @@ const INDEXED_CUSTODY_SOURCE: &str = r#"
     }
 "#;
 
+const ORDINARY_INDEXED_CUSTODY_SOURCE: &str = r#"
+    boundary trait PortIo {}
+    data Receipt [linear] { value: u64; }
+
+    boundary machine Receipt::settle(self)
+    reaches PortIo
+    ensures true;
+
+    data Helper {}
+    machine Helper::run(receipt: Receipt)
+    reaches PortIo
+    {
+        Receipt::settle(receipt);
+    }
+
+    data Root {}
+    machine Root::enter(receipts: [Receipt; 2])
+    reaches PortIo
+    {
+        Helper::run(receipts[0]);
+        Helper::run(receipts[1]);
+    }
+"#;
+
 #[derive(Default)]
 struct RejectSecondEffect {
     accepted: usize,
@@ -264,6 +288,128 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
         rejected_execution.live_claim_frontier().collect::<Vec<_>>(),
         [machine.entry_claims[1].claim]
     );
+}
+
+#[test]
+fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblings() {
+    let tokens = Lexer::new(ORDINARY_INDEXED_CUSTODY_SOURCE)
+        .tokenize()
+        .expect("tokenize ordinary indexed custody");
+    let syntax = parse_syntax_trees(&tokens).expect("parse ordinary indexed custody");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve ordinary indexed custody");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type ordinary indexed custody");
+    let checked = lower_typed_trees(typed).expect("check ordinary indexed custody");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("ordinary literal fixed-index custody should lower");
+    let root = &lowered.semantic_module.machines[0];
+    let [first, second] = root.blocks[0].operations.as_slice() else {
+        panic!("root should call the helper once per sibling")
+    };
+    for (operation, index) in [(first, 0), (second, 1)] {
+        let psi_terminal::OperationKind::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = &operation.kind
+        else {
+            panic!("indexed ordinary call")
+        };
+        assert_eq!(
+            structural_arguments[0].path,
+            [psi_terminal::StructuralPathSegment::FixedIndex(index)]
+        );
+        assert_eq!(
+            claim_transfers,
+            &[psi_terminal::ClaimTransfer {
+                claim: root.entry_claims[index as usize].claim,
+                argument_index: 0,
+            }]
+        );
+    }
+
+    let semantic = encode_module(&lowered.semantic_module).expect("semantics encode");
+    assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier rebases the exact indexed caller claims");
+    let mut wrong_claim = lowered.semantic_module.clone();
+    let psi_terminal::OperationKind::CallUnit {
+        claim_transfers, ..
+    } = &mut wrong_claim.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    claim_transfers[0].claim = root.entry_claims[1].claim;
+    assert!(psi_terminal_verifier::validate_module_representation(&wrong_claim).is_err());
+
+    let mut nested_path = lowered.semantic_module.clone();
+    let psi_terminal::OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut nested_path.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0]
+        .path
+        .push(psi_terminal::StructuralPathSegment::FixedIndex(0));
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&nested_path),
+        Err(psi_terminal_verifier::ModuleError::InvalidStructuralArgumentPath { .. })
+    ));
+
+    let mut wrong_index = lowered.semantic_module.clone();
+    let psi_terminal::OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut wrong_index.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![psi_terminal::StructuralPathSegment::FixedIndex(1)];
+    assert!(psi_terminal_verifier::validate_module_representation(&wrong_index).is_err());
+
+    let parameter = &root.structural_parameters[0];
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0x51b3,
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("ordinary indexed artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(2);
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    meter.replenish(1).unwrap();
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    assert_eq!(
+        execution.live_claim_frontier().collect::<Vec<_>>(),
+        [root.entry_claims[1].claim],
+        "returning from the first helper must restore the untouched sibling claim"
+    );
+    assert_eq!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(execution.effects().len(), 2);
 }
 
 #[test]

@@ -158,16 +158,17 @@ unknown inner field rejects, a caller/callee truncation is a custody-set
 mismatch, and an ancestor claim cannot coexist with one of its descendant
 claims.
 
-The first indexed source slice accepts one nonempty literal fixed array of
-linear structural elements. It requires the complete dense sibling claim set,
-passes one literal element at a time only to a bodyless Unit boundary, and
-retires the aggregate root only after its last sibling receipt commits. The
-interpreter exposes the exact index path to the effect handler; provider
-rejection and sponsor exhaustion consume neither the selected claim nor its
-siblings. Omega retains that path in the emitted provider-settlement record and
-canonical installation bytes. Projected ordinary calls, nested arrays,
-content-qualified elements, dynamic indexes, partial returns, and aggregate
-construction remain fenced.
+The indexed source slice accepts one nonempty literal fixed array of linear
+structural elements with the complete dense sibling claim set. One literal
+element may pass either to a bodyless Unit boundary or through an ordinary Unit
+call whose caller and callee each have exactly one structural parameter and no
+scalar parameters. The callee accepts one unqualified whole-root claim and no
+contract clause over that parameter. Verification rebases the selected claim;
+interpretation retains every sibling until its own successful settlement.
+Omega realizes the internal call on all five targets and carries its exact
+path, type, layout, copy bytes, and claim transfer through installation.
+Nested/dynamic indexes, wider signatures, projected contracts, content-bearing
+partitions, partial returns, and aggregate construction remain fenced.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

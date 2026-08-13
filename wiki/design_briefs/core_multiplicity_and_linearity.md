@@ -185,13 +185,13 @@ carry policy, while duplicate moves and runtime-indexed owned extraction reject.
 Unique structural output maps preserve multiple claims through calls,
 transitions, and wrappers; ambiguous or bodyless targets fail closed.
 
-Terminal Psi now carries the first literal-array instance of that rule: a
-nonempty fixed array of linear structural elements has one canonical claim per
-index, and bodyless boundary calls may settle one exact element at a time. The
-checked plan requires the complete dense index set; terminal verification and
-interpretation retain every sibling until its own successful receipt. Nested or
-dynamic indexes, projected ordinary calls, and content-bearing partitions stay
-outside this bounded carrier.
+Terminal Psi carries the first literal-array instance of that rule: a nonempty
+fixed array of linear structural elements has one canonical claim per index.
+The checked plan requires the complete dense set; one literal element may pass
+to a bodyless boundary or an exact one-parameter ordinary Unit callee, and
+verification and interpretation preserve every unselected sibling. Nested or
+dynamic indexes, wider signatures, contracts over the projected parameter, and
+content-bearing partitions stay outside this bounded carrier.
 
 Platform-entry writes, dispatch/state-call arguments, and synthesized
 continuations obey the same event and provenance rules. Affine exits run in
