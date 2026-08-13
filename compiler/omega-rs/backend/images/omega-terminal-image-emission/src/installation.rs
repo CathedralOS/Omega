@@ -31,7 +31,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 14;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 15;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -1238,8 +1238,35 @@ fn validate_record_shape(
                 .filter(|home| home.multiplicity == StructuralMultiplicity::Affine)
                 .map(|home| home.place)
                 .collect::<Vec<_>>();
-            let Some(parameter_discards) = cleanup.discards.get(expected_local_prefix.len()..)
-            else {
+            let discards = cleanup
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let residual_discards = cleanup
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                        Some(discard)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let nominal_cleanups = cleanup
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
+                        Some(nominal)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let Some(parameter_discards) = discards.get(expected_local_prefix.len()..) else {
                 return Err(TerminalInstallationError::InvalidUnitAffineCleanup(
                     function.machine,
                 ));
@@ -1267,20 +1294,18 @@ fn validate_record_shape(
                         )
                     },
                 )
-                || cleanup.discards.get(..expected_local_prefix.len())
+                || discards.get(..expected_local_prefix.len())
                     != Some(expected_local_prefix.as_slice())
-                || cleanup
-                    .discards
+                || discards
                     .iter()
                     .copied()
                     .collect::<std::collections::BTreeSet<_>>()
                     .len()
-                    != cleanup.discards.len()
-                || match (
-                    cleanup.nominal_cleanup,
-                    cleanup.residual_discards.as_slice(),
-                ) {
-                    (Some(nominal), []) => {
+                    != discards.len()
+                || discards.len() + residual_discards.len() + nominal_cleanups.len()
+                    != cleanup.actions.len()
+                || match (nominal_cleanups.as_slice(), residual_discards.as_slice()) {
+                    ([nominal], []) => {
                         let cleanup_function = record
                             .functions
                             .iter()
@@ -1314,11 +1339,7 @@ fn validate_record_shape(
                                             && helper.unit_affine_cleanup.as_ref().is_some_and(
                                                 |return_cleanup| {
                                                     return_cleanup.locals.is_empty()
-                                                        && return_cleanup.discards.is_empty()
-                                                        && return_cleanup
-                                                            .residual_discards
-                                                            .is_empty()
-                                                        && return_cleanup.nominal_cleanup.is_none()
+                                                        && return_cleanup.actions.is_empty()
                                                 },
                                             )
                                             && !record.internal_unit_calls.iter().any(
@@ -1341,7 +1362,7 @@ fn validate_record_shape(
                             })
                             .count();
                         !cleanup.locals.is_empty()
-                            || !cleanup.discards.is_empty()
+                            || !discards.is_empty()
                             || function.unit_parameter_homes.len() != 1
                             || function.unit_parameter_homes[0].place != nominal.place
                             || function.unit_parameter_homes[0].structural_type
@@ -1365,22 +1386,31 @@ fn validate_record_shape(
                                     || candidate.unit_affine_cleanup.as_ref().is_none_or(
                                         |return_cleanup| {
                                             !return_cleanup.locals.is_empty()
-                                                || !return_cleanup.discards.is_empty()
-                                                || !return_cleanup.residual_discards.is_empty()
-                                                || return_cleanup.nominal_cleanup.is_some()
+                                                || !return_cleanup.actions.is_empty()
                                         },
                                     )
                             })
                             || matching_edge_calls != usize::from(cleanup_is_executable)
                     }
-                    (None, []) => parameter_discards != expected_parameter_discards,
-                    (None, [residual]) => {
+                    ([], []) => parameter_discards != expected_parameter_discards,
+                    ([], [residual]) => {
                         let parameter_type = function
                             .unit_parameters
                             .iter()
                             .find(|parameter| parameter.place == residual.place)
                             .map(|parameter| parameter.structural_type);
-                        !parameter_discards.is_empty()
+                        !matches!(cleanup.actions.split_last(),
+                        Some((
+                            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(last),
+                            prefix,
+                        )) if last == *residual
+                            && prefix.len() == discards.len()
+                            && prefix.iter().zip(&discards).all(|(action, place)| {
+                                matches!(action,
+                                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(actual)
+                                        if actual == place)
+                            }))
+                            || !parameter_discards.is_empty()
                             || expected_parameter_discards.as_slice() != [residual.place]
                             || !matches!(
                                 residual.path.as_slice(),
@@ -1396,6 +1426,56 @@ fn validate_record_shape(
                                             && argument.path.len() == 1
                                             && argument.path != residual.path
                                     })
+                            })
+                    }
+                    ([first, second], []) => {
+                        !cleanup.locals.is_empty()
+                            || !discards.is_empty()
+                            || function.unit_parameter_homes.len() != 2
+                            || function
+                                .unit_parameter_homes
+                                .iter()
+                                .rev()
+                                .zip([first, second])
+                                .any(|(home, nominal)| {
+                                    home.place != nominal.place
+                                        || home.structural_type != nominal.structural_type
+                                        || home.multiplicity != StructuralMultiplicity::Affine
+                                        || !bounded_nominal_receiver_shape(home.shape)
+                                        || (home.shape.byte_size == 0
+                                            && !home.source.locations.is_empty())
+                                        || (home.shape.byte_size != 0
+                                            && home.source.locations.is_empty())
+                                        || attachments.get(&nominal.cleanup_machine)
+                                            != Some(&Some(nominal.structural_type))
+                                        || record
+                                            .functions
+                                            .iter()
+                                            .find(|candidate| {
+                                                candidate.machine == nominal.cleanup_machine
+                                            })
+                                            .is_none_or(|candidate| {
+                                                !candidate.unit_body
+                                                    || !candidate.unit_parameters.is_empty()
+                                                    || !candidate.unit_parameter_homes.is_empty()
+                                                    || candidate
+                                                        .unit_affine_cleanup
+                                                        .as_ref()
+                                                        .is_none_or(|return_cleanup| {
+                                                            !return_cleanup.locals.is_empty()
+                                                                || !return_cleanup
+                                                                    .actions
+                                                                    .is_empty()
+                                                        })
+                                                    || record.internal_unit_calls.iter().any(
+                                                        |call| call.machine == candidate.machine,
+                                                    )
+                                            })
+                                })
+                            || record.internal_unit_calls.iter().any(|call| {
+                                call.machine == function.machine
+                                    && call.custody.owner
+                                        == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
                             })
                     }
                     _ => true,
@@ -1617,9 +1697,9 @@ fn validate_record_shape(
                         .as_ref()
                         .is_some_and(|cleanup| {
                             cleanup.psi_edge == edge
-                                && cleanup.nominal_cleanup.is_some_and(|nominal| {
-                                    nominal.cleanup_machine == custody.target
-                                })
+                                && matches!(cleanup.actions.as_slice(),
+                                    [psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)]
+                                        if nominal.cleanup_machine == custody.target)
                                 && cleanup.code_offset == custody.code_offset
                                 && custody
                                     .code_offset
@@ -1725,8 +1805,8 @@ fn validate_record_shape(
                     function
                         .unit_affine_cleanup
                         .as_ref()
-                        .map(|cleanup| cleanup.residual_discards.as_slice()),
-                    Some([residual])
+                        .and_then(|cleanup| cleanup.actions.last()),
+                    Some(psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual))
                         if argument.path.len() == 1
                             && residual.place == argument.place
                             && residual.path.len() == 1
@@ -2028,35 +2108,33 @@ fn encode_unit_affine_cleanup(
     }
     push_u32(
         bytes,
-        u32::try_from(cleanup.discards.len())
+        u32::try_from(cleanup.actions.len())
             .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
     );
-    for place in &cleanup.discards {
-        push_u64(bytes, place.get());
-    }
-    push_u32(
-        bytes,
-        u32::try_from(cleanup.residual_discards.len())
-            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
-    );
-    for discard in &cleanup.residual_discards {
-        encode_structural_argument(
-            bytes,
-            &StructuralArgument {
-                place: discard.place,
-                path: discard.path.clone(),
-            },
-        )?;
-        push_u64(bytes, discard.structural_type.get());
-    }
-    match cleanup.nominal_cleanup {
-        Some(nominal) => {
-            bytes.push(1);
-            push_u64(bytes, nominal.place.get());
-            push_u64(bytes, nominal.structural_type.get());
-            push_u64(bytes, nominal.cleanup_machine.get());
+    for action in &cleanup.actions {
+        match action {
+            psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                bytes.extend_from_slice(&[1, 0, 0, 0]);
+                push_u64(bytes, place.get());
+            }
+            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                bytes.extend_from_slice(&[2, 0, 0, 0]);
+                encode_structural_argument(
+                    bytes,
+                    &StructuralArgument {
+                        place: discard.place,
+                        path: discard.path.clone(),
+                    },
+                )?;
+                push_u64(bytes, discard.structural_type.get());
+            }
+            psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
+                bytes.extend_from_slice(&[3, 0, 0, 0]);
+                push_u64(bytes, nominal.place.get());
+                push_u64(bytes, nominal.structural_type.get());
+                push_u64(bytes, nominal.cleanup_machine.get());
+            }
         }
-        None => bytes.push(0),
     }
     push_u64(
         bytes,
@@ -2665,56 +2743,62 @@ fn decode_unit_affine_cleanup(
             decode_trivial_affine_local_type(reader)?,
         ));
     }
-    let discard_count = usize::try_from(reader.u32()?)
+    let action_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
-    let mut discards = Vec::with_capacity(discard_count);
-    for _ in 0..discard_count {
-        discards.push(PlaceId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("Unit cleanup place"),
-        )?);
-    }
-    let residual_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
-    let mut residual_discards = Vec::with_capacity(residual_count);
-    for _ in 0..residual_count {
-        let argument = decode_structural_argument(reader)?;
-        let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("residual Unit cleanup type"),
-        )?;
-        residual_discards.push(StructuralAffineDiscard {
-            place: argument.place,
-            path: argument.path,
-            structural_type,
+    let mut actions = Vec::with_capacity(action_count);
+    for _ in 0..action_count {
+        let tag = reader.u8()?;
+        if reader.u8()? != 0 || reader.u8()? != 0 || reader.u8()? != 0 {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        actions.push(match tag {
+            1 => psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+                PlaceId::new(reader.u64()?).ok_or(
+                    TerminalInstallationError::ZeroStructuralReturnIdentity("Unit cleanup place"),
+                )?,
+            ),
+            2 => {
+                let argument = decode_structural_argument(reader)?;
+                let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+                    TerminalInstallationError::ZeroStructuralReturnIdentity(
+                        "residual Unit cleanup type",
+                    ),
+                )?;
+                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(
+                    StructuralAffineDiscard {
+                        place: argument.place,
+                        path: argument.path,
+                        structural_type,
+                    },
+                )
+            }
+            3 => psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                psi_terminal::NominalAffineCleanup {
+                    place: PlaceId::new(reader.u64()?).ok_or(
+                        TerminalInstallationError::ZeroStructuralReturnIdentity(
+                            "nominal Unit cleanup place",
+                        ),
+                    )?,
+                    structural_type: StructuralTypeId::new(reader.u64()?).ok_or(
+                        TerminalInstallationError::ZeroStructuralReturnIdentity(
+                            "nominal Unit cleanup type",
+                        ),
+                    )?,
+                    cleanup_machine: MachineId::new(reader.u64()?).ok_or(
+                        TerminalInstallationError::ZeroStructuralReturnIdentity(
+                            "nominal Unit cleanup machine",
+                        ),
+                    )?,
+                },
+            ),
+            tag => return Err(TerminalInstallationError::InvalidCleanupActionTag(tag)),
         });
     }
-    let nominal_cleanup = match reader.u8()? {
-        0 => None,
-        1 => Some(psi_terminal::NominalAffineCleanup {
-            place: PlaceId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity(
-                    "nominal Unit cleanup place",
-                ),
-            )?,
-            structural_type: StructuralTypeId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity(
-                    "nominal Unit cleanup type",
-                ),
-            )?,
-            cleanup_machine: MachineId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity(
-                    "nominal Unit cleanup machine",
-                ),
-            )?,
-        }),
-        tag => return Err(TerminalInstallationError::InvalidPresenceFlag(tag)),
-    };
     Ok(
         omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
             psi_edge,
             locals,
-            discards,
-            residual_discards,
-            nominal_cleanup,
+            actions,
             code_offset: usize::try_from(reader.u64()?)
                 .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
             byte_count: usize::try_from(reader.u64()?)
@@ -3122,6 +3206,7 @@ pub enum TerminalInstallationError {
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),
     InvalidCallSiteOwnerTag(u8),
+    InvalidCleanupActionTag(u8),
     ZeroPortEffectIdentity(&'static str),
     ZeroSettlementIdentity(&'static str),
     InvalidSettlementArgumentPathTag(u8),

@@ -10,10 +10,10 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, NominalAffineCleanup,
-    StructuralAffineDiscard, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -227,9 +227,7 @@ pub enum TerminalTargetUnitOperation {
     },
     Return {
         psi_edge: EdgeId,
-        trivial_affine_discards: Vec<PlaceId>,
-        residual_affine_discards: Vec<StructuralAffineDiscard>,
-        nominal_affine_cleanup: Option<NominalAffineCleanup>,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
 }
 

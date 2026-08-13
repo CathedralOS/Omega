@@ -896,10 +896,155 @@ fn validate_unit_affine_cleanup(
         .iter()
         .map(|(operation, _, _)| *operation)
         .collect::<std::collections::BTreeSet<_>>();
-    let suffix = cleanup
-        .discards
-        .get(expected_local_prefix.len()..)
-        .ok_or_else(invalid)?;
+    let expected_root_actions = expected_local_prefix
+        .iter()
+        .copied()
+        .chain(expected_parameter_suffix.iter().copied())
+        .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
+        .collect::<Vec<_>>();
+    let expected_local_actions = expected_local_prefix
+        .iter()
+        .copied()
+        .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
+        .collect::<Vec<_>>();
+    let exact_nominal_target = |nominal: &psi_terminal::NominalAffineCleanup| {
+        let cleanup_function = functions.get(&nominal.cleanup_machine).copied();
+        let cleanup_body_is_exact = cleanup_function.is_some_and(|function| {
+            let calls = &function.internal_unit_calls;
+            let call_owners = calls
+                .iter()
+                .map(|call| call.owner)
+                .collect::<std::collections::BTreeSet<_>>();
+            let call_targets = calls
+                .iter()
+                .map(|call| call.target)
+                .collect::<std::collections::BTreeSet<_>>();
+            function.attachment == Some(nominal.structural_type)
+                && function.unit_stack.is_some()
+                && function.scalar_stack.is_none()
+                && function.unit_parameters.is_empty()
+                && function.unit_parameter_homes.is_empty()
+                && function
+                    .unit_affine_cleanup
+                    .as_ref()
+                    .is_some_and(|return_cleanup| {
+                        return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
+                    })
+                && calls.len() <= 2
+                && call_owners.len() == calls.len()
+                && call_targets.len() == calls.len()
+                && calls.iter().all(|call| {
+                    matches!(call.owner, TerminalCallSiteOwner::Operation(_))
+                        && call.arguments.is_empty()
+                        && call.claim_transfers.is_empty()
+                        && functions.get(&call.target).is_some_and(|helper| {
+                            helper.attachment.is_some()
+                                && helper.unit_stack.is_some()
+                                && helper.scalar_stack.is_none()
+                                && helper.unit_parameters.is_empty()
+                                && helper.unit_parameter_homes.is_empty()
+                                && helper.internal_unit_calls.is_empty()
+                                && helper.unit_affine_cleanup.as_ref().is_some_and(
+                                    |return_cleanup| {
+                                        return_cleanup.locals.is_empty()
+                                            && return_cleanup.actions.is_empty()
+                                    },
+                                )
+                        })
+                })
+        });
+        (cleanup_function, cleanup_body_is_exact)
+    };
+    let action_shape_invalid = if cleanup.actions == expected_root_actions {
+        cleanup
+            .actions
+            .iter()
+            .filter_map(|action| match action {
+                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != cleanup.actions.len()
+    } else if let Some((
+        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual),
+        prefix,
+    )) = cleanup.actions.split_last()
+    {
+        let parameter_type = parameter_homes
+            .iter()
+            .find(|parameter| parameter.place == residual.place)
+            .map(|parameter| parameter.structural_type);
+        prefix != expected_local_actions.as_slice()
+            || expected_parameter_suffix.as_slice() != [residual.place]
+            || !matches!(
+                residual.path.as_slice(),
+                [psi_terminal::StructuralPathSegment::Field(identity)] if !identity.is_empty()
+            )
+            || parameter_type.is_none()
+            || parameter_type == Some(residual.structural_type)
+            || !internal_unit_calls.iter().any(|call| {
+                call.arguments.iter().any(|argument| {
+                    argument.place == residual.place
+                        && Some(argument.root_structural_type) == parameter_type
+                        && argument.path.len() == 1
+                        && argument.path != residual.path
+                })
+            })
+    } else {
+        let nominal = cleanup
+            .actions
+            .iter()
+            .filter_map(|action| match action {
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if nominal.len() != cleanup.actions.len()
+            || !(1..=2).contains(&nominal.len())
+            || !cleanup.locals.is_empty()
+            || parameter_homes.len() != nominal.len()
+            || parameter_homes
+                .iter()
+                .rev()
+                .zip(&nominal)
+                .any(|(home, nominal)| {
+                    home.place != nominal.place
+                        || home.structural_type != nominal.structural_type
+                        || home.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                        || !bounded_nominal_receiver_shape(home.shape)
+                        || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
+                        || (home.shape.byte_size != 0 && home.source.locations.is_empty())
+                        || attachments.get(&nominal.cleanup_machine)
+                            != Some(&Some(nominal.structural_type))
+                })
+        {
+            true
+        } else if nominal.len() == 1 {
+            let (cleanup_function, body_exact) = exact_nominal_target(nominal[0]);
+            let executable =
+                cleanup_function.is_some_and(|function| !function.internal_unit_calls.is_empty());
+            let matching_edge_calls = internal_unit_calls
+                .iter()
+                .filter(|call| {
+                    call.owner == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
+                        && call.target == nominal[0].cleanup_machine
+                        && call.arguments.is_empty()
+                        && call.claim_transfers.is_empty()
+                        && call.code_offset == cleanup.code_offset
+                })
+                .count();
+            !body_exact || matching_edge_calls != usize::from(executable)
+        } else {
+            nominal.iter().any(|nominal| {
+                let (function, body_exact) = exact_nominal_target(nominal);
+                !body_exact
+                    || function.is_some_and(|function| !function.internal_unit_calls.is_empty())
+            }) || internal_unit_calls
+                .iter()
+                .any(|call| call.owner == TerminalCallSiteOwner::Edge(cleanup.psi_edge))
+        }
+    };
     if cleanup.byte_count == 0
         || end != bytes.len()
         || !provenance.edges.contains(&cleanup.psi_edge)
@@ -930,124 +1075,7 @@ fn validate_unit_affine_cleanup(
                         != 1
             },
         )
-        || cleanup.discards.get(..expected_local_prefix.len())
-            != Some(expected_local_prefix.as_slice())
-        || cleanup
-            .discards
-            .iter()
-            .copied()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != cleanup.discards.len()
-        || match (
-            cleanup.nominal_cleanup,
-            cleanup.residual_discards.as_slice(),
-        ) {
-            (Some(nominal), []) => {
-                let cleanup_function = functions.get(&nominal.cleanup_machine).copied();
-                let cleanup_body_is_exact = cleanup_function.is_some_and(|function| {
-                    let calls = &function.internal_unit_calls;
-                    let call_owners = calls
-                        .iter()
-                        .map(|call| call.owner)
-                        .collect::<std::collections::BTreeSet<_>>();
-                    let call_targets = calls
-                        .iter()
-                        .map(|call| call.target)
-                        .collect::<std::collections::BTreeSet<_>>();
-                    function.attachment == Some(nominal.structural_type)
-                        && function.unit_stack.is_some()
-                        && function.scalar_stack.is_none()
-                        && function.unit_parameters.is_empty()
-                        && function.unit_parameter_homes.is_empty()
-                        && function
-                            .unit_affine_cleanup
-                            .as_ref()
-                            .is_some_and(|return_cleanup| {
-                                return_cleanup.locals.is_empty()
-                                    && return_cleanup.discards.is_empty()
-                                    && return_cleanup.residual_discards.is_empty()
-                                    && return_cleanup.nominal_cleanup.is_none()
-                            })
-                        && calls.len() <= 2
-                        && call_owners.len() == calls.len()
-                        && call_targets.len() == calls.len()
-                        && calls.iter().all(|call| {
-                            matches!(call.owner, TerminalCallSiteOwner::Operation(_))
-                                && call.arguments.is_empty()
-                                && call.claim_transfers.is_empty()
-                                && functions.get(&call.target).is_some_and(|helper| {
-                                    helper.attachment.is_some()
-                                        && helper.unit_stack.is_some()
-                                        && helper.scalar_stack.is_none()
-                                        && helper.unit_parameters.is_empty()
-                                        && helper.unit_parameter_homes.is_empty()
-                                        && helper.internal_unit_calls.is_empty()
-                                        && helper.unit_affine_cleanup.as_ref().is_some_and(
-                                            |return_cleanup| {
-                                                return_cleanup.locals.is_empty()
-                                                    && return_cleanup.discards.is_empty()
-                                                    && return_cleanup.residual_discards.is_empty()
-                                                    && return_cleanup.nominal_cleanup.is_none()
-                                            },
-                                        )
-                                })
-                        })
-                });
-                let cleanup_is_executable = cleanup_function
-                    .is_some_and(|function| !function.internal_unit_calls.is_empty());
-                let matching_edge_calls = internal_unit_calls
-                    .iter()
-                    .filter(|call| {
-                        call.owner == TerminalCallSiteOwner::Edge(cleanup.psi_edge)
-                            && call.target == nominal.cleanup_machine
-                            && call.arguments.is_empty()
-                            && call.claim_transfers.is_empty()
-                            && call.code_offset == cleanup.code_offset
-                    })
-                    .count();
-                !cleanup.locals.is_empty()
-                    || !cleanup.discards.is_empty()
-                    || parameter_homes.len() != 1
-                    || parameter_homes[0].place != nominal.place
-                    || parameter_homes[0].structural_type != nominal.structural_type
-                    || parameter_homes[0].multiplicity
-                        != psi_terminal::StructuralMultiplicity::Affine
-                    || !bounded_nominal_receiver_shape(parameter_homes[0].shape)
-                    || (parameter_homes[0].shape.byte_size == 0
-                        && !parameter_homes[0].source.locations.is_empty())
-                    || (parameter_homes[0].shape.byte_size != 0
-                        && parameter_homes[0].source.locations.is_empty())
-                    || attachments.get(&nominal.cleanup_machine)
-                        != Some(&Some(nominal.structural_type))
-                    || !cleanup_body_is_exact
-                    || matching_edge_calls != usize::from(cleanup_is_executable)
-            }
-            (None, []) => suffix != expected_parameter_suffix,
-            (None, [residual]) => {
-                let parameter_type = parameter_homes
-                    .iter()
-                    .find(|parameter| parameter.place == residual.place)
-                    .map(|parameter| parameter.structural_type);
-                !suffix.is_empty()
-                    || expected_parameter_suffix.as_slice() != [residual.place]
-                    || !matches!(
-                        residual.path.as_slice(),
-                        [psi_terminal::StructuralPathSegment::Field(identity)] if !identity.is_empty()
-                    )
-                    || parameter_type.is_none()
-                    || parameter_type == Some(residual.structural_type)
-                    || !internal_unit_calls.iter().any(|call| {
-                        call.arguments.iter().any(|argument| {
-                            argument.place == residual.place
-                                && Some(argument.root_structural_type) == parameter_type
-                                && argument.path.len() == 1
-                                && argument.path != residual.path
-                        })
-                    })
-            }
-            _ => true,
-        }
+        || action_shape_invalid
         || fuel
             .iter()
             .filter(|attribution| {
@@ -1336,7 +1364,9 @@ fn validate_internal_unit_call_custody(
                 let Some(cleanup) = affine_cleanup else {
                     return Err(invalid());
                 };
-                let Some(nominal) = cleanup.nominal_cleanup else {
+                let [psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal)] =
+                    cleanup.actions.as_slice()
+                else {
                     return Err(invalid());
                 };
                 let cleanup_end = cleanup
@@ -1541,8 +1571,8 @@ fn validate_internal_unit_call_custody(
                 return true;
             };
             !matches!(
-                affine_cleanup.map(|cleanup| cleanup.residual_discards.as_slice()),
-                Some([residual])
+                affine_cleanup.and_then(|cleanup| cleanup.actions.last()),
+                Some(psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual))
                     if argument.path.len() == 1
                         && residual.place == argument.place
                         && residual.path.len() == 1

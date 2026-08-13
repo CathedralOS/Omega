@@ -29,8 +29,8 @@ use psi_core::{
     StructuralTypeId,
 };
 use psi_terminal::{
-    NominalAffineCleanup, SemanticFingerprint, StructuralMultiplicity, TerminalPsiIdentity,
-    VocabularyMarker,
+    NominalAffineCleanup, SemanticFingerprint, StructuralMultiplicity, TerminalAffineCleanupAction,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 
 #[test]
@@ -1351,7 +1351,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "1bec6b49de50bcb3bdcc368ea595514cfd2ad593f6f6d7b19fa307e84b14fe27"
+        "e350b93c853a97208bb6d800855b6d3d8ad8a5da8e26210d2f84a1eb8f140d2f"
     );
 
     let mut changed_plan = plan;
@@ -1374,10 +1374,10 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let bytes = encode_terminal_installation_record(&record).expect("bytes");
 
     let mut future = bytes.clone();
-    future[8..10].copy_from_slice(&15_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&16_u16.to_le_bytes());
     assert_eq!(
         decode_terminal_installation_record(&future),
-        Err(TerminalInstallationError::UnsupportedFormatMarker(15))
+        Err(TerminalInstallationError::UnsupportedFormatMarker(16))
     );
 
     let mut wrong_pointer_width = bytes.clone();
@@ -2399,9 +2399,7 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
     let empty_return = |edge| TerminalUnitAffineCleanupRecord {
         psi_edge: edge,
         locals: Vec::new(),
-        discards: Vec::new(),
-        residual_discards: Vec::new(),
-        nominal_cleanup: None,
+        actions: Vec::new(),
         code_offset: 13,
         byte_count: 1,
     };
@@ -2552,13 +2550,13 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 unit_affine_cleanup: Some(TerminalUnitAffineCleanupRecord {
                     psi_edge: edge_id(3),
                     locals: Vec::new(),
-                    discards: Vec::new(),
-                    residual_discards: Vec::new(),
-                    nominal_cleanup: Some(NominalAffineCleanup {
-                        place,
-                        structural_type,
-                        cleanup_machine: machine_id(1),
-                    }),
+                    actions: vec![TerminalAffineCleanupAction::InvokeNominal(
+                        NominalAffineCleanup {
+                            place,
+                            structural_type,
+                            cleanup_machine: machine_id(1),
+                        },
+                    )],
                     code_offset: 0,
                     byte_count: 14,
                 }),
@@ -2651,9 +2649,7 @@ fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {
     function.unit_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
         psi_edge: function.provenance.edges[0],
         locals: Vec::new(),
-        discards: Vec::new(),
-        residual_discards: Vec::new(),
-        nominal_cleanup: None,
+        actions: Vec::new(),
         code_offset,
         byte_count,
     });

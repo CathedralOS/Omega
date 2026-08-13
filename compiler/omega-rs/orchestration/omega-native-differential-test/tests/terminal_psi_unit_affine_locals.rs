@@ -15,6 +15,7 @@ use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_terminal::TerminalAffineCleanupAction;
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
@@ -47,8 +48,8 @@ fn unit_affine_local_cleanup_survives_all_native_artifacts() {
         [
             TerminalAbstractOperation::EstablishTrivialAffineLocal { .. },
             TerminalAbstractOperation::EstablishTrivialAffineLocal { .. },
-            TerminalAbstractOperation::ReturnUnit { trivial_affine_discards, .. }
-        ] if trivial_affine_discards.len() == 4
+            TerminalAbstractOperation::ReturnUnit { cleanup_actions, .. }
+        ] if cleanup_actions.len() == 4
     ));
 
     for (target, subsystem, expected_subsystem) in [
@@ -66,16 +67,19 @@ fn unit_affine_local_cleanup_survives_all_native_artifacts() {
             .as_ref()
             .expect("machine cleanup custody");
         assert_eq!(cleanup.locals.len(), 2);
-        assert_eq!(cleanup.discards.len(), 4);
-        assert_eq!(cleanup.discards[0], cleanup.locals[1].1.id);
-        assert_eq!(cleanup.discards[1], cleanup.locals[0].1.id);
+        assert_eq!(cleanup.actions.len(), 4);
         assert_eq!(
-            cleanup.discards[2],
-            machine.functions[0].unit_parameters[1].place
-        );
-        assert_eq!(
-            cleanup.discards[3],
-            machine.functions[0].unit_parameters[0].place
+            cleanup.actions,
+            [
+                TerminalAffineCleanupAction::DiscardRoot(cleanup.locals[1].1.id),
+                TerminalAffineCleanupAction::DiscardRoot(cleanup.locals[0].1.id),
+                TerminalAffineCleanupAction::DiscardRoot(
+                    machine.functions[0].unit_parameters[1].place,
+                ),
+                TerminalAffineCleanupAction::DiscardRoot(
+                    machine.functions[0].unit_parameters[0].place,
+                ),
+            ]
         );
         assert_eq!(
             machine.functions[0]
@@ -91,7 +95,7 @@ fn unit_affine_local_cleanup_survives_all_native_artifacts() {
             .unit_affine_cleanup
             .as_mut()
             .unwrap()
-            .discards
+            .actions
             .swap(0, 1);
         assert!(build_terminal_object_artifact(&reordered).is_err());
 

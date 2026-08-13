@@ -14,10 +14,9 @@ use psi_core::{
     ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, NominalAffineCleanup, StructuralAffineDiscard,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,10 +82,8 @@ pub struct TerminalUnitAffineCleanupRecord {
         StructuralPlaceDeclaration,
         StructuralTypeDeclaration,
     )>,
-    pub discards: Vec<PlaceId>,
-    /// Exact path/type identity for residual fields disposed without code.
-    pub residual_discards: Vec<StructuralAffineDiscard>,
-    pub nominal_cleanup: Option<NominalAffineCleanup>,
+    /// Exact semantic execution order for every cleanup committed by this edge.
+    pub actions: Vec<TerminalAffineCleanupAction>,
     pub code_offset: usize,
     pub byte_count: usize,
 }

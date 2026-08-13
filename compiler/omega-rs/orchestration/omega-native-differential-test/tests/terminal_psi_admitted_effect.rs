@@ -391,7 +391,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 },
                 TerminalAbstractOperation::ReturnUnit {
                     psi_edge: EdgeId::new(1).unwrap(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             ],
         }],
