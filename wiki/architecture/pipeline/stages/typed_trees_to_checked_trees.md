@@ -217,13 +217,13 @@ Current ownership is:
   rebinding, explicitly discarded call results, statement calls with binding
   reborrows or opaque frames, opaque or recursive result producers, and other
   computed initializers remain opaque.
-  A terminal returned-place index may contain a non-rebinding direct-call tree
-  of maximum depth two when every frame is complete; it remains
-  collection-coarse while the ordinary frame publishes every call's writes.
-  The same bound applies to stable local mutable-alias indexes and direct
-  helper-local alias rebind replacements: only the rebound name moves to the
-  coarse origin, while prior reborrows keep their established origins. Deeper
-  computed, binding-reborrow, recursive, or opaque index forms remain fences.
+  Terminal returned places, stable local mutable aliases, and direct alias
+  rebind replacements may contain one or more indexes whose non-rebinding call
+  trees are independently complete through depth two. The first index fixes
+  the coarse collection origin; later indexes are absorbing, all call writes
+  publish, and only the rebound name moves while prior reborrows retain their
+  origins. Deeper, binding-reborrow, recursive, or opaque index forms remain
+  fences.
   For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other

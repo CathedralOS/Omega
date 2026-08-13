@@ -382,13 +382,12 @@ The bounded indexed target and bounded non-reference value tree may occur on
 the same assignment. Their complete frames compose and publish independently;
 either side exceeding its depth or non-rebinding rail fences the returned-place
 relation.
-A terminal returned-place index may contain a non-rebinding direct-call tree of
-maximum depth two when every inferred frame is complete. The returned origin
-remains collection-coarse, and the ordinary frame publishes every call's
-writes. The same bound applies to stable local mutable-alias indexes and direct
-helper-local alias rebind replacements: only the rebound name moves to the
-coarse origin, while prior reborrows retain their established origins. Deeper
-computed, binding-reborrow, recursive, or opaque index forms remain fences.
+Terminal returned places, stable local mutable aliases, and direct alias rebind
+replacements may contain one or more indexes whose non-rebinding call trees are
+independently complete through depth two. The first index fixes the coarse
+collection origin; later indexes are absorbing, all call writes publish, and
+only the rebound name moves while prior reborrows retain their origins. Deeper,
+binding-reborrow, recursive, or opaque index forms remain fences.
 Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
