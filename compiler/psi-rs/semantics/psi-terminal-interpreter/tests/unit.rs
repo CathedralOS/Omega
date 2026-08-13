@@ -354,6 +354,64 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
 }
 
 #[test]
+fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order() {
+    let module = executable_nominal_affine_module();
+    let semantic = encode_module(&module).expect("executable nominal cleanup encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 71,
+        structural_type: structural_type_id(1),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument],
+    )
+    .expect("verified executable nominal cleanup should start");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    for (site, consumed) in [
+        (FuelChargeSite::Edge(edge_id(1)), 0),
+        (FuelChargeSite::Operation(operation_id(1)), 1),
+        (FuelChargeSite::Edge(edge_id(3)), 2),
+        (FuelChargeSite::Edge(edge_id(2)), 3),
+    ] {
+        assert_eq!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site,
+                required_units: 1,
+                remaining_units: 0,
+            })
+        );
+        assert_eq!(meter.usage().total_units(), consumed);
+        meter.replenish(1).unwrap();
+    }
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert_eq!(meter.usage().total_units(), 4);
+    for site in [
+        FuelChargeSite::Edge(edge_id(1)),
+        FuelChargeSite::Operation(operation_id(1)),
+        FuelChargeSite::Edge(edge_id(3)),
+        FuelChargeSite::Edge(edge_id(2)),
+    ] {
+        let attribution = meter.usage().at(site).expect("site was charged once");
+        assert_eq!(attribution.executions(), 1);
+        assert_eq!(attribution.units(), 1);
+    }
+}
+
+#[test]
 fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     let mut module = effect_module();
     let mut machine = module.machines.pop().expect("callee machine");
@@ -1245,6 +1303,52 @@ fn nominal_affine_module() -> TerminalModule {
             },
         ],
     }
+}
+
+fn executable_nominal_affine_module() -> TerminalModule {
+    let mut module = nominal_affine_module();
+    let helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "Helper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(3),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(TerminalMachine {
+        id: machine_id(3),
+        attachment: Some(helper_type.id),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(3),
+        blocks: vec![Block {
+            id: block_id(3),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(3),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(3)),
+    });
+    module
 }
 
 fn partial_affine_field_module() -> TerminalModule {

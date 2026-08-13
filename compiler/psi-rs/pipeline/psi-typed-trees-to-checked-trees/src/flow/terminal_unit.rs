@@ -1737,15 +1737,58 @@ fn build_nominal_affine_unit_cleanup_machine(
         || !program.machine_contracts(cleanup_machine).is_empty()
         || !is_unit(program, cleanup_state.return_type)
         || !program.state_contracts(cleanup_state).is_empty()
-        || !program
-            .statement_table
-            .statements(cleanup_state.statement_nodes)
-            .is_empty()
     {
+        return None;
+    }
+    let cleanup_statements = program
+        .statement_table
+        .statements(cleanup_state.statement_nodes);
+    if !matches!(cleanup_statements, [] | [StatementNode::Call(_)]) {
         return None;
     }
 
     let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
+    let cleanup_helper = match cleanup_target.operations.as_slice() {
+        [
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 0,
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+            },
+        ] if cleanup_statements.is_empty()
+            && trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty() =>
+        {
+            None
+        }
+        [
+            CheckedUnitEffectOperationPlan::CallUnit {
+                coordinate,
+                target_machine,
+                service_reach,
+                structural_arguments,
+                claim_transfers,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 1,
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+            },
+        ] if matches!(cleanup_statements, [StatementNode::Call(_)])
+            && coordinate.statement_index == 0
+            && coordinate.call_ordinal == 0
+            && *target_machine != cleanup_machine.symbol
+            && service_reach_is_empty(facts, *service_reach)
+            && structural_arguments.is_empty()
+            && claim_transfers.is_empty()
+            && trivial_affine_local_discard_ordinals.is_empty()
+            && trivial_affine_discards.is_empty() =>
+        {
+            Some(*target_machine)
+        }
+        _ => return None,
+    };
     if cleanup_target.attachment_type_identity != checked_parameter.type_identity
         || !cleanup_target.structural_parameters.is_empty()
         || !cleanup_target.trivial_affine_locals.is_empty()
@@ -1753,17 +1796,37 @@ fn build_nominal_affine_unit_cleanup_machine(
         || !cleanup_target.body_qualifications.is_empty()
         || !service_reach_is_empty(facts, cleanup_target.service_reach)
         || !service_reach_plan_is_empty(facts, cleanup_target.contract_service_reach)
-        || !matches!(
-            cleanup_target.operations.as_slice(),
-            [CheckedUnitEffectOperationPlan::ReturnUnit {
-                statement_index: 0,
-                trivial_affine_local_discard_ordinals,
-                trivial_affine_discards,
-            }] if trivial_affine_local_discard_ordinals.is_empty()
-                && trivial_affine_discards.is_empty()
-        )
     {
         return None;
+    }
+
+    if let Some(helper_machine) = cleanup_helper {
+        let helper = unit_effects.for_machine(helper_machine)?;
+        let helper_shape = shapes.types.get(&helper.attachment_type_identity)?;
+        if helper.machine == machine.symbol
+            || helper.machine == cleanup_machine.symbol
+            || !matches!(
+                &helper_shape.shape,
+                CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+            )
+            || !helper.structural_parameters.is_empty()
+            || !helper.trivial_affine_locals.is_empty()
+            || !helper.entry_claims.is_empty()
+            || !helper.body_qualifications.is_empty()
+            || !service_reach_is_empty(facts, helper.service_reach)
+            || !service_reach_plan_is_empty(facts, helper.contract_service_reach)
+            || !matches!(
+                helper.operations.as_slice(),
+                [CheckedUnitEffectOperationPlan::ReturnUnit {
+                    statement_index: 0,
+                    trivial_affine_local_discard_ordinals,
+                    trivial_affine_discards,
+                }] if trivial_affine_local_discard_ordinals.is_empty()
+                    && trivial_affine_discards.is_empty()
+            )
+        {
+            return None;
+        }
     }
 
     Some(CheckedNominalAffineUnitCleanupMachinePlan {

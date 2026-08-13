@@ -10,10 +10,10 @@ use psi_core::{
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
     CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, OperationKind,
-    PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator,
+    OperationResult, PropositionBinderArgumentKind, PropositionBinderKind, PropositionEvidence,
+    StructuralArgument, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator,
 };
 
 use crate::verification::{substitute_proposition_places, substitute_proposition_values};
@@ -2174,13 +2174,84 @@ fn validate_nominal_affine_cleanup_shape(
         || !target.content_partition_compositions.is_empty()
         || target.entry != target_block.id
         || !target_block.parameters.is_empty()
-        || !target_block.operations.is_empty()
         || !matches!(target_block.terminator, Terminator::ReturnUnit { ref trivial_affine_discards, .. } if trivial_affine_discards.is_empty())
         || !target.contract.crash_routes.is_empty()
         || !target.contract.requires.is_empty()
         || !target.contract.ensures.is_empty()
     {
         return Err(invalid(block.id));
+    }
+
+    match target_block.operations.as_slice() {
+        [] if module.machines.len() == 2 => {}
+        [operation] if module.machines.len() == 3 => {
+            let OperationKind::CallUnit {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } = &operation.kind
+            else {
+                return Err(invalid(block.id));
+            };
+            if operation.result != OperationResult::Unit
+                || *callee == machine.id
+                || *callee == target.id
+                || !structural_arguments.is_empty()
+                || !claim_transfers.is_empty()
+                || !requirement_obligations.is_empty()
+                || !crash_continuations.is_empty()
+            {
+                return Err(invalid(block.id));
+            }
+            let Some(helper) = machines.get(callee).copied() else {
+                return Err(invalid(block.id));
+            };
+            let Some(helper_attachment) = helper.attachment else {
+                return Err(invalid(block.id));
+            };
+            let helper_attachment_is_empty = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == helper_attachment)
+                .is_some_and(|declaration| {
+                    matches!(
+                        &declaration.shape,
+                        StructuralTypeShape::Record { fields } if fields.is_empty()
+                    )
+                });
+            let [helper_block] = helper.blocks.as_slice() else {
+                return Err(invalid(block.id));
+            };
+            if !helper_attachment_is_empty
+                || helper.result != TerminalMachineResult::Unit
+                || !helper.parameters.is_empty()
+                || !helper.structural_parameters.is_empty()
+                || !helper.structural_places.is_empty()
+                || !helper.entry_claims.is_empty()
+                || !helper.published_service_ceiling.is_empty()
+                || !helper.content_entry_claims.is_empty()
+                || !helper.content_identity_reshuffles.is_empty()
+                || !helper.content_partition_compositions.is_empty()
+                || helper.entry != helper_block.id
+                || !helper_block.parameters.is_empty()
+                || !helper_block.operations.is_empty()
+                || !matches!(
+                    helper_block.terminator,
+                    Terminator::ReturnUnit {
+                        ref trivial_affine_discards,
+                        ..
+                    } if trivial_affine_discards.is_empty()
+                )
+                || !helper.contract.crash_routes.is_empty()
+                || !helper.contract.requires.is_empty()
+                || !helper.contract.ensures.is_empty()
+            {
+                return Err(invalid(block.id));
+            }
+        }
+        _ => return Err(invalid(block.id)),
     }
     Ok(())
 }
