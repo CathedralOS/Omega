@@ -80,6 +80,7 @@ pub(crate) fn lower_state(
                         }
                     }
                 },
+                binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },
@@ -222,6 +223,7 @@ pub(crate) fn lower_state_signature(
                         }
                     }
                 },
+                binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },
@@ -343,6 +345,7 @@ pub(crate) fn build_domain_membership_contract(
 
     typed::signature::SignatureContract {
         kind: typed::signature::SignatureContractKind::Requires,
+        binding: None,
         facts,
         token_count: 0,
     }

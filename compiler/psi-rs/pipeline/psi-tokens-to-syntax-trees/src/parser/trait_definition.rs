@@ -506,6 +506,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind: CapabilityContractKind::Crashes { cause },
+                    binding: None,
                     facts,
                     token_count: fact_token_count
                         .checked_add(header_token_count)
@@ -548,6 +549,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind,
+                    binding: None,
                     facts,
                     token_count,
                 });

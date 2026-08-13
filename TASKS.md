@@ -580,7 +580,12 @@ Remaining N6/N8 work:
   one carrierless term at named `ensures`; consume its normalized requirement
   map. Named `requires` terms are positional erased inputs, passed explicitly
   after `;` and projected as `term.member`. Never infer evidence from visible
-  facts or attached state names.
+  facts or attached state names. The optional contract binding now parses only
+  on machine `requires`/`ensures`, requires exactly one proposition, and remains
+  distinct through resolved and typed trees plus snapshots. Continue with
+  checked witness-bearing classification, erased call-lane arguments,
+  assignment/forwarding, private complete-conformance selection, generated
+  output packages, and terminal evidence identity.
 - Add named-ensures definite assignment per outcome and compiler-generated
   nominal output packages. `value` is the runtime result; evidence erases,
   destructuring is complete or explicitly `_`, and guarded fields exist only

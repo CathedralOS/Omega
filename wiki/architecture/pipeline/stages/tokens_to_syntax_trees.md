@@ -58,7 +58,11 @@ source shape without turning nested syntax into scattered heap objects.
 - `parser/machine/clauses.rs` owns machine `satisfies`, external-realization
   `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `suspends`,
   `blocks`, `crashes`, `requires`, and `ensures`
-  clauses. `via` is terminal and mutually exclusive with an executable body.
+  clauses. A machine `requires` or `ensures` clause may retain one explicit
+  evidence-term binding (`name: proposition`); a named clause contains exactly
+  one proposition. Erased call arguments, evidence assignment, producer
+  selection, and output-package formation belong to later stages. `via` is
+  terminal and mutually exclusive with an executable body.
   Standalone `decreases` and the old termination block diagnose their current
   `terminates by ...` replacement rather than entering the syntax tree.
 - `parser/transition.rs` owns transition block assembly.

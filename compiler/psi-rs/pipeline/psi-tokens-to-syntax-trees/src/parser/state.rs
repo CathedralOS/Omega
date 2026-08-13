@@ -195,6 +195,7 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                binding: None,
                 facts,
                 token_count,
             });

@@ -685,6 +685,7 @@ impl SyntaxTrees {
                         CapabilityContractKind::Crashes { cause: *cause }
                     }
                 },
+                binding: contract.binding.clone(),
                 facts: self.copy_domain_fact_span(other, contract.facts),
                 token_count: contract.token_count,
             })

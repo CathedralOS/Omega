@@ -48,6 +48,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         &mut callee_machine,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            binding: None,
             facts: HandleSpan::from_parts(contract_fact, 1),
             token_count: 1,
         },

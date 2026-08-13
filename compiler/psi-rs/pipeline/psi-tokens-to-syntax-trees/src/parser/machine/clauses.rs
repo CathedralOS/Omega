@@ -217,6 +217,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind: CapabilityContractKind::Crashes { cause },
+                    binding: None,
                     facts,
                     token_count: fact_token_count
                         .checked_add(header_token_count)
@@ -239,6 +240,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind: CapabilityContractKind::Boundary(boundary),
+                    binding: None,
                     facts: HandleSpan::empty(),
                     token_count: 2,
                 });
@@ -259,10 +261,21 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 input = input.take_contextual("ensures")?;
                 CapabilityContractKind::Ensures
             };
+            let (binding, fact_input) = if let Ok((binding, after_binding)) =
+                input.take_identifier()
+                && after_binding.at_punctuation(PunctuationKind::Colon)
+            {
+                (
+                    Some(binding),
+                    after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
+                )
+            } else {
+                (None, input)
+            };
             let ((facts, token_count), rest) =
                 crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
                     syntax_trees,
-                    input,
+                    fact_input,
                     |input| {
                         input.at_punctuation(PunctuationKind::LeftBrace)
                         // CH10 bodyless machines (`ensures <fact>;` then the
@@ -289,10 +302,16 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     },
                     true,
                 )?;
+            if binding.is_some() && facts.count() != 1 {
+                return Err(fact_input.error_here(
+                    "a named requires or ensures clause must contain exactly one proposition",
+                ));
+            }
             let handle = syntax_trees
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind,
+                    binding,
                     facts,
                     token_count,
                 });
