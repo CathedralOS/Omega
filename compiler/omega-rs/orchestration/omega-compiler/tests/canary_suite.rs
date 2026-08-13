@@ -13067,17 +13067,12 @@ fn runtime_float_negative_ops_exit_canary_runs() {
     // a negative float->int cast (truncation toward zero), and a negative multiply.
     // Exits 70.
     let canary = pass_canary("arithmetic/runtime_float_negative_ops_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-float-negative-ops-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("float negative ops canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("float negative ops canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("float negative ops canary should run");
     assert_eq!(
@@ -13087,7 +13082,7 @@ fn runtime_float_negative_ops_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13095,17 +13090,11 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
     // f32 ARRAY (the separate f32 codegen path: mulss/addss/ucomiss) plus an int<->f64 round-trip
     // cast. f32 sum 1.5+2.5+2.25 = 6.25, then 7 as f64 * 2.0 truncated to i32 = 14. Exits 70.
     let canary = pass_canary("arithmetic/runtime_float32_array_conversion_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-float32-array-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f32 array + conversion canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-float32-array-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("f32 array + conversion canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("f32 array + conversion canary should run");
     assert_eq!(
@@ -13115,7 +13104,7 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
