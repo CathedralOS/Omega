@@ -45,6 +45,18 @@ const SOURCE: &str = r#"
     }
 "#;
 
+const PARTIAL_AFFINE_SOURCE: &str = r#"
+    data LeftToken { value: u32; }
+    data RightToken { value: u64; }
+    data Pair { left: LeftToken; right: RightToken; }
+    data Helper {}
+    machine Helper::take(token: RightToken) {}
+    data Root {}
+    machine Root::enter(pair: Pair) {
+        Helper::take(pair.right);
+    }
+"#;
+
 fn verified_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -75,6 +87,21 @@ fn backend_projection_plan() -> omega_terminal_abstract_operations::TerminalAbst
     }
     plan.boundary_machines.clear();
     plan
+}
+
+fn partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(PARTIAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize partial affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse partial affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve partial affine source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type partial affine source");
+    let checked = lower_typed_trees(typed).expect("check partial affine source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower partial affine Psi");
+    let semantics = encode_module(&terminal.semantic_module).expect("encode partial affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified partial affine artifact enters Omega")
 }
 
 #[test]
@@ -238,5 +265,147 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         changed_installation[source_offset..source_offset + 4]
             .copy_from_slice(&0_u32.to_le_bytes());
         assert!(decode_terminal_installation_record(&changed_installation).is_err());
+    }
+}
+
+#[test]
+fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
+    let plan = partial_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let pair_type = caller.structural_parameters[0].structural_type;
+    let residual = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            } => {
+                assert!(trivial_affine_discards.is_empty());
+                Some(residual_affine_discards[0].clone())
+            }
+            _ => None,
+        })
+        .expect("partial return retains one residual cleanup");
+    assert_eq!(residual.path, [StructuralPathSegment::Field("left".into())]);
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("caller machine code exists");
+        let [call] = emitted.internal_unit_calls.as_slice() else {
+            panic!("caller has one projected internal call")
+        };
+        let [argument] = call.arguments.as_slice() else {
+            panic!("call has one argument")
+        };
+        assert_eq!(argument.root_structural_type, pair_type);
+        assert_eq!(
+            argument.path,
+            [StructuralPathSegment::Field("right".into())]
+        );
+        assert_eq!(argument.source_byte_offset, 8);
+        assert_ne!(argument.structural_type, residual.structural_type);
+
+        let cleanup = emitted
+            .unit_affine_cleanup
+            .as_ref()
+            .expect("caller retains cleanup ledger");
+        assert!(cleanup.discards.is_empty());
+        assert_eq!(cleanup.residual_discards, [residual.clone()]);
+        let mut root_cleanup_assigned = assigned.clone();
+        let root_cleanup_caller = root_cleanup_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
+            &mut root_cleanup_caller.operation
+        else {
+            panic!("caller remains a Unit body")
+        };
+        let omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } = body.operations.last_mut().unwrap()
+        else {
+            panic!("caller ends in a Unit return")
+        };
+        *trivial_affine_discards = vec![residual.place];
+        residual_affine_discards.clear();
+        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
+        let root_cleanup_bytes = &root_cleanup_machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .bytes;
+        assert_eq!(
+            &emitted.bytes, root_cleanup_bytes,
+            "path-sensitive cleanup adds no runtime instruction bytes"
+        );
+
+        let mut forged_path = machine.clone();
+        forged_path
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .residual_discards[0]
+            .path = vec![StructuralPathSegment::Field("right".into())];
+        assert!(build_terminal_object_artifact(&forged_path).is_err());
+        let mut forged_type = machine.clone();
+        forged_type
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .residual_discards[0]
+            .structural_type = pair_type;
+        assert!(build_terminal_object_artifact(&forged_type).is_err());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed_cleanup = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_ref()
+            .unwrap();
+        assert_eq!(installed_cleanup.residual_discards, [residual.clone()]);
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
     }
 }

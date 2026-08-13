@@ -16,9 +16,10 @@ use psi_core::{
     ProfileDecisionId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
 use psi_terminal::{
-    CompletionReceipt, SemanticFingerprint, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+    CompletionReceipt, SemanticFingerprint, StructuralAffineDiscard, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeShape,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
@@ -28,7 +29,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 11;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 12;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -1239,7 +1240,34 @@ fn validate_record_shape(
                     .collect::<std::collections::BTreeSet<_>>()
                     .len()
                     != cleanup.discards.len()
-                || parameter_discards != expected_parameter_discards
+                || match cleanup.residual_discards.as_slice() {
+                    [] => parameter_discards != expected_parameter_discards,
+                    [residual] => {
+                        let parameter_type = function
+                            .unit_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == residual.place)
+                            .map(|parameter| parameter.structural_type);
+                        !parameter_discards.is_empty()
+                            || expected_parameter_discards.as_slice() != [residual.place]
+                            || !matches!(
+                                residual.path.as_slice(),
+                                [StructuralPathSegment::Field(identity)] if !identity.is_empty()
+                            )
+                            || parameter_type.is_none()
+                            || parameter_type == Some(residual.structural_type)
+                            || !record.internal_unit_calls.iter().any(|call| {
+                                call.machine == function.machine
+                                    && call.custody.arguments.iter().any(|argument| {
+                                        argument.place == residual.place
+                                            && Some(argument.root_structural_type) == parameter_type
+                                            && argument.path.len() == 1
+                                            && argument.path != residual.path
+                                    })
+                            })
+                    }
+                    _ => true,
+                }
             {
                 return Err(TerminalInstallationError::InvalidUnitAffineCleanup(
                     function.machine,
@@ -1496,10 +1524,38 @@ fn validate_record_shape(
                                         != Some(u64::from(argument.source.shape.byte_size))
                                     || argument.source.shape.alignment != argument.shape.alignment
                             }
+                            [StructuralPathSegment::Field(identity)] => {
+                                identity.is_empty()
+                                    || argument.root_structural_type == argument.structural_type
+                                    || argument.fixed_array_length.is_some()
+                                    || argument.element_stride.is_some()
+                                    || !argument
+                                        .source_byte_offset
+                                        .is_multiple_of(u32::from(argument.shape.alignment))
+                            }
                             _ => true,
                         }
                 })
-            || !projected_argument_indexes.is_subset(&transferred_argument_indexes)
+            || projected_argument_indexes.iter().any(|index| {
+                if transferred_argument_indexes.contains(index) {
+                    return false;
+                }
+                let Some(argument) = custody.arguments.get(*index) else {
+                    return true;
+                };
+                !matches!(
+                    function
+                        .unit_affine_cleanup
+                        .as_ref()
+                        .map(|cleanup| cleanup.residual_discards.as_slice()),
+                    Some([residual])
+                        if argument.path.len() == 1
+                            && residual.place == argument.place
+                            && residual.path.len() == 1
+                            && residual.path != argument.path
+                            && residual.structural_type != argument.root_structural_type
+                )
+            })
             || custody.claim_transfers.iter().any(|transfer| {
                 usize::try_from(transfer.argument_index)
                     .map_or(true, |index| index >= custody.arguments.len())
@@ -1791,6 +1847,21 @@ fn encode_unit_affine_cleanup(
     );
     for place in &cleanup.discards {
         push_u64(bytes, place.get());
+    }
+    push_u32(
+        bytes,
+        u32::try_from(cleanup.residual_discards.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?,
+    );
+    for discard in &cleanup.residual_discards {
+        encode_structural_argument(
+            bytes,
+            &StructuralArgument {
+                place: discard.place,
+                path: discard.path.clone(),
+            },
+        )?;
+        push_u64(bytes, discard.structural_type.get());
     }
     push_u64(
         bytes,
@@ -2376,11 +2447,26 @@ fn decode_unit_affine_cleanup(
             TerminalInstallationError::ZeroStructuralReturnIdentity("Unit cleanup place"),
         )?);
     }
+    let residual_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnCleanups)?;
+    let mut residual_discards = Vec::with_capacity(residual_count);
+    for _ in 0..residual_count {
+        let argument = decode_structural_argument(reader)?;
+        let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("residual Unit cleanup type"),
+        )?;
+        residual_discards.push(StructuralAffineDiscard {
+            place: argument.place,
+            path: argument.path,
+            structural_type,
+        });
+    }
     Ok(
         omega_terminal_machine_code::TerminalUnitAffineCleanupRecord {
             psi_edge,
             locals,
             discards,
+            residual_discards,
             code_offset: usize::try_from(reader.u64()?)
                 .map_err(|_| TerminalInstallationError::StructuralReturnOffsetNotRepresentable)?,
             byte_count: usize::try_from(reader.u64()?)

@@ -1739,6 +1739,93 @@ fn lower_unit_function(
                                     ))?;
                                 (element, element_shape, offset, Some(length), Some(stride))
                             }
+                            [StructuralPathSegment::Field(identity)] => {
+                                let declaration = structural_types
+                                    .get(&source.structural_type)
+                                    .copied()
+                                    .ok_or(LoweringError::UnknownStructuralType(
+                                        source.structural_type,
+                                    ))?;
+                                let StructuralTypeShape::Record { fields } = &declaration.shape
+                                else {
+                                    return Err(
+                                        LoweringError::StructuralCallArgumentTypeMismatch {
+                                            callee: *callee,
+                                            place: argument.place,
+                                        },
+                                    );
+                                };
+                                let mut offset = 0_u32;
+                                let mut selected = None;
+                                for field in
+                                    fields.iter().filter(|field| !field.relevance.is_erased())
+                                {
+                                    let field_shape = match field.field_type {
+                                        StructuralFieldType::Scalar(ScalarType::Boolean) => {
+                                            ValueShape::integer(1, 1)
+                                        }
+                                        StructuralFieldType::Scalar(ScalarType::Integer(
+                                            integer,
+                                        )) => {
+                                            let size = integer.bits().div_ceil(8);
+                                            ValueShape::integer(
+                                                size,
+                                                size.next_power_of_two().min(16),
+                                            )
+                                        }
+                                        StructuralFieldType::Structural(nested) => {
+                                            structural_shape(
+                                                nested,
+                                                structural_types,
+                                                &mut shape_cache,
+                                                &mut active,
+                                            )?
+                                        }
+                                        StructuralFieldType::Erased { .. } => {
+                                            return Err(
+                                                LoweringError::RelevantOpaqueStructuralField(
+                                                    source.structural_type,
+                                                ),
+                                            );
+                                        }
+                                    };
+                                    offset = checked_align_up_u32(
+                                        offset,
+                                        u32::from(field_shape.alignment),
+                                    )
+                                    .ok_or(
+                                        LoweringError::StructuralTypeTooLarge(
+                                            source.structural_type,
+                                        ),
+                                    )?;
+                                    if field.identity == *identity {
+                                        let StructuralFieldType::Structural(field_type) =
+                                            field.field_type
+                                        else {
+                                            return Err(
+                                                LoweringError::StructuralCallArgumentTypeMismatch {
+                                                    callee: *callee,
+                                                    place: argument.place,
+                                                },
+                                            );
+                                        };
+                                        selected = Some((field_type, field_shape, offset));
+                                        break;
+                                    }
+                                    offset = offset
+                                        .checked_add(u32::from(field_shape.byte_size))
+                                        .ok_or(LoweringError::StructuralTypeTooLarge(
+                                        source.structural_type,
+                                    ))?;
+                                }
+                                let (field_type, field_shape, offset) = selected.ok_or(
+                                    LoweringError::StructuralCallArgumentTypeMismatch {
+                                        callee: *callee,
+                                        place: argument.place,
+                                    },
+                                )?;
+                                (field_type, field_shape, offset, None, None)
+                            }
                             _ => {
                                 return Err(LoweringError::StructuralCallArgumentTypeMismatch {
                                     callee: *callee,
@@ -1839,6 +1926,7 @@ fn lower_unit_function(
             TerminalAbstractOperation::ReturnUnit {
                 psi_edge,
                 trivial_affine_discards,
+                residual_affine_discards,
             } => {
                 let local_places = operations
                     .iter()
@@ -1849,7 +1937,7 @@ fn lower_unit_function(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let expected = local_places
+                let expected_roots = local_places
                     .iter()
                     .rev()
                     .copied()
@@ -1865,14 +1953,46 @@ fn lower_unit_function(
                             .map(|parameter| parameter.place),
                     )
                     .collect::<Vec<_>>();
-                if trivial_affine_discards != &expected {
+                if residual_affine_discards.is_empty() && trivial_affine_discards != &expected_roots
+                {
                     return Err(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
                     ));
                 }
+                if !residual_affine_discards.is_empty() {
+                    let [residual] = residual_affine_discards.as_slice() else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    let Some(parameter) = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == residual.place)
+                    else {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    };
+                    if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                        || residual.path.len() != 1
+                        || trivial_affine_discards
+                            != &local_places.iter().rev().copied().collect::<Vec<_>>()
+                        || resolve_direct_structural_field_type(
+                            parameter.structural_type,
+                            &residual.path,
+                            structural_types,
+                        ) != Some(residual.structural_type)
+                    {
+                        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                            function.machine,
+                        ));
+                    }
+                }
                 operations.push(TerminalTargetUnitOperation::Return {
                     psi_edge: *psi_edge,
                     trivial_affine_discards: trivial_affine_discards.clone(),
+                    residual_affine_discards: residual_affine_discards.clone(),
                 });
                 provenance.edges.push(*psi_edge);
                 returned = true;
@@ -2025,6 +2145,27 @@ fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
     } else {
         value.checked_add(alignment - remainder)
     }
+}
+
+fn resolve_direct_structural_field_type(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<StructuralTypeId> {
+    let [StructuralPathSegment::Field(identity)] = path else {
+        return None;
+    };
+    let declaration = declarations.get(&root)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())
+        .and_then(|field| match field.field_type {
+            StructuralFieldType::Structural(structural_type) => Some(structural_type),
+            StructuralFieldType::Scalar(_) | StructuralFieldType::Erased { .. } => None,
+        })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4516,6 +4657,7 @@ mod tests {
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: EdgeId::new(1).unwrap(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         },
                     ],
                 ),
@@ -4525,6 +4667,7 @@ mod tests {
                     vec![TerminalAbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(2).unwrap(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     }],
                 ),
             ],
@@ -4791,6 +4934,7 @@ mod tests {
                     TerminalAbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(1).unwrap(),
                         trivial_affine_discards: vec![argument_place],
+                        residual_affine_discards: Vec::new(),
                     },
                 ],
             }],
