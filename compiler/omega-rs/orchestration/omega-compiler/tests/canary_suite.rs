@@ -9067,19 +9067,12 @@ fn runtime_expression_range_bound_exit_canary_runs() {
 #[test]
 fn runtime_indexed_struct_field_rmw_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_field_rmw_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-idx-sf-rmw-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-idx-sf-rmw-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed struct field rmw canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed struct field rmw canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed struct field rmw canary should run");
 
@@ -9093,7 +9086,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // An array-of-structs element FIELD as a BINARY OPERAND
@@ -9102,20 +9095,12 @@ stderr:
 #[test]
 fn runtime_indexed_struct_field_operand_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_struct_field_operand_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-idx-sf-operand-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-idx-sf-operand-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed struct field operand canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("indexed struct field operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("indexed struct field operand canary should run");
 
@@ -9129,7 +9114,7 @@ stderr:
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // A MACHINE-owned array's runtime-indexed read as a transition ARGUMENT
