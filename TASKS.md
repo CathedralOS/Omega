@@ -193,14 +193,14 @@ Remaining:
   interpretation, metering, fixed-fuel derivation, and Omega consumption; its
   primitive-only source producer emits the empty list. The first nonempty
   scalar-return source path now handles an attached one-state machine with only
-  claim-free affine structural parameters and one closed branch-free scalar
-  expression: landed integer literal leaves and checked terminal integer
-  operations/casts, or Boolean constants, negation, equality, and closed integer
-  comparisons, materialize—with exact-operation proofs reconstructed where
-  required—before exact reverse-declaration cleanup. Short-circuit Boolean
-  control, parameter/local references, mixed scalar/structural parameter
-  namespaces, contracts, claims, effects, and multi-state control remain
-  fenced. Unconditional
+  claim-free affine structural parameters plus an ordered prefix of immutable
+  primitive locals and one branch-free scalar return. Landed integer operations,
+  Boolean constants/negation/equality/comparisons, and references to already
+  materialized scalar locals emit—with exact-operation proofs reconstructed
+  where required—before exact reverse-declaration cleanup. Calls, mutable or
+  non-scalar locals, short-circuit Boolean control, state-parameter references,
+  mixed scalar/structural namespaces, contracts, claims, effects, and multi-state
+  control remain fenced. Unconditional
   jumps carry a verifier-checked reverse-declaration subset of the same
   claim-free affine parameters, applied after fuel succeeds and outgoing scalar
   arguments are materialized; each ordered conditional successor carries its
@@ -456,8 +456,8 @@ reach or trust, and private proof improvements do not change public identity.
   conservation/backend-ledger reporting. The first narrow checked-to-terminal
   path now composes exact ordinary-edge cleanup with source-handle-free state
   signatures and whole-parameter transfers for acyclic, single-predecessor Unit
-  machines. A separate one-state scalar-return path materializes one checked
-  closed integer or branch-free Boolean expression and reconstructs any
+  machines. A separate one-state scalar-return path materializes an immutable
+  primitive-local prefix and branch-free scalar return, then reconstructs any
   exact-operation proofs before exact cleanup of its complete affine structural
   frontier. Neither is yet the complete `EdgeCleanupPlan`, short-circuit or
   conditional-control

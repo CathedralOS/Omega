@@ -1,14 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralControlTransferPlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedUnitBoundaryMachinePlan,
-    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedStructuralControlTransferPlan,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedUnitBoundaryMachinePlan, CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, ContractProofFactKind, ContractProofFactOwner,
@@ -208,16 +208,51 @@ fn build_structural_scalar_return_machine(
     {
         return None;
     }
-    let [StatementNode::Expression(_)] = program.statement_table.statements(state.statement_nodes)
-    else {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let binding_count = statements
+        .iter()
+        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+        .count();
+    let bindings = statements[..binding_count]
+        .iter()
+        .enumerate()
+        .map(|(statement_index, statement)| {
+            let StatementNode::LocalData(local) = statement else {
+                unreachable!("binding prefix contains only local data")
+            };
+            if local.is_mutable || !local.initial_value.is_valid() {
+                return None;
+            }
+            let statement_ordinal = u32::try_from(statement_index).ok()?;
+            let binding_ordinal = statement_ordinal;
+            let primitive_type = program.primitive_type_reference(local.type_reference)?;
+            let expression = facts.values.scalar_expressions.expression_at(
+                state.symbol,
+                statement_ordinal,
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+            )?;
+            is_branch_free_structural_scalar_expression(expression, statement_index).then_some(
+                CheckedScalarBinding {
+                    statement_ordinal,
+                    primitive_type,
+                    value: CheckedScalarBindingValue::Expression,
+                },
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let [StatementNode::Expression(_)] = &statements[binding_count..] else {
         return None;
     };
+    let return_statement_ordinal = u32::try_from(binding_count).ok()?;
     let result_type = program.primitive_type_reference(state.return_type)?;
-    if !is_closed_scalar_return_expression(facts.values.scalar_expressions.expression_at(
-        state.symbol,
-        0,
-        CheckedScalarExpressionRole::Return,
-    )?) {
+    if !is_branch_free_structural_scalar_expression(
+        facts.values.scalar_expressions.expression_at(
+            state.symbol,
+            return_statement_ordinal,
+            CheckedScalarExpressionRole::Return,
+        )?,
+        binding_count,
+    ) {
         return None;
     }
     let binders = machine_binders(program, machine);
@@ -238,8 +273,9 @@ fn build_structural_scalar_return_machine(
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
+        bindings,
         result_type,
-        return_statement_ordinal: 0,
+        return_statement_ordinal,
         trivial_affine_discard_parameter_positions:
             super::terminal_cleanup::checked_whole_affine_discard_parameters(
                 program,
@@ -253,49 +289,59 @@ fn build_structural_scalar_return_machine(
     })
 }
 
-fn is_closed_integer_expression(expression: &CheckedScalarExpression) -> bool {
+fn is_branch_free_structural_integer_expression(
+    expression: &CheckedScalarExpression,
+    available_locals: usize,
+) -> bool {
     match expression {
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
-            is_closed_integer_expression(left) && is_closed_integer_expression(right)
+            is_branch_free_structural_integer_expression(left, available_locals)
+                && is_branch_free_structural_integer_expression(right, available_locals)
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
-            is_closed_integer_expression(operand)
+            is_branch_free_structural_integer_expression(operand, available_locals)
         }
-        CheckedScalarExpression::Parameter { .. }
-        | CheckedScalarExpression::Local { .. }
-        | CheckedScalarExpression::Boolean(_) => false,
+        CheckedScalarExpression::Local { position, .. } => *position < available_locals,
+        CheckedScalarExpression::Parameter { .. } | CheckedScalarExpression::Boolean(_) => false,
     }
 }
 
-fn is_closed_scalar_return_expression(expression: &CheckedScalarExpression) -> bool {
+fn is_branch_free_structural_scalar_expression(
+    expression: &CheckedScalarExpression,
+    available_locals: usize,
+) -> bool {
     match expression {
         CheckedScalarExpression::Boolean(expression) => {
-            is_closed_branch_free_boolean_expression(expression)
+            is_branch_free_structural_boolean_expression(expression, available_locals)
         }
-        expression => is_closed_integer_expression(expression),
+        expression => is_branch_free_structural_integer_expression(expression, available_locals),
     }
 }
 
-fn is_closed_branch_free_boolean_expression(
+fn is_branch_free_structural_boolean_expression(
     expression: &psi_checked_trees::CheckedBooleanExpression,
+    available_locals: usize,
 ) -> bool {
     match expression {
         psi_checked_trees::CheckedBooleanExpression::Constant(_) => true,
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
-            is_closed_branch_free_boolean_expression(operand)
+            is_branch_free_structural_boolean_expression(operand, available_locals)
         }
         psi_checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-            is_closed_branch_free_boolean_expression(left)
-                && is_closed_branch_free_boolean_expression(right)
+            is_branch_free_structural_boolean_expression(left, available_locals)
+                && is_branch_free_structural_boolean_expression(right, available_locals)
         }
         psi_checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
-            is_closed_integer_expression(left) && is_closed_integer_expression(right)
+            is_branch_free_structural_integer_expression(left, available_locals)
+                && is_branch_free_structural_integer_expression(right, available_locals)
+        }
+        psi_checked_trees::CheckedBooleanExpression::Local { position } => {
+            *position < available_locals
         }
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
-        | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::And { .. }
         | psi_checked_trees::CheckedBooleanExpression::Or { .. } => false,
     }

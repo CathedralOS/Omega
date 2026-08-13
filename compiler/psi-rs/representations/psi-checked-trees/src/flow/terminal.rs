@@ -260,6 +260,10 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Immutable primitive bindings evaluated in source order. Initializer
+    /// expressions remain in `CheckedScalarExpressionPlans` at the binding's
+    /// exact statement coordinate.
+    pub bindings: Vec<CheckedScalarBinding>,
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
