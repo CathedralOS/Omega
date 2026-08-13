@@ -1294,11 +1294,12 @@ fn validate_record_shape(
                         .is_some_and(|return_cleanup| {
                             return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
                         })
-                    && calls.len() <= 2
+                    && calls.len() <= 3
                     && owners.len() == calls.len()
                     && targets.len() == calls.len()
-                    && calls.iter().all(|call| {
+                    && calls.iter().enumerate().all(|(ordinal, call)| {
                         matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
+                            && call.custody.operation_ordinal == ordinal
                             && call.custody.arguments.is_empty()
                             && call.custody.claim_transfers.is_empty()
                             && record.functions.iter().any(|helper| {
@@ -1318,6 +1319,13 @@ fn validate_record_shape(
                                         .iter()
                                         .any(|helper_call| helper_call.machine == helper.machine)
                             })
+                    })
+                    && calls.windows(2).all(|pair| {
+                        pair[0]
+                            .custody
+                            .code_offset
+                            .checked_add(pair[0].custody.byte_count)
+                            .is_some_and(|end| end <= pair[1].custody.code_offset)
                     }))
                 .then_some(!calls.is_empty())
             };

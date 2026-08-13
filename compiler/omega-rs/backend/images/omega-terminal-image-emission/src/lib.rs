@@ -934,11 +934,13 @@ fn validate_unit_affine_cleanup(
                     .is_some_and(|return_cleanup| {
                         return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
                     })
-                && calls.len() <= 2
+                && calls.len() <= 3
                 && call_owners.len() == calls.len()
                 && call_targets.len() == calls.len()
-                && calls.iter().all(|call| {
-                    matches!(call.owner, TerminalCallSiteOwner::Operation(_))
+                && calls.iter().enumerate().all(|(ordinal, call)| {
+                    matches!(call.owner, TerminalCallSiteOwner::Operation(operation)
+                        if function.provenance.operations.get(ordinal) == Some(&operation))
+                        && call.operation_ordinal == ordinal
                         && call.arguments.is_empty()
                         && call.claim_transfers.is_empty()
                         && functions.get(&call.target).is_some_and(|helper| {
@@ -955,6 +957,12 @@ fn validate_unit_affine_cleanup(
                                     },
                                 )
                         })
+                })
+                && calls.windows(2).all(|pair| {
+                    pair[0]
+                        .code_offset
+                        .checked_add(pair[0].byte_count)
+                        .is_some_and(|end| end <= pair[1].code_offset)
                 })
         });
         (cleanup_function, cleanup_body_is_exact)

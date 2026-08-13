@@ -1160,7 +1160,7 @@ fn executable_nominal_cleanup(
     let Some((cleanup_return, helper_calls)) = cleanup_body.operations.split_last() else {
         return Err(invalid());
     };
-    if helper_calls.len() > 2
+    if helper_calls.len() > 3
         || !matches!(cleanup_return,
             TerminalAssignedUnitOperation::Return {
                 cleanup_actions,
