@@ -1,10 +1,9 @@
-//! `const` item parsing (const-v0, TASKS_TIME.md D15).
+//! `const` item parsing.
 //!
 //! `const Type::NAME: TypeReference = <expression>;` — the initializer parses
 //! as an ordinary expression; the LITERAL-ONLY restriction and the scoped-form
 //! requirement are enforced with full context at symbol-resolution lowering
-//! (the Psi-owned symbol-resolution stage, still compatibility-named during
-//! migration), not here.
+//! in Psi's symbol-resolution stage, not here.
 
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
