@@ -16970,19 +16970,13 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
         outcome.error,
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-checked-operator-dispatch-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("checked boundary-operator canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("checked boundary-operator canary should compile natively");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("checked boundary-operator canary should run");
     assert_eq!(
@@ -16990,7 +16984,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
         Some(70),
         "native execution dispatches the selected checked operator body"
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -17008,19 +17002,13 @@ fn runtime_result_domain_requirement_overload_exit_canary_runs() {
         outcome.error
     );
 
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-result-overloaded-provider-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("result-overloaded provider requirements should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("result-overloaded provider requirements should compile natively");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("result-overloaded provider canary should run");
     assert_eq!(
@@ -17028,7 +17016,7 @@ fn runtime_result_domain_requirement_overload_exit_canary_runs() {
         Some(70),
         "native runtime must dispatch each exact requirement overload"
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
