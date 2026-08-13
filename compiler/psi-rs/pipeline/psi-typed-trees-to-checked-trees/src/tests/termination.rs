@@ -4200,6 +4200,7 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
     data Main {
         value: u64;
         other_value: u64;
+        result: u64;
         cells: [u64; 2];
         matrix: [[u64; 2]; 2];
     }
@@ -4227,6 +4228,14 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
 
     machine recursive_cells(cells: &mut [u64; 2]) -> &mut [u64; 2] {
         recursive_cells(cells)
+    }
+
+    machine Main::return_attached_cells(&mut self) -> &mut [u64; 2] {
+        &mut self.cells
+    }
+
+    machine Main::recursive_attached_cells(&mut self) -> &mut [u64; 2] {
+        self.recursive_attached_cells()
     }
 
     machine return_after_index_target(cells: &mut [u64; 2]) -> &mut [u64; 2] {
@@ -4264,6 +4273,22 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
     ) -> &mut [u64; 2] {
         recursive_cells(cells)[make_index()] = 1;
         cells
+    }
+
+    machine Main::return_after_attached_helper_index_target(
+        &mut self
+    ) -> &mut u64 {
+        self.return_attached_cells()[
+            identity_index(write_index(&mut self.value))
+        ] = 1;
+        &mut self.result
+    }
+
+    machine Main::return_after_recursive_attached_index_target(
+        &mut self
+    ) -> &mut u64 {
+        self.recursive_attached_cells()[make_index()] = 1;
+        &mut self.result
     }
 
     machine return_after_deep_index_target(cells: &mut [u64; 2]) -> &mut [u64; 2] {
@@ -4341,6 +4366,17 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         alias[0] = 2;
     }
 
+    machine Main::attached_helper_index_target_result(&mut self) {
+        let alias: &mut u64 = self.return_after_attached_helper_index_target();
+        alias = 2;
+    }
+
+    machine Main::recursive_attached_index_target_result(&mut self) {
+        let alias: &mut u64 =
+            self.return_after_recursive_attached_index_target();
+        alias = 2;
+    }
+
     machine Main::deep_index_target_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_deep_index_target(&mut self.cells);
         alias[0] = 2;
@@ -4405,6 +4441,10 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::attached_helper_index_target_result",
+            vec!["self.cells", "self.result", "self.value"],
+        ),
+        (
             "Main::repeated_index_target_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
@@ -4439,6 +4479,7 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
         "Main::binding_reborrow_index_target_result",
         "Main::recursive_index_target_result",
         "Main::recursive_helper_index_target_result",
+        "Main::recursive_attached_index_target_result",
         "Main::deep_repeated_index_target_result",
     ] {
         let machine = typed
