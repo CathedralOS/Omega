@@ -1114,7 +1114,11 @@ fn reconstruct_machine_semantics(
                         .push(arm_axioms);
                 }
             }
-            Terminator::Return { value, .. } => {
+            Terminator::Return {
+                value,
+                cleanup_actions,
+                ..
+            } => {
                 let result = machine
                     .result
                     .scalar()
@@ -1123,6 +1127,37 @@ fn reconstruct_machine_semantics(
                     value_term(result.id),
                     value_term(*value),
                 ));
+                for cleanup in cleanup_actions.iter().filter_map(|action| match action {
+                    psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup)
+                    }
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(_)
+                    | psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => None,
+                }) {
+                    let target = machines
+                        .get(&cleanup.cleanup_machine)
+                        .copied()
+                        .expect("validated nominal cleanup target exists");
+                    let receiver = cleanup
+                        .cleanup_receiver
+                        .map(|receiver| BTreeMap::from([(receiver, cleanup.place)]))
+                        .unwrap_or_default();
+                    for (required, obligation) in target
+                        .contract
+                        .requires
+                        .iter()
+                        .zip(&cleanup.requirement_obligations)
+                    {
+                        operation_obligations.push(ReconstructedOperationObligation {
+                            obligation: Obligation {
+                                id: *obligation,
+                                proposition: substitute_proposition_places(required, &receiver),
+                                class: ObligationClass::Derivable,
+                            },
+                            semantic_axioms: axioms.clone(),
+                        });
+                    }
+                }
                 exits.push(axioms);
             }
             Terminator::ReturnUnitNominalAffine { cleanups, .. } => {

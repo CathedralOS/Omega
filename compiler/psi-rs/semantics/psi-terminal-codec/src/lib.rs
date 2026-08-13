@@ -44,15 +44,15 @@ use psi_terminal::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 3;
+const FORMAT_MARKER: u16 = 4;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1937,17 +1937,14 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
         Terminator::Return {
             edge,
             value,
-            trivial_affine_discards,
+            cleanup_actions,
         } => {
             writer.u8(2);
             writer.id(*edge);
             writer.id(*value);
-            writer.len(
-                "scalar return trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
+            writer.len("scalar return cleanup actions", cleanup_actions.len())?;
+            for action in cleanup_actions {
+                encode_affine_cleanup_action(writer, action)?;
             }
         }
         Terminator::ReturnUnit {
@@ -2064,6 +2061,33 @@ fn encode_structural_arguments(
     for argument in arguments {
         writer.id(argument.place);
         encode_structural_path(writer, "structural argument path", &argument.path)?;
+    }
+    Ok(())
+}
+
+fn encode_affine_cleanup_action(
+    writer: &mut Writer,
+    action: &TerminalAffineCleanupAction,
+) -> Result<(), CodecError> {
+    match action {
+        TerminalAffineCleanupAction::DiscardRoot(place) => {
+            writer.u8(1);
+            writer.id(*place);
+        }
+        TerminalAffineCleanupAction::DiscardResidual(discard) => {
+            writer.u8(2);
+            writer.id(discard.place);
+            encode_structural_path(writer, "affine cleanup residual path", &discard.path)?;
+            writer.id(discard.structural_type);
+        }
+        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+            writer.u8(3);
+            writer.id(cleanup.place);
+            writer.id(cleanup.structural_type);
+            writer.id(cleanup.cleanup_machine);
+            encode_optional_id(writer, cleanup.cleanup_receiver);
+            encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
+        }
     }
     Ok(())
 }
@@ -3317,7 +3341,7 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         2 => Terminator::Return {
             edge: reader.id("EdgeId")?,
             value: reader.id("ValueId")?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
+            cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
         3 => Terminator::Conditional {
             condition: reader.id("ValueId")?,
@@ -3389,6 +3413,33 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         operations,
         terminator,
     })
+}
+
+fn decode_affine_cleanup_action(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalAffineCleanupAction, CodecError> {
+    match reader.u8()? {
+        1 => Ok(TerminalAffineCleanupAction::DiscardRoot(
+            reader.id("PlaceId")?,
+        )),
+        2 => Ok(TerminalAffineCleanupAction::DiscardResidual(
+            StructuralAffineDiscard {
+                place: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
+                structural_type: reader.id("StructuralTypeId")?,
+            },
+        )),
+        3 => Ok(TerminalAffineCleanupAction::InvokeNominal(
+            NominalAffineCleanup {
+                place: reader.id("PlaceId")?,
+                structural_type: reader.id("StructuralTypeId")?,
+                cleanup_machine: reader.id("MachineId")?,
+                cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+            },
+        )),
+        tag => Err(CodecError::InvalidTag("TerminalAffineCleanupAction", tag)),
+    }
 }
 
 fn decode_structural_arguments(

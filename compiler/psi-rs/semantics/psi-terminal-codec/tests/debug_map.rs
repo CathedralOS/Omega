@@ -235,7 +235,7 @@ fn fixture() -> TerminalModule {
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: edge_id(1),
                     value: value_id(1),
                 },

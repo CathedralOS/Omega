@@ -5,7 +5,7 @@ use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{
     OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeShape, Terminator,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
 };
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use psi_terminal_interpreter::{
@@ -224,6 +224,74 @@ const THREE_CALL_SOURCE: &str = r#"
     data Root {}
     machine Root::enter(token: Token) {}
 "#;
+
+const SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+
+    data Token { value: u64; }
+    machine Token::drop(&mut self) { Helper::touch(); }
+
+    data Root {}
+    machine Root::measure(token: Token) -> u64 { 7u64 }
+"#;
+
+#[test]
+fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_codec() {
+    let tokens = Lexer::new(SCALAR_RETURN_EXECUTABLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("scalar return with executable nominal cleanup lowers");
+
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    assert!(matches!(entry.result, TerminalMachineResult::Scalar(_)));
+    let [block] = entry.blocks.as_slice() else {
+        panic!("scalar nominal entry has one block")
+    };
+    assert!(matches!(block.operations.as_slice(), [operation]
+        if matches!(operation.kind, OperationKind::IntegerConstant { .. })));
+    let Terminator::Return {
+        value,
+        cleanup_actions,
+        ..
+    } = &block.terminator
+    else {
+        panic!("scalar nominal entry returns a value")
+    };
+    let [TerminalAffineCleanupAction::InvokeNominal(cleanup)] = cleanup_actions.as_slice() else {
+        panic!("scalar return carries one executable nominal cleanup")
+    };
+    assert_eq!(
+        *value,
+        block.operations[0]
+            .result
+            .scalar_ref()
+            .expect("scalar operation result")
+            .id
+    );
+    assert!(cleanup.cleanup_receiver.is_none());
+    assert!(cleanup.requirement_obligations.is_empty());
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("scalar nominal cleanup verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+}
 
 #[test]
 fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {

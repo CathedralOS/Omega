@@ -185,6 +185,10 @@ pub struct TerminalInstalledFunction {
     pub unit_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    pub scalar_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    pub scalar_structural_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
+    pub scalar_structural_parameter_homes:
+        Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,10 +278,15 @@ pub fn build_terminal_installation_record_with_provider_executions<'execution>(
                 machine: function.machine,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
-                unit_body: function.unit_stack.is_some(),
+                unit_body: function.unit_affine_cleanup.is_some(),
                 unit_parameters: function.unit_parameters.clone(),
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
+                scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
+                scalar_structural_parameters: function.scalar_structural_parameters.clone(),
+                scalar_structural_parameter_homes: function
+                    .scalar_structural_parameter_homes
+                    .clone(),
                 attachment: function.attachment,
             })
             .collect(),
@@ -457,6 +466,19 @@ pub fn encode_terminal_installation_record(
             bytes.extend_from_slice(&[0; 3]);
         }
         match &function.unit_affine_cleanup {
+            Some(cleanup) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                encode_unit_affine_cleanup(&mut bytes, cleanup)?;
+            }
+            None => {
+                bytes.push(0);
+                bytes.extend_from_slice(&[0; 3]);
+            }
+        }
+        encode_parameter_records(&mut bytes, &function.scalar_structural_parameters)?;
+        encode_parameter_homes(&mut bytes, &function.scalar_structural_parameter_homes)?;
+        match &function.scalar_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
                 bytes.extend_from_slice(&[0; 3]);
@@ -813,6 +835,23 @@ pub fn decode_terminal_installation_record(
                 }
                 tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
             },
+            scalar_structural_parameters: decode_parameter_records(&mut reader)?,
+            scalar_structural_parameter_homes: decode_parameter_homes(&mut reader)?,
+            scalar_affine_cleanup: match reader.u8()? {
+                0 => {
+                    if reader.take(3)? != [0; 3] {
+                        return Err(TerminalInstallationError::NonzeroReservedField);
+                    }
+                    None
+                }
+                1 => {
+                    if reader.take(3)? != [0; 3] {
+                        return Err(TerminalInstallationError::NonzeroReservedField);
+                    }
+                    Some(decode_unit_affine_cleanup(&mut reader)?)
+                }
+                tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
+            },
         });
     }
     let structural_return_count = usize::try_from(reader.u32()?)
@@ -1130,10 +1169,15 @@ pub fn validate_terminal_installation_record(
                     || installed.attachment != emitted.attachment
                     || installed.text_offset != emitted.text_offset
                     || installed.byte_count != emitted.byte_count
-                    || installed.unit_body != emitted.unit_stack.is_some()
+                    || installed.unit_body != emitted.unit_affine_cleanup.is_some()
                     || installed.unit_parameters != emitted.unit_parameters
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
+                    || installed.scalar_affine_cleanup != emitted.scalar_affine_cleanup
+                    || installed.scalar_structural_parameters
+                        != emitted.scalar_structural_parameters
+                    || installed.scalar_structural_parameter_homes
+                        != emitted.scalar_structural_parameter_homes
             })
     {
         return Err(TerminalInstallationError::ImageBindingMismatch);
@@ -1203,8 +1247,25 @@ fn validate_record_shape(
         if function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (!function.unit_body
+                && function.scalar_affine_cleanup.is_none()
                 && (!function.unit_parameters.is_empty()
                     || !function.unit_parameter_homes.is_empty()))
+            || function.scalar_structural_parameters.len()
+                != function.scalar_structural_parameter_homes.len()
+            || (function.scalar_affine_cleanup.is_some() && function.unit_body)
+            || function
+                .scalar_structural_parameters
+                .iter()
+                .zip(&function.scalar_structural_parameter_homes)
+                .any(|(parameter, home)| {
+                    parameter.place != home.place
+                        || parameter.structural_type != home.structural_type
+                        || parameter.multiplicity != home.multiplicity
+                        || parameter.shape != home.shape
+                })
+            || (function.scalar_affine_cleanup.is_none()
+                && (!function.scalar_structural_parameters.is_empty()
+                    || !function.scalar_structural_parameter_homes.is_empty()))
             || function
                 .unit_parameters
                 .iter()
@@ -1597,6 +1658,9 @@ fn validate_record_shape(
                 ));
             }
         }
+        if let Some(cleanup) = &function.scalar_affine_cleanup {
+            validate_scalar_affine_cleanup_shape(record, function, cleanup)?;
+        }
         expected_text_offset = expected_text_offset
             .checked_add(function.byte_count)
             .ok_or(TerminalInstallationError::FunctionOffsetNotRepresentable)?;
@@ -1789,6 +1853,10 @@ fn validate_record_shape(
             .iter()
             .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
             .collect::<std::collections::BTreeSet<_>>();
+        let affine_cleanup = function
+            .scalar_affine_cleanup
+            .as_ref()
+            .or(function.unit_affine_cleanup.as_ref());
         let owner_valid = match custody.owner {
             TerminalCallSiteOwner::Operation(operation) => {
                 record.fuel_attribution.iter().any(|attribution| {
@@ -1806,9 +1874,7 @@ fn validate_record_shape(
             } => {
                 custody.arguments.is_empty()
                     && custody.claim_transfers.is_empty()
-                    && function
-                        .unit_affine_cleanup
-                        .as_ref()
+                    && affine_cleanup
                         .is_some_and(|cleanup| {
                             cleanup.psi_edge == edge
                                 && usize::try_from(action_ordinal)
@@ -1925,7 +1991,7 @@ fn validate_record_shape(
                     return true;
                 };
                 argument.path.is_empty()
-                    || function.unit_affine_cleanup.as_ref().is_none_or(|cleanup| {
+                    || affine_cleanup.is_none_or(|cleanup| {
                         !cleanup.actions.iter().any(|action| {
                             matches!(action,
                                 psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
@@ -2132,6 +2198,88 @@ fn validate_record_shape(
         previous_machine = Some(installed.machine);
         previous_text_offset = installed.text_offset;
         previous_operation_ordinal = installed.settlement.operation_ordinal;
+    }
+    Ok(())
+}
+
+fn validate_scalar_affine_cleanup_shape(
+    record: &TerminalInstallationRecord,
+    function: &TerminalInstalledFunction,
+    cleanup: &omega_terminal_machine_code::TerminalUnitAffineCleanupRecord,
+) -> Result<(), TerminalInstallationError> {
+    let invalid = || TerminalInstallationError::InvalidUnitAffineCleanup(function.machine);
+    let end = cleanup
+        .code_offset
+        .checked_add(cleanup.byte_count)
+        .ok_or(TerminalInstallationError::FunctionOffsetNotRepresentable)?;
+    if cleanup.byte_count == 0
+        || end != function.byte_count
+        || !cleanup.locals.is_empty()
+        || cleanup.actions.len() != function.scalar_structural_parameter_homes.len()
+        || function
+            .scalar_structural_parameter_homes
+            .iter()
+            .rev()
+            .zip(&cleanup.actions)
+            .any(|(home, action)| match action {
+                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    *place != home.place || home.multiplicity != StructuralMultiplicity::Affine
+                }
+                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
+                    nominal.place != home.place
+                        || nominal.structural_type != home.structural_type
+                        || home.multiplicity != StructuralMultiplicity::Affine
+                        || nominal.cleanup_receiver.is_some()
+                        || !nominal.requirement_obligations.is_empty()
+                        || record.functions.iter().all(|target| {
+                            target.machine != nominal.cleanup_machine
+                                || target.attachment != Some(nominal.structural_type)
+                                || !target.unit_body
+                        })
+                }
+                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => true,
+            })
+    {
+        return Err(invalid());
+    }
+    for (ordinal, action) in cleanup.actions.iter().enumerate() {
+        let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal) = action else {
+            continue;
+        };
+        let target = record
+            .functions
+            .iter()
+            .find(|target| target.machine == nominal.cleanup_machine)
+            .ok_or_else(invalid)?;
+        let executable = record
+            .internal_unit_calls
+            .iter()
+            .any(|call| call.machine == target.machine);
+        let action_ordinal = u32::try_from(ordinal).map_err(|_| invalid())?;
+        let matching = record
+            .internal_unit_calls
+            .iter()
+            .filter(|call| {
+                call.machine == function.machine
+                    && call.custody.owner
+                        == TerminalCallSiteOwner::CleanupAction {
+                            edge: cleanup.psi_edge,
+                            action_ordinal,
+                        }
+                    && call.custody.target == nominal.cleanup_machine
+                    && call.custody.arguments.is_empty()
+                    && call.custody.claim_transfers.is_empty()
+                    && call.custody.code_offset >= cleanup.code_offset
+                    && call
+                        .custody
+                        .code_offset
+                        .checked_add(call.custody.byte_count)
+                        .is_some_and(|call_end| call_end <= end)
+            })
+            .count();
+        if matching != usize::from(executable) {
+            return Err(invalid());
+        }
     }
     Ok(())
 }
@@ -2381,6 +2529,48 @@ fn encode_internal_unit_call(
     for transfer in &custody.claim_transfers {
         push_u64(bytes, transfer.claim.get());
         push_u32(bytes, transfer.argument_index);
+    }
+    Ok(())
+}
+
+fn encode_parameter_records(
+    bytes: &mut Vec<u8>,
+    parameters: &[omega_terminal_machine_code::TerminalUnitParameterRecord],
+) -> Result<(), TerminalInstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(parameters.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
+    );
+    for parameter in parameters {
+        push_u64(bytes, parameter.place.get());
+        push_u64(bytes, parameter.structural_type.get());
+        bytes.push(multiplicity_tag(parameter.multiplicity));
+        bytes.extend_from_slice(&[0; 3]);
+        encode_shape(bytes, parameter.shape)?;
+    }
+    Ok(())
+}
+
+fn encode_parameter_homes(
+    bytes: &mut Vec<u8>,
+    homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
+) -> Result<(), TerminalInstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(homes.len())
+            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
+    );
+    for home in homes {
+        push_u64(bytes, home.place.get());
+        push_u64(bytes, home.structural_type.get());
+        bytes.push(multiplicity_tag(home.multiplicity));
+        bytes.extend_from_slice(&[0; 3]);
+        encode_shape(bytes, home.shape)?;
+        encode_direct_placement(bytes, &home.source)?;
+        push_u32(bytes, home.byte_offset);
+        bytes.push(u8::from(home.indirect));
+        bytes.extend_from_slice(&[0; 3]);
     }
     Ok(())
 }
@@ -3272,6 +3462,76 @@ fn decode_domains(
         )?);
     }
     Ok(domains)
+}
+
+fn decode_parameter_records(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>, TerminalInstallationError>
+{
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
+    let mut parameters = Vec::with_capacity(count);
+    for _ in 0..count {
+        let place = PlaceId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar parameter place"),
+        )?;
+        let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar parameter type"),
+        )?;
+        let multiplicity = decode_multiplicity(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        parameters.push(omega_terminal_machine_code::TerminalUnitParameterRecord {
+            place,
+            structural_type,
+            multiplicity,
+            shape: decode_shape(reader)?,
+        });
+    }
+    Ok(parameters)
+}
+
+fn decode_parameter_homes(
+    reader: &mut Reader<'_>,
+) -> Result<
+    Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
+    TerminalInstallationError,
+> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
+    let mut homes = Vec::with_capacity(count);
+    for _ in 0..count {
+        let place = PlaceId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar home place"),
+        )?;
+        let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
+            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar home type"),
+        )?;
+        let multiplicity = decode_multiplicity(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let shape = decode_shape(reader)?;
+        let source = decode_direct_placement(reader)?;
+        let byte_offset = reader.u32()?;
+        let indirect = decode_boolean(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        homes.push(
+            omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
+                place,
+                structural_type,
+                multiplicity,
+                shape,
+                source,
+                byte_offset,
+                indirect,
+            },
+        );
+    }
+    Ok(homes)
 }
 
 fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, TerminalInstallationError> {

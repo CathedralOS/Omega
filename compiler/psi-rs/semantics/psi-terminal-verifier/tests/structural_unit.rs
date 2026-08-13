@@ -16,8 +16,8 @@ use psi_terminal::{
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, ServiceCeilingOwner,
@@ -90,6 +90,93 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
             ..
         }) if obligation == obligation_id(1)
     ));
+}
+
+#[test]
+fn scalar_return_nominal_cleanup_reconstructs_target_requirement() {
+    let mut module = contextual_nominal_affine_module();
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(99),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(10),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    validate_module(&module).expect("scalar contextual cleanup shape validates");
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(obligations[0].obligation.id, obligation_id(1));
+    assert_eq!(
+        obligations[0].obligation.proposition,
+        module.machines[0].contract.requires[0]
+    );
+}
+
+#[test]
+fn scalar_return_contextual_cleanups_require_reverse_root_order() {
+    let mut module = two_root_shared_contextual_nominal_affine_module();
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(99),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(10),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    validate_module(&module).expect("ordered scalar contextual cleanups validate");
+    assert_eq!(reconstruct_operation_obligations(&module).unwrap().len(), 4);
+
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanup_actions.reverse();
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::ScalarReturnAffineDiscardsMismatch {
+            machine: machine_id(1),
+            block: block_id(1),
+        }
+    );
 }
 
 #[test]
@@ -2380,7 +2467,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
         kind: OperationKind::BooleanConstant { value: true },
     }];
     machine.blocks[0].terminator = Terminator::Return {
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
         edge: edge_id(2),
         value,
     };
@@ -2395,7 +2482,13 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
     );
 
     module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-    validate_module(&module).expect("affine custody may be abandoned at scalar return");
+    module.machines[0].entry_claims.clear();
+    module.machines[0].blocks[0].terminator = Terminator::Return {
+        cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(2))],
+        edge: edge_id(2),
+        value,
+    };
+    validate_module(&module).expect("affine custody has an explicit scalar-return cleanup");
 }
 
 #[test]
@@ -2591,7 +2684,10 @@ fn scalar_return_requires_exact_affine_discards() {
     machine.blocks[0].terminator = Terminator::Return {
         edge: edge_id(2),
         value: value_id(10),
-        trivial_affine_discards: vec![place_id(4), place_id(2)],
+        cleanup_actions: vec![
+            TerminalAffineCleanupAction::DiscardRoot(place_id(4)),
+            TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+        ],
     };
     module.entry = machine.id;
     module.machines = vec![machine];
@@ -2607,7 +2703,7 @@ fn scalar_return_requires_exact_affine_discards() {
     omitted.machines[0].blocks[0].terminator = Terminator::Return {
         edge: edge_id(2),
         value: value_id(10),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     assert_eq!(
         validate_module(&omitted).unwrap_err(),
@@ -2619,13 +2715,12 @@ fn scalar_return_requires_exact_affine_discards() {
 
     let mut reordered = module.clone();
     let Terminator::Return {
-        trivial_affine_discards,
-        ..
+        cleanup_actions, ..
     } = &mut reordered.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    trivial_affine_discards.reverse();
+    cleanup_actions.reverse();
     assert_eq!(
         validate_module(&reordered).unwrap_err(),
         ModuleError::ScalarReturnAffineDiscardsMismatch {
@@ -2697,7 +2792,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
             terminator: Terminator::Return {
                 edge: edge_id(3),
                 value: value_id(12),
-                trivial_affine_discards: vec![place_id(2)],
+                cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(2))],
             },
         },
     ];
@@ -2787,7 +2882,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
             terminator: Terminator::Return {
                 edge: edge_id(4),
                 value: value_id(12),
-                trivial_affine_discards: vec![place_id(2)],
+                cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(2))],
             },
         },
         Block {
@@ -2800,7 +2895,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
             terminator: Terminator::Return {
                 edge: edge_id(5),
                 value: value_id(13),
-                trivial_affine_discards: vec![place_id(4)],
+                cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(4))],
             },
         },
     ];

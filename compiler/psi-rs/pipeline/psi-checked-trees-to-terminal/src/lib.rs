@@ -61,8 +61,8 @@ use psi_terminal::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -1948,6 +1948,9 @@ fn lower_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if plan.nominal_cleanup.is_some() {
+        return lower_nominal_structural_scalar_return_machine(checked, plan);
+    }
     let (structural_types, type_ids) = lower_structural_type_plans(
         &checked
             .facts
@@ -2035,6 +2038,7 @@ fn lower_structural_scalar_return_machine(
                     "structural scalar return cleanup position has no terminal place",
                 ))
         })
+        .map(|place| place.map(TerminalAffineCleanupAction::DiscardRoot))
         .collect::<Result<Vec<_>, _>>()?;
     let mut operations = OperationBuffer::new(0);
     let mut next_value = 1_u64;
@@ -2314,11 +2318,10 @@ fn lower_structural_scalar_return_machine(
             blocks.append(&mut children);
             for block in &mut blocks[final_decision_start..] {
                 if let Terminator::Return {
-                    trivial_affine_discards,
-                    ..
+                    cleanup_actions, ..
                 } = &mut block.terminator
                 {
-                    *trivial_affine_discards = cleanup.clone();
+                    *cleanup_actions = cleanup.clone();
                 }
             }
         } else {
@@ -2342,7 +2345,7 @@ fn lower_structural_scalar_return_machine(
                 terminator: Terminator::Return {
                     edge: edge_id(next_edge),
                     value,
-                    trivial_affine_discards: cleanup,
+                    cleanup_actions: cleanup,
                 },
             });
         }
@@ -2381,11 +2384,10 @@ fn lower_structural_scalar_return_machine(
         blocks.append(&mut children);
         for block in &mut blocks {
             if let Terminator::Return {
-                trivial_affine_discards,
-                ..
+                cleanup_actions, ..
             } = &mut block.terminator
             {
-                *trivial_affine_discards = cleanup.clone();
+                *cleanup_actions = cleanup.clone();
             }
         }
         blocks
@@ -2410,7 +2412,7 @@ fn lower_structural_scalar_return_machine(
             terminator: Terminator::Return {
                 edge: edge_id(1),
                 value,
-                trivial_affine_discards: cleanup,
+                cleanup_actions: cleanup,
             },
         }]
     };
@@ -2463,6 +2465,172 @@ fn lower_structural_scalar_return_machine(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
     };
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
+}
+
+/// Reuse the already ratified bounded nominal-Unit closure construction, then
+/// replace only its synthetic entry body with the checked scalar computation.
+/// This keeps cleanup target/helper retention, dense identities, and ownership
+/// proof validation in one implementation while making result materialization
+/// precede the cleanup action on every scalar return leaf.
+fn lower_nominal_structural_scalar_return_machine(
+    checked: &CheckedTrees,
+    plan: &CheckedStructuralScalarReturnMachinePlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let cleanup = plan
+        .nominal_cleanup
+        .as_ref()
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return is missing its cleanup plan",
+        ))?;
+    let [parameter] = plan.structural_parameters.as_slice() else {
+        return unsupported("nominal scalar return requires one structural parameter");
+    };
+    if parameter.position != 0
+        || parameter.is_self
+        || parameter.multiplicity != Multiplicity::Affine
+        || !parameter.qualifications.is_empty()
+        || cleanup.source_parameter_index != 0
+        || cleanup.type_identity != parameter.type_identity
+        || !cleanup.requirements.is_empty()
+        || !plan.scalar_parameters.is_empty()
+        || !plan.bindings.is_empty()
+        || !plan.trivial_affine_discard_parameter_positions.is_empty()
+        || plan.return_statement_ordinal != 0
+    {
+        return unsupported("nominal scalar return exceeds its first bounded slice");
+    }
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(plan.machine)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return is missing its checked contract identity",
+        ))?;
+    let flow = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == plan.machine && state.state_symbol == plan.state)
+                .then_some(state)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return is missing its checked flow state",
+        ))?;
+    let synthetic = CheckedUnitEffectMachinePlan {
+        machine: plan.machine,
+        state: plan.state,
+        attachment_type_identity: plan.attachment_type_identity.clone(),
+        structural_parameters: plan.structural_parameters.clone(),
+        trivial_affine_locals: Vec::new(),
+        entry_claims: Vec::new(),
+        body_qualifications: Vec::new(),
+        contract_fingerprint: contract.fingerprint,
+        contract_service_reach: contract.service_reach,
+        service_reach: flow.service_reach,
+        operations: vec![CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 0,
+            trivial_affine_local_discard_ordinals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        }],
+    };
+    let nominal = CheckedNominalAffineUnitCleanupMachinePlan {
+        machine: synthetic,
+        caller_requirements: Vec::new(),
+        cleanups: vec![cleanup.clone()],
+    };
+    let mut staged = checked.clone();
+    for shape in &checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .structural_types
+    {
+        match staged
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .structural_types
+            .iter()
+            .find(|candidate| candidate.identity == shape.identity)
+        {
+            Some(existing) if existing != shape => {
+                return unsupported(
+                    "nominal scalar return structural type conflicts with its cleanup closure",
+                );
+            }
+            Some(_) => {}
+            None => staged
+                .facts
+                .flow
+                .terminal_nominal_affine_unit_cleanups
+                .structural_types
+                .push(shape.clone()),
+        }
+    }
+    let mut lowered = lower_nominal_affine_unit_cleanup_machine(&staged, &nominal)?;
+    let expression = lower_checked_scalar_expression_at(
+        checked,
+        plan.state,
+        plan.return_statement_ordinal,
+        CheckedScalarExpressionRole::Return,
+    )?;
+    if !is_structural_scalar_return_expression(&expression, 0, 0) {
+        return unsupported("nominal scalar return expression exceeds its checked value slice");
+    }
+    let result_type = terminal_scalar_type(plan.result_type)?;
+    if expression.scalar_type() != result_type {
+        return unsupported("nominal scalar return value does not match its checked result type");
+    }
+    validate_direct_parameter_types(&expression, &[])?;
+    let operation_identity_base = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .map(|operation| operation.id.get())
+        .max()
+        .unwrap_or(0);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return entry machine was not retained",
+        ))?;
+    let [block] = entry.blocks.as_mut_slice() else {
+        return unsupported("nominal scalar return entry control is not a single block");
+    };
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &block.terminator else {
+        return unsupported("nominal scalar return synthetic cleanup edge drifted");
+    };
+    let [cleanup] = cleanups.as_slice() else {
+        return unsupported("nominal scalar return synthetic cleanup count drifted");
+    };
+    if cleanup.cleanup_receiver.is_some() || !cleanup.requirement_obligations.is_empty() {
+        return unsupported("nominal scalar return unexpectedly acquired proof context");
+    }
+    let cleanup_action = TerminalAffineCleanupAction::InvokeNominal(cleanup.clone());
+    let edge = *edge;
+    let mut next_value = 1_u64;
+    let mut operations = OperationBuffer::new(operation_identity_base);
+    let value = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
+    block.operations = operations.operations;
+    block.terminator = Terminator::Return {
+        edge,
+        value,
+        cleanup_actions: vec![cleanup_action],
+    };
+    entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(next_value),
+        scalar_type: result_type,
+    });
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }
@@ -8419,7 +8587,7 @@ fn emit_reserved_boolean_value_blocks(
                 .expect("reserved Boolean return edge identity advances");
             let terminator = match exit {
                 LoweredBooleanDecisionExit::Return => Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge,
                     value,
                 },
@@ -9791,7 +9959,7 @@ fn build_scalar_graph_module(
                         .checked_add(1)
                         .expect("carried Boolean return edge identity advances");
                     Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge,
                         value,
                     }
@@ -10184,7 +10352,7 @@ fn build_scalar_graph_module(
                         .checked_add(1)
                         .expect("scalar graph return edge identities advance");
                     Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge,
                         value,
                     }
@@ -12673,6 +12841,7 @@ mod tests {
                     result_type: PrimitiveType::I32,
                     return_statement_ordinal: 0,
                     trivial_affine_discard_parameter_positions: vec![1, 0],
+                    nominal_cleanup: None,
                 }],
             };
         checked.facts.values.scalar_expressions.expressions.push(
@@ -12711,9 +12880,12 @@ mod tests {
         assert!(matches!(
             &block.terminator,
             Terminator::Return {
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+            } if cleanup_actions == &[
+                TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+            ]
         ));
         assert!(matches!(
             block.operations.as_slice(),
@@ -14569,9 +14741,12 @@ mod tests {
         assert!(matches!(
             &lowered.semantic_module.machines[0].blocks[0].terminator,
             Terminator::Return {
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+            } if cleanup_actions == &[
+                TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+            ]
         ));
 
         checked.facts.values.scalar_expressions.expressions[0].expression =
@@ -14657,10 +14832,13 @@ mod tests {
             &block.terminator,
             Terminator::Return {
                 value,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } if *value == value_id(3)
-                && trivial_affine_discards == &[place_id(2), place_id(1)]
+                && cleanup_actions == &[
+                    TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                    TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+                ]
         ));
         assert_eq!(lowered.proof_bundle.evidence.len(), 1);
         psi_terminal_verifier::verify_module(
@@ -14884,9 +15062,12 @@ mod tests {
         assert!(matches!(
             &continuation.terminator,
             Terminator::Return {
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+            } if cleanup_actions == &[
+                TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+            ]
         ));
         assert!(
             machine.blocks[..15]
@@ -14960,9 +15141,13 @@ mod tests {
                     && when_false.trivial_affine_discards.is_empty()
             }
             Terminator::Return {
-                trivial_affine_discards,
-                ..
-            } => trivial_affine_discards == &[place_id(2), place_id(1)],
+                cleanup_actions, ..
+            } =>
+                cleanup_actions
+                    == &[
+                        TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                        TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+                    ],
             _ => false,
         }));
         psi_terminal_verifier::verify_module(
@@ -15053,10 +15238,13 @@ mod tests {
             &machine.blocks[0].terminator,
             Terminator::Return {
                 value,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } if *value == value_id(3)
-                && trivial_affine_discards == &[place_id(2), place_id(1)]
+                && cleanup_actions == &[
+                    TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                    TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+                ]
         ));
         psi_terminal_verifier::verify_module(
             &lowered.semantic_module,
@@ -15132,9 +15320,12 @@ mod tests {
         assert!(matches!(
             &machine.blocks[0].terminator,
             Terminator::Return {
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } if trivial_affine_discards == &[place_id(2), place_id(1)]
+            } if cleanup_actions == &[
+                TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+            ]
         ));
         assert!(lowered.proof_bundle.evidence.is_empty());
         psi_terminal_verifier::verify_module(
@@ -15198,11 +15389,16 @@ mod tests {
         for block in blocks {
             match &block.terminator {
                 Terminator::Return {
-                    trivial_affine_discards,
-                    ..
+                    cleanup_actions, ..
                 } => {
                     return_count += 1;
-                    assert_eq!(trivial_affine_discards, &[place_id(2), place_id(1)]);
+                    assert_eq!(
+                        cleanup_actions,
+                        &[
+                            TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
+                            TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
+                        ]
+                    );
                 }
                 Terminator::Conditional {
                     when_true,

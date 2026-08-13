@@ -247,6 +247,16 @@ pub enum TerminalTargetOperation {
     /// a separate representation so value-less execution cannot fabricate a
     /// pseudo-result.
     UnitBody(TerminalTargetUnitBody),
+    /// A scalar return plus the exact structural cleanup frontier that runs
+    /// after result materialization and before native return teardown.
+    ScalarReturnWithCleanup {
+        scalar: Box<TerminalTargetOperation>,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        psi_edge: EdgeId,
+    },
     /// Return one exact whole-root structural parameter through the selected
     /// native ABI while retaining its zero-runtime custody metadata.
     ReturnStructuralParameter {

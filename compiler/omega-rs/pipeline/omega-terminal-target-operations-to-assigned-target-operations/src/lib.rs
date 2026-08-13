@@ -53,6 +53,64 @@ fn assign_function(
 ) -> Result<TerminalAssignedFunction, AssignmentError> {
     let architecture = target.architecture;
     let operation = match &function.operation {
+        TerminalTargetOperation::ScalarReturnWithCleanup {
+            scalar,
+            structural_types,
+            call_plan,
+            structural_parameters,
+            cleanup_actions,
+            psi_edge,
+        } => {
+            if matches!(
+                scalar.as_ref(),
+                TerminalTargetOperation::ScalarReturnWithCleanup { .. }
+            ) {
+                return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
+            }
+            let expected_call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: call_plan
+                        .parameters
+                        .iter()
+                        .map(|placement| placement.shape)
+                        .collect(),
+                    result: call_plan.result.as_ref().map(|placement| placement.shape),
+                },
+            )
+            .map_err(|_| AssignmentError::UnsupportedScalarCleanup(function.machine))?;
+            if expected_call_plan != *call_plan
+                || call_plan.result.is_none()
+                || call_plan.parameters.len() < structural_parameters.len()
+                || call_plan.parameters[call_plan.parameters.len() - structural_parameters.len()..]
+                    .iter()
+                    .zip(structural_parameters)
+                    .any(|(placement, parameter)| placement != &parameter.placement)
+            {
+                return Err(AssignmentError::UnsupportedScalarCleanup(function.machine));
+            }
+            for parameter in structural_parameters {
+                validate_structural_placement(parameter.place, &parameter.placement, architecture)?;
+            }
+            let assigned_scalar = assign_function(
+                &TerminalTargetFunction {
+                    machine: function.machine,
+                    attachment: function.attachment,
+                    provenance: function.provenance.clone(),
+                    operation: scalar.as_ref().clone(),
+                },
+                target,
+            )?
+            .operation;
+            TerminalAssignedOperation::ScalarReturnWithCleanup {
+                scalar: Box::new(assigned_scalar),
+                structural_types: structural_types.clone(),
+                call_plan: call_plan.clone(),
+                structural_parameters: structural_parameters.clone(),
+                cleanup_actions: cleanup_actions.clone(),
+                psi_edge: *psi_edge,
+            }
+        }
         TerminalTargetOperation::UnitBody(body) => {
             let operations = body
                 .operations
@@ -1907,6 +1965,7 @@ fn x86_expression_scratch_conflict(register: MachineRegister) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentError {
     EntryFunctionMissing(MachineId),
+    UnsupportedScalarCleanup(MachineId),
     UnsupportedStructuralPlacement(psi_core::PlaceId),
     StructuralRegisterArchitectureMismatch {
         place: psi_core::PlaceId,

@@ -297,6 +297,15 @@ performs the same complete cleanup.
 Calls, mutable or non-scalar locals, contracts,
 claims, effects, and multi-state control remain outside this source slice;
 structural custody is never represented as a scalar parameter.
+One narrower nominal branch admits exactly one direct affine structural
+parameter, no scalar inputs or locals, no authored contract, and one immediate
+supported scalar result. After materializing that result, its return edge
+invokes the parameter's exact attached `drop`; the drop may be empty or contain
+the bounded source-ordered zero-argument helper-call body accepted by the Unit
+nominal slice. Terminal production retains the cleanup target and helpers in
+the same closed module. Contextual cleanup requirements, nested nominal
+ownership, projections, and wider mixed cleanup/control shapes still fail
+closed.
 
 Author-declared hardware geometry is semantic and may contain offsets, widths,
 and alignment. Omega begins where the target chooses native layout, stack and
@@ -438,15 +447,20 @@ than extra ABI words or cleanup instructions. Wider or
 indirect values, projections, structural calls, and broader control remain
 fenced before partial lowering.
 
-Normal scalar returns carry the exact canonical list of live unclaimed affine
-parameters to discard; the list is empty when no cleanup is required.
-Verification reconstructs that list in reverse parameter declaration order.
+Normal scalar returns carry one exact ordered affine cleanup-action stream; the
+stream is empty when no cleanup is required. Actions distinguish whole-root
+no-code disposal, typed residual disposal, and executable nominal cleanup.
+Verification reconstructs the complete live frontier and reverse declaration
+order, and independently validates every nominal target and obligation.
 Interpretation charges the return edge and materializes the scalar result before
-performing these no-code discards, so sponsor exhaustion cannot partially commit
-the exit. Omega consumes the verified cleanup metadata without emitting a target
-instruction. The current scalar source producer has primitive-only signatures
-and therefore emits an empty list; mixed structural/scalar production remains a
-separate vertical slice.
+committing actions, then runs nominal bodies resumably, so sponsor exhaustion
+cannot replay a completed action or partially commit the exit. Fixed fuel
+composes every nominal invocation. Omega preserves the same action order and
+call ownership through target assignment, all five machine emitters, object and
+image custody, and canonical installation; no-code actions emit no target
+instruction. Current source production covers the wider trivial-discard scalar
+slice plus the single-root, closed-result nominal branch described above; mixed
+trivial/nominal roots and contextual scalar cleanup remain fenced.
 
 The proof kernel, proposition representation, total primitive judgments,
 certificate envelope, and admission taxonomy land before an operation depends

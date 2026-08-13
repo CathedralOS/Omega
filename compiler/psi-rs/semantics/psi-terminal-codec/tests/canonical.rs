@@ -18,8 +18,8 @@ use psi_terminal::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 4_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "48ffe3a66d27b58483bc17c3166f6ccc3fac4a4569fa9765a1a22c532c817bbd"
+        "01510fd30bf0f645cdaffb70fa39c50b5fe236b0668016aab7e27fe4dd3e6080"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -51,7 +51,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 4_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 9_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -61,8 +61,39 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 3_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 4_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 9_u16.to_le_bytes());
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+}
+
+#[test]
+fn scalar_return_round_trips_nominal_affine_cleanup_action() {
+    let mut module = nominal_affine_fixture();
+    let machine = &mut module.machines[0];
+    let source = ValueDeclaration {
+        id: value_id(50),
+        scalar_type: ScalarType::Boolean,
+    };
+    machine.parameters = vec![source];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(51),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: *edge,
+        value: source.id,
+        cleanup_actions: vec![TerminalAffineCleanupAction::InvokeNominal(
+            cleanups[0].clone(),
+        )],
+    };
+
+    let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
+    assert_eq!(&bytes[8..10], 4_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -545,7 +576,7 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
         terminator: Terminator::Return {
             edge: edge_id(102),
             value: value_id(52),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     });
     module.entry = machine.id;
@@ -602,7 +633,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             terminator: Terminator::Return {
                 edge: edge_id(103),
                 value: value_id(52),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         },
         Block {
@@ -615,7 +646,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             terminator: Terminator::Return {
                 edge: edge_id(104),
                 value: value_id(53),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         },
     ];
@@ -1131,7 +1162,7 @@ fn structural_declarations_do_not_bypass_semantic_graph_validation() {
 
     let mut malformed = module.clone();
     malformed.machines[0].blocks[1].terminator = Terminator::Return {
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
         edge: edge_id(2),
         value: unknown,
     };
@@ -1452,10 +1483,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&4_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&5_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(4))
+        Err(CodecError::UnsupportedFormatMarker(5))
     );
 
     let mut stale_format = bytes.clone();
@@ -2310,7 +2341,7 @@ fn fixture() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: edge_id(2),
                         value: value_id(3),
                     },
@@ -2423,7 +2454,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: edge_id(80),
                     value: value_id(80),
                 },
@@ -2634,7 +2665,7 @@ fn call_fixture() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: edge_id(100),
                         value: value_id(101),
                     },
@@ -2664,7 +2695,7 @@ fn call_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Return {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         edge: edge_id(101),
                         value: value_id(103),
                     },

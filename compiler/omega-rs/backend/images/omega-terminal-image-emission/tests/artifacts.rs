@@ -516,6 +516,66 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
 }
 
 #[test]
+fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
+    let mut plan = edge_owned_cleanup_plan();
+    let caller = &mut plan.functions[2];
+    caller.bytes.splice(0..0, [0xb8, 1, 0, 0, 0]);
+    let relocation = &mut caller.internal_calls[0];
+    relocation.offset += 5;
+    let outbound = relocation
+        .unit_stack
+        .as_mut()
+        .and_then(|stack| stack.outbound.as_mut())
+        .expect("x86 cleanup call stack pair");
+    outbound.allocation_offset += 5;
+    outbound.release_offset += 5;
+    caller.internal_unit_calls[0].code_offset += 5;
+    let cleanup = caller
+        .unit_affine_cleanup
+        .take()
+        .expect("Unit cleanup fixture");
+    caller.scalar_affine_cleanup = Some(TerminalUnitAffineCleanupRecord {
+        code_offset: cleanup.code_offset + 5,
+        byte_count: cleanup.byte_count,
+        ..cleanup
+    });
+    caller.scalar_structural_parameters = std::mem::take(&mut caller.unit_parameters);
+    caller.scalar_structural_parameter_homes = std::mem::take(&mut caller.unit_parameter_homes);
+    caller.fuel_attribution[0].code_offset += 5;
+
+    let artifact = build_terminal_object_artifact(&plan).expect("scalar cleanup object");
+    let object_caller = artifact
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("scalar cleanup caller");
+    assert!(object_caller.unit_affine_cleanup.is_none());
+    assert!(object_caller.scalar_affine_cleanup.is_some());
+    assert_eq!(object_caller.scalar_structural_parameter_homes.len(), 1);
+    assert!(object_caller.unit_parameters.is_empty());
+
+    let image = emit_terminal_executable_image(&artifact, 3).expect("scalar cleanup image");
+    let installation =
+        build_terminal_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
+            .expect("scalar cleanup installation");
+    let installed = installation
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(3))
+        .expect("installed scalar cleanup caller");
+    assert!(!installed.unit_body);
+    assert!(installed.scalar_affine_cleanup.is_some());
+    assert_eq!(installed.scalar_structural_parameter_homes.len(), 1);
+    let encoded = encode_terminal_installation_record(&installation).expect("canonical install");
+    assert_eq!(
+        decode_terminal_installation_record(&encoded),
+        Ok(installation.clone())
+    );
+    validate_terminal_installation_record(&installation, &image)
+        .expect("scalar cleanup image binding");
+}
+
+#[test]
 fn x86_unit_stack_scan_uses_instruction_boundaries_not_immediate_substrings() {
     let mut plan = two_function_plan();
     plan.functions[0].bytes = vec![
@@ -1286,6 +1346,9 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             }],
         };
@@ -1358,7 +1421,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "97c632402c4961399dd721672debbb3fb8665dea2a4bb57caeb7c324c1aac7da"
+        "34f2f55b7012a4cf6c9654132c4df9f6670a9d48c62413e040feed7ea359930e"
     );
 
     let mut changed_plan = plan;
@@ -1499,6 +1562,9 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 operation_ordinal: 1,
                 code_offset: 27,
             }],
+            scalar_affine_cleanup: None,
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
             structural_return: None,
         }],
     };
@@ -1577,6 +1643,9 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
             TerminalMachineCodeFunction {
@@ -1597,6 +1666,9 @@ fn two_function_plan() -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
         ],
@@ -1635,6 +1707,9 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
             TerminalMachineCodeFunction {
@@ -1663,6 +1738,9 @@ fn internal_call_plan(target: NativeTarget) -> TerminalMachineCodePlan {
                 fuel_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
         ],
@@ -2482,6 +2560,9 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 ],
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
             TerminalMachineCodeFunction {
@@ -2514,6 +2595,9 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 }],
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
             TerminalMachineCodeFunction {
@@ -2591,6 +2675,9 @@ fn edge_owned_cleanup_plan() -> TerminalMachineCodePlan {
                 }],
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
                 structural_return: None,
             },
         ],

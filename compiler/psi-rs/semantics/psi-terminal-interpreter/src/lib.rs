@@ -15,7 +15,8 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
     NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralArgument,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult, Terminator,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalMachineResult, Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -255,6 +256,7 @@ enum SuspendedCallResult {
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),
         remaining: Vec<(NominalAffineCleanup, TerminalStructuralValue)>,
+        final_result: Option<TerminalScalarValue>,
     },
 }
 
@@ -1268,6 +1270,7 @@ impl TerminalExecution {
                         result: SuspendedCallResult::NominalCleanups {
                             completed,
                             remaining,
+                            final_result: None,
                         },
                     });
                     self.blocks = callee.blocks;
@@ -1454,7 +1457,7 @@ impl TerminalExecution {
                 }
                 Terminator::Return {
                     value,
-                    trivial_affine_discards,
+                    cleanup_actions,
                     ..
                 } => {
                     let machine = self.machines.get(&self.current_machine).ok_or(
@@ -1473,13 +1476,45 @@ impl TerminalExecution {
                         .get(value)
                         .copied()
                         .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
-                    for place in trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none() {
-                            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                                *place,
-                            ));
-                        }
-                        remove_affine_root(&mut self.live_affine_frontier, *place);
+                    let cleanups = commit_cleanup_actions(
+                        &self.structural_types,
+                        &self.machines,
+                        &mut self.structural_values,
+                        &mut self.live_affine_frontier,
+                        &mut self.live_claims,
+                        cleanup_actions,
+                    )?;
+                    if let Some((completed, remaining)) = cleanups.split_first() {
+                        let completed = completed.clone();
+                        let callee = self
+                            .machines
+                            .get(&completed.0.cleanup_machine)
+                            .cloned()
+                            .expect("verified cleanup target remains installed");
+                        self.call_stack.push(SuspendedCall {
+                            blocks: std::mem::take(&mut self.blocks),
+                            values: std::mem::take(&mut self.values),
+                            structural_values: std::mem::take(&mut self.structural_values),
+                            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
+                            live_claims: std::mem::take(&mut self.live_claims),
+                            current_machine: self.current_machine,
+                            current: self.current,
+                            next_operation: self.next_operation,
+                            result: SuspendedCallResult::NominalCleanups {
+                                completed: completed.clone(),
+                                remaining: remaining.to_vec(),
+                                final_result: Some(result),
+                            },
+                        });
+                        self.blocks = callee.blocks;
+                        self.values = BTreeMap::new();
+                        self.structural_values = BTreeMap::new();
+                        self.live_affine_frontier = BTreeSet::new();
+                        self.live_claims = BTreeMap::new();
+                        self.current_machine = completed.0.cleanup_machine;
+                        self.current = callee.entry;
+                        self.next_operation = 0;
+                        continue;
                     }
                     if let Some(caller) = self.call_stack.pop() {
                         let SuspendedCallResult::Scalar(result_value) = caller.result else {
@@ -1538,6 +1573,7 @@ impl TerminalExecution {
                             SuspendedCallResult::NominalCleanups {
                                 completed,
                                 mut remaining,
+                                final_result,
                             } => {
                                 if !self.structural_values.is_empty()
                                     || !self.live_affine_frontier.remove(&StructuralAffineDiscard {
@@ -1575,6 +1611,7 @@ impl TerminalExecution {
                                         result: SuspendedCallResult::NominalCleanups {
                                             completed: completed.clone(),
                                             remaining,
+                                            final_result,
                                         },
                                     });
                                     self.blocks = callee.blocks;
@@ -1590,7 +1627,30 @@ impl TerminalExecution {
                                 if !self.live_affine_frontier.is_empty() {
                                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                                 }
-                                let result = TerminalExecutionResult::Unit;
+                                if let Some(returned) = final_result
+                                    && let Some(caller) = self.call_stack.pop()
+                                {
+                                    let SuspendedCallResult::Scalar(result_value) = caller.result
+                                    else {
+                                        return Err(
+                                            TerminalInterpretError::VerifiedOperationMalformed,
+                                        );
+                                    };
+                                    self.blocks = caller.blocks;
+                                    self.values = caller.values;
+                                    self.values.insert(result_value, returned);
+                                    self.structural_values = caller.structural_values;
+                                    self.live_affine_frontier = caller.live_affine_frontier;
+                                    self.live_claims = caller.live_claims;
+                                    self.current_machine = caller.current_machine;
+                                    self.current = caller.current;
+                                    self.next_operation = caller.next_operation;
+                                    continue;
+                                }
+                                let result = final_result.map_or(
+                                    TerminalExecutionResult::Unit,
+                                    TerminalExecutionResult::Scalar,
+                                );
                                 self.result = Some(result.clone());
                                 return Ok(TerminalExecutionStatus::Complete(result));
                             }
@@ -1692,6 +1752,71 @@ impl TerminalExecution {
             }
         }
     }
+}
+
+fn commit_cleanup_actions(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    machines: &BTreeMap<MachineId, ExecutableMachine>,
+    structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
+    actions: &[TerminalAffineCleanupAction],
+) -> Result<Vec<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
+    let mut nominal = Vec::new();
+    for action in actions {
+        match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => {
+                if structural_values.remove(place).is_none()
+                    || !remove_affine_root(frontier, *place)
+                {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+                live_claims.retain(|_, claim| claim.place != Some(*place));
+            }
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                let root = structural_values.get(&discard.place).ok_or(
+                    TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
+                )?;
+                if discard.path.is_empty()
+                    || resolve_structural_path_type(
+                        structural_types,
+                        root.structural_type,
+                        &discard.path,
+                    )? != discard.structural_type
+                    || !frontier.remove(discard)
+                {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+                if !frontier.iter().any(|entry| entry.place == discard.place) {
+                    structural_values.remove(&discard.place);
+                }
+            }
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                let value = structural_values.remove(&cleanup.place).ok_or(
+                    TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
+                )?;
+                if value.structural_type != cleanup.structural_type
+                    || !machines.contains_key(&cleanup.cleanup_machine)
+                {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+                nominal.push((cleanup.clone(), value));
+                live_claims.retain(|_, claim| claim.place != Some(cleanup.place));
+            }
+        }
+    }
+    let pending_nominal = nominal
+        .iter()
+        .map(|(cleanup, value)| StructuralAffineDiscard {
+            place: cleanup.place,
+            path: Vec::new(),
+            structural_type: value.structural_type,
+        })
+        .collect::<BTreeSet<_>>();
+    if !structural_values.is_empty() || *frontier != pending_nominal || !live_claims.is_empty() {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    Ok(nominal)
 }
 
 fn bind_arguments(

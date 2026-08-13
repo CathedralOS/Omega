@@ -26,7 +26,7 @@ use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::{OperationKind, TerminalMachineResult, Terminator};
+use psi_terminal::{OperationKind, TerminalAffineCleanupAction, TerminalMachineResult, Terminator};
 use psi_terminal_codec::{
     decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
 };
@@ -131,6 +131,153 @@ fn checked_source() -> psi_checked_trees::CheckedTrees {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
+}
+
+#[test]
+fn source_scalar_result_precedes_nominal_cleanup_through_all_native_artifacts() {
+    let source = r#"
+        data Helper {}
+        machine Helper::touch() {}
+
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+
+        data Root {}
+        machine Root::measure(token: Token) -> u64 { 7u64 }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize scalar cleanup");
+    let syntax = parse_syntax_trees(&tokens).expect("parse scalar cleanup");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve scalar cleanup");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type scalar cleanup");
+    let checked = lower_typed_trees(typed).expect("check scalar cleanup");
+    let lowered = lower_machine(&checked, "Root::measure")
+        .expect("source scalar nominal cleanup reaches terminal Psi");
+    let original_identity =
+        terminal_psi_identity(&lowered.semantic_module).expect("terminal identity");
+    let semantic_bytes = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry_machine = lowered.semantic_module.entry;
+    drop(checked);
+    drop(lowered);
+
+    let module = decode_module(&semantic_bytes).expect("semantic artifact decodes");
+    assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry_machine)
+        .expect("scalar cleanup entry");
+    assert!(matches!(entry.result, TerminalMachineResult::Scalar(_)));
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("scalar cleanup entry returns a scalar")
+    };
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [TerminalAffineCleanupAction::InvokeNominal(_)]
+    ));
+
+    let abstract_plan =
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+            .expect("verified scalar cleanup crosses the Omega boundary");
+    let abstract_entry = abstract_plan
+        .functions
+        .iter()
+        .find(|function| function.machine == entry_machine)
+        .expect("abstract scalar cleanup entry");
+    assert!(matches!(
+        abstract_entry.operations.as_slice(),
+        [TerminalAbstractOperation::IntegerConstant { .. }, TerminalAbstractOperation::Return {
+            cleanup_actions,
+            ..
+        }] if matches!(cleanup_actions.as_slice(), [TerminalAffineCleanupAction::InvokeNominal(_)])
+    ));
+
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        let target_entry = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("target scalar cleanup entry");
+        assert!(matches!(
+            &target_entry.operation,
+            TerminalTargetOperation::ScalarReturnWithCleanup {
+                cleanup_actions,
+                scalar,
+                ..
+            } if matches!(cleanup_actions.as_slice(), [TerminalAffineCleanupAction::InvokeNominal(_)])
+                && matches!(scalar.as_ref(), TerminalTargetOperation::ReturnIntegerImmediate { .. })
+        ));
+
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
+        assert!(matches!(
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry_machine)
+                .map(|function| &function.operation),
+            Some(TerminalAssignedOperation::ScalarReturnWithCleanup { .. })
+        ));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission failed: {error:?}", case.target));
+        let emitted_entry = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("emitted scalar cleanup entry");
+        let cleanup = emitted_entry
+            .scalar_affine_cleanup
+            .as_ref()
+            .expect("emitted scalar cleanup custody");
+        assert!(emitted_entry.unit_affine_cleanup.is_none());
+        assert_eq!(emitted_entry.scalar_structural_parameter_homes.len(), 1);
+        assert_eq!(emitted_entry.internal_unit_calls.len(), 1);
+        assert!(cleanup.code_offset > 0, "result bytes precede cleanup");
+        assert!(matches!(
+            cleanup.actions.as_slice(),
+            [TerminalAffineCleanupAction::InvokeNominal(_)]
+        ));
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let object_entry = object
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("object scalar cleanup entry");
+        assert_eq!(object_entry.scalar_affine_cleanup.as_ref(), Some(cleanup));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation failed: {error:?}", case.target));
+        let installed_entry = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("installed scalar cleanup entry");
+        assert_eq!(
+            installed_entry.scalar_affine_cleanup.as_ref(),
+            Some(cleanup)
+        );
+        let installation_bytes = encode_terminal_installation_record(&installation)
+            .expect("canonical scalar cleanup installation");
+        assert_eq!(
+            decode_terminal_installation_record(&installation_bytes),
+            Ok(installation.clone())
+        );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed scalar cleanup binds its exact image");
+    }
 }
 
 fn assert_source_structural_return(

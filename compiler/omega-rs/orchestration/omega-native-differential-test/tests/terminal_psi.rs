@@ -77,7 +77,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 }],
                 operations: Vec::new(),
                 terminator: Terminator::Return {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     edge: EdgeId::new(2).expect("return"),
                     value: forwarded,
                 },
@@ -453,7 +453,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Return {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(10).expect("return"),
                 value: parameter,
             },

@@ -39,6 +39,15 @@ pub struct TerminalAssignedFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAssignedOperation {
     UnitBody(TerminalAssignedUnitBody),
+    ScalarReturnWithCleanup {
+        scalar: Box<TerminalAssignedOperation>,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        structural_parameters:
+            Vec<omega_terminal_target_operations::TerminalTargetStructuralParameter>,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        psi_edge: EdgeId,
+    },
     ReturnStructuralParameter {
         call_plan: CallPlan,
         parameters: Vec<StructuralParameterDeclaration>,

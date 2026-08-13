@@ -344,6 +344,46 @@ fn no_code_unit_and_scalar_returns_reject_reachable_nominal_cleanup() {
 }
 
 #[test]
+fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization() {
+    let checked = checked(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data Token { value: u64; }
+        machine Token::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::measure(token: Token) -> u64 { 7u64 }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("scalar return retains its nominal cleanup");
+    assert!(plan.trivial_affine_discard_parameter_positions.is_empty());
+    let cleanup = plan
+        .nominal_cleanup
+        .as_ref()
+        .expect("scalar return cleanup is nominal");
+    assert_eq!(cleanup.source_parameter_index, 0);
+    assert!(cleanup.requirements.is_empty());
+    let target = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(cleanup.cleanup_machine)
+        .expect("scalar nominal cleanup target remains executable");
+    assert!(matches!(
+        target.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit { .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        ]
+    ));
+}
+
+#[test]
 fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discard() {
     let checked = checked(
         r#"

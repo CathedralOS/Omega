@@ -180,12 +180,41 @@ fn lower_function(
     let mut values = BTreeMap::new();
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = None;
+    let scalar_parameter_shapes = function
+        .parameters
+        .iter()
+        .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let structural_parameter_shapes = function
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| {
+            if usize::try_from(parameter.position) != Ok(position)
+                || parameter.is_self
+                || !parameter.qualifications.is_empty()
+                || parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+            {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
+            structural_shape(
+                parameter.structural_type,
+                structural_types,
+                &mut shape_cache,
+                &mut active,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let signature = CallSignature {
-        parameters: function
-            .parameters
+        parameters: scalar_parameter_shapes
             .iter()
-            .map(|parameter| scalar_shape(parameter.value, parameter.scalar_type, true))
-            .collect::<Result<Vec<_>, _>>()?,
+            .copied()
+            .chain(structural_parameter_shapes.iter().copied())
+            .collect(),
         result: Some(scalar_shape(
             function_result.value,
             function_result.scalar_type,
@@ -194,16 +223,18 @@ fn lower_function(
     };
     let call_plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
         .map_err(LoweringError::AbiPlan)?;
-    if call_plan.parameters.len() != function.parameters.len() {
+    if call_plan.parameters.len()
+        != function.parameters.len() + function.structural_parameters.len()
+    {
         return Err(LoweringError::AbiParameterCountMismatch {
-            expected: function.parameters.len(),
+            expected: function.parameters.len() + function.structural_parameters.len(),
             actual: call_plan.parameters.len(),
         });
     }
     for (parameter_index, (parameter, placement)) in function
         .parameters
         .iter()
-        .zip(&call_plan.parameters)
+        .zip(&call_plan.parameters[..function.parameters.len()])
         .enumerate()
     {
         let location = scalar_parameter_location(parameter, placement)?;
@@ -226,12 +257,32 @@ fn lower_function(
         };
         insert_value(&mut values, parameter.value, value)?;
     }
+    let target_structural_parameters = function
+        .structural_parameters
+        .iter()
+        .zip(structural_parameter_shapes)
+        .zip(&call_plan.parameters[function.parameters.len()..])
+        .map(
+            |((parameter, shape), placement)| TerminalTargetStructuralParameter {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
+                shape,
+                placement: placement.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
 
     if function
         .operations
         .iter()
         .any(|operation| matches!(operation, TerminalAbstractOperation::Conditional { .. }))
     {
+        if !function.structural_parameters.is_empty() {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                function.machine,
+            ));
+        }
         return match function_result.scalar_type {
             ScalarType::Integer(_) => {
                 lower_integer_conditional(function, &values, target, functions)
@@ -1240,6 +1291,7 @@ fn lower_function(
                 result,
                 value,
                 scalar_type,
+                cleanup_actions,
             } => {
                 if *result != function_result.value || *scalar_type != function_result.scalar_type {
                     return Err(LoweringError::FunctionResultMismatch(function.machine));
@@ -1252,7 +1304,7 @@ fn lower_function(
                     return Err(LoweringError::ValueTypeMismatch(*result));
                 }
                 provenance.edges.push(*psi_edge);
-                returned = Some(match returned_value {
+                let scalar = match returned_value {
                     KnownScalar::Boolean(boolean) => {
                         TerminalTargetOperation::ReturnBooleanImmediate {
                             psi_edge: *psi_edge,
@@ -1329,7 +1381,66 @@ fn lower_function(
                             expression,
                         }
                     }
-                });
+                };
+                if cleanup_actions.is_empty() {
+                    returned = Some(scalar);
+                } else {
+                    if cleanup_actions.len() != target_structural_parameters.len()
+                        || target_structural_parameters
+                            .iter()
+                            .rev()
+                            .zip(cleanup_actions)
+                            .any(|(parameter, action)| match action {
+                                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                                    *place != parameter.place
+                                }
+                                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                                    cleanup,
+                                ) => {
+                                    cleanup.place != parameter.place
+                                        || cleanup.structural_type != parameter.structural_type
+                                }
+                                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => {
+                                    true
+                                }
+                            })
+                    {
+                        return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                            function.machine,
+                        ));
+                    }
+                    for action in cleanup_actions {
+                        if let psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
+                            action
+                        {
+                            let Some(cleanup_function) =
+                                functions.get(&cleanup.cleanup_machine).copied()
+                            else {
+                                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                                    function.machine,
+                                ));
+                            };
+                            validate_bounded_nominal_cleanup_body(
+                                function.machine,
+                                cleanup,
+                                cleanup_function,
+                                functions,
+                                structural_types,
+                            )?;
+                        }
+                    }
+                    returned = Some(TerminalTargetOperation::ScalarReturnWithCleanup {
+                        scalar: Box::new(scalar),
+                        structural_types: structural_types
+                            .values()
+                            .map(|declaration| (*declaration).clone())
+                            .collect(),
+                        call_plan: call_plan.clone(),
+                        structural_parameters: target_structural_parameters.clone(),
+                        cleanup_actions: cleanup_actions.clone(),
+                        psi_edge: *psi_edge,
+                    });
+                }
             }
             TerminalAbstractOperation::ReturnUnit { .. }
             | TerminalAbstractOperation::ReturnStructural { .. } => {
@@ -2804,6 +2915,7 @@ fn lower_boolean_block(
             result,
             value,
             scalar_type,
+            ..
         } => {
             if *result != scalar_function_result(function)?.value
                 || *scalar_type != ScalarType::Boolean
@@ -3176,6 +3288,7 @@ fn lower_conditional_block(
             result,
             value,
             scalar_type,
+            ..
         } => {
             let function_result = scalar_function_result(function)?;
             if *result != function_result.value || *scalar_type != function_result.scalar_type {
@@ -4738,6 +4851,7 @@ pub enum LoweringError {
         machine: MachineId,
         operation: OperationId,
     },
+    UnsupportedOperationInScalarFunction(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
     UnsupportedStructuralReturn(MachineId),
     UnsupportedStructuralReturnShape {
@@ -4982,8 +5096,46 @@ mod tests {
             unreachable!("second action remains nominal")
         };
         second.cleanup_machine = executable_cleanup;
+        let scalar_cleanup_actions = cleanup_actions.clone();
         lower_to_target_operations(&plan, NativeTarget::linux_x64())
             .expect("two actions sharing one executable cleanup body lower");
+
+        let scalar_value = ValueId::new(1).unwrap();
+        let scalar_result = ValueId::new(2).unwrap();
+        plan.functions[0].result = TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+            value: scalar_result,
+            scalar_type: ScalarType::Boolean,
+        });
+        plan.functions[0].operations = vec![
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation: OperationId::new(3).unwrap(),
+                result: scalar_value,
+                value: true,
+            },
+            TerminalAbstractOperation::Return {
+                psi_edge: EdgeId::new(1).unwrap(),
+                result: scalar_result,
+                value: scalar_value,
+                scalar_type: ScalarType::Boolean,
+                cleanup_actions: scalar_cleanup_actions.clone(),
+            },
+        ];
+        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64())
+            .expect("scalar result composes the same ordered cleanup frontier");
+        assert!(matches!(
+            &lowered.functions[0].operation,
+            TerminalTargetOperation::ScalarReturnWithCleanup {
+                scalar,
+                structural_parameters,
+                cleanup_actions: lowered_actions,
+                ..
+            } if matches!(scalar.as_ref(), TerminalTargetOperation::ReturnBooleanImmediate {
+                value: true,
+                ..
+            })
+                && structural_parameters.len() == 2
+                && lowered_actions == &scalar_cleanup_actions
+        ));
     }
 
     #[test]
@@ -5015,6 +5167,7 @@ mod tests {
                     result,
                     value: unknown,
                     scalar_type: ScalarType::Integer(i32_type),
+                    cleanup_actions: Vec::new(),
                 }],
             }],
         };
@@ -6062,6 +6215,7 @@ mod tests {
                         result,
                         value: true_value,
                         scalar_type,
+                        cleanup_actions: Vec::new(),
                     },
                     TerminalAbstractOperation::SaturatingIntegerMultiply {
                         psi_operation: psi_core::OperationId::new(22).expect("false operation"),
@@ -6075,6 +6229,7 @@ mod tests {
                         result,
                         value: false_value,
                         scalar_type,
+                        cleanup_actions: Vec::new(),
                     },
                 ],
             }],
@@ -6116,6 +6271,7 @@ mod tests {
                     result,
                     value: returned,
                     scalar_type,
+                    cleanup_actions: Vec::new(),
                 }],
             }],
         }
@@ -6175,6 +6331,7 @@ mod tests {
                             result: caller_result,
                             value: caller_result,
                             scalar_type,
+                            cleanup_actions: Vec::new(),
                         },
                     ],
                 },
@@ -6196,6 +6353,7 @@ mod tests {
                         result: callee_result,
                         value: callee_parameters.last().expect("parameter").value,
                         scalar_type,
+                        cleanup_actions: Vec::new(),
                     }],
                 },
             ],

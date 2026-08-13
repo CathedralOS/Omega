@@ -10,8 +10,8 @@ use psi_terminal::{
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -923,7 +923,7 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     machine.blocks[0].terminator = Terminator::Return {
         edge: edge_id(2),
         value: value_id(10),
-        trivial_affine_discards: vec![place_id(2)],
+        cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(2))],
     };
     module.entry = machine.id;
     module.machines = vec![machine];
@@ -988,7 +988,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
             terminator: Terminator::Return {
                 edge: edge_id(3),
                 value: value_id(12),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         },
     ];
@@ -1069,7 +1069,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
             terminator: Terminator::Return {
                 edge: edge_id(4),
                 value: value_id(12),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         },
         Block {
@@ -1082,7 +1082,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
             terminator: Terminator::Return {
                 edge: edge_id(5),
                 value: value_id(13),
-                trivial_affine_discards: vec![place_id(2)],
+                cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(2))],
             },
         },
     ];
@@ -1799,6 +1799,70 @@ fn nominal_affine_module() -> TerminalModule {
             },
         ],
     }
+}
+
+#[test]
+fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
+    let mut module = nominal_affine_module();
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(99),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(10),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+
+    let semantic = encode_module(&module).expect("scalar nominal cleanup encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[TerminalScalarValue::Boolean(true)],
+        &[TerminalStructuralValue {
+            opaque_identity: 71,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("verified scalar nominal cleanup starts");
+    let mut meter = TerminalFuelMeter::with_allowance(1);
+
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            site: FuelChargeSite::Edge(edge),
+            ..
+        }) if edge == edge_id(2)
+    ));
+    assert!(execution.live_affine_frontier().next().is_none());
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
 }
 
 fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {

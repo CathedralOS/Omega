@@ -9,7 +9,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{BlockId, EdgeId, MachineId, Proposition};
-use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
+use psi_terminal::{
+    OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator,
+};
 use psi_terminal_codec::{CodecError, TerminalPsiIdentity, terminal_psi_identity};
 use psi_terminal_fuel::{FuelScheduleIdentity, TerminalFuelSchedule};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -450,8 +452,7 @@ fn outcome_bounds_from(
     let continued = match (&block.terminator, normal_units) {
         (_, None) => OutcomeBounds::default(),
         (
-            Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
+            Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnStructural { .. },
             Some(prefix),
@@ -463,35 +464,48 @@ fn outcome_bounds_from(
             ),
             crashed: None,
         },
-        (Terminator::ReturnUnitNominalAffine { cleanups, .. }, Some(prefix)) => {
-            let mut bounds = OutcomeBounds {
+        (
+            Terminator::Return {
+                cleanup_actions, ..
+            },
+            Some(prefix),
+        ) => compose_cleanup_outcomes(
+            cleanup_actions.iter().filter_map(|action| match action {
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    Some(cleanup.cleanup_machine)
+                }
+                TerminalAffineCleanupAction::DiscardRoot(_)
+                | TerminalAffineCleanupAction::DiscardResidual(_) => None,
+            }),
+            OutcomeBounds {
                 returned: Some(
                     prefix
                         .checked_add(terminator_units)
                         .ok_or(FixedFuelError::BoundOverflow)?,
                 ),
                 crashed: None,
-            };
-            for cleanup in cleanups {
-                let Some(cleanup_prefix) = bounds.returned else {
-                    break;
-                };
-                let cleanup_bounds = maximum_machine_outcomes(
-                    cleanup.cleanup_machine,
-                    machines,
-                    schedule,
-                    memoized_machines,
-                    active_machines,
-                )?;
-                bounds = OutcomeBounds {
-                    returned: checked_optional_add(cleanup_bounds.returned, cleanup_prefix)?,
-                    crashed: maximum_optional(
-                        bounds.crashed,
-                        checked_optional_add(cleanup_bounds.crashed, cleanup_prefix)?,
+            },
+            machines,
+            schedule,
+            memoized_machines,
+            active_machines,
+        )?,
+        (Terminator::ReturnUnitNominalAffine { cleanups, .. }, Some(prefix)) => {
+            compose_cleanup_outcomes(
+                cleanups.iter().map(|cleanup| cleanup.cleanup_machine),
+                OutcomeBounds {
+                    returned: Some(
+                        prefix
+                            .checked_add(terminator_units)
+                            .ok_or(FixedFuelError::BoundOverflow)?,
                     ),
-                };
-            }
-            bounds
+                    crashed: None,
+                },
+                machines,
+                schedule,
+                memoized_machines,
+                active_machines,
+            )?
         }
         (Terminator::Crash { .. }, Some(prefix)) => OutcomeBounds {
             returned: None,
@@ -555,6 +569,36 @@ fn outcome_bounds_from(
         crashed: maximum_optional(crash_units, continued.crashed),
     };
     memoized.insert(current, bounds);
+    Ok(bounds)
+}
+
+fn compose_cleanup_outcomes(
+    cleanup_machines: impl IntoIterator<Item = MachineId>,
+    mut bounds: OutcomeBounds,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    schedule: TerminalFuelSchedule,
+    memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
+    active_machines: &mut BTreeSet<MachineId>,
+) -> Result<OutcomeBounds, FixedFuelError> {
+    for cleanup_machine in cleanup_machines {
+        let Some(cleanup_prefix) = bounds.returned else {
+            break;
+        };
+        let cleanup_bounds = maximum_machine_outcomes(
+            cleanup_machine,
+            machines,
+            schedule,
+            memoized_machines,
+            active_machines,
+        )?;
+        bounds = OutcomeBounds {
+            returned: checked_optional_add(cleanup_bounds.returned, cleanup_prefix)?,
+            crashed: maximum_optional(
+                bounds.crashed,
+                checked_optional_add(cleanup_bounds.crashed, cleanup_prefix)?,
+            ),
+        };
+    }
     Ok(bounds)
 }
 

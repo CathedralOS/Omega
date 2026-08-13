@@ -144,6 +144,10 @@ pub struct TerminalObjectFunction {
     pub unit_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    pub scalar_affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    pub scalar_structural_parameters: Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>,
+    pub scalar_structural_parameter_homes:
+        Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<TerminalStructuralReturnRecord>,
@@ -303,6 +307,15 @@ pub fn build_terminal_object_artifact(
                 function.machine,
             ));
         }
+        if function.unit_affine_cleanup.is_some() && function.scalar_affine_cleanup.is_some() {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
+        let stack_start = function
+            .scalar_affine_cleanup
+            .as_ref()
+            .map_or(0, |cleanup| cleanup.code_offset);
         let mut validated_function_stack = function
             .unit_stack
             .map(|stack| {
@@ -311,6 +324,7 @@ pub fn build_terminal_object_artifact(
                     function.machine,
                     &function.bytes,
                     stack,
+                    stack_start,
                 )
             })
             .transpose()?;
@@ -465,6 +479,18 @@ pub fn build_terminal_object_artifact(
                 function.machine,
             ));
         }
+        let (parameter_homes, affine_cleanup) =
+            if let Some(cleanup) = function.scalar_affine_cleanup.as_ref() {
+                (
+                    function.scalar_structural_parameter_homes.as_slice(),
+                    Some(cleanup),
+                )
+            } else {
+                (
+                    function.unit_parameter_homes.as_slice(),
+                    function.unit_affine_cleanup.as_ref(),
+                )
+            };
         for custody in &function.internal_unit_calls {
             let Some(call_stack) = validated_call_stacks
                 .iter()
@@ -481,13 +507,13 @@ pub fn build_terminal_object_artifact(
                 &function.bytes,
                 &function.fuel_attribution,
                 &function.internal_calls,
-                &function.unit_parameter_homes,
+                parameter_homes,
                 validated_function_stack.as_ref().ok_or(
                     TerminalObjectError::InvalidInternalUnitCallEvidence(function.machine),
                 )?,
                 call_stack,
                 custody,
-                function.unit_affine_cleanup.as_ref(),
+                affine_cleanup,
             )?;
         }
         match (&function.unit_stack, &function.unit_affine_cleanup) {
@@ -503,11 +529,30 @@ pub fn build_terminal_object_artifact(
                 cleanup,
             )?,
             (None, None) => {}
+            (Some(_), None) if function.scalar_affine_cleanup.is_some() => {}
             _ => {
                 return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
                     function.machine,
                 ));
             }
+        }
+        if let Some(cleanup) = &function.scalar_affine_cleanup {
+            if function.unit_stack.is_none() || function.scalar_stack.is_some() {
+                return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                    function.machine,
+                ));
+            }
+            validate_unit_affine_cleanup(
+                function.machine,
+                &function.provenance,
+                &function.bytes,
+                &function.fuel_attribution,
+                &function.scalar_structural_parameter_homes,
+                &function.internal_unit_calls,
+                &attachments,
+                &machine_functions,
+                cleanup,
+            )?;
         }
         if function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function
@@ -520,6 +565,26 @@ pub fn build_terminal_object_artifact(
                         || parameter.multiplicity != home.multiplicity
                         || parameter.shape != home.shape
                 })
+        {
+            return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
+        if function.scalar_structural_parameters.len()
+            != function.scalar_structural_parameter_homes.len()
+            || function
+                .scalar_structural_parameters
+                .iter()
+                .zip(&function.scalar_structural_parameter_homes)
+                .any(|(parameter, home)| {
+                    parameter.place != home.place
+                        || parameter.structural_type != home.structural_type
+                        || parameter.multiplicity != home.multiplicity
+                        || parameter.shape != home.shape
+                })
+            || (function.scalar_affine_cleanup.is_none()
+                && (!function.scalar_structural_parameters.is_empty()
+                    || !function.scalar_structural_parameter_homes.is_empty()))
         {
             return Err(TerminalObjectError::InvalidUnitAffineCleanupEvidence(
                 function.machine,
@@ -795,6 +860,9 @@ pub fn build_terminal_object_artifact(
             unit_parameters: function.unit_parameters.clone(),
             unit_parameter_homes: function.unit_parameter_homes.clone(),
             unit_affine_cleanup: function.unit_affine_cleanup.clone(),
+            scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
+            scalar_structural_parameters: function.scalar_structural_parameters.clone(),
+            scalar_structural_parameter_homes: function.scalar_structural_parameter_homes.clone(),
             structural_return: function.structural_return.clone(),
         });
     }
@@ -2004,6 +2072,7 @@ fn validate_unit_function_stack(
     machine: MachineId,
     bytes: &[u8],
     evidence: TerminalUnitStackEvidence,
+    frame_start: usize,
 ) -> Result<TerminalObjectUnitStack, TerminalObjectError> {
     if evidence.stack_alignment != 16 {
         return Err(TerminalObjectError::InvalidUnitStackAlignment {
@@ -2014,7 +2083,7 @@ fn validate_unit_function_stack(
     let frame_bytes = match evidence.frame {
         Some(frame) => {
             validate_stack_adjustment_pair(architecture, machine, None, bytes, frame)?;
-            if frame.allocation_offset != 0 {
+            if frame.allocation_offset != frame_start {
                 return Err(TerminalObjectError::InvalidUnitStackEncoding {
                     machine,
                     owner: None,

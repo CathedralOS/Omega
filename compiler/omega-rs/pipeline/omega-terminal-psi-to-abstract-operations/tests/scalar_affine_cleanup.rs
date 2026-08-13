@@ -89,7 +89,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                     terminator: Terminator::Return {
                         edge: edge_id(2),
                         value: value_id(3),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
             ],
@@ -120,6 +120,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             result,
             value,
             scalar_type,
+            ..
         },
     ] = function.operations.as_slice()
     else {

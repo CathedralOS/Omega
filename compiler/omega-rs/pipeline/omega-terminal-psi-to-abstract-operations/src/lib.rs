@@ -679,7 +679,11 @@ fn lower_machine(
                     when_false: lower_successor(when_false)?,
                 });
             }
-            Terminator::Return { edge, value, .. } => {
+            Terminator::Return {
+                edge,
+                value,
+                cleanup_actions,
+            } => {
                 let result =
                     result.ok_or(LoweringError::ScalarReturnFromUnitMachine(machine.id))?;
                 operations.push(TerminalAbstractOperation::Return {
@@ -687,6 +691,7 @@ fn lower_machine(
                     result: result.id,
                     value: *value,
                     scalar_type: result.scalar_type,
+                    cleanup_actions: cleanup_actions.clone(),
                 });
             }
             Terminator::ReturnUnit {
