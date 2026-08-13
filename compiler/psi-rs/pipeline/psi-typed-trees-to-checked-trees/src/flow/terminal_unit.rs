@@ -766,13 +766,21 @@ fn build_structural_scalar_return_machine(
                         scalar_parameters.len(),
                         statement_index,
                     ));
-            (branch_free || short_circuit_boolean).then_some(CheckedScalarBinding {
-                statement_ordinal,
-                primitive_type,
-                value: CheckedScalarBindingValue::Expression,
-            })
+            (branch_free || short_circuit_boolean).then_some((
+                CheckedScalarBinding {
+                    statement_ordinal,
+                    primitive_type,
+                    value: CheckedScalarBindingValue::Expression,
+                },
+                branch_free,
+            ))
         })
         .collect::<Option<Vec<_>>>()?;
+    let bindings_are_branch_free = bindings.iter().all(|(_, branch_free)| *branch_free);
+    let bindings = bindings
+        .into_iter()
+        .map(|(binding, _)| binding)
+        .collect::<Vec<_>>();
     let [StatementNode::Expression(_)] = &statements[binding_count..] else {
         return None;
     };
@@ -783,6 +791,11 @@ fn build_structural_scalar_return_machine(
         return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
+    let return_is_branch_free = is_branch_free_structural_scalar_expression(
+        return_expression,
+        scalar_parameters.len(),
+        binding_count,
+    );
     if !is_structural_scalar_return_expression(
         return_expression,
         scalar_parameters.len(),
@@ -808,7 +821,8 @@ fn build_structural_scalar_return_machine(
         && (structural_parameters.len() != source_state_parameters.len()
             || structural_parameters.len() != whole_discards.len()
             || !scalar_parameters.is_empty()
-            || !bindings.is_empty())
+            || !bindings_are_branch_free
+            || !return_is_branch_free)
     {
         return None;
     }

@@ -229,20 +229,23 @@ Remaining:
   Scalar return edges now use the same ordered cleanup-action vocabulary. The
   source-produced nominal branch accepts a finite nonempty list of direct,
   claim-free affine parameters that may freely mix no-code and nominal roots,
-  no scalar inputs or locals, an immediate closed scalar result, and the same
-  empty or bounded zero-argument helper-call `drop` body for each nominal root.
-  Every action runs in reverse authored parameter order after result
-  materialization through verification, interpretation, fixed fuel, and all
-  five Omega object/image/install paths; nominal targets may be distinct or
-  shared and no-code actions retain their exact positions without emitting
-  instructions. The finite mixed list additionally admits the same direct-
+  no scalar inputs, a finite source-ordered prefix of immutable branch-free
+  primitive locals, one branch-free scalar result over those locals, and the
+  same empty or bounded zero-argument helper-call `drop` body for each nominal
+  root. Local and result operations materialize in source order before every
+  cleanup action. Every action then runs in reverse authored parameter order
+  through verification, interpretation, fixed fuel, and all five Omega
+  object/image/install paths; nominal targets may be distinct or shared and
+  no-code actions retain their exact positions without emitting instructions.
+  The finite mixed list additionally admits the same direct-
   Boolean contextual requirements as Unit cleanup: checked production retains
   root-specific caller premises (including supported premises on no-code
   roots), terminal Psi reconstructs and verifies every nominal action
   obligation, and Omega projects proof-only receivers/obligation identities
   after verification while preserving the complete runtime action order
-  through all five targets. Nested nominal ownership and wider scalar bodies
-  remain to be added as complete vertical slices.
+  through all five targets. Scalar inputs, short-circuit/control bodies, calls,
+  effects, nested nominal ownership, and wider scalar bodies remain to be added
+  as complete vertical slices.
 
   The root-only structural result carrier now reaches exact one-fragment Omega
   native realization and installation, including a finite claim-free affine
@@ -466,7 +469,8 @@ reach or trust, and private proof improvements do not change public identity.
   affine parameter whose record is
   empty or contains only relevant Boolean/integer fields now invokes an exact
   attached nominal cleanup through interpretation, fuel, and all five native
-  artifact paths on Unit return and on the bounded closed scalar-return branch.
+  artifact paths on Unit return and on the bounded branch-free scalar-return
+  branch.
   The cleanup may be empty or make a finite source-ordered
   zero-argument calls to mutually distinct exact-empty helpers; native
   artifacts retain the cleanup edge and helper operations as distinct call

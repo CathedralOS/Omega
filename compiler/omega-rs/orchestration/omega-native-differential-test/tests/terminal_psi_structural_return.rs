@@ -21,7 +21,7 @@ use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
 use omega_terminal_target_operations::{TerminalCallSiteOwner, TerminalTargetOperation};
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::{ProfileDecisionId, StructuralPlaceKind};
+use psi_core::{IntegerSign, IntegerType, IntegerValue, ProfileDecisionId, StructuralPlaceKind};
 use psi_proof_kernel::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -32,8 +32,8 @@ use psi_terminal_codec::{
 };
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralResult,
-    TerminalStructuralValue,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    TerminalStructuralResult, TerminalStructuralValue,
 };
 use psi_terminal_verifier::verify_module;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
@@ -294,9 +294,13 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         data Plain { observed: bool; }
 
         data Root {}
-        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
+        machine Root::measure(first: Token, plain: Plain, second: Token) -> u64 in Wrapping
         requires first.ready, plain.observed, second.ready
-        { 7u64 }
+        {
+            let seed: u64 in Wrapping = 7u64;
+            let result: u64 in Wrapping = seed + 1u64;
+            result
+        }
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -336,6 +340,36 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
             && second.requirement_obligations.len() == 1
             && first.requirement_obligations.len() == 1
     ));
+    let structural_arguments = entry
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| TerminalStructuralValue {
+            opaque_identity: 0xc0de_u64 + u64::try_from(index).expect("argument index fits u64"),
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+        &structural_arguments,
+    )
+    .expect("contextual scalar-local cleanup artifact starts");
+    assert_eq!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("contextual scalar-local cleanup executes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 integer type"),
+                value: IntegerValue::Unsigned(8),
+            }
+        ))
+    );
     drop(checked);
     drop(lowered);
 
@@ -348,14 +382,33 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
         .find(|function| function.machine == entry_machine)
         .expect("abstract contextual scalar entry");
     let [
-        TerminalAbstractOperation::IntegerConstant { .. },
+        TerminalAbstractOperation::IntegerConstant {
+            result: seed_value,
+            value: IntegerValue::Unsigned(7),
+            ..
+        },
+        TerminalAbstractOperation::IntegerConstant {
+            result: increment_value,
+            value: IntegerValue::Unsigned(1),
+            ..
+        },
+        TerminalAbstractOperation::WrappingIntegerAdd {
+            result: computed_value,
+            left,
+            right,
+            ..
+        },
         TerminalAbstractOperation::Return {
-            cleanup_actions, ..
+            value: returned_value,
+            cleanup_actions,
+            ..
         },
     ] = abstract_entry.operations.as_slice()
     else {
         panic!("contextual scalar result precedes its cleanup")
     };
+    assert_eq!((*left, *right), (*seed_value, *increment_value));
+    assert_eq!(*returned_value, *computed_value);
     assert!(matches!(
         cleanup_actions.as_slice(),
         [
@@ -371,6 +424,22 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)
             .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        let target_entry = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == entry_machine)
+            .expect("target contextual scalar entry");
+        assert!(matches!(
+            &target_entry.operation,
+            TerminalTargetOperation::ScalarReturnWithCleanup { scalar, .. }
+                if matches!(
+                    scalar.as_ref(),
+                    TerminalTargetOperation::ReturnIntegerImmediate {
+                        value: IntegerValue::Unsigned(8),
+                        ..
+                    }
+                )
+        ));
         let assigned = assign_registers(&target_plan)
             .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
         let machine_code = emit_machine_code(&assigned)

@@ -9,7 +9,7 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use psi_terminal_interpreter::{
-    AcceptTerminalEffects, TerminalExecutionResult, TerminalStructuralValue,
+    AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_with_effect_handler_measured,
 };
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
@@ -286,6 +286,24 @@ const MIXED_CONTEXTUAL_SCALAR_RETURN_SOURCE: &str = r#"
     machine Root::measure(first: Token, plain: Plain, second: Token) -> u64
     requires first.ready, plain.observed, second.ready
     { 7u64 }
+"#;
+
+const MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE: &str = r#"
+    data Token { ready: bool; }
+    machine Token::drop(&mut self)
+    requires self.ready
+    {}
+
+    data Plain { observed: bool; }
+
+    data Root {}
+    machine Root::measure(first: Token, plain: Plain, second: Token) -> bool
+    requires first.ready, plain.observed, second.ready
+    {
+        let ready: bool = true;
+        let inverted: bool = !ready;
+        !inverted
+    }
 "#;
 
 const CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE: &str = r#"
@@ -815,6 +833,111 @@ fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots()
         .is_err(),
         "root-specific contextual obligations cannot be swapped across the no-code action",
     );
+}
+
+#[test]
+fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_cleanup() {
+    let tokens = Lexer::new(MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed contextual scalar bindings");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar bindings");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed contextual scalar bindings");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("type mixed contextual scalar bindings source");
+    let checked = lower_typed_trees(typed).expect("check mixed contextual scalar bindings source");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::measure")
+        .expect("mixed contextual scalar bindings lower");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("mixed contextual scalar bindings entry");
+    let [first, plain, second] = entry.structural_parameters.as_slice() else {
+        panic!("binding entry retains its complete structural signature")
+    };
+    let [ready, inverted, result] = entry.blocks[0].operations.as_slice() else {
+        panic!("two bindings and the return expression materialize in source order")
+    };
+    assert!(matches!(ready.kind, OperationKind::BooleanConstant { .. }));
+    assert!(matches!(inverted.kind, OperationKind::BooleanNot { .. }));
+    assert!(matches!(result.kind, OperationKind::BooleanNot { .. }));
+    assert!(
+        entry.blocks[0]
+            .operations
+            .windows(2)
+            .all(|pair| pair[0].id < pair[1].id)
+    );
+    let max_cleanup_obligation = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .filter(|evidence| evidence.obligation.get() <= 2)
+        .map(|evidence| evidence.obligation.get())
+        .max()
+        .expect("both contextual cleanup obligations remain present");
+    assert!(ready.id.get() > max_cleanup_obligation);
+    let Terminator::Return {
+        value,
+        cleanup_actions,
+        ..
+    } = &entry.blocks[0].terminator
+    else {
+        panic!("binding entry returns its scalar result")
+    };
+    assert_eq!(result.result.scalar().expect("result value").id, *value);
+    assert!(matches!(
+        cleanup_actions.as_slice(),
+        [
+            TerminalAffineCleanupAction::InvokeNominal(second_cleanup),
+            TerminalAffineCleanupAction::DiscardRoot(plain_cleanup),
+            TerminalAffineCleanupAction::InvokeNominal(first_cleanup),
+        ] if second_cleanup.place == second.place
+            && *plain_cleanup == plain.place
+            && first_cleanup.place == first.place
+            && second_cleanup.cleanup_machine == first_cleanup.cleanup_machine
+    ));
+    assert_eq!(entry.contract.requires.len(), 3);
+    assert_eq!(
+        lowered.proof_bundle.evidence.len(),
+        2,
+        "proof obligations remain disjoint from the later value-operation namespace",
+    );
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed contextual scalar bindings verify");
+    let semantics = encode_module(&lowered.semantic_module).expect("binding module encodes");
+    assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("binding proof encodes");
+    assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+
+    let structural_arguments = [first, plain, second].map(|parameter| TerminalStructuralValue {
+        opaque_identity: parameter.place.get(),
+        structural_type: parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    });
+    let mut handler = AcceptTerminalEffects;
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &structural_arguments,
+        &mut handler,
+    )
+    .expect("mixed contextual scalar bindings interpret from canonical artifacts");
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
+    assert_eq!(measured.usage().total_units(), 6);
+    assert!(measured.effects().is_empty());
 }
 
 #[test]
