@@ -179,6 +179,26 @@ fn executable_nominal_affine_cleanup_has_exact_four_unit_bound() {
 }
 
 #[test]
+fn two_helper_nominal_affine_cleanup_has_exact_six_unit_bound() {
+    let module = two_helper_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("two-helper nominal cleanup module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("two-helper nominal cleanup has an exact fixed bound");
+
+    assert_eq!(
+        certificate.ceiling_units(),
+        6,
+        "root edge + first call/helper edge + second call/helper edge + drop edge"
+    );
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
 fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
     let local_type = structural_type_id(900);
     let first = place_id(900);
@@ -1036,6 +1056,57 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
             },
         }],
         contract: empty_contract(902),
+    });
+    module
+}
+
+fn two_helper_nominal_affine_fixture() -> TerminalModule {
+    let mut module = executable_nominal_affine_fixture();
+    let second_helper_type = StructuralTypeDeclaration {
+        id: structural_type_id(902),
+        identity: "test::SecondHelper".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    module.structural_types.push(second_helper_type.clone());
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(902),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(903),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(TerminalMachine {
+        id: machine_id(903),
+        attachment: Some(second_helper_type.id),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(903),
+        blocks: vec![Block {
+            id: block_id(903),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(903),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(903),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
     });
     module
 }

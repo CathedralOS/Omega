@@ -219,9 +219,9 @@ fn validate_program_internal(
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
         // The executable cleanup slice is deliberately tiny: besides the
-        // established empty body, admit exactly one ordinary zero-argument
-        // call to a distinct, exact empty attached helper. Everything else
-        // remains fenced until cleanup sequencing has a larger design.
+        // established empty body, admit one or two ordinary zero-argument
+        // calls to mutually distinct exact-empty attached helpers. Wider
+        // executable bodies remain fenced as pending engineering.
         if machine.name.as_str().ends_with("::drop")
             && program.machine_states(machine).iter().any(|state| {
                 !program
@@ -232,7 +232,7 @@ fn validate_program_internal(
             && !is_exact_executable_drop_body(program, machine)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has a non-empty `drop` body outside the executable cleanup slice. Keep the body empty, or use exactly one ordinary zero-argument call to a distinct empty attached helper.",
+                "machine `{}` has a non-empty `drop` body outside the executable cleanup slice. Keep the body empty, or use one or two ordinary zero-argument calls to mutually distinct empty attached helpers.",
                 machine.name,
             )));
         }
@@ -479,73 +479,86 @@ fn is_exact_executable_drop_body(
     let [cleanup_state] = program.machine_states(cleanup) else {
         return false;
     };
-    let [StatementNode::Call(call)] = program
+    let statements = program
         .statement_table
-        .statements(cleanup_state.statement_nodes)
-    else {
-        return false;
-    };
-    if !call.machine_arguments.is_empty()
-        || !program
-            .statement_table
-            .expression_handles(call.arguments)
-            .is_empty()
-        || call.discards_result
-    {
+        .statements(cleanup_state.statement_nodes);
+    if !(1..=2).contains(&statements.len()) {
         return false;
     }
 
-    let helpers = program
-        .machines()
-        .iter()
-        .filter_map(|machine| {
-            let [state] = program.machine_states(machine) else {
-                return None;
-            };
-            (state.symbol == call.target_symbol).then_some((machine, state))
-        })
-        .collect::<Vec<_>>();
-    let [(helper, helper_state)] = helpers.as_slice() else {
-        return false;
-    };
-    let Some(helper_attachment) = helper.attached_data.as_ref() else {
-        return false;
-    };
-    let helper_data = program
-        .data_definitions()
-        .iter()
-        .filter(|data| &data.name == helper_attachment)
-        .collect::<Vec<_>>();
-    let [helper_data] = helper_data.as_slice() else {
-        return false;
-    };
+    let mut helper_symbols = Vec::with_capacity(statements.len());
+    for statement in statements {
+        let StatementNode::Call(call) = statement else {
+            return false;
+        };
+        if !call.machine_arguments.is_empty()
+            || !program
+                .statement_table
+                .expression_handles(call.arguments)
+                .is_empty()
+            || call.discards_result
+        {
+            return false;
+        }
 
-    helper.symbol != cleanup.symbol
-        && helper.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
-        && helper.lifetime_parameters.is_empty()
-        && program.machine_type_parameters(helper).is_empty()
-        && program.machine_owned_data(helper).is_empty()
-        && program.machine_trait_conformances(helper).is_empty()
-        && helper.conformance_bounds.is_empty()
-        && program.machine_invokes(helper).is_empty()
-        && !helper.suspends
-        && !helper.blocks
-        && program.machine_contracts(helper).is_empty()
-        && program.state_parameters(helper_state).is_empty()
-        && program.state_contracts(helper_state).is_empty()
-        && matches!(
-            program
-                .type_reference_table
-                .type_reference(helper_state.return_type),
-            psi_typed_trees::types::TypeReferenceNode::Unit
-        )
-        && program
-            .statement_table
-            .statements(helper_state.statement_nodes)
-            .is_empty()
-        && helper_data.lifetime_parameters.is_empty()
-        && program.data_type_parameters(helper_data).is_empty()
-        && program.data_members(helper_data).is_empty()
+        let helpers = program
+            .machines()
+            .iter()
+            .filter_map(|machine| {
+                let [state] = program.machine_states(machine) else {
+                    return None;
+                };
+                (state.symbol == call.target_symbol).then_some((machine, state))
+            })
+            .collect::<Vec<_>>();
+        let [(helper, helper_state)] = helpers.as_slice() else {
+            return false;
+        };
+        let Some(helper_attachment) = helper.attached_data.as_ref() else {
+            return false;
+        };
+        let helper_data = program
+            .data_definitions()
+            .iter()
+            .filter(|data| &data.name == helper_attachment)
+            .collect::<Vec<_>>();
+        let [helper_data] = helper_data.as_slice() else {
+            return false;
+        };
+
+        if helper.symbol == cleanup.symbol
+            || helper_symbols.contains(&helper.symbol)
+            || helper.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || !helper.lifetime_parameters.is_empty()
+            || !program.machine_type_parameters(helper).is_empty()
+            || !program.machine_owned_data(helper).is_empty()
+            || !program.machine_trait_conformances(helper).is_empty()
+            || !helper.conformance_bounds.is_empty()
+            || !program.machine_invokes(helper).is_empty()
+            || helper.suspends
+            || helper.blocks
+            || !program.machine_contracts(helper).is_empty()
+            || !program.state_parameters(helper_state).is_empty()
+            || !program.state_contracts(helper_state).is_empty()
+            || !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(helper_state.return_type),
+                psi_typed_trees::types::TypeReferenceNode::Unit
+            )
+            || !program
+                .statement_table
+                .statements(helper_state.statement_nodes)
+                .is_empty()
+            || !helper_data.lifetime_parameters.is_empty()
+            || !program.data_type_parameters(helper_data).is_empty()
+            || !program.data_members(helper_data).is_empty()
+        {
+            return false;
+        }
+        helper_symbols.push(helper.symbol);
+    }
+    true
 }
 
 /// Errors fail the build; a WARNING-only batch surfaces on stderr and
