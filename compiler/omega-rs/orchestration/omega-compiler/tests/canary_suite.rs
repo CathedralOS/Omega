@@ -13673,19 +13673,13 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
     // non-negativity (non_negative_is_proven_via_ordering). Compiling + exiting 70
     // confirms the decreasing-counter lower bound is derived and the walk is correct.
     let canary = pass_canary("collections/runtime_two_pointer_palindrome_exit");
-    let build_dir = std::env::temp_dir().join(format!(
+    let scratch = std::env::temp_dir().join(format!(
         "omega-two-pointer-palindrome-{}",
         std::process::id()
     ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("two-pointer palindrome canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("two-pointer palindrome canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("two-pointer palindrome canary should run");
     assert_eq!(
@@ -13695,7 +13689,7 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13703,17 +13697,11 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
     // Nested data: a struct field that is an array of structs (`self.g.pts[k].x`), const-indexed,
     // sub-fields read as binary operands. Sum = 20+30+18+2 = 70.
     let canary = pass_canary("collections/runtime_nested_struct_array_field_exit");
-    let build_dir =
+    let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-array-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested struct-array field canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("nested struct-array field canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested struct-array field canary should run");
     assert_eq!(
@@ -13723,7 +13711,7 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
