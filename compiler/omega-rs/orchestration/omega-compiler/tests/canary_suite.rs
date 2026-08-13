@@ -8632,19 +8632,12 @@ fn runtime_string_palindrome_exit_canary_runs() {
 #[test]
 fn runtime_carrier_itoa_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_itoa_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
+    let scratch = std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("carrier itoa canary should compile");
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("carrier itoa canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("carrier itoa canary should run");
 
@@ -8656,7 +8649,7 @@ fn runtime_carrier_itoa_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 // #66 owned `[u8; N] in Utf8` carrier byte WRITE `self.buffer[i] = <byte>`: the byte
@@ -8681,17 +8674,10 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
         outcome.exit_code
     );
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-carrier-coerce-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("carrier byte-write coercion canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-carrier-coerce-{}", std::process::id()));
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("carrier byte-write coercion canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("carrier byte-write coercion canary should run");
     assert_eq!(
@@ -8701,7 +8687,7 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
