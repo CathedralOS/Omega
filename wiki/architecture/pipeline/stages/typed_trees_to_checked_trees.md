@@ -258,8 +258,9 @@ Current ownership is:
   the coarse collection origin; later indexes are absorbing, every index frame
   publishes, and only the rebound name moves while prior reborrows retain their
   origins. A compiler-owned `as_mut_slice()` view before the first index
-  preserves the initializer or replacement collection's backing origin. Deeper,
-  binding-reborrow, recursive, or opaque index forms remain fences.
+  preserves the returned, initializer, or replacement collection's backing
+  origin. Deeper, binding-reborrow, recursive, or opaque index forms remain
+  fences.
   For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other
