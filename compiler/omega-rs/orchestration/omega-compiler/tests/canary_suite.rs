@@ -13161,16 +13161,11 @@ fn runtime_saturating_domain_exit_canary_runs() {
     // add/sub/mul over- and under-flow -> 255/0/255, i8 signed positive overflow -> 127, i8 signed
     // negative underflow -> -128 (checked as +128 == 0). All self-checked -> exit 70.
     let canary = pass_canary("arithmetic/runtime_saturating_domain_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating domain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("saturating domain canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("saturating domain canary should run");
     assert_eq!(
@@ -13180,7 +13175,7 @@ fn runtime_saturating_domain_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -13188,16 +13183,11 @@ fn runtime_i64_signed_arithmetic_exit_canary_runs() {
     // i64 signed arithmetic beyond i32: multiply past 2^32, signed div/mod with a negative dividend
     // (sign follows dividend), and a 64-bit shift (1<<40). All chained -> exit 70.
     let canary = pass_canary("arithmetic/runtime_i64_signed_arithmetic_exit");
-    let build_dir = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("i64 signed arithmetic canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let scratch = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
+
+    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+        .expect("i64 signed arithmetic canary should compile");
+    let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("i64 signed arithmetic canary should run");
     assert_eq!(
@@ -13207,7 +13197,7 @@ fn runtime_i64_signed_arithmetic_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
