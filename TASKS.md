@@ -83,7 +83,12 @@ Remaining:
   introduction or exit, checked facts must bind the exact content subject and
   geometry to the selected provider plan, invocation receipt, backing/root
   lineage, installed occurrence, and route; a generic established-claim identity
-  is insufficient.
+  is insufficient. Checked source already derives exact identity-reshuffle and
+  authored-partition composition rows, and terminal Psi independently validates
+  their canonical replay. The remaining end-to-end handoff is engineering:
+  terminal machines need a result-bearing structural-custody carrier and exit
+  semantics before those source programs can cross the boundary without
+  silently dropping their live claim.
 - **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
   and compiler-provisioned origins must preserve complete evidence and reject
   cross-origin composition and replay. Once the sealed local-capacity source
@@ -221,16 +226,16 @@ Remaining:
   retain reverse-order whole-parameter affine discards after subtracting
   checked transfers, then a composed checked plan binds those rows to exact
   source-handle-free state signatures and whole-parameter transfer maps.
-  Terminal production resolves the positions to places and emits verified
-  jumps or Unit returns for attached, acyclic machines with claim-free affine
-  structural parameters. One entry state may also select two ordered ordinary
-  successors from one retained Boolean input; each arm independently binds its
-  whole-parameter transfer and reverse-order cleanup frontier before the leaf
-  performs its final cleanup. Unconditional jumps and conditional arms may
-  forward direct primitive scalar inputs into typed successor block parameters,
-  materialized before edge cleanup. Joins, cycles, reordered custody, computed
-  guards or successor values, wider conditional topology, locals, projections, claims, and
-  incomplete evidence still fail closed.
+  Terminal production resolves positions to places and emits verified jumps or
+  Unit returns for attached, acyclic machines with claim-free affine structural
+  parameters. Up to two states may select ordered successors from retained
+  Boolean inputs; each edge independently binds its whole-parameter transfer,
+  direct primitive scalar arguments, and reverse-order cleanup before control
+  moves. One exact two-predecessor diamond may reconverge when both paths
+  reconstruct the identical ordered custody frontier. Cycles, divergent or
+  wider joins, reordered custody, computed guards or successor values, wider
+  conditional topology, locals, projections, claims, and incomplete evidence
+  still fail closed.
 
   Add indexed aggregate and result-bearing custody, affine locals, nominal and
   partial-value cleanup, remaining edge kinds and conservation, returned
@@ -477,12 +482,12 @@ reach or trust, and private proof improvements do not change public identity.
   cleans its complete affine structural frontier. Final short-circuit returns
   repeat cleanup on every value leaf; repeated short-circuit Boolean locals
   converge through typed continuations and defer cleanup to the final return.
-  A first structural Unit conditional path now branches on one retained Boolean
-  input and reconstructs independent transfer/cleanup partitions for two
-  ordered successors; both jumps and conditional arms may forward direct
-  primitive inputs into typed successor parameters before cleanup. These slices
-  are not yet the complete `EdgeCleanupPlan`, wider conditional-control path, repeated-cycle composition,
-  or conservation witness.
+  Structural Unit control now admits up to two retained-Boolean decision states
+  and one exact two-predecessor diamond whose incoming paths reconstruct the
+  same custody frontier; jumps and conditional arms may forward direct primitive
+  inputs before cleanup. These slices are not yet the complete
+  `EdgeCleanupPlan`, general conditional CFG, repeated-cycle composition, or
+  conservation witness.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
